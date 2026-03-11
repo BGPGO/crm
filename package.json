@@ -1,0 +1,11 @@
+{
+  "name": "bgpgo-crm",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

@@ -1,0 +1,452 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SELLER
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum TaskType {
+  CALL
+  EMAIL
+  MEETING
+  VISIT
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+enum ActivityType {
+  NOTE
+  EMAIL
+  CALL
+  MEETING
+  STAGE_CHANGE
+  STATUS_CHANGE
+  TASK_COMPLETED
+  DEAL_CREATED
+  WEBHOOK_RECEIVED
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  MULTISELECT
+}
+
+enum CustomFieldEntity {
+  CONTACT
+  ORGANIZATION
+  DEAL
+}
+
+enum WebhookType {
+  INCOMING
+  OUTGOING
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(SELLER)
+  avatarUrl String?
+  phone     String?
+  isActive  Boolean  @default(true)
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  deals      Deal[]
+  tasks      Task[]
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([teamId])
+}
+
+model Organization {
+  id        String  @id @default(cuid())
+  name      String
+  cnpj      String? @unique
+  segment   String?
+  website   String?
+  phone     String?
+  address   String?
+  instagram String?
+  email     String?
+  notes     String?
+
+  contacts Contact[]
+  deals    Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cnpj])
+  @@index([name])
+}
+
+model Contact {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  position  String?
+  birthday  DateTime?
+  instagram String?
+  notes     String?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  deals             Deal[]
+  tasks             Task[]
+  activities        Activity[]
+  customFieldValues CustomFieldValue[]
+  leadTrackings     LeadTracking[]
+  dealContacts      DealContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([organizationId])
+  @@index([name])
+}
+
+model Pipeline {
+  id        String  @id @default(cuid())
+  name      String
+  isDefault Boolean @default(false)
+
+  stages PipelineStage[]
+  deals  Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PipelineStage {
+  id    String  @id @default(cuid())
+  name  String
+  order Int
+  color String?
+
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  deals Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pipelineId])
+  @@index([pipelineId, order])
+}
+
+model Source {
+  id   String @id @default(cuid())
+  name String @unique
+
+  deals Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LostReason {
+  id   String @id @default(cuid())
+  name String @unique
+
+  deals Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+
+  deals Deal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Deal {
+  id                String     @id @default(cuid())
+  title             String
+  value             Decimal?   @db.Decimal(15, 2)
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  status            DealStatus @default(OPEN)
+  classification    String?
+  contaAzulCode     String?
+  lostAtStage       String?
+  recurrence        String?
+
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id])
+
+  stageId String
+  stage   PipelineStage @relation(fields: [stageId], references: [id])
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  sourceId String?
+  source   Source? @relation(fields: [sourceId], references: [id])
+
+  lostReasonId String?
+  lostReason   LostReason? @relation(fields: [lostReasonId], references: [id])
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  products     DealProduct[]
+  tasks        Task[]
+  activities   Activity[]
+  dealContacts DealContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pipelineId])
+  @@index([stageId])
+  @@index([userId])
+  @@index([contactId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([sourceId])
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal @db.Decimal(15, 2)
+  sku         String? @unique
+  isActive    Boolean @default(true)
+  recurrence  String?
+
+  dealProducts DealProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sku])
+}
+
+model DealProduct {
+  id        String  @id @default(cuid())
+  quantity  Int     @default(1)
+  unitPrice Decimal @db.Decimal(15, 2)
+  discount  Decimal @default(0) @db.Decimal(5, 2)
+
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dealId, productId])
+  @@index([dealId])
+  @@index([productId])
+}
+
+model DealContact {
+  id        String  @id @default(cuid())
+  isPrimary Boolean @default(false)
+
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([dealId, contactId])
+  @@index([dealId])
+  @@index([contactId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  type        TaskType   @default(OTHER)
+  dueDate     DateTime?
+  completedAt DateTime?
+  status      TaskStatus @default(PENDING)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  dealId String?
+  deal   Deal?   @relation(fields: [dealId], references: [id])
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([dealId])
+  @@index([contactId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model Activity {
+  id       String       @id @default(cuid())
+  type     ActivityType
+  content  String
+  metadata Json?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  dealId String?
+  deal   Deal?   @relation(fields: [dealId], references: [id])
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([dealId])
+  @@index([contactId])
+  @@index([type])
+}
+
+model CustomField {
+  id         String            @id @default(cuid())
+  name       String
+  fieldType  CustomFieldType
+  entity     CustomFieldEntity
+  options    Json?
+  isRequired Boolean           @default(false)
+
+  values CustomFieldValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entity])
+}
+
+model CustomFieldValue {
+  id         String  @id @default(cuid())
+  entityId   String
+  entityType String
+  value      String?
+
+  customFieldId String
+  customField   CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customFieldId])
+  @@index([entityId, entityType])
+  @@index([contactId])
+}
+
+model WebhookConfig {
+  id       String      @id @default(cuid())
+  name     String
+  url      String
+  type     WebhookType
+  events   Json
+  secret   String?
+  isActive Boolean     @default(true)
+  headers  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+}
+
+model LeadTracking {
+  id          String  @id @default(cuid())
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+  referrer    String?
+  landingPage String?
+  ip          String?
+  userAgent   String?
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+}
