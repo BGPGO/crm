@@ -15,6 +15,7 @@ const dealInclude = {
   organization: { select: { id: true, name: true } },
   source: { select: { id: true, name: true } },
   lostReason: { select: { id: true, name: true } },
+  campaign: { select: { id: true, name: true } },
 };
 
 // GET /api/deals
@@ -82,6 +83,12 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       where: { id: req.params.id },
       include: {
         ...dealInclude,
+        contact: {
+          select: {
+            id: true, name: true, email: true, phone: true,
+            leadTrackings: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
         tasks: { orderBy: { dueDate: 'asc' } },
         activities: { orderBy: { createdAt: 'desc' } },
         products: { include: { product: true } },

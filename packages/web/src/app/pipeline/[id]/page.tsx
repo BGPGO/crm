@@ -74,7 +74,18 @@ interface DealDetail {
   organization?: { id: string; name: string; cnpj?: string; website?: string; instagram?: string };
   user?: { id: string; name: string };
   source?: { id: string; name: string };
+  campaign?: { id: string; name: string };
   lostReason?: { id: string; name: string };
+  leadTracking?: {
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmTerm?: string;
+    utmContent?: string;
+    referrer?: string;
+    landingPage?: string;
+    ip?: string;
+  };
   tasks: DealTask[];
   dealProducts: Array<{
     id: string;
@@ -150,7 +161,24 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     organization: data.organization as DealDetail["organization"],
     user: data.user as DealDetail["user"],
     source: data.source as DealDetail["source"],
+    campaign: data.campaign as DealDetail["campaign"],
     lostReason: data.lostReason as DealDetail["lostReason"],
+    leadTracking: (() => {
+      const contact = data.contact as Record<string, unknown> | undefined;
+      const trackings = contact?.leadTrackings as Record<string, unknown>[] | undefined;
+      if (!trackings || trackings.length === 0) return undefined;
+      const t = trackings[0];
+      return {
+        utmSource: t.utmSource as string | undefined,
+        utmMedium: t.utmMedium as string | undefined,
+        utmCampaign: t.utmCampaign as string | undefined,
+        utmTerm: t.utmTerm as string | undefined,
+        utmContent: t.utmContent as string | undefined,
+        referrer: t.referrer as string | undefined,
+        landingPage: t.landingPage as string | undefined,
+        ip: t.ip as string | undefined,
+      };
+    })(),
     tasks: ((data.tasks as unknown[]) ?? []).map((t: unknown) => {
       const task = t as Record<string, unknown>;
       return {
@@ -954,6 +982,65 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 <div className="py-2">
                   <span className="text-xs text-gray-400">Fonte</span>
                   <p className="text-sm text-gray-700 mt-0.5">{deal.source.name}</p>
+                </div>
+              )}
+              {deal.campaign && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-400">Campanha</span>
+                  <p className="text-sm text-gray-700 mt-0.5">{deal.campaign.name}</p>
+                </div>
+              )}
+              {deal.leadTracking?.landingPage && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-400">Landing Page</span>
+                  <a
+                    href={deal.leadTracking.landingPage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mt-0.5 break-all"
+                  >
+                    <ExternalLink size={12} className="flex-shrink-0" />
+                    {(() => {
+                      try {
+                        const url = new URL(deal.leadTracking.landingPage);
+                        return url.hostname + url.pathname;
+                      } catch {
+                        return deal.leadTracking.landingPage;
+                      }
+                    })()}
+                  </a>
+                </div>
+              )}
+              {deal.leadTracking && (deal.leadTracking.utmSource || deal.leadTracking.utmMedium || deal.leadTracking.utmCampaign) && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-400">UTMs</span>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {deal.leadTracking.utmSource && (
+                      <span className="inline-flex items-center text-xs bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">
+                        source: {deal.leadTracking.utmSource}
+                      </span>
+                    )}
+                    {deal.leadTracking.utmMedium && (
+                      <span className="inline-flex items-center text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        medium: {deal.leadTracking.utmMedium}
+                      </span>
+                    )}
+                    {deal.leadTracking.utmCampaign && (
+                      <span className="inline-flex items-center text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded">
+                        campaign: {deal.leadTracking.utmCampaign}
+                      </span>
+                    )}
+                    {deal.leadTracking.utmTerm && (
+                      <span className="inline-flex items-center text-xs bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded">
+                        term: {deal.leadTracking.utmTerm}
+                      </span>
+                    )}
+                    {deal.leadTracking.utmContent && (
+                      <span className="inline-flex items-center text-xs bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded">
+                        content: {deal.leadTracking.utmContent}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               {deal.contaAzulCode && (
