@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -16,6 +16,8 @@ import {
   ExternalLink,
   RotateCcw,
   Pencil,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -28,11 +30,18 @@ import CollapsibleSection from "@/components/deal/CollapsibleSection";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { api } from "@/lib/api";
 import clsx from "clsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type DealStatus = "active" | "won" | "lost";
+
+interface Stage {
+  id: string;
+  name: string;
+  order?: number;
+}
 
 interface DealContact {
   id: string;
@@ -41,69 +50,70 @@ interface DealContact {
   email?: string;
 }
 
+interface DealContactLink {
+  id: string;
+  contact: DealContact;
+  isPrimary: boolean;
+}
+
 interface DealDetail {
   id: string;
   title: string;
   status: DealStatus;
   stageId: string;
-  responsavel: string;
-  qualificacao: number; // 0-5
-  codigoContaAzul: string;
-  fonte: string;
-  campanha: string;
-  previsaoFechamento: string;
-  dataCriacao: string;
-  url: string;
-  gclid: string;
-  contacts: DealContact[];
-  company: {
-    name: string;
-    cnpj: string;
-    site: string;
-    instagram: string;
-  };
-  products: DealProduct[];
+  stageName: string;
+  value: number;
+  expectedCloseDate?: string;
+  closedAt?: string;
+  classification?: number;
+  contaAzulCode?: string;
+  recurrence?: string;
+  pipeline?: { id: string; name: string; stages: Stage[] };
+  stage?: { id: string; name: string; order: number };
+  contact?: { id: string; name: string; phone?: string; email?: string };
+  organization?: { id: string; name: string; cnpj?: string; website?: string; instagram?: string };
+  user?: { id: string; name: string };
+  source?: { id: string; name: string };
+  lostReason?: { id: string; name: string };
   tasks: DealTask[];
-  timeline: TimelineEvent[];
+  dealProducts: Array<{
+    id: string;
+    product: { id?: string; name: string; recurrence?: string };
+    quantity: number;
+    unitPrice: number;
+    discount?: number;
+  }>;
+  dealContacts: DealContactLink[];
+}
+
+interface LostReason {
+  id: string;
+  name: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+}
+
+interface ContactOption {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
 }
 
 type TabKey = "historico" | "tarefas" | "produtos" | "arquivos";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const STAGES = [
-  { id: "lead", name: "Lead" },
-  { id: "contato-feito", name: "Contato Feito" },
-  { id: "marcar-reuniao", name: "Marcar Reunião" },
-  { id: "reuniao-marcada", name: "Reunião Marcada" },
-  { id: "proposta-enviada", name: "Proposta Enviada" },
-  { id: "aguardando-dados", name: "Aguardando Dados" },
-  { id: "aguardando-assinatura", name: "Aguardando Assinatura" },
-  { id: "ganho-fechado", name: "Ganho Fechado" },
-];
-
-const LOSS_REASONS = [
-  { value: "preco", label: "Preço" },
-  { value: "concorrencia", label: "Concorrência" },
-  { value: "timing", label: "Timing" },
-  { value: "sem-resposta", label: "Sem resposta" },
-  { value: "desistiu", label: "Desistiu" },
-  { value: "nao-qualificado", label: "Não qualificado" },
-];
-
-const RESPONSAVEIS = [
-  { value: "joao-silva", label: "João Silva" },
-  { value: "maria-santos", label: "Maria Santos" },
-  { value: "pedro-lima", label: "Pedro Lima" },
-];
-
-const FONTES = [
-  { value: "site", label: "Site" },
-  { value: "indicacao", label: "Indicação" },
-  { value: "instagram", label: "Instagram" },
-  { value: "google-ads", label: "Google Ads" },
-  { value: "organico", label: "Orgânico" },
-  { value: "outros", label: "Outros" },
+const TASK_TYPES = [
+  { value: "Ligação", label: "Ligação" },
+  { value: "Reunião", label: "Reunião" },
+  { value: "Proposta", label: "Proposta" },
+  { value: "Email", label: "Email" },
+  { value: "Outro", label: "Outro" },
 ];
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -113,103 +123,86 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "arquivos", label: "Arquivos" },
 ];
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_DEAL: DealDetail = {
-  id: "d7",
-  title: "Plataforma E-commerce",
-  status: "active",
-  stageId: "proposta-enviada",
-  responsavel: "joao-silva",
-  qualificacao: 4,
-  codigoContaAzul: "CA-2024-0098",
-  fonte: "google-ads",
-  campanha: "Conversão Março 2026",
-  previsaoFechamento: "2026-04-15",
-  dataCriacao: "2026-01-10",
-  url: "https://www.empresa.com.br/lp",
-  gclid: "EAIaIQobChMI-abc123",
-  contacts: [
-    { id: "c1", name: "Jorge Santos", phone: "(11) 99887-6655", email: "jorge@empresa.com.br" },
-    { id: "c2", name: "Carla Rodrigues", phone: "(11) 94433-2211", email: "carla@empresa.com.br" },
-  ],
-  company: {
-    name: "Empresa E-commerce LTDA",
-    cnpj: "12.345.678/0001-99",
-    site: "www.empresa.com.br",
-    instagram: "@empresa_oficial",
-  },
-  products: [
-    { id: "p1", name: "Plano Growth", recurrence: "Mensal", price: 2500, quantity: 1 },
-    { id: "p2", name: "Setup Inicial", recurrence: "Único", price: 5000, quantity: 1 },
-    { id: "p3", name: "Integração ERP", recurrence: "Único", price: 3000, quantity: 2 },
-  ],
-  tasks: [
-    { id: "t1", title: "Enviar proposta revisada", dueDate: "2026-03-15", type: "Proposta", done: true },
-    { id: "t2", title: "Ligar para confirmar reunião", dueDate: "2026-03-12", type: "Ligação", done: false },
-    { id: "t3", title: "Apresentar demo da plataforma", dueDate: "2026-03-18", type: "Reunião", done: false },
-  ],
-  timeline: [
-    {
-      id: "e1",
-      type: "DEAL_CREATED",
-      content: "Negociação criada via lead do Google Ads",
-      date: new Date(Date.now() - 60 * 24 * 3600000),
-      user: "Sistema",
-    },
-    {
-      id: "e2",
-      type: "STAGE_CHANGE",
-      content: "alterou a etapa para Contato Feito a partir do funil Vendas",
-      date: new Date(Date.now() - 55 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e3",
-      type: "CALL",
-      content: "registrou uma ligação — apresentou interesse na plataforma",
-      date: new Date(Date.now() - 50 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e4",
-      type: "STAGE_CHANGE",
-      content: "alterou a etapa para Reunião Marcada a partir do funil Vendas",
-      date: new Date(Date.now() - 30 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e5",
-      type: "MEETING",
-      content: "registrou uma reunião — cliente demonstrou interesse no plano anual",
-      date: new Date(Date.now() - 20 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e6",
-      type: "STAGE_CHANGE",
-      content: "alterou a etapa para Proposta Enviada a partir do funil Vendas",
-      date: new Date(Date.now() - 8 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e7",
-      type: "EMAIL",
-      content: "enviou proposta por e-mail",
-      date: new Date(Date.now() - 8 * 24 * 3600000),
-      user: "João Silva",
-    },
-    {
-      id: "e8",
-      type: "NOTE",
-      content: "Cliente pediu desconto no setup. Verificar com gerência.",
-      date: new Date(Date.now() - 2 * 24 * 3600000),
-      user: "João Silva",
-    },
-  ],
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function mapApiStatus(apiStatus: string): DealStatus {
+  if (apiStatus === "WON") return "won";
+  if (apiStatus === "LOST") return "lost";
+  return "active";
+}
+
+function mapApiDeal(data: Record<string, unknown>): DealDetail {
+  return {
+    id: data.id as string,
+    title: data.title as string,
+    status: mapApiStatus(data.status as string),
+    stageId: (data.stage as { id: string; name: string; order: number } | undefined)?.id ?? "",
+    stageName: (data.stage as { id: string; name: string; order: number } | undefined)?.name ?? "",
+    value: Number(data.value) || 0,
+    expectedCloseDate: data.expectedCloseDate as string | undefined,
+    closedAt: data.closedAt as string | undefined,
+    classification: data.classification as number | undefined,
+    contaAzulCode: data.contaAzulCode as string | undefined,
+    recurrence: data.recurrence as string | undefined,
+    pipeline: data.pipeline as DealDetail["pipeline"],
+    stage: data.stage as DealDetail["stage"],
+    contact: data.contact as DealDetail["contact"],
+    organization: data.organization as DealDetail["organization"],
+    user: data.user as DealDetail["user"],
+    source: data.source as DealDetail["source"],
+    lostReason: data.lostReason as DealDetail["lostReason"],
+    tasks: ((data.tasks as unknown[]) ?? []).map((t: unknown) => {
+      const task = t as Record<string, unknown>;
+      return {
+        id: task.id as string,
+        title: task.title as string,
+        type: task.type as string,
+        dueDate: task.dueDate as string | undefined,
+        done: task.status === "COMPLETED",
+      };
+    }),
+    dealProducts: ((data.dealProducts as unknown[]) ?? []).map((dp: unknown) => {
+      const d = dp as Record<string, unknown>;
+      const prod = d.product as Record<string, unknown> ?? {};
+      return {
+        id: d.id as string,
+        product: { id: prod.id as string | undefined, name: prod.name as string },
+        quantity: d.quantity as number,
+        unitPrice: d.unitPrice as number,
+        discount: d.discount as number | undefined,
+      };
+    }),
+    dealContacts: ((data.dealContacts as unknown[]) ?? []).map((dc: unknown) => {
+      const link = dc as Record<string, unknown>;
+      const c = link.contact as Record<string, unknown> ?? {};
+      return {
+        id: link.id as string,
+        contact: {
+          id: c.id as string,
+          name: c.name as string,
+          phone: c.phone as string | undefined,
+          email: c.email as string | undefined,
+        },
+        isPrimary: link.isPrimary as boolean,
+      };
+    }),
+  };
+}
+
+function mapApiTimeline(items: unknown[]): TimelineEvent[] {
+  return items.map((item: unknown) => {
+    const e = item as Record<string, unknown>;
+    const user = e.user as Record<string, unknown> | undefined;
+    const contact = e.contact as Record<string, unknown> | undefined;
+    return {
+      id: e.id as string,
+      type: e.type as TimelineEvent["type"],
+      content: e.content as string,
+      date: new Date(e.createdAt as string),
+      user: (user?.name ?? contact?.name ?? "Sistema") as string,
+    };
+  });
+}
 
 function StarRating({ value }: { value: number }) {
   return (
@@ -245,28 +238,35 @@ function StatusBadge({ status }: { status: DealStatus }) {
   );
 }
 
-function responsavelLabel(value: string) {
-  return RESPONSAVEIS.find((r) => r.value === value)?.label ?? value;
-}
-
-function fonteLabel(value: string) {
-  return FONTES.find((f) => f.value === value)?.label ?? value;
-}
-
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text).catch(() => {});
 }
 
 // ─── Sidebar Contact Item ─────────────────────────────────────────────────────
 
-function SidebarContact({ contact }: { contact: DealContact }) {
+function SidebarContact({
+  contact,
+  onRemove,
+}: {
+  contact: DealContact;
+  onRemove?: () => void;
+}) {
   return (
     <div className="py-2 border-b border-gray-100 last:border-0">
       <div className="flex items-center gap-2 mb-1">
         <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
           <User size={12} />
         </div>
-        <span className="text-sm font-semibold text-gray-800 truncate">{contact.name}</span>
+        <span className="text-sm font-semibold text-gray-800 truncate flex-1">{contact.name}</span>
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="p-0.5 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0"
+            title="Remover contato"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       {contact.phone && (
@@ -381,94 +381,444 @@ function EditableTitle({
   );
 }
 
+// ─── Loading / Error states ───────────────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div className="flex flex-col h-full items-center justify-center gap-3 bg-gray-50">
+      <Loader2 size={32} className="text-blue-500 animate-spin" />
+      <p className="text-sm text-gray-500">Carregando negociação...</p>
+    </div>
+  );
+}
+
+function ErrorState({ message, onBack }: { message: string; onBack: () => void }) {
+  return (
+    <div className="flex flex-col h-full items-center justify-center gap-4 bg-gray-50">
+      <div className="text-center">
+        <p className="text-base font-semibold text-gray-700">Negociação não encontrada</p>
+        <p className="text-sm text-gray-400 mt-1">{message}</p>
+      </div>
+      <Button variant="secondary" size="sm" onClick={onBack}>
+        <ChevronLeft size={14} />
+        Voltar ao Funil
+      </Button>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DealDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [deal, setDeal] = useState<DealDetail>(MOCK_DEAL);
+  const dealId = params.id;
+
+  // ── Data state ────────────────────────────────────────────────────────────
+  const [deal, setDeal] = useState<DealDetail | null>(null);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [lostReasons, setLostReasons] = useState<LostReason[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [contactOptions, setContactOptions] = useState<ContactOption[]>([]);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("historico");
+
+  // Modals
   const [showLossModal, setShowLossModal] = useState(false);
   const [showWinModal, setShowWinModal] = useState(false);
   const [lossReason, setLossReason] = useState("");
   const [lossNote, setLossNote] = useState("");
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
 
-  const totalValue = deal.products.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  // Add-contact picker
+  const [contactSearch, setContactSearch] = useState("");
+  const [selectedContactId, setSelectedContactId] = useState("");
 
-  const handleMarkWon = () => {
-    setDeal((d) => ({ ...d, status: "won", stageId: "ganho-fechado" }));
-    setShowWinModal(false);
+  // Add-product picker
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [productQuantity, setProductQuantity] = useState(1);
+
+  // Add-task form
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskType, setTaskType] = useState("Ligação");
+  const [taskDueDate, setTaskDueDate] = useState("");
+
+  // Submission loading flags
+  const [submitting, setSubmitting] = useState(false);
+
+  // ── Load deal on mount ────────────────────────────────────────────────────
+  const loadDeal = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await api.get<{ data: Record<string, unknown> }>(`/deals/${dealId}`);
+      const mapped = mapApiDeal(res.data);
+      setDeal(mapped);
+
+      // Load pipeline stages
+      if (mapped.pipeline?.id) {
+        try {
+          const stagesRes = await api.get<{ data: Stage[] }>(`/pipeline-stages?pipelineId=${mapped.pipeline.id}`);
+          setStages(stagesRes.data ?? mapped.pipeline.stages ?? []);
+        } catch {
+          setStages(mapped.pipeline?.stages ?? []);
+        }
+      }
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string };
+      setLoadError(e?.message ?? "Erro ao carregar negociação.");
+    } finally {
+      setLoading(false);
+    }
+  }, [dealId]);
+
+  const loadTimeline = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: unknown[] }>(`/deals/${dealId}/timeline`);
+      setTimeline(mapApiTimeline(res.data ?? []));
+    } catch {
+      // Timeline is non-critical; leave empty
+    }
+  }, [dealId]);
+
+  useEffect(() => {
+    loadDeal();
+    loadTimeline();
+  }, [loadDeal, loadTimeline]);
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const totalValue = (deal?.dealProducts ?? []).reduce(
+    (sum, p) => sum + p.unitPrice * p.quantity * (1 - (p.discount ?? 0) / 100),
+    0
+  );
+
+  const pendingTaskCount = (deal?.tasks ?? []).filter((t) => !t.done).length;
+
+  // ── Action handlers ───────────────────────────────────────────────────────
+
+  const handleMarkWon = async () => {
+    if (!deal) return;
+    setSubmitting(true);
+    try {
+      await api.patch(`/deals/${dealId}/status`, { status: "WON" });
+      const lastStage = stages[stages.length - 1];
+      setDeal((d) => d ? { ...d, status: "won", stageId: lastStage?.id ?? d.stageId } : d);
+      setShowWinModal(false);
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao marcar como venda: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleMarkLost = () => {
-    const lossEvent: TimelineEvent = {
-      id: `e${Date.now()}`,
-      type: "STATUS_CHANGE",
-      content: `marcou a negociação como perdida${lossReason ? `, motivo: ${LOSS_REASONS.find((r) => r.value === lossReason)?.label}` : ""}`,
-      date: new Date(),
-      user: "João Silva",
-    };
-    setDeal((d) => ({
-      ...d,
-      status: "lost",
-      timeline: [lossEvent, ...d.timeline],
-    }));
-    setShowLossModal(false);
+  const handleMarkLost = async () => {
+    if (!deal || !lossReason) return;
+    setSubmitting(true);
+    try {
+      await api.patch(`/deals/${dealId}/status`, { status: "LOST", lostReasonId: lossReason });
+      setDeal((d) => d ? { ...d, status: "lost" } : d);
+      setShowLossModal(false);
+      setLossReason("");
+      setLossNote("");
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao marcar como perda: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleMarkActive = async () => {
+    if (!deal) return;
+    try {
+      await api.patch(`/deals/${dealId}/status`, { status: "OPEN" });
+      setDeal((d) => d ? { ...d, status: "active" } : d);
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao retomar negociação: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleStageClick = async (stageId: string) => {
+    if (!deal || deal.status !== "active") return;
+    // Optimistic update
+    setDeal((d) => d ? { ...d, stageId } : d);
+    try {
+      await api.patch(`/deals/${dealId}/stage`, { stageId });
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      // Revert optimistic update
+      setDeal((d) => d ? { ...d, stageId: deal.stageId } : d);
+      alert(`Erro ao mover etapa: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleUpdateDeal = async (field: string, value: string) => {
+    if (!deal) return;
+    try {
+      await api.put(`/deals/${dealId}`, { [field]: value });
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao atualizar campo: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleUpdateOrg = async (field: string, value: string) => {
+    if (!deal?.organization?.id) return;
+    try {
+      await api.put(`/organizations/${deal.organization.id}`, { [field]: value });
+    } catch {
+      // Silent fail — UI already updated optimistically via InlineField
+    }
+  };
+
+  const handleAddNote = async (note: string) => {
+    try {
+      // Get admin user id if not known
+      let userId = deal?.user?.id;
+      if (!userId) {
+        try {
+          const usersRes = await api.get<{ data: Array<{ id: string }> }>("/users");
+          userId = usersRes.data?.[0]?.id;
+        } catch {
+          // ignore
+        }
+      }
+      if (!userId) {
+        alert("Erro: nenhum usuário encontrado para associar a anotação.");
+        return;
+      }
+      await api.post("/activities", {
+        type: "NOTE",
+        content: note,
+        userId,
+        dealId,
+      });
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao salvar anotação: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleToggleTask = async (id: string) => {
+    if (!deal) return;
+    const task = deal.tasks.find((t) => t.id === id);
+    if (!task) return;
+    const newStatus = task.done ? "PENDING" : "COMPLETED";
+    // Optimistic update
+    setDeal((d) =>
+      d ? { ...d, tasks: d.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) } : d
+    );
+    try {
+      await api.put(`/tasks/${id}`, { status: newStatus });
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      // Revert
+      setDeal((d) =>
+        d ? { ...d, tasks: d.tasks.map((t) => (t.id === id ? { ...t, done: task.done } : t)) } : d
+      );
+      alert(`Erro ao atualizar tarefa: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim() || !deal) return;
+    setSubmitting(true);
+    try {
+      const userId = deal.user?.id;
+      if (!userId) {
+        alert("Erro: negociação sem responsável atribuído.");
+        setSubmitting(false);
+        return;
+      }
+      const res = await api.post<{ data: Record<string, unknown> }>("/tasks", {
+        title: taskTitle.trim(),
+        type: taskType,
+        dueDate: taskDueDate || undefined,
+        userId,
+        dealId,
+      });
+      const created = res.data;
+      const newTask: DealTask = {
+        id: created.id as string,
+        title: created.title as string,
+        type: created.type as string,
+        dueDate: created.dueDate as string | undefined,
+        done: false,
+      };
+      setDeal((d) => d ? { ...d, tasks: [...d.tasks, newTask] } : d);
+      setShowAddTask(false);
+      setTaskTitle("");
+      setTaskType("Ligação");
+      setTaskDueDate("");
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao criar tarefa: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemoveProduct = async (id: string) => {
+    if (!deal) return;
+    // Optimistic
+    setDeal((d) => d ? { ...d, dealProducts: d.dealProducts.filter((p) => p.id !== id) } : d);
+    try {
+      await api.delete(`/deal-products/${id}`);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      // Reload to restore
+      loadDeal();
+      alert(`Erro ao remover produto: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleOpenAddProduct = async () => {
+    if (products.length === 0) {
+      try {
+        const res = await api.get<{ data: Product[] }>("/products");
+        setProducts(res.data ?? []);
+      } catch {
+        // ignore
+      }
+    }
+    setSelectedProductId("");
+    setProductQuantity(1);
+    setShowAddProduct(true);
+  };
+
+  const handleAddProduct = async () => {
+    if (!selectedProductId || !deal) return;
+    setSubmitting(true);
+    try {
+      const res = await api.post<{ data: Record<string, unknown> }>("/deal-products", {
+        dealId,
+        productId: selectedProductId,
+        quantity: productQuantity,
+      });
+      const newDp = res.data;
+      const prod = products.find((p) => p.id === selectedProductId);
+      setDeal((d) =>
+        d
+          ? {
+              ...d,
+              dealProducts: [
+                ...d.dealProducts,
+                {
+                  id: newDp.id as string,
+                  product: { id: selectedProductId, name: prod?.name ?? "" },
+                  quantity: productQuantity,
+                  unitPrice: (newDp.unitPrice as number) ?? prod?.price ?? 0,
+                  discount: 0,
+                },
+              ],
+            }
+          : d
+      );
+      setShowAddProduct(false);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao adicionar produto: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOpenAddContact = async () => {
+    if (contactOptions.length === 0) {
+      try {
+        const res = await api.get<{ data: ContactOption[] }>("/contacts");
+        setContactOptions(res.data ?? []);
+      } catch {
+        // ignore
+      }
+    }
+    setSelectedContactId("");
+    setContactSearch("");
+    setShowAddContact(true);
+  };
+
+  const handleAddContact = async () => {
+    if (!selectedContactId || !deal) return;
+    setSubmitting(true);
+    try {
+      const res = await api.post<{ data: DealContactLink }>(`/deals/${dealId}/contacts`, {
+        contactId: selectedContactId,
+        isPrimary: deal.dealContacts.length === 0,
+      });
+      const linked = res.data;
+      setDeal((d) => d ? { ...d, dealContacts: [...d.dealContacts, linked] } : d);
+      setShowAddContact(false);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao adicionar contato: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemoveContact = async (contactId: string) => {
+    if (!deal) return;
+    // Optimistic
+    setDeal((d) =>
+      d ? { ...d, dealContacts: d.dealContacts.filter((dc) => dc.contact.id !== contactId) } : d
+    );
+    try {
+      await api.delete(`/deals/${dealId}/contacts/${contactId}`);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      loadDeal();
+      alert(`Erro ao remover contato: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleOpenLossModal = async () => {
+    if (lostReasons.length === 0) {
+      try {
+        const res = await api.get<{ data: LostReason[] }>("/lost-reasons");
+        setLostReasons(res.data ?? []);
+      } catch {
+        // ignore
+      }
+    }
     setLossReason("");
     setLossNote("");
+    setShowLossModal(true);
   };
 
-  const handleMarkActive = () => {
-    const event: TimelineEvent = {
-      id: `e${Date.now()}`,
-      type: "STATUS_CHANGE",
-      content: "retomou a negociação",
-      date: new Date(),
-      user: "João Silva",
-    };
-    setDeal((d) => ({
-      ...d,
-      status: "active",
-      timeline: [event, ...d.timeline],
-    }));
-  };
+  // ── Build DealProducts list for component ──────────────────────────────────
+  const dealProductsForComponent: DealProduct[] = (deal?.dealProducts ?? []).map((dp) => ({
+    id: dp.id,
+    name: dp.product.name,
+    recurrence: dp.product?.recurrence ?? "—",
+    price: dp.unitPrice,
+    quantity: dp.quantity,
+  }));
 
-  const handleAddNote = (note: string) => {
-    const newEvent: TimelineEvent = {
-      id: `e${Date.now()}`,
-      type: "NOTE",
-      content: note,
-      date: new Date(),
-      user: "João Silva",
-    };
-    setDeal((d) => ({ ...d, timeline: [newEvent, ...d.timeline] }));
-  };
+  // ── Filtered contacts search ────────────────────────────────────────────────
+  const filteredContactOptions = contactOptions.filter((c) =>
+    c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+    (c.email ?? "").toLowerCase().includes(contactSearch.toLowerCase())
+  );
 
-  const handleToggleTask = (id: string) => {
-    setDeal((d) => ({
-      ...d,
-      tasks: d.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-    }));
-  };
+  // ── Loss reason options for Select ─────────────────────────────────────────
+  const lossReasonOptions = lostReasons.map((r) => ({ value: r.id, label: r.name }));
 
-  const handleRemoveProduct = (id: string) => {
-    setDeal((d) => ({ ...d, products: d.products.filter((p) => p.id !== id) }));
-  };
+  // ── Render ────────────────────────────────────────────────────────────────
 
-  const handleStageClick = (stageId: string) => {
-    if (deal.status !== "active") return;
-    const stageEvent: TimelineEvent = {
-      id: `e${Date.now()}`,
-      type: "STAGE_CHANGE",
-      content: `alterou a etapa para ${STAGES.find((s) => s.id === stageId)?.name} a partir do funil Vendas`,
-      date: new Date(),
-      user: "João Silva",
-    };
-    setDeal((d) => ({
-      ...d,
-      stageId,
-      timeline: [stageEvent, ...d.timeline],
-    }));
-  };
+  if (loading) return <LoadingState />;
+  if (loadError || !deal) return <ErrorState message={loadError ?? "Não encontrado."} onBack={() => router.push("/pipeline")} />;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50">
@@ -487,15 +837,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           <div className="flex flex-col gap-1.5 min-w-0 flex-1">
             <EditableTitle
               value={deal.title}
-              onChange={(v) => setDeal((d) => ({ ...d, title: v }))}
+              onChange={(v) => {
+                setDeal((d) => d ? { ...d, title: v } : d);
+                handleUpdateDeal("title", v);
+              }}
             />
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xl font-bold text-blue-600">
-                {formatCurrency(totalValue)}
+                {formatCurrency(totalValue || deal.value)}
               </span>
               <StatusBadge status={deal.status} />
-              {deal.qualificacao > 0 && (
-                <StarRating value={deal.qualificacao} />
+              {(deal.classification ?? 0) > 0 && (
+                <StarRating value={deal.classification!} />
               )}
             </div>
           </div>
@@ -516,7 +869,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => setShowLossModal(true)}
+                  onClick={handleOpenLossModal}
                 >
                   <X size={14} />
                   Marcar como Perda
@@ -537,12 +890,14 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Stage progress bar */}
-        <StageProgressBar
-          stages={STAGES}
-          currentStageId={deal.stageId}
-          status={deal.status}
-          onStageClick={handleStageClick}
-        />
+        {stages.length > 0 && (
+          <StageProgressBar
+            stages={stages}
+            currentStageId={deal.stageId}
+            status={deal.status}
+            onStageClick={handleStageClick}
+          />
+        )}
       </div>
 
       {/* ── Body: sidebar + main ───────────────────────────────────── */}
@@ -557,75 +912,75 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               <InlineField
                 label="Negociação"
                 value={deal.title}
-                onChange={(v) => setDeal((d) => ({ ...d, title: v }))}
+                onChange={(v) => {
+                  setDeal((d) => d ? { ...d, title: v } : d);
+                  handleUpdateDeal("title", v);
+                }}
               />
-              <div className="py-2">
-                <span className="text-xs text-gray-400">Qualificação</span>
-                <div className="mt-1">
-                  <StarRating value={deal.qualificacao} />
+              {(deal.classification ?? 0) > 0 && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-400">Qualificação</span>
+                  <div className="mt-1">
+                    <StarRating value={deal.classification!} />
+                  </div>
                 </div>
-              </div>
-              <InlineField
-                label="Criado em"
-                value={deal.dataCriacao}
-                readOnly
-                formatValue={(v) => formatDate(v)}
-              />
+              )}
               <div className="py-2">
                 <span className="text-xs text-gray-400">Valor total</span>
                 <p className="text-sm font-semibold text-blue-600 mt-0.5">
-                  {formatCurrency(totalValue)}
+                  {formatCurrency(totalValue || deal.value)}
                 </p>
               </div>
               <InlineField
                 label="Data de fechamento"
-                value={deal.previsaoFechamento}
+                value={deal.expectedCloseDate ?? ""}
                 type="date"
-                onChange={(v) => setDeal((d) => ({ ...d, previsaoFechamento: v }))}
+                onChange={(v) => {
+                  setDeal((d) => d ? { ...d, expectedCloseDate: v } : d);
+                  handleUpdateDeal("expectedCloseDate", v);
+                }}
                 formatValue={(v) => (v ? formatDate(v) : "")}
               />
-              <InlineField
-                label="Fonte"
-                value={deal.fonte}
-                type="select"
-                options={FONTES}
-                onChange={(v) => setDeal((d) => ({ ...d, fonte: v }))}
-                formatValue={fonteLabel}
-              />
-              <InlineField
-                label="Campanha"
-                value={deal.campanha}
-                onChange={(v) => setDeal((d) => ({ ...d, campanha: v }))}
-              />
-              <InlineField
-                label="Código Conta Azul"
-                value={deal.codigoContaAzul}
-                onChange={(v) => setDeal((d) => ({ ...d, codigoContaAzul: v }))}
-              />
-              <InlineField
-                label="URL"
-                value={deal.url}
-                readOnly
-                href={deal.url}
-              />
-              <InlineField
-                label="gclid"
-                value={deal.gclid}
-                readOnly
-              />
+              {deal.source && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-400">Fonte</span>
+                  <p className="text-sm text-gray-700 mt-0.5">{deal.source.name}</p>
+                </div>
+              )}
+              {deal.contaAzulCode && (
+                <InlineField
+                  label="Código Conta Azul"
+                  value={deal.contaAzulCode}
+                  onChange={(v) => {
+                    setDeal((d) => d ? { ...d, contaAzulCode: v } : d);
+                    handleUpdateDeal("contaAzulCode", v);
+                  }}
+                />
+              )}
             </div>
           </CollapsibleSection>
 
           {/* Seção: Contatos */}
           <CollapsibleSection title="Contatos" defaultOpen>
             <div>
-              {deal.contacts.length === 0 && (
+              {deal.dealContacts.length === 0 && (
                 <p className="text-xs text-gray-400 italic mb-2">Nenhum contato vinculado.</p>
               )}
-              {deal.contacts.map((c) => (
-                <SidebarContact key={c.id} contact={c} />
+              {deal.dealContacts.map((dc) => (
+                <SidebarContact
+                  key={dc.id}
+                  contact={dc.contact}
+                  onRemove={() => handleRemoveContact(dc.contact.id)}
+                />
               ))}
-              <button className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors mt-2">
+              {/* Primary contact (from deal.contact) if not in dealContacts */}
+              {deal.contact && deal.dealContacts.length === 0 && (
+                <SidebarContact key={deal.contact.id} contact={deal.contact} />
+              )}
+              <button
+                onClick={handleOpenAddContact}
+                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors mt-2"
+              >
                 <UserPlus size={13} />
                 Adicionar contato
               </button>
@@ -633,63 +988,73 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           </CollapsibleSection>
 
           {/* Seção: Empresa */}
-          <CollapsibleSection title="Empresa" defaultOpen>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
-                  <Building2 size={14} className="text-gray-500" />
+          {deal.organization && (
+            <CollapsibleSection title="Empresa" defaultOpen>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                    <Building2 size={14} className="text-gray-500" />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-800 truncate">
+                    {deal.organization.name || "—"}
+                  </span>
                 </div>
-                <span className="text-sm font-semibold text-gray-800 truncate">
-                  {deal.company.name || "—"}
-                </span>
+                <div className="divide-y divide-gray-100">
+                  {deal.organization.cnpj !== undefined && (
+                    <InlineField
+                      label="CNPJ"
+                      value={deal.organization.cnpj ?? ""}
+                      onChange={(v) => {
+                        setDeal((d) => d ? { ...d, organization: { ...d.organization!, cnpj: v } } : d);
+                        handleUpdateOrg("cnpj", v);
+                      }}
+                    />
+                  )}
+                  {deal.organization.website !== undefined && (
+                    <InlineField
+                      label="Site"
+                      value={deal.organization.website ?? ""}
+                      readOnly
+                      href={deal.organization.website ? `https://${deal.organization.website}` : undefined}
+                    />
+                  )}
+                  {deal.organization.instagram !== undefined && (
+                    <InlineField
+                      label="Instagram"
+                      value={deal.organization.instagram ?? ""}
+                      onChange={(v) => {
+                        setDeal((d) => d ? { ...d, organization: { ...d.organization!, instagram: v } } : d);
+                        handleUpdateOrg("instagram", v);
+                      }}
+                    />
+                  )}
+                </div>
+                {deal.organization.website && (
+                  <a
+                    href={`https://${deal.organization.website}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-2 transition-colors"
+                  >
+                    <ExternalLink size={11} />
+                    Abrir página da Empresa
+                  </a>
+                )}
               </div>
-              <div className="divide-y divide-gray-100">
-                <InlineField
-                  label="CNPJ"
-                  value={deal.company.cnpj}
-                  onChange={(v) =>
-                    setDeal((d) => ({ ...d, company: { ...d.company, cnpj: v } }))
-                  }
-                />
-                <InlineField
-                  label="Site"
-                  value={deal.company.site}
-                  readOnly
-                  href={`https://${deal.company.site}`}
-                />
-                <InlineField
-                  label="Instagram"
-                  value={deal.company.instagram}
-                  onChange={(v) =>
-                    setDeal((d) => ({ ...d, company: { ...d.company, instagram: v } }))
-                  }
-                />
-              </div>
-              {deal.company.site && (
-                <a
-                  href={`https://${deal.company.site}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-2 transition-colors"
-                >
-                  <ExternalLink size={11} />
-                  Abrir página da Empresa
-                </a>
-              )}
-            </div>
-          </CollapsibleSection>
+            </CollapsibleSection>
+          )}
 
           {/* Seção: Responsável */}
-          <CollapsibleSection title="Responsável" defaultOpen>
-            <InlineField
-              label="Responsável"
-              value={deal.responsavel}
-              type="select"
-              options={RESPONSAVEIS}
-              onChange={(v) => setDeal((d) => ({ ...d, responsavel: v }))}
-              formatValue={responsavelLabel}
-            />
-          </CollapsibleSection>
+          {deal.user && (
+            <CollapsibleSection title="Responsável" defaultOpen>
+              <div className="flex items-center gap-2 py-2">
+                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                  <User size={14} />
+                </div>
+                <span className="text-sm text-gray-700">{deal.user.name}</span>
+              </div>
+            </CollapsibleSection>
+          )}
         </aside>
 
         {/* ── Right main content (~65%) ── */}
@@ -711,9 +1076,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   )}
                 >
                   {tab.label}
-                  {tab.key === "tarefas" && deal.tasks.filter((t) => !t.done).length > 0 && (
+                  {tab.key === "tarefas" && pendingTaskCount > 0 && (
                     <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                      {deal.tasks.filter((t) => !t.done).length}
+                      {pendingTaskCount}
                     </span>
                   )}
                 </button>
@@ -727,23 +1092,80 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             {/* ── Histórico ── */}
             {activeTab === "historico" && (
               <DealTimeline
-                events={deal.timeline}
+                events={timeline}
                 onAddNote={handleAddNote}
               />
             )}
 
             {/* ── Tarefas ── */}
             {activeTab === "tarefas" && (
-              <DealTasks
-                tasks={deal.tasks}
-                onToggle={handleToggleTask}
-              />
+              <div>
+                <DealTasks
+                  tasks={deal.tasks}
+                  onToggle={handleToggleTask}
+                  onAdd={() => setShowAddTask(true)}
+                />
+
+                {/* Inline add-task form */}
+                {showAddTask && (
+                  <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-3">
+                    <p className="text-sm font-semibold text-gray-700">Nova Tarefa</p>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Título</label>
+                      <input
+                        autoFocus
+                        value={taskTitle}
+                        onChange={(e) => setTaskTitle(e.target.value)}
+                        placeholder="Título da tarefa..."
+                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs text-gray-500 mb-1 block">Tipo</label>
+                        <select
+                          value={taskType}
+                          onChange={(e) => setTaskType(e.target.value)}
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                        >
+                          {TASK_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs text-gray-500 mb-1 block">Prazo</label>
+                        <input
+                          type="date"
+                          value={taskDueDate}
+                          onChange={(e) => setTaskDueDate(e.target.value)}
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="secondary" size="sm" onClick={() => setShowAddTask(false)}>
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!taskTitle.trim() || submitting}
+                        onClick={handleCreateTask}
+                      >
+                        {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+                        Criar Tarefa
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ── Produtos ── */}
             {activeTab === "produtos" && (
               <DealProducts
-                products={deal.products}
+                products={dealProductsForComponent}
+                onAdd={handleOpenAddProduct}
                 onRemove={handleRemoveProduct}
               />
             )}
@@ -787,7 +1209,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             label="Motivo da perda"
             value={lossReason}
             placeholder="Selecione um motivo"
-            options={LOSS_REASONS}
+            options={lossReasonOptions}
             onChange={(e) => setLossReason(e.target.value)}
           />
           <Textarea
@@ -804,9 +1226,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             <Button
               variant="danger"
               size="sm"
-              disabled={!lossReason}
+              disabled={!lossReason || submitting}
               onClick={handleMarkLost}
             >
+              {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
               Confirmar Perda
             </Button>
           </div>
@@ -827,18 +1250,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-green-800">{deal.title}</p>
-            <p className="text-xl font-bold text-green-700">{formatCurrency(totalValue)}</p>
+            <p className="text-xl font-bold text-green-700">{formatCurrency(totalValue || deal.value)}</p>
           </div>
 
-          {deal.products.length > 0 && (
+          {deal.dealProducts.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-500 mb-1.5">Produtos incluídos</p>
               <ul className="space-y-1">
-                {deal.products.map((p) => (
+                {deal.dealProducts.map((p) => (
                   <li key={p.id} className="flex justify-between text-sm">
-                    <span className="text-gray-700">{p.name}</span>
+                    <span className="text-gray-700">{p.product.name}</span>
                     <span className="text-gray-500 font-medium">
-                      {formatCurrency(p.price * p.quantity)}
+                      {formatCurrency(p.unitPrice * p.quantity)}
                     </span>
                   </li>
                 ))}
@@ -853,10 +1276,115 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             <Button
               size="sm"
               className="bg-green-600 hover:bg-green-700 border-green-600"
+              disabled={submitting}
               onClick={handleMarkWon}
             >
-              <Check size={14} />
+              {submitting ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
               Confirmar Venda
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Adicionar Contato ── */}
+      <Modal
+        isOpen={showAddContact}
+        onClose={() => setShowAddContact(false)}
+        title="Adicionar Contato"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Buscar contato</label>
+            <input
+              autoFocus
+              value={contactSearch}
+              onChange={(e) => setContactSearch(e.target.value)}
+              placeholder="Nome ou e-mail..."
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md divide-y divide-gray-100">
+            {filteredContactOptions.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-4">Nenhum contato encontrado.</p>
+            )}
+            {filteredContactOptions.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedContactId(c.id)}
+                className={clsx(
+                  "w-full text-left px-3 py-2 text-sm transition-colors",
+                  selectedContactId === c.id
+                    ? "bg-blue-50 text-blue-700"
+                    : "hover:bg-gray-50 text-gray-700"
+                )}
+              >
+                <span className="font-medium">{c.name}</span>
+                {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowAddContact(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!selectedContactId || submitting}
+              onClick={handleAddContact}
+            >
+              {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+              Vincular Contato
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal: Adicionar Produto ── */}
+      <Modal
+        isOpen={showAddProduct}
+        onClose={() => setShowAddProduct(false)}
+        title="Adicionar Produto"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Produto</label>
+            <select
+              value={selectedProductId}
+              onChange={(e) => setSelectedProductId(e.target.value)}
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+            >
+              <option value="">Selecione um produto...</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {formatCurrency(p.price)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+            <input
+              type="number"
+              min={1}
+              value={productQuantity}
+              onChange={(e) => setProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" size="sm" onClick={() => setShowAddProduct(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={!selectedProductId || submitting}
+              onClick={handleAddProduct}
+            >
+              {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+              Adicionar
             </Button>
           </div>
         </div>

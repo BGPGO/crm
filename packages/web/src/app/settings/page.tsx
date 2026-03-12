@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Badge from "@/components/ui/Badge";
+import Modal from "@/components/ui/Modal";
+import Select from "@/components/ui/Select";
 import clsx from "clsx";
 import {
   User,
@@ -22,8 +24,10 @@ import {
   Trash2,
   Plus,
   X,
+  Loader2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { api, ApiError } from "@/lib/api";
 
 type TabKey =
   | "profile"
@@ -47,21 +51,121 @@ const tabs: { key: TabKey; label: string; icon: typeof User }[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+function Spinner() {
+  return <Loader2 size={16} className="animate-spin text-gray-400" />;
+}
+
+function FeedbackMsg({ msg }: { msg: { type: "success" | "error"; text: string } | null }) {
+  if (!msg) return null;
+  return (
+    <span className={clsx("text-xs", msg.type === "success" ? "text-green-600" : "text-red-600")}>
+      {msg.text}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ProfileTab
 // ---------------------------------------------------------------------------
+type ApiUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  isActive: boolean;
+  team?: { id: string; name: string } | null;
+};
+
 function ProfileTab() {
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("");
+
+  useEffect(() => {
+    api.get<{ data: ApiUser[] }>("/users")
+      .then((res) => {
+        const u = res.data[0];
+        if (u) {
+          setUser(u);
+          setName(u.name);
+          setEmail(u.email);
+          setPhone(u.phone ?? "");
+          setRole(u.role);
+        }
+      })
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar perfil." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    if (!user) return;
+    setSaving(true);
+    setFeedback(null);
+    try {
+      await api.put(`/users/${user.id}`, { name, email, phone: phone || undefined, role });
+      setFeedback({ type: "success", text: "Alterações salvas." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card padding="lg">
+        <div className="flex items-center justify-center py-12">
+          <Spinner />
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card padding="lg">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Informações Pessoais</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Nome completo" defaultValue="Usuário Admin" />
-          <Input label="E-mail" type="email" defaultValue="admin@bgpgo.com.br" />
-          <Input label="Telefone" type="tel" placeholder="(11) 99999-9999" />
-          <Input label="Cargo" defaultValue="Administrador" />
+          <Input
+            label="Nome completo"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <Input
+            label="E-mail"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Input
+            label="Telefone"
+            type="tel"
+            placeholder="(11) 99999-9999"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <Input
+            label="Cargo"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          />
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button variant="primary">Salvar alterações</Button>
+        <div className="mt-4 flex items-center justify-end gap-3">
+          <FeedbackMsg msg={feedback} />
+          <Button variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+            Salvar alterações
+          </Button>
         </div>
       </Card>
 
@@ -84,26 +188,138 @@ function ProfileTab() {
 // ---------------------------------------------------------------------------
 // TeamTab
 // ---------------------------------------------------------------------------
+type RoleKey = "ADMIN" | "MANAGER" | "SELLER";
+
+const roleBadge: Record<RoleKey, "blue" | "purple" | "green"> = {
+  ADMIN: "blue",
+  MANAGER: "purple",
+  SELLER: "green",
+};
+
+const roleLabel: Record<string, string> = {
+  ADMIN: "Admin",
+  MANAGER: "Gestor",
+  SELLER: "Vendedor",
+};
+
 function TeamTab() {
-  const members = [
-    { name: "Usuário Admin",  email: "admin@bgpgo.com.br",  role: "Admin",    status: "Ativo" },
-    { name: "João Vendedor",  email: "joao@bgpgo.com.br",   role: "Vendedor", status: "Ativo" },
-    { name: "Maria Gestora",  email: "maria@bgpgo.com.br",  role: "Gestor",   status: "Ativo" },
+  const [members, setMembers] = useState<ApiUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Invite modal
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<RoleKey>("SELLER");
+  const [inviteSaving, setInviteSaving] = useState(false);
+  const [inviteFeedback, setInviteFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Edit modal
+  const [editOpen, setEditOpen] = useState(false);
+  const [editUser, setEditUser] = useState<ApiUser | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState<RoleKey>("SELLER");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFeedback, setEditFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const loadMembers = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiUser[] }>("/users")
+      .then((res) => setMembers(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar equipe." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadMembers(); }, [loadMembers]);
+
+  function openEdit(u: ApiUser) {
+    setEditUser(u);
+    setEditName(u.name);
+    setEditEmail(u.email);
+    setEditPhone(u.phone ?? "");
+    setEditRole((u.role as RoleKey) || "SELLER");
+    setEditFeedback(null);
+    setEditOpen(true);
+  }
+
+  async function handleInvite() {
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      setInviteFeedback({ type: "error", text: "Nome e e-mail são obrigatórios." });
+      return;
+    }
+    setInviteSaving(true);
+    setInviteFeedback(null);
+    try {
+      await api.post("/users", { name: inviteName, email: inviteEmail, role: inviteRole });
+      setInviteOpen(false);
+      setInviteName(""); setInviteEmail(""); setInviteRole("SELLER");
+      loadMembers();
+      setFeedback({ type: "success", text: "Membro convidado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao convidar.";
+      setInviteFeedback({ type: "error", text: msg });
+    } finally {
+      setInviteSaving(false);
+    }
+  }
+
+  async function handleEditSave() {
+    if (!editUser) return;
+    setEditSaving(true);
+    setEditFeedback(null);
+    try {
+      await api.put(`/users/${editUser.id}`, {
+        name: editName,
+        email: editEmail,
+        phone: editPhone || undefined,
+        role: editRole,
+      });
+      setEditOpen(false);
+      loadMembers();
+      setFeedback({ type: "success", text: "Membro atualizado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
+      setEditFeedback({ type: "error", text: msg });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  const roleOptions = [
+    { value: "ADMIN", label: "Admin" },
+    { value: "MANAGER", label: "Gestor" },
+    { value: "SELLER", label: "Vendedor" },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">{members.length} membros na equipe</p>
-        <Button variant="primary" size="sm">Convidar membro</Button>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {loading ? "Carregando..." : `${members.length} membros na equipe`}
+          </p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setInviteFeedback(null); setInviteOpen(true); }}>
+          Convidar membro
+        </Button>
       </div>
+
       <Card padding="none">
         <div className="divide-y divide-gray-100">
-          {members.map((m) => (
-            <div key={m.email} className="px-5 py-4 flex items-center justify-between">
+          {loading && (
+            <div className="px-5 py-6 flex justify-center">
+              <Spinner />
+            </div>
+          )}
+          {!loading && members.map((m) => (
+            <div key={m.id} className="px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
-                  {m.name.charAt(0)}
+                  {m.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">{m.name}</p>
@@ -111,13 +327,60 @@ function TeamTab() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">{m.role}</span>
-                <Button variant="ghost" size="sm">Editar</Button>
+                <Badge variant={roleBadge[(m.role as RoleKey)] ?? "gray"}>
+                  {roleLabel[m.role] ?? m.role}
+                </Badge>
+                <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>Editar</Button>
               </div>
             </div>
           ))}
         </div>
       </Card>
+
+      {/* Invite Modal */}
+      <Modal isOpen={inviteOpen} onClose={() => setInviteOpen(false)} title="Convidar membro">
+        <div className="space-y-4">
+          <Input label="Nome completo" value={inviteName} onChange={(e) => setInviteName(e.target.value)} />
+          <Input label="E-mail" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+          <Select
+            label="Perfil"
+            options={roleOptions}
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as RoleKey)}
+          />
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={inviteFeedback} />
+            <Button variant="ghost" onClick={() => setInviteOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleInvite} disabled={inviteSaving}>
+              {inviteSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Convidar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Editar membro">
+        <div className="space-y-4">
+          <Input label="Nome completo" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          <Input label="E-mail" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+          <Input label="Telefone" type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+          <Select
+            label="Perfil"
+            options={roleOptions}
+            value={editRole}
+            onChange={(e) => setEditRole(e.target.value as RoleKey)}
+          />
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={editFeedback} />
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -125,97 +388,533 @@ function TeamTab() {
 // ---------------------------------------------------------------------------
 // PipelineTab
 // ---------------------------------------------------------------------------
+type ApiStage = {
+  id: string;
+  name: string;
+  order: number;
+  color: string;
+  _count?: { deals: number };
+};
+
+type ApiPipeline = {
+  id: string;
+  name: string;
+};
+
+const PRESET_COLORS = [
+  "#3B82F6", "#06B6D4", "#8B5CF6", "#F59E0B",
+  "#F97316", "#EF4444", "#EC4899", "#22C55E",
+  "#6366F1", "#14B8A6", "#84CC16", "#F43F5E",
+];
+
 function PipelineTab() {
-  const stages = [
-    { name: "Lead",                  order: 1, color: "#3B82F6" },
-    { name: "Contato Feito",         order: 2, color: "#06B6D4" },
-    { name: "Marcar Reunião",        order: 3, color: "#8B5CF6" },
-    { name: "Reunião Marcada",       order: 4, color: "#F59E0B" },
-    { name: "Proposta Enviada",      order: 5, color: "#F97316" },
-    { name: "Aguardando Dados",      order: 6, color: "#EF4444" },
-    { name: "Aguardando Assinatura", order: 7, color: "#EC4899" },
-    { name: "Ganho Fechado",         order: 8, color: "#22C55E" },
-  ];
+  const [stages, setStages] = useState<ApiStage[]>([]);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Add modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addColor, setAddColor] = useState("#3B82F6");
+  const [addSaving, setAddSaving] = useState(false);
+  const [addFeedback, setAddFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Edit modal
+  const [editOpen, setEditOpen] = useState(false);
+  const [editStage, setEditStage] = useState<ApiStage | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("#3B82F6");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFeedback, setEditFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Delete confirm
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const loadStages = useCallback(async (pid: string) => {
+    try {
+      const res = await api.get<{ data: ApiStage[] }>(`/pipeline-stages?pipelineId=${pid}`);
+      setStages(res.data.sort((a, b) => a.order - b.order));
+    } catch {
+      setFeedback({ type: "error", text: "Erro ao carregar etapas." });
+    }
+  }, []);
+
+  useEffect(() => {
+    api.get<{ data: ApiPipeline[] }>("/pipelines")
+      .then((res) => {
+        const pid = res.data[0]?.id;
+        if (pid) {
+          setPipelineId(pid);
+          return loadStages(pid);
+        }
+      })
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar pipeline." }))
+      .finally(() => setLoading(false));
+  }, [loadStages]);
+
+  function openEdit(s: ApiStage) {
+    setEditStage(s);
+    setEditName(s.name);
+    setEditColor(s.color || "#3B82F6");
+    setEditFeedback(null);
+    setEditOpen(true);
+  }
+
+  async function handleAdd() {
+    if (!addName.trim() || !pipelineId) {
+      setAddFeedback({ type: "error", text: "Nome é obrigatório." });
+      return;
+    }
+    setAddSaving(true);
+    setAddFeedback(null);
+    try {
+      await api.post("/pipeline-stages", {
+        name: addName,
+        pipelineId,
+        color: addColor,
+        order: stages.length + 1,
+      });
+      setAddOpen(false);
+      setAddName(""); setAddColor("#3B82F6");
+      await loadStages(pipelineId);
+      setFeedback({ type: "success", text: "Etapa adicionada." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setAddFeedback({ type: "error", text: msg });
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  async function handleEditSave() {
+    if (!editStage) return;
+    setEditSaving(true);
+    setEditFeedback(null);
+    try {
+      await api.put(`/pipeline-stages/${editStage.id}`, { name: editName, color: editColor });
+      setEditOpen(false);
+      if (pipelineId) await loadStages(pipelineId);
+      setFeedback({ type: "success", text: "Etapa atualizada." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
+      setEditFeedback({ type: "error", text: msg });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteId || !pipelineId) return;
+    setDeleteSaving(true);
+    try {
+      await api.delete(`/pipeline-stages/${deleteId}`);
+      setDeleteId(null);
+      await loadStages(pipelineId);
+      setFeedback({ type: "success", text: "Etapa removida." });
+    } catch (err) {
+      setDeleteId(null);
+      const msg = err instanceof ApiError && err.status === 409
+        ? "Esta etapa possui negociações ativas e não pode ser removida."
+        : err instanceof ApiError ? err.message : "Erro ao remover.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">Etapas do funil de vendas</p>
-        <Button variant="secondary" size="sm">Adicionar etapa</Button>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">Etapas do funil de vendas</p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => { setAddFeedback(null); setAddOpen(true); }}>
+          Adicionar etapa
+        </Button>
       </div>
+
       <Card padding="none">
         <div className="divide-y divide-gray-100">
-          {stages.map((stage) => (
-            <div key={stage.name} className="px-5 py-3.5 flex items-center justify-between">
+          {loading && (
+            <div className="px-5 py-6 flex justify-center">
+              <Spinner />
+            </div>
+          )}
+          {!loading && stages.map((stage) => (
+            <div key={stage.id} className="px-5 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div
                   className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: stage.color }}
+                  style={{ backgroundColor: stage.color || "#ccc" }}
                 />
                 <span className="text-xs text-gray-400 font-mono w-4">{stage.order}</span>
                 <p className="text-sm font-medium text-gray-900">{stage.name}</p>
+                {stage._count && stage._count.deals > 0 && (
+                  <span className="text-xs text-gray-400">({stage._count.deals} negoc.)</span>
+                )}
               </div>
-              <Button variant="ghost" size="sm">
-                <Pencil size={13} className="mr-1" />
-                Editar
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(stage)}>
+                  <Pencil size={13} className="mr-1" />
+                  Editar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-600"
+                  onClick={() => setDeleteId(stage.id)}
+                >
+                  <Trash2 size={13} />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       </Card>
+
+      {/* Add Modal */}
+      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Adicionar etapa">
+        <div className="space-y-4">
+          <Input label="Nome da etapa" value={addName} onChange={(e) => setAddName(e.target.value)} autoFocus />
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">Cor</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setAddColor(c)}
+                  className={clsx(
+                    "w-7 h-7 rounded-full border-2 transition-all",
+                    addColor === c ? "border-gray-700 scale-110" : "border-transparent"
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={addFeedback} />
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleAdd} disabled={addSaving}>
+              {addSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Adicionar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Editar etapa">
+        <div className="space-y-4">
+          <Input label="Nome da etapa" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">Cor</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setEditColor(c)}
+                  className={clsx(
+                    "w-7 h-7 rounded-full border-2 transition-all",
+                    editColor === c ? "border-gray-700 scale-110" : "border-transparent"
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={editFeedback} />
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal isOpen={!!deleteId} onClose={() => setDeleteId(null)} title="Confirmar exclusão" size="sm">
+        <p className="text-sm text-gray-600 mb-6">
+          Tem certeza que deseja remover esta etapa? A operação não pode ser desfeita.
+        </p>
+        <div className="flex items-center justify-end gap-3">
+          <Button variant="ghost" onClick={() => setDeleteId(null)}>Cancelar</Button>
+          <Button
+            variant="primary"
+            className="bg-red-600 hover:bg-red-700 border-red-600"
+            onClick={handleDelete}
+            disabled={deleteSaving}
+          >
+            {deleteSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+            Remover
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Custom Fields (placeholder)
+// Custom Fields Tab
 // ---------------------------------------------------------------------------
+type ApiCustomField = {
+  id: string;
+  name: string;
+  fieldType: string;
+  entity: string;
+};
+
+const fieldTypeBadge: Record<string, "blue" | "purple" | "gray" | "green"> = {
+  TEXT: "gray",
+  NUMBER: "blue",
+  DATE: "purple",
+  BOOLEAN: "green",
+  SELECT: "purple",
+};
+
+const entityBadge: Record<string, "blue" | "green" | "orange"> = {
+  DEAL: "blue",
+  CONTACT: "green",
+  COMPANY: "orange",
+};
+
 function CustomFieldsTab() {
+  const [fields, setFields] = useState<ApiCustomField[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addType, setAddType] = useState("TEXT");
+  const [addEntity, setAddEntity] = useState("DEAL");
+  const [addSaving, setAddSaving] = useState(false);
+  const [addFeedback, setAddFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const loadFields = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiCustomField[] }>("/custom-fields")
+      .then((res) => setFields(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar campos." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadFields(); }, [loadFields]);
+
+  async function handleAdd() {
+    if (!addName.trim()) {
+      setAddFeedback({ type: "error", text: "Nome é obrigatório." });
+      return;
+    }
+    setAddSaving(true);
+    setAddFeedback(null);
+    try {
+      await api.post("/custom-fields", { name: addName, fieldType: addType, entity: addEntity });
+      setAddOpen(false);
+      setAddName(""); setAddType("TEXT"); setAddEntity("DEAL");
+      loadFields();
+      setFeedback({ type: "success", text: "Campo adicionado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setAddFeedback({ type: "error", text: msg });
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  const fieldTypeOptions = [
+    { value: "TEXT", label: "Texto" },
+    { value: "NUMBER", label: "Número" },
+    { value: "DATE", label: "Data" },
+    { value: "BOOLEAN", label: "Sim/Não" },
+    { value: "SELECT", label: "Seleção" },
+  ];
+
+  const entityOptions = [
+    { value: "DEAL", label: "Negociação" },
+    { value: "CONTACT", label: "Contato" },
+    { value: "COMPANY", label: "Empresa" },
+  ];
+
+  const entityLabel: Record<string, string> = { DEAL: "Negociação", CONTACT: "Contato", COMPANY: "Empresa" };
+  const fieldTypeLabel: Record<string, string> = {
+    TEXT: "Texto", NUMBER: "Número", DATE: "Data", BOOLEAN: "Sim/Não", SELECT: "Seleção",
+  };
+
+  if (loading) {
+    return (
+      <Card padding="lg">
+        <div className="flex items-center justify-center py-12">
+          <Spinner />
+        </div>
+      </Card>
+    );
+  }
+
+  if (!loading && fields.length === 0 && !feedback) {
+    return (
+      <Card padding="lg">
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Sliders size={36} className="text-gray-300 mb-3" />
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Campos Personalizados</h3>
+          <p className="text-xs text-gray-400 max-w-xs mb-4">
+            Adicione campos livres às negociações, contatos e empresas.
+          </p>
+          <Button variant="primary" size="sm" onClick={() => { setAddFeedback(null); setAddOpen(true); }}>
+            <Plus size={14} className="mr-1" />
+            Adicionar campo
+          </Button>
+        </div>
+
+        <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Adicionar campo">
+          <div className="space-y-4">
+            <Input label="Nome do campo" value={addName} onChange={(e) => setAddName(e.target.value)} autoFocus />
+            <Select label="Tipo" options={fieldTypeOptions} value={addType} onChange={(e) => setAddType(e.target.value)} />
+            <Select label="Entidade" options={entityOptions} value={addEntity} onChange={(e) => setAddEntity(e.target.value)} />
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <FeedbackMsg msg={addFeedback} />
+              <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
+              <Button variant="primary" onClick={handleAdd} disabled={addSaving}>
+                {addSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+                Adicionar
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      </Card>
+    );
+  }
+
   return (
-    <Card padding="lg">
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Sliders size={36} className="text-gray-300 mb-3" />
-        <h3 className="text-sm font-semibold text-gray-700 mb-1">Campos Personalizados</h3>
-        <p className="text-xs text-gray-400 max-w-xs">
-          Esta seção está em desenvolvimento. Em breve você poderá adicionar campos livres às negociações.
-        </p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">{fields.length} campos cadastrados</p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setAddFeedback(null); setAddOpen(true); }}>
+          <Plus size={14} className="mr-1" />
+          Adicionar campo
+        </Button>
       </div>
-    </Card>
+
+      <Card padding="none">
+        <div className="divide-y divide-gray-100">
+          {fields.map((f) => (
+            <div key={f.id} className="px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Sliders size={14} className="text-gray-400 flex-shrink-0" />
+                <p className="text-sm font-medium text-gray-900">{f.name}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={entityBadge[f.entity] ?? "gray"}>
+                  {entityLabel[f.entity] ?? f.entity}
+                </Badge>
+                <Badge variant={fieldTypeBadge[f.fieldType] ?? "gray"}>
+                  {fieldTypeLabel[f.fieldType] ?? f.fieldType}
+                </Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Adicionar campo">
+        <div className="space-y-4">
+          <Input label="Nome do campo" value={addName} onChange={(e) => setAddName(e.target.value)} autoFocus />
+          <Select label="Tipo" options={fieldTypeOptions} value={addType} onChange={(e) => setAddType(e.target.value)} />
+          <Select label="Entidade" options={entityOptions} value={addEntity} onChange={(e) => setAddEntity(e.target.value)} />
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={addFeedback} />
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleAdd} disabled={addSaving}>
+              {addSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Adicionar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // LostReasonsTab
 // ---------------------------------------------------------------------------
+type ApiLostReason = {
+  id: string;
+  name: string;
+  _count?: { deals: number };
+};
+
 function LostReasonsTab() {
-  const [reasons, setReasons] = useState([
-    "Preço",
-    "Concorrência",
-    "Timing",
-    "Sem resposta",
-    "Desistiu",
-    "Não qualificado",
-  ]);
+  const [reasons, setReasons] = useState<ApiLostReason[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [newValue, setNewValue] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
 
-  function handleAdd() {
-    if (newValue.trim()) {
-      setReasons((prev) => [...prev, newValue.trim()]);
+  const loadReasons = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiLostReason[] }>("/lost-reasons")
+      .then((res) => setReasons(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar motivos." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadReasons(); }, [loadReasons]);
+
+  async function handleAdd() {
+    if (!newValue.trim()) return;
+    setSavingNew(true);
+    setFeedback(null);
+    try {
+      await api.post("/lost-reasons", { name: newValue.trim() });
       setNewValue("");
       setAdding(false);
+      loadReasons();
+      setFeedback({ type: "success", text: "Motivo adicionado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setSavingNew(false);
     }
   }
 
-  function handleRemove(index: number) {
-    setReasons((prev) => prev.filter((_, i) => i !== index));
+  async function handleRemove(id: string, dealCount: number) {
+    if (dealCount > 0) {
+      setFeedback({ type: "error", text: "Este motivo está em uso e não pode ser removido." });
+      return;
+    }
+    setFeedback(null);
+    try {
+      await api.delete(`/lost-reasons/${id}`);
+      loadReasons();
+      setFeedback({ type: "success", text: "Motivo removido." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao remover.";
+      setFeedback({ type: "error", text: msg });
+    }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">{reasons.length} motivos cadastrados</p>
-        <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {loading ? "Carregando..." : `${reasons.length} motivos cadastrados`}
+          </p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setAdding(true); setFeedback(null); }}>
           <Plus size={14} className="mr-1" />
           Adicionar motivo
         </Button>
@@ -223,14 +922,22 @@ function LostReasonsTab() {
 
       <Card padding="none">
         <div className="divide-y divide-gray-100">
-          {reasons.map((reason, i) => (
-            <div key={i} className="px-5 py-3.5 flex items-center justify-between">
+          {loading && (
+            <div className="px-5 py-6 flex justify-center">
+              <Spinner />
+            </div>
+          )}
+          {!loading && reasons.map((reason) => (
+            <div key={reason.id} className="px-5 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <XCircle size={14} className="text-red-400 flex-shrink-0" />
-                <p className="text-sm text-gray-800">{reason}</p>
+                <p className="text-sm text-gray-800">{reason.name}</p>
+                {reason._count && reason._count.deals > 0 && (
+                  <span className="text-xs text-gray-400">({reason._count.deals} negoc.)</span>
+                )}
               </div>
               <button
-                onClick={() => handleRemove(i)}
+                onClick={() => handleRemove(reason.id, reason._count?.deals ?? 0)}
                 className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
                 title="Remover"
               >
@@ -252,7 +959,9 @@ function LostReasonsTab() {
                 placeholder="Nome do motivo..."
                 className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <Button size="sm" variant="primary" onClick={handleAdd}>Salvar</Button>
+              <Button size="sm" variant="primary" onClick={handleAdd} disabled={savingNew}>
+                {savingNew ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewValue(""); }}>
                 Cancelar
               </Button>
@@ -267,34 +976,74 @@ function LostReasonsTab() {
 // ---------------------------------------------------------------------------
 // SourcesTab
 // ---------------------------------------------------------------------------
+type ApiSource = {
+  id: string;
+  name: string;
+  _count?: { contacts: number; deals: number };
+};
+
 function SourcesTab() {
-  const [sources, setSources] = useState([
-    "Site",
-    "Indicação",
-    "Redes Sociais",
-    "WhatsApp",
-    "Evento",
-  ]);
+  const [sources, setSources] = useState<ApiSource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [newValue, setNewValue] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
 
-  function handleAdd() {
-    if (newValue.trim()) {
-      setSources((prev) => [...prev, newValue.trim()]);
+  const loadSources = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiSource[] }>("/sources")
+      .then((res) => setSources(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar fontes." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadSources(); }, [loadSources]);
+
+  async function handleAdd() {
+    if (!newValue.trim()) return;
+    setSavingNew(true);
+    setFeedback(null);
+    try {
+      await api.post("/sources", { name: newValue.trim() });
       setNewValue("");
       setAdding(false);
+      loadSources();
+      setFeedback({ type: "success", text: "Fonte adicionada." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setSavingNew(false);
     }
   }
 
-  function handleRemove(index: number) {
-    setSources((prev) => prev.filter((_, i) => i !== index));
+  async function handleRemove(id: string, useCount: number) {
+    if (useCount > 0) {
+      setFeedback({ type: "error", text: "Esta fonte está em uso e não pode ser removida." });
+      return;
+    }
+    setFeedback(null);
+    try {
+      await api.delete(`/sources/${id}`);
+      loadSources();
+      setFeedback({ type: "success", text: "Fonte removida." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao remover.";
+      setFeedback({ type: "error", text: msg });
+    }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">{sources.length} fontes cadastradas</p>
-        <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {loading ? "Carregando..." : `${sources.length} fontes cadastradas`}
+          </p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setAdding(true); setFeedback(null); }}>
           <Plus size={14} className="mr-1" />
           Adicionar fonte
         </Button>
@@ -302,21 +1051,32 @@ function SourcesTab() {
 
       <Card padding="none">
         <div className="divide-y divide-gray-100">
-          {sources.map((source, i) => (
-            <div key={i} className="px-5 py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Radio size={14} className="text-blue-400 flex-shrink-0" />
-                <p className="text-sm text-gray-800">{source}</p>
-              </div>
-              <button
-                onClick={() => handleRemove(i)}
-                className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
-                title="Remover"
-              >
-                <X size={14} />
-              </button>
+          {loading && (
+            <div className="px-5 py-6 flex justify-center">
+              <Spinner />
             </div>
-          ))}
+          )}
+          {!loading && sources.map((source) => {
+            const useCount = (source._count?.contacts ?? 0) + (source._count?.deals ?? 0);
+            return (
+              <div key={source.id} className="px-5 py-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Radio size={14} className="text-blue-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-800">{source.name}</p>
+                  {useCount > 0 && (
+                    <span className="text-xs text-gray-400">({useCount} uso{useCount !== 1 ? "s" : ""})</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemove(source.id, useCount)}
+                  className="text-gray-300 hover:text-red-500 transition-colors p-1 rounded"
+                  title="Remover"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            );
+          })}
 
           {adding && (
             <div className="px-5 py-3 flex items-center gap-2">
@@ -331,7 +1091,9 @@ function SourcesTab() {
                 placeholder="Nome da fonte..."
                 className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <Button size="sm" variant="primary" onClick={handleAdd}>Salvar</Button>
+              <Button size="sm" variant="primary" onClick={handleAdd} disabled={savingNew}>
+                {savingNew ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewValue(""); }}>
                 Cancelar
               </Button>
@@ -389,48 +1151,121 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 // ---------------------------------------------------------------------------
 // WebhooksTab
 // ---------------------------------------------------------------------------
+type ApiWebhook = {
+  id: string;
+  name: string;
+  url: string;
+  type: "INCOMING" | "OUTGOING";
+  isActive: boolean;
+  events?: string[];
+  secret?: string | null;
+};
+
+const AVAILABLE_EVENTS = [
+  "deal.created", "deal.updated", "deal.won", "deal.lost",
+  "contact.created", "contact.updated",
+];
+
 function WebhooksTab() {
-  const [incomingWebhooks, setIncomingWebhooks] = useState([
-    {
-      id: "whi-1",
-      name: "GreatPages",
-      url: "https://seucrm.com/api/webhooks/incoming/gp-a1b2c3d4",
-      active: true,
-    },
-  ]);
+  const [incoming, setIncoming] = useState<ApiWebhook[]>([]);
+  const [outgoing, setOutgoing] = useState<ApiWebhook[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const [outgoingWebhooks, setOutgoingWebhooks] = useState([
-    {
-      id: "who-1",
-      name: "BI Dashboard",
-      url: "https://bi.empresa.com/hooks/crm-data",
-      events: ["deal.won", "deal.lost"],
-      active: true,
-    },
-  ]);
+  // New webhook modal
+  const [newOpen, setNewOpen] = useState(false);
+  const [newType, setNewType] = useState<"INCOMING" | "OUTGOING">("INCOMING");
+  const [newName, setNewName] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [newEvents, setNewEvents] = useState<string[]>([]);
+  const [newSecret, setNewSecret] = useState("");
+  const [newSaving, setNewSaving] = useState(false);
+  const [newFeedback, setNewFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  function toggleIncoming(id: string) {
-    setIncomingWebhooks((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, active: !w.active } : w))
+  const loadWebhooks = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [inc, out] = await Promise.all([
+        api.get<{ data: ApiWebhook[] }>("/webhook-configs?type=INCOMING"),
+        api.get<{ data: ApiWebhook[] }>("/webhook-configs?type=OUTGOING"),
+      ]);
+      setIncoming(inc.data);
+      setOutgoing(out.data);
+    } catch {
+      setFeedback({ type: "error", text: "Erro ao carregar webhooks." });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadWebhooks(); }, [loadWebhooks]);
+
+  function openNew(type: "INCOMING" | "OUTGOING") {
+    setNewType(type);
+    setNewName(""); setNewUrl(""); setNewEvents([]); setNewSecret("");
+    setNewFeedback(null);
+    setNewOpen(true);
+  }
+
+  async function handleNew() {
+    if (!newName.trim() || !newUrl.trim()) {
+      setNewFeedback({ type: "error", text: "Nome e URL são obrigatórios." });
+      return;
+    }
+    setNewSaving(true);
+    setNewFeedback(null);
+    try {
+      await api.post("/webhook-configs", {
+        name: newName,
+        url: newUrl,
+        type: newType,
+        events: newEvents,
+        secret: newSecret || undefined,
+      });
+      setNewOpen(false);
+      loadWebhooks();
+      setFeedback({ type: "success", text: "Webhook criado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao criar.";
+      setNewFeedback({ type: "error", text: msg });
+    } finally {
+      setNewSaving(false);
+    }
+  }
+
+  async function handleToggle(wh: ApiWebhook) {
+    try {
+      await api.put(`/webhook-configs/${wh.id}`, { isActive: !wh.isActive });
+      loadWebhooks();
+    } catch {
+      setFeedback({ type: "error", text: "Erro ao atualizar status." });
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await api.delete(`/webhook-configs/${id}`);
+      loadWebhooks();
+      setFeedback({ type: "success", text: "Webhook removido." });
+    } catch {
+      setFeedback({ type: "error", text: "Erro ao remover webhook." });
+    }
+  }
+
+  function toggleEvent(evt: string) {
+    setNewEvents((prev) =>
+      prev.includes(evt) ? prev.filter((e) => e !== evt) : [...prev, evt]
     );
-  }
-
-  function toggleOutgoing(id: string) {
-    setOutgoingWebhooks((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, active: !w.active } : w))
-    );
-  }
-
-  function removeIncoming(id: string) {
-    setIncomingWebhooks((prev) => prev.filter((w) => w.id !== id));
-  }
-
-  function removeOutgoing(id: string) {
-    setOutgoingWebhooks((prev) => prev.filter((w) => w.id !== id));
   }
 
   return (
     <div className="space-y-6">
+      {feedback && (
+        <div className="flex justify-end">
+          <FeedbackMsg msg={feedback} />
+        </div>
+      )}
+
       {/* Webhooks de Entrada */}
       <div className="space-y-3">
         <div className="flex justify-between items-center">
@@ -440,44 +1275,45 @@ function WebhooksTab() {
               Receba leads automaticamente via formulários externos
             </p>
           </div>
-          <Button variant="primary" size="sm">
+          <Button variant="primary" size="sm" onClick={() => openNew("INCOMING")}>
             <Plus size={14} className="mr-1" />
             Novo webhook de entrada
           </Button>
         </div>
 
-        {/* Instrução */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700">
           Configure o URL gerado na sua landing page (GreatPages, etc.) para receber leads automaticamente no CRM.
         </div>
 
         <Card padding="none">
           <div className="divide-y divide-gray-100">
-            {incomingWebhooks.length === 0 && (
+            {loading && (
+              <div className="px-5 py-6 flex justify-center">
+                <Spinner />
+              </div>
+            )}
+            {!loading && incoming.length === 0 && (
               <p className="px-5 py-6 text-sm text-gray-400 text-center">
                 Nenhum webhook de entrada configurado.
               </p>
             )}
-            {incomingWebhooks.map((wh) => (
+            {!loading && incoming.map((wh) => (
               <div key={wh.id} className="px-5 py-4 space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Globe size={15} className="text-blue-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-900">{wh.name}</span>
-                    <Badge variant={wh.active ? "green" : "gray"}>
-                      {wh.active ? "Ativo" : "Inativo"}
+                    <Badge variant={wh.isActive ? "green" : "gray"}>
+                      {wh.isActive ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Toggle enabled={wh.active} onChange={() => toggleIncoming(wh.id)} />
-                    <Button variant="ghost" size="sm">
-                      <Pencil size={13} />
-                    </Button>
+                    <Toggle enabled={wh.isActive} onChange={() => handleToggle(wh)} />
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-red-500 hover:text-red-700"
-                      onClick={() => removeIncoming(wh.id)}
+                      onClick={() => handleDelete(wh.id)}
                     >
                       <Trash2 size={13} />
                     </Button>
@@ -502,7 +1338,7 @@ function WebhooksTab() {
               Envie dados do CRM para sistemas externos (BI, automações, etc.)
             </p>
           </div>
-          <Button variant="primary" size="sm">
+          <Button variant="primary" size="sm" onClick={() => openNew("OUTGOING")}>
             <Plus size={14} className="mr-1" />
             Novo webhook de saída
           </Button>
@@ -510,31 +1346,33 @@ function WebhooksTab() {
 
         <Card padding="none">
           <div className="divide-y divide-gray-100">
-            {outgoingWebhooks.length === 0 && (
+            {loading && (
+              <div className="px-5 py-6 flex justify-center">
+                <Spinner />
+              </div>
+            )}
+            {!loading && outgoing.length === 0 && (
               <p className="px-5 py-6 text-sm text-gray-400 text-center">
                 Nenhum webhook de saída configurado.
               </p>
             )}
-            {outgoingWebhooks.map((wh) => (
+            {!loading && outgoing.map((wh) => (
               <div key={wh.id} className="px-5 py-4 space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Globe size={15} className="text-purple-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-900">{wh.name}</span>
-                    <Badge variant={wh.active ? "green" : "gray"}>
-                      {wh.active ? "Ativo" : "Inativo"}
+                    <Badge variant={wh.isActive ? "green" : "gray"}>
+                      {wh.isActive ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Toggle enabled={wh.active} onChange={() => toggleOutgoing(wh.id)} />
-                    <Button variant="ghost" size="sm">
-                      <Pencil size={13} />
-                    </Button>
+                    <Toggle enabled={wh.isActive} onChange={() => handleToggle(wh)} />
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-red-500 hover:text-red-700"
-                      onClick={() => removeOutgoing(wh.id)}
+                      onClick={() => handleDelete(wh.id)}
                     >
                       <Trash2 size={13} />
                     </Button>
@@ -544,22 +1382,75 @@ function WebhooksTab() {
                   <span className="text-xs text-gray-600 font-mono flex-1 truncate">{wh.url}</span>
                   <CopyButton value={wh.url} />
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs text-gray-400">Eventos:</span>
-                  {wh.events.map((evt) => (
-                    <span
-                      key={evt}
-                      className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono"
-                    >
-                      {evt}
-                    </span>
-                  ))}
-                </div>
+                {wh.events && wh.events.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-gray-400">Eventos:</span>
+                    {wh.events.map((evt) => (
+                      <span
+                        key={evt}
+                        className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono"
+                      >
+                        {evt}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </Card>
       </div>
+
+      {/* New Webhook Modal */}
+      <Modal
+        isOpen={newOpen}
+        onClose={() => setNewOpen(false)}
+        title={newType === "INCOMING" ? "Novo webhook de entrada" : "Novo webhook de saída"}
+      >
+        <div className="space-y-4">
+          <Input label="Nome" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <Input
+            label="URL"
+            type="url"
+            placeholder="https://..."
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+          />
+          {newType === "OUTGOING" && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Eventos</label>
+              <div className="space-y-1.5">
+                {AVAILABLE_EVENTS.map((evt) => (
+                  <label key={evt} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newEvents.includes(evt)}
+                      onChange={() => toggleEvent(evt)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-mono text-gray-700">{evt}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <Input
+            label="Secret (opcional)"
+            type="password"
+            placeholder="Chave secreta para validar a origem"
+            value={newSecret}
+            onChange={(e) => setNewSecret(e.target.value)}
+          />
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={newFeedback} />
+            <Button variant="ghost" onClick={() => setNewOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleNew} disabled={newSaving}>
+              {newSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Criar webhook
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -569,80 +1460,275 @@ function WebhooksTab() {
 // ---------------------------------------------------------------------------
 type Recurrence = "mensal" | "anual" | "avulso";
 
-const recurrenceBadge: Record<Recurrence, "blue" | "purple" | "gray"> = {
+const recurrenceBadge: Record<string, "blue" | "purple" | "gray"> = {
   mensal: "blue",
   anual: "purple",
   avulso: "gray",
+  MONTHLY: "blue",
+  ANNUAL: "purple",
+  ONE_TIME: "gray",
+};
+
+const recurrenceLabel: Record<string, string> = {
+  mensal: "Mensal",
+  anual: "Anual",
+  avulso: "Avulso",
+  MONTHLY: "Mensal",
+  ANNUAL: "Anual",
+  ONE_TIME: "Avulso",
+};
+
+type ApiProduct = {
+  id: string;
+  name: string;
+  price: number;
+  sku?: string | null;
+  isActive: boolean;
+  recurrence?: string | null;
 };
 
 function ProductsTab() {
-  const products = [
-    { id: "p1", name: "CRM Pro",             recurrence: "mensal" as Recurrence, value: 297,    active: true },
-    { id: "p2", name: "CRM Pro Anual",       recurrence: "anual"  as Recurrence, value: 2970,   active: true },
-    { id: "p3", name: "Consultoria Inicial", recurrence: "avulso" as Recurrence, value: 1500,   active: true },
-    { id: "p4", name: "Suporte Premium",     recurrence: "mensal" as Recurrence, value: 197,    active: true },
-    { id: "p5", name: "Migração de Dados",   recurrence: "avulso" as Recurrence, value: 800,    active: false },
-  ];
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const recurrenceLabel: Record<Recurrence, string> = {
-    mensal: "Mensal",
-    anual: "Anual",
-    avulso: "Avulso",
-  };
+  // Add modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addPrice, setAddPrice] = useState("");
+  const [addSku, setAddSku] = useState("");
+  const [addRecurrence, setAddRecurrence] = useState("mensal");
+  const [addSaving, setAddSaving] = useState(false);
+  const [addFeedback, setAddFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Edit modal
+  const [editOpen, setEditOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<ApiProduct | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFeedback, setEditFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const loadProducts = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiProduct[] }>("/products")
+      .then((res) => setProducts(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar produtos." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  function openEdit(p: ApiProduct) {
+    setEditProduct(p);
+    setEditName(p.name);
+    setEditPrice(String(p.price));
+    setEditActive(p.isActive);
+    setEditFeedback(null);
+    setEditOpen(true);
+  }
+
+  async function handleAdd() {
+    if (!addName.trim() || !addPrice) {
+      setAddFeedback({ type: "error", text: "Nome e preço são obrigatórios." });
+      return;
+    }
+    setAddSaving(true);
+    setAddFeedback(null);
+    try {
+      await api.post("/products", {
+        name: addName,
+        price: parseFloat(addPrice),
+        sku: addSku || undefined,
+        recurrence: addRecurrence,
+      });
+      setAddOpen(false);
+      setAddName(""); setAddPrice(""); setAddSku(""); setAddRecurrence("mensal");
+      loadProducts();
+      setFeedback({ type: "success", text: "Produto adicionado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setAddFeedback({ type: "error", text: msg });
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  async function handleEditSave() {
+    if (!editProduct) return;
+    setEditSaving(true);
+    setEditFeedback(null);
+    try {
+      await api.put(`/products/${editProduct.id}`, {
+        name: editName,
+        price: parseFloat(editPrice),
+        isActive: editActive,
+      });
+      setEditOpen(false);
+      loadProducts();
+      setFeedback({ type: "success", text: "Produto atualizado." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
+      setEditFeedback({ type: "error", text: msg });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setFeedback(null);
+    try {
+      await api.delete(`/products/${id}`);
+      loadProducts();
+      setFeedback({ type: "success", text: "Produto removido." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao remover.";
+      setFeedback({ type: "error", text: msg });
+    }
+  }
+
+  const recurrenceOptions = [
+    { value: "mensal", label: "Mensal" },
+    { value: "anual", label: "Anual" },
+    { value: "avulso", label: "Avulso" },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">{products.length} produtos cadastrados</p>
-        <Button variant="primary" size="sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {loading ? "Carregando..." : `${products.length} produtos cadastrados`}
+          </p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setAddFeedback(null); setAddOpen(true); }}>
           <Plus size={14} className="mr-1" />
           Novo Produto
         </Button>
       </div>
 
       <Card padding="none">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Nome</th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Recorrência</th>
-              <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500">Valor</th>
-              <th className="text-center px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
-              <th className="px-5 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {products.map((product) => (
-              <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-5 py-3.5 font-medium text-gray-900">{product.name}</td>
-                <td className="px-5 py-3.5">
-                  <Badge variant={recurrenceBadge[product.recurrence]}>
-                    {recurrenceLabel[product.recurrence]}
-                  </Badge>
-                </td>
-                <td className="px-5 py-3.5 text-right text-gray-700 font-semibold">
-                  {formatCurrency(product.value)}
-                </td>
-                <td className="px-5 py-3.5 text-center">
-                  <Badge variant={product.active ? "green" : "gray"}>
-                    {product.active ? "Ativo" : "Inativo"}
-                  </Badge>
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="sm">
-                      <Pencil size={13} />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700">
-                      <Trash2 size={13} />
-                    </Button>
-                  </div>
-                </td>
+        {loading ? (
+          <div className="px-5 py-6 flex justify-center">
+            <Spinner />
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Nome</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Recorrência</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500">Valor</th>
+                <th className="text-center px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
+                <th className="px-5 py-3" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {products.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5 font-medium text-gray-900">{product.name}</td>
+                  <td className="px-5 py-3.5">
+                    <Badge variant={recurrenceBadge[product.recurrence ?? "avulso"] ?? "gray"}>
+                      {recurrenceLabel[product.recurrence ?? "avulso"] ?? product.recurrence}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3.5 text-right text-gray-700 font-semibold">
+                    {formatCurrency(product.price)}
+                  </td>
+                  <td className="px-5 py-3.5 text-center">
+                    <Badge variant={product.isActive ? "green" : "gray"}>
+                      {product.isActive ? "Ativo" : "Inativo"}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(product)}>
+                        <Pencil size={13} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => handleDelete(product.id)}
+                      >
+                        <Trash2 size={13} />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Card>
+
+      {/* Add Modal */}
+      <Modal isOpen={addOpen} onClose={() => setAddOpen(false)} title="Novo produto">
+        <div className="space-y-4">
+          <Input label="Nome" value={addName} onChange={(e) => setAddName(e.target.value)} autoFocus />
+          <Input
+            label="Preço (R$)"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0,00"
+            value={addPrice}
+            onChange={(e) => setAddPrice(e.target.value)}
+          />
+          <Input label="SKU (opcional)" value={addSku} onChange={(e) => setAddSku(e.target.value)} />
+          <Select
+            label="Recorrência"
+            options={recurrenceOptions}
+            value={addRecurrence}
+            onChange={(e) => setAddRecurrence(e.target.value)}
+          />
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={addFeedback} />
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleAdd} disabled={addSaving}>
+              {addSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Adicionar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Editar produto">
+        <div className="space-y-4">
+          <Input label="Nome" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          <Input
+            label="Preço (R$)"
+            type="number"
+            step="0.01"
+            min="0"
+            value={editPrice}
+            onChange={(e) => setEditPrice(e.target.value)}
+          />
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="edit-active"
+              checked={editActive}
+              onChange={(e) => setEditActive(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="edit-active" className="text-sm text-gray-700 cursor-pointer">
+              Produto ativo
+            </label>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={editFeedback} />
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

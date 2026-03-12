@@ -6,22 +6,17 @@ import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
 
+// Shape returned by GET /api/pipelines/:id (deals array)
 export interface Deal {
   id: string;
   title: string;
   value: number;
-  contact: string;
-  company?: string;
-  daysInStage: number;
-  probability?: number;
-  status?: "active" | "won" | "lost";
-  nextActivity?: {
-    label: string;
-    date: string;
-    type: "task" | "meeting" | "other";
-  };
-  qualificationCount?: number;
-  contactCount?: number;
+  status: "OPEN" | "WON" | "LOST";
+  contact?: { id: string; name: string } | null;
+  organization?: { id: string; name: string } | null;
+  user?: { id: string; name: string } | null;
+  stage: { id: string; name: string };
+  dealContacts?: Array<{ contact: { id: string; name: string } }>;
 }
 
 interface DealCardProps {
@@ -29,8 +24,8 @@ interface DealCardProps {
   index: number;
 }
 
-function StatusBadge({ status }: { status?: Deal["status"] }) {
-  if (status === "won") {
+function StatusBadge({ status }: { status: Deal["status"] }) {
+  if (status === "WON") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
         <span className="w-1.5 h-1.5 rounded-sm bg-green-500 inline-block" />
@@ -38,7 +33,7 @@ function StatusBadge({ status }: { status?: Deal["status"] }) {
       </span>
     );
   }
-  if (status === "lost") {
+  if (status === "LOST") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-1.5 py-0.5 rounded">
         <span className="w-1.5 h-1.5 rounded-sm bg-red-500 inline-block" />
@@ -54,17 +49,17 @@ function StatusBadge({ status }: { status?: Deal["status"] }) {
   );
 }
 
-function activityBg(type: "task" | "meeting" | "other") {
-  if (type === "meeting") return "bg-purple-100 text-purple-700";
-  if (type === "task") return "bg-green-100 text-green-700";
-  return "bg-gray-100 text-gray-600";
-}
-
 export default function DealCard({ deal, index }: DealCardProps) {
   const router = useRouter();
 
-  const qualCount = deal.qualificationCount ?? 0;
-  const contactCount = deal.contactCount ?? 1;
+  // Primary contact name: prefer `contact`, fall back to first dealContact
+  const contactName =
+    deal.contact?.name ??
+    deal.dealContacts?.[0]?.contact?.name ??
+    null;
+
+  const contactCount = deal.dealContacts?.length ?? (deal.contact ? 1 : 0);
+  const companyName = deal.organization?.name ?? null;
 
   return (
     <Draggable draggableId={deal.id} index={index}>
@@ -101,45 +96,40 @@ export default function DealCard({ deal, index }: DealCardProps) {
             </h4>
 
             {/* Company name */}
-            {deal.company && (
-              <p className="text-xs text-gray-400 mb-2">{deal.company}</p>
+            {companyName && (
+              <p className="text-xs text-gray-400 mb-2">{companyName}</p>
             )}
 
-            {/* Metrics row: qualification, contact, value */}
-            <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+            {/* Contact name */}
+            {contactName && (
+              <p className="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                <User size={11} className="text-gray-400 flex-shrink-0" />
+                {contactName}
+              </p>
+            )}
+
+            {/* Metrics row: contact count + value */}
+            <div className="flex items-center gap-3 text-xs text-gray-500">
               <span className="flex items-center gap-0.5">
                 <Star size={11} className="text-gray-400" />
-                {qualCount}
+                0
               </span>
               <span className="flex items-center gap-0.5">
                 <User size={11} className="text-gray-400" />
                 {contactCount}
               </span>
               <span className="font-semibold text-gray-700 ml-auto">
-                {formatCurrency(deal.value)}
+                {formatCurrency(deal.value ?? 0)}
               </span>
             </div>
-
-            {/* Next activity */}
-            {deal.nextActivity && (
-              <div
-                className={clsx(
-                  "flex items-center gap-1 text-xs px-2 py-1 rounded mb-1 font-medium",
-                  activityBg(deal.nextActivity.type)
-                )}
-              >
-                <Calendar size={11} className="flex-shrink-0" />
-                <span className="truncate">
-                  {deal.nextActivity.label} {deal.nextActivity.date}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Create task row */}
           <div className="border-t border-gray-100 px-3 py-1.5">
             <button
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
             >
               <Plus size={11} />

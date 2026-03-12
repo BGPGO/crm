@@ -59,7 +59,7 @@ export default function RecentActivities({
                 <p className="text-xs text-gray-500 mt-0.5">
                   {activity.dealId ? (
                     <a
-                      href={`/deals/${activity.dealId}`}
+                      href={`/pipeline/${activity.dealId}`}
                       className="hover:text-blue-600 hover:underline transition-colors"
                     >
                       {activity.deal}

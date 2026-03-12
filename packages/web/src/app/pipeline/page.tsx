@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import StageColumn from "@/components/pipeline/StageColumn";
+import NewDealModal from "@/components/pipeline/NewDealModal";
 import {
   LayoutGrid,
   List,
@@ -10,212 +11,148 @@ import {
   Plus,
   SlidersHorizontal,
   X,
+  Loader2,
 } from "lucide-react";
 import type { Stage } from "@/components/pipeline/StageColumn";
 import type { Deal } from "@/components/pipeline/DealCard";
+import { api } from "@/lib/api";
 
-type FilterType = "active" | "lost" | "won" | "all";
+// ─── API response types ───────────────────────────────────────────────────────
 
-const initialStages: Stage[] = [
-  {
-    id: "lead",
-    name: "Lead",
-    color: "bg-slate-400",
-    deals: [
-      {
-        id: "d1",
-        title: "Contrato Anual — Empresa XYZ",
-        value: 18000,
-        company: "Empresa XYZ",
-        contact: "Paulo Ferreira",
-        daysInStage: 2,
-        probability: 20,
-        status: "active",
-        qualificationCount: 2,
-        contactCount: 1,
-        nextActivity: { label: "Reunião", date: "10/06/2026 13:41", type: "meeting" },
-      },
-      {
-        id: "d2",
-        title: "Licença Software Premium",
-        value: 9500,
-        company: "TechCorp Ltda",
-        contact: "Fernanda Costa",
-        daysInStage: 4,
-        probability: 25,
-        status: "active",
-        qualificationCount: 0,
-        contactCount: 1,
-      },
-    ],
-  },
-  {
-    id: "contato-feito",
-    name: "Contato Feito",
-    color: "bg-blue-400",
-    deals: [
-      {
-        id: "d3",
-        title: "Consultoria Estratégica Q2",
-        value: 42000,
-        company: "Nunes Soluções",
-        contact: "Ricardo Nunes",
-        daysInStage: 6,
-        probability: 35,
-        status: "active",
-        qualificationCount: 1,
-        contactCount: 2,
-        nextActivity: { label: "Tarefa", date: "15/06/2026 10:00", type: "task" },
-      },
-    ],
-  },
-  {
-    id: "marcar-reuniao",
-    name: "Marcar Reunião",
-    color: "bg-cyan-400",
-    deals: [
-      {
-        id: "d4",
-        title: "Implementação ERP",
-        value: 75000,
-        company: "Beta Indústrias",
-        contact: "Ana Beatriz",
-        daysInStage: 9,
-        probability: 45,
-        status: "active",
-        qualificationCount: 3,
-        contactCount: 2,
-      },
-    ],
-  },
-  {
-    id: "reuniao-marcada",
-    name: "Reunião Marcada",
-    color: "bg-yellow-400",
-    deals: [
-      {
-        id: "d5",
-        title: "Treinamento Corporativo",
-        value: 12000,
-        company: "Lima Corp",
-        contact: "Marcos Lima",
-        daysInStage: 3,
-        probability: 50,
-        status: "active",
-        qualificationCount: 1,
-        contactCount: 1,
-        nextActivity: { label: "Reunião", date: "10/02/2026 10:00", type: "meeting" },
-      },
-      {
-        id: "d6",
-        title: "Tech Solutions — Módulo Fiscal",
-        value: 62000,
-        company: "Tech Solutions SA",
-        contact: "Mariana Lima",
-        daysInStage: 12,
-        probability: 55,
-        status: "active",
-        qualificationCount: 2,
-        contactCount: 1,
-      },
-    ],
-  },
-  {
-    id: "proposta-enviada",
-    name: "Proposta Enviada",
-    color: "bg-orange-400",
-    deals: [
-      {
-        id: "d7",
-        title: "Plataforma E-commerce",
-        value: 38000,
-        company: "Santos Digital",
-        contact: "Jorge Santos",
-        daysInStage: 8,
-        probability: 60,
-        status: "active",
-        qualificationCount: 2,
-        contactCount: 2,
-        nextActivity: { label: "Tarefa", date: "20/06/2026 09:00", type: "task" },
-      },
-    ],
-  },
-  {
-    id: "aguardando-dados",
-    name: "Aguardando Dados",
-    color: "bg-purple-400",
-    deals: [
-      {
-        id: "d8",
-        title: "Indústrias Norte — Renovação",
-        value: 85000,
-        company: "Indústrias Norte",
-        contact: "Roberto Alves",
-        daysInStage: 15,
-        probability: 70,
-        status: "active",
-        qualificationCount: 4,
-        contactCount: 3,
-      },
-    ],
-  },
-  {
-    id: "aguardando-assinatura",
-    name: "Aguardando Assinatura",
-    color: "bg-pink-400",
-    deals: [
-      {
-        id: "d9",
-        title: "Serviço Managed IT",
-        value: 29000,
-        company: "Mendes Gestão",
-        contact: "Luisa Mendes",
-        daysInStage: 10,
-        probability: 80,
-        status: "active",
-        qualificationCount: 2,
-        contactCount: 1,
-        nextActivity: { label: "Tarefa", date: "12/06/2026 15:00", type: "task" },
-      },
-    ],
-  },
-  {
-    id: "ganho-fechado",
-    name: "Ganho Fechado",
-    color: "bg-green-400",
-    deals: [
-      {
-        id: "d10",
-        title: "LogiTrans — Contrato 12 meses",
-        value: 35000,
-        company: "LogiTrans SA",
-        contact: "Carlos Souza",
-        daysInStage: 3,
-        probability: 95,
-        status: "won",
-        qualificationCount: 3,
-        contactCount: 2,
-      },
-    ],
-  },
-];
+interface ApiPipelineStub {
+  id: string;
+  name: string;
+  stages: Array<{ id: string; name: string; order: number; color?: string }>;
+  _count?: { deals: number };
+}
+
+interface ApiPipelinesResponse {
+  data: ApiPipelineStub[];
+}
+
+interface ApiPipelineDetail {
+  id: string;
+  name: string;
+  stages: Array<{ id: string; name: string; order: number; color?: string }>;
+  deals: Deal[];
+}
+
+interface ApiPipelineDetailResponse {
+  data: ApiPipelineDetail;
+}
+
+// ─── Filter type ──────────────────────────────────────────────────────────────
+
+type FilterType = "all" | "active" | "won" | "lost";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function filterDeals(deals: Deal[], filter: FilterType): Deal[] {
   if (filter === "all") return deals;
-  if (filter === "active") return deals.filter((d) => d.status === "active" || !d.status);
-  if (filter === "won") return deals.filter((d) => d.status === "won");
-  if (filter === "lost") return deals.filter((d) => d.status === "lost");
+  if (filter === "active") return deals.filter((d) => d.status === "OPEN");
+  if (filter === "won") return deals.filter((d) => d.status === "WON");
+  if (filter === "lost") return deals.filter((d) => d.status === "LOST");
   return deals;
 }
 
+// Map a tailwind color class to one of the safe pipeline stage colors.
+// The API may return arbitrary strings; we keep a small allow-list.
+const ALLOWED_COLORS = [
+  "bg-slate-400",
+  "bg-blue-400",
+  "bg-cyan-400",
+  "bg-yellow-400",
+  "bg-orange-400",
+  "bg-purple-400",
+  "bg-pink-400",
+  "bg-green-400",
+  "bg-red-400",
+];
+
+function stageColor(color?: string, index = 0): string {
+  if (color && ALLOWED_COLORS.includes(color)) return color;
+  return ALLOWED_COLORS[index % ALLOWED_COLORS.length];
+}
+
+// Build Stage array from a pipeline detail response
+function buildStages(pipeline: ApiPipelineDetail): Stage[] {
+  const sorted = [...pipeline.stages].sort((a, b) => a.order - b.order);
+
+  return sorted.map((s, idx) => ({
+    id: s.id,
+    name: s.name,
+    color: stageColor(s.color, idx),
+    deals: pipeline.deals.filter((d) => d.stage?.id === s.id),
+  }));
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function PipelinePage() {
-  const [stages, setStages] = useState<Stage[]>(initialStages);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
+  const [pipelineName, setPipelineName] = useState("Vendas");
+  const [defaultStageId, setDefaultStageId] = useState<string>("");
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [filter, setFilter] = useState<FilterType>("all");
   const [view, setView] = useState<"kanban" | "list">("kanban");
-  const [responsibleFilter] = useState<string | null>("Oliver");
 
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ── Fetch pipeline on mount ─────────────────────────────────────────────────
+
+  const fetchPipeline = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Get list of pipelines — use the first one as default
+      const listRes = await api.get<ApiPipelinesResponse>("/pipelines");
+      const pipelines = listRes.data;
+
+      if (!pipelines || pipelines.length === 0) {
+        setStages([]);
+        setLoading(false);
+        return;
+      }
+
+      const first = pipelines[0];
+      setPipelineId(first.id);
+      setPipelineName(first.name);
+
+      // 2. Get full pipeline detail (with deals)
+      const detailRes = await api.get<ApiPipelineDetailResponse>(
+        `/pipelines/${first.id}`
+      );
+      const pipeline = detailRes.data;
+
+      const builtStages = buildStages(pipeline);
+      setStages(builtStages);
+
+      // Default stage = first stage in order
+      const sortedStages = [...pipeline.stages].sort(
+        (a, b) => a.order - b.order
+      );
+      if (sortedStages.length > 0) setDefaultStageId(sortedStages[0].id);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Erro ao carregar pipeline";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPipeline();
+  }, [fetchPipeline]);
+
+  // ── Drag and drop ───────────────────────────────────────────────────────────
+
+  const onDragEnd = async (result: DropResult) => {
+    const { source, destination, draggableId } = result;
     if (!destination) return;
     if (
       source.droppableId === destination.droppableId &&
@@ -223,15 +160,47 @@ export default function PipelinePage() {
     )
       return;
 
+    // Capture previous state for rollback
+    const previousStages = stages;
+
+    // Optimistic update
     setStages((prev) => {
       const next = prev.map((s) => ({ ...s, deals: [...s.deals] }));
       const srcStage = next.find((s) => s.id === source.droppableId)!;
       const dstStage = next.find((s) => s.id === destination.droppableId)!;
       const [moved] = srcStage.deals.splice(source.index, 1);
-      dstStage.deals.splice(destination.index, 0, moved);
+      // Update the deal's stage reference optimistically
+      const updatedDeal: Deal = {
+        ...moved,
+        stage: { id: destination.droppableId, name: dstStage.name },
+      };
+      dstStage.deals.splice(destination.index, 0, updatedDeal);
       return next;
     });
+
+    // Persist to API
+    try {
+      await api.patch(`/deals/${draggableId}/stage`, {
+        stageId: destination.droppableId,
+      });
+    } catch {
+      // Revert on failure
+      setStages(previousStages);
+    }
   };
+
+  // ── New deal created ────────────────────────────────────────────────────────
+
+  const handleDealCreated = useCallback((deal: Deal) => {
+    setStages((prev) =>
+      prev.map((s) => {
+        if (s.id !== deal.stage?.id) return s;
+        return { ...s, deals: [deal, ...s.deals] };
+      })
+    );
+  }, []);
+
+  // ── Derived state ───────────────────────────────────────────────────────────
 
   const visibleStages = stages.map((s) => ({
     ...s,
@@ -239,6 +208,8 @@ export default function PipelinePage() {
   }));
 
   const totalDeals = visibleStages.reduce((sum, s) => sum + s.deals.length, 0);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50">
@@ -272,7 +243,7 @@ export default function PipelinePage() {
 
         {/* Funil dropdown */}
         <button className="flex items-center gap-1.5 text-sm text-gray-700 font-medium bg-white border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors">
-          Vendas
+          {pipelineName}
           <ChevronDown size={13} className="text-gray-400" />
         </button>
 
@@ -317,39 +288,83 @@ export default function PipelinePage() {
           {totalDeals} Negociações
         </span>
 
-        {/* Responsible filter badge */}
-        {responsibleFilter && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full">
-            {responsibleFilter}
-            <button className="hover:text-blue-900 transition-colors">
-              <X size={11} />
-            </button>
-          </span>
-        )}
-
         {/* Right side actions */}
         <div className="ml-auto flex items-center gap-2">
           <button className="flex items-center gap-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <SlidersHorizontal size={13} />
             Filtros (0)
           </button>
-          <button className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 transition-colors shadow-sm">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 transition-colors shadow-sm"
+          >
             <Plus size={14} />
             Criar
           </button>
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
-          <div className="flex gap-3 h-full min-w-max">
-            {visibleStages.map((stage) => (
-              <StageColumn key={stage.id} stage={stage} />
-            ))}
+      {/* Loading state */}
+      {loading && (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-gray-400">
+            <Loader2 size={32} className="animate-spin" />
+            <p className="text-sm">Carregando pipeline…</p>
           </div>
         </div>
-      </DragDropContext>
+      )}
+
+      {/* Error state */}
+      {!loading && error && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="max-w-sm text-center">
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-3">
+              {error}
+            </p>
+            <button
+              onClick={fetchPipeline}
+              className="text-sm text-blue-600 hover:underline"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Empty pipeline */}
+      {!loading && !error && stages.length === 0 && (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-gray-400">Nenhum pipeline encontrado.</p>
+        </div>
+      )}
+
+      {/* Kanban Board */}
+      {!loading && !error && stages.length > 0 && (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
+            <div className="flex gap-3 h-full min-w-max">
+              {visibleStages.map((stage) => (
+                <StageColumn
+                  key={stage.id}
+                  stage={stage}
+                  onAddDeal={() => setIsModalOpen(true)}
+                />
+              ))}
+            </div>
+          </div>
+        </DragDropContext>
+      )}
+
+      {/* Nova Negociação modal */}
+      {pipelineId && (
+        <NewDealModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          pipelineId={pipelineId}
+          defaultStageId={defaultStageId}
+          onDealCreated={handleDealCreated}
+        />
+      )}
     </div>
   );
 }
