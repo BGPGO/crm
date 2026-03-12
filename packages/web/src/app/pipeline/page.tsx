@@ -494,7 +494,22 @@ export default function PipelinePage() {
       stageDealsRef.current[destination.droppableId] = dstDeals;
     }
 
-    // Persist to API
+    // Optimistic update of stage counters
+    if (source.droppableId !== destination.droppableId) {
+      setStageSummaries((prev) =>
+        prev.map((s) => {
+          if (s.id === source.droppableId) {
+            return { ...s, dealCount: s.dealCount - 1, totalValue: s.totalValue - (moved.value ?? 0) };
+          }
+          if (s.id === destination.droppableId) {
+            return { ...s, dealCount: s.dealCount + 1, totalValue: s.totalValue + (moved.value ?? 0) };
+          }
+          return s;
+        })
+      );
+    }
+
+    // Persist to API — only refresh summary (counters), not all deals
     try {
       await api.patch(`/deals/${draggableId}/stage`, {
         stageId: destination.droppableId,
@@ -502,9 +517,9 @@ export default function PipelinePage() {
       setInjectedDeals({});
       if (pipelineId) {
         fetchSummary(pipelineId, allFilterOpts);
-        fetchBatchDeals(pipelineId, allFilterOpts);
       }
     } catch {
+      // Revert on error — full reload
       setInjectedDeals({});
       if (pipelineId) {
         fetchSummary(pipelineId, allFilterOpts);
