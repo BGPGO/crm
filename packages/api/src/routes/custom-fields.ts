@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         where,
         skip,
         take: limit,
-        orderBy: [{ entity: 'asc' }, { label: 'asc' }],
+        orderBy: [{ entity: 'asc' }, { name: 'asc' }],
       }),
     ]);
 
@@ -56,7 +56,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/custom-fields
 router.post(
   '/',
-  validate({ label: 'required', entity: 'required', type: 'required' }),
+  validate({ name: 'required', entity: 'required', fieldType: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const customField = await prisma.customField.create({ data: req.body });

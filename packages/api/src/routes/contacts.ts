@@ -36,7 +36,6 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { createdAt: 'desc' },
         include: {
           organization: { select: { id: true, name: true } },
-          source: { select: { id: true, name: true } },
         },
       }),
     ]);
@@ -57,7 +56,6 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       where: { id: req.params.id },
       include: {
         organization: true,
-        source: true,
         deals: {
           include: { stage: true, pipeline: true },
           orderBy: { createdAt: 'desc' },
@@ -88,7 +86,6 @@ router.post(
         data: req.body,
         include: {
           organization: { select: { id: true, name: true } },
-          source: { select: { id: true, name: true } },
         },
       });
       res.status(201).json({ data: contact });
@@ -109,7 +106,6 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       data: req.body,
       include: {
         organization: { select: { id: true, name: true } },
-        source: { select: { id: true, name: true } },
       },
     });
     res.json({ data: contact });
