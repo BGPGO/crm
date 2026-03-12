@@ -161,7 +161,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
         done: task.status === "COMPLETED",
       };
     }),
-    dealProducts: ((data.dealProducts as unknown[]) ?? []).map((dp: unknown) => {
+    dealProducts: (((data.dealProducts ?? data.products) as unknown[]) ?? []).map((dp: unknown) => {
       const d = dp as Record<string, unknown>;
       const prod = d.product as Record<string, unknown> ?? {};
       return {

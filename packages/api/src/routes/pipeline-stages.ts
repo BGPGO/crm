@@ -47,7 +47,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       include: {
         pipeline: true,
         deals: {
-          where: { status: 'open' },
+          where: { status: 'OPEN' },
           include: {
             contact: { select: { id: true, name: true } },
             user: { select: { id: true, name: true } },

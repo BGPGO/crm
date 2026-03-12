@@ -42,7 +42,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       include: {
         stages: { orderBy: { order: 'asc' } },
         deals: {
-          where: { status: 'open' },
+          where: { status: 'OPEN' },
           include: {
             contact: { select: { id: true, name: true } },
             user: { select: { id: true, name: true } },

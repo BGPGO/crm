@@ -62,8 +62,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         ...dealInclude,
         tasks: { orderBy: { dueDate: 'asc' } },
         activities: { orderBy: { createdAt: 'desc' } },
-        dealProducts: { include: { product: true } },
-        customFieldValues: { include: { customField: true } },
+        products: { include: { product: true } },
+        dealContacts: { include: { contact: true } },
       },
     });
 
