@@ -19,7 +19,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         take: limit,
         orderBy: { name: 'asc' },
         include: {
-          _count: { select: { contacts: true, deals: true } },
+          _count: { select: { deals: true } },
         },
       }),
     ]);
@@ -39,7 +39,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const source = await prisma.source.findUnique({
       where: { id: req.params.id },
       include: {
-        _count: { select: { contacts: true, deals: true } },
+        _count: { select: { deals: true } },
       },
     });
 
