@@ -14,7 +14,7 @@ import {
   TableCell,
 } from "@/components/ui/Table";
 import Badge from "@/components/ui/Badge";
-import { Plus, Phone, Mail, Calendar, MapPin, MoreHorizontal, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Plus, Phone, Mail, Calendar, MapPin, MoreHorizontal, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -144,6 +144,13 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [form, setForm] = useState<TaskForm>({ title: "", type: "CALL", dueDate: "", userId: "", description: "" });
 
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchAction, setBatchAction] = useState<"dueDate" | "userId" | "status" | "type" | "delete" | null>(null);
+  const [batchValue, setBatchValue] = useState("");
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+
   // Users list for assignee picker
   const [users, setUsers] = useState<User[]>([]);
 
@@ -201,6 +208,11 @@ export default function TasksPage() {
     fetchTasks(page, activeFilter, userFilter);
   }, [page, activeFilter, userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Clear selection when filter/page changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, activeFilter, userFilter]);
+
   const handleFilterChange = (filter: FilterTab) => {
     setActiveFilter(filter);
     setPage(1);
@@ -222,6 +234,71 @@ export default function TasksPage() {
       console.error("Erro ao atualizar tarefa:", err);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // ── Selection helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === tasks.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(tasks.map((t) => t.id)));
+    }
+  };
+
+  const allSelected = tasks.length > 0 && selectedIds.size === tasks.length;
+  const someSelected = selectedIds.size > 0;
+
+  // ── Batch actions ────────────────────────────────────────────────────
+
+  const openBatchModal = (action: typeof batchAction) => {
+    setBatchAction(action);
+    setBatchValue("");
+    setBatchModalOpen(true);
+  };
+
+  const closeBatchModal = () => {
+    setBatchModalOpen(false);
+    setBatchAction(null);
+    setBatchValue("");
+  };
+
+  const handleBatchSubmit = async () => {
+    if (!batchAction || selectedIds.size === 0) return;
+    setBatchSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+
+      if (batchAction === "delete") {
+        await api.delete("/tasks/batch", { ids });
+      } else {
+        const dataMap: Record<string, Record<string, string>> = {
+          dueDate: { dueDate: batchValue },
+          userId: { userId: batchValue },
+          status: { status: batchValue },
+          type: { type: batchValue },
+        };
+        await api.patch("/tasks/batch", { ids, data: dataMap[batchAction] });
+      }
+
+      closeBatchModal();
+      setSelectedIds(new Set());
+      await fetchTasks(page, activeFilter, userFilter);
+      await fetchCounts(userFilter);
+    } catch (err) {
+      console.error("Erro na ação em lote:", err);
+    } finally {
+      setBatchSubmitting(false);
     }
   };
 
@@ -306,6 +383,16 @@ export default function TasksPage() {
 
   const isEditing = !!editingTask;
 
+  // ── Batch action modal titles and content ────────────────────────────
+
+  const batchModalTitle: Record<string, string> = {
+    dueDate: "Alterar Data de Vencimento",
+    userId: "Alterar Responsável",
+    status: "Alterar Status",
+    type: "Alterar Tipo",
+    delete: "Excluir Tarefas",
+  };
+
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Tarefas" breadcrumb={["CRM", "Tarefas"]} />
@@ -355,10 +442,66 @@ export default function TasksPage() {
           </div>
         </div>
 
+        {/* Batch action bar */}
+        {someSelected && (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 animate-in fade-in">
+            <span className="text-sm font-medium text-blue-800">
+              {selectedIds.size} {selectedIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}
+            </span>
+            <div className="h-4 w-px bg-blue-200 mx-1" />
+            <button
+              onClick={() => openBatchModal("dueDate")}
+              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              Alterar Data
+            </button>
+            <button
+              onClick={() => openBatchModal("userId")}
+              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              Alterar Responsável
+            </button>
+            <button
+              onClick={() => openBatchModal("status")}
+              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              Alterar Status
+            </button>
+            <button
+              onClick={() => openBatchModal("type")}
+              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+            >
+              Alterar Tipo
+            </button>
+            <button
+              onClick={() => openBatchModal("delete")}
+              className="px-2.5 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={12} className="inline mr-1" />
+              Excluir
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-auto p-1 text-blue-400 hover:text-blue-600 transition-colors"
+              title="Limpar seleção"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         {/* Table */}
         <Table>
           <TableHead>
             <TableRow>
+              <TableHeader className="w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+              </TableHeader>
               <TableHeader>Tarefa</TableHeader>
               <TableHeader>Tipo</TableHeader>
               <TableHeader>Negociação</TableHeader>
@@ -371,7 +514,7 @@ export default function TasksPage() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-gray-100 rounded animate-pulse" />
                     </TableCell>
@@ -380,7 +523,7 @@ export default function TasksPage() {
               ))
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>
+                <TableCell colSpan={7}>
                   <div className="py-10 text-center text-gray-400 text-sm">
                     Nenhuma tarefa encontrada.
                   </div>
@@ -391,13 +534,26 @@ export default function TasksPage() {
                 const Icon = typeIcons[task.type] ?? Phone;
                 const isCompleted = task.status === "COMPLETED";
                 const isOverdue = task.status === "OVERDUE";
+                const isSelected = selectedIds.has(task.id);
 
                 return (
                   <TableRow
                     key={task.id}
-                    className="cursor-pointer hover:bg-gray-50"
+                    className={clsx(
+                      "cursor-pointer",
+                      isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"
+                    )}
                     onClick={() => openEditModal(task)}
                   >
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => { e.stopPropagation(); toggleSelect(task.id); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <button
@@ -560,6 +716,94 @@ export default function TasksPage() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* Batch Action Modal */}
+      <Modal
+        isOpen={batchModalOpen}
+        onClose={closeBatchModal}
+        title={batchAction ? batchModalTitle[batchAction] : ""}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            {batchAction === "delete"
+              ? `Tem certeza que deseja excluir ${selectedIds.size} tarefa${selectedIds.size > 1 ? "s" : ""}? Esta ação não pode ser desfeita.`
+              : `Aplicar alteração em ${selectedIds.size} tarefa${selectedIds.size > 1 ? "s" : ""} selecionada${selectedIds.size > 1 ? "s" : ""}.`
+            }
+          </p>
+
+          {batchAction === "dueDate" && (
+            <Input
+              label="Nova data de vencimento"
+              type="date"
+              value={batchValue}
+              onChange={(e) => setBatchValue(e.target.value)}
+            />
+          )}
+
+          {batchAction === "userId" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Novo responsável</label>
+              <select
+                value={batchValue}
+                onChange={(e) => setBatchValue(e.target.value)}
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Selecione...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {batchAction === "status" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Novo status</label>
+              <select
+                value={batchValue}
+                onChange={(e) => setBatchValue(e.target.value)}
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Selecione...</option>
+                <option value="PENDING">Pendente</option>
+                <option value="COMPLETED">Concluída</option>
+              </select>
+            </div>
+          )}
+
+          {batchAction === "type" && (
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Novo tipo</label>
+              <select
+                value={batchValue}
+                onChange={(e) => setBatchValue(e.target.value)}
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Selecione...</option>
+                {TASK_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" size="sm" onClick={closeBatchModal}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant={batchAction === "delete" ? "danger" : "primary"}
+              size="sm"
+              loading={batchSubmitting}
+              disabled={batchAction !== "delete" && !batchValue}
+              onClick={handleBatchSubmit}
+            >
+              {batchAction === "delete" ? `Excluir ${selectedIds.size} tarefa${selectedIds.size > 1 ? "s" : ""}` : "Aplicar"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

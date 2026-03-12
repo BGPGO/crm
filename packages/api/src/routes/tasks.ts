@@ -75,6 +75,61 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// PATCH /api/tasks/batch — update multiple tasks at once
+router.patch('/batch', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ids, data } = req.body as { ids: string[]; data: Record<string, unknown> };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return next(createError('ids array is required', 400));
+    }
+    if (!data || typeof data !== 'object') {
+      return next(createError('data object is required', 400));
+    }
+
+    // Handle completedAt for status changes
+    const updateData = { ...data };
+    if (updateData.status === 'COMPLETED') {
+      updateData.completedAt = new Date();
+    } else if (updateData.status && updateData.status !== 'COMPLETED') {
+      updateData.completedAt = null;
+    }
+
+    // Convert dueDate string to Date if present
+    if (typeof updateData.dueDate === 'string') {
+      updateData.dueDate = new Date(updateData.dueDate);
+    }
+
+    const result = await prisma.task.updateMany({
+      where: { id: { in: ids } },
+      data: updateData,
+    });
+
+    res.json({ data: { updated: result.count } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/tasks/batch — delete multiple tasks at once
+router.delete('/batch', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return next(createError('ids array is required', 400));
+    }
+
+    const result = await prisma.task.deleteMany({
+      where: { id: { in: ids } },
+    });
+
+    res.json({ data: { deleted: result.count } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/tasks/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
