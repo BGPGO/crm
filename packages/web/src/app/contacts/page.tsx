@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -54,6 +56,7 @@ interface NewContactForm {
 }
 
 export default function ContactsPage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -200,7 +203,11 @@ export default function ContactsPage() {
               </TableRow>
             ) : (
               contacts.map((contact) => (
-                <TableRow key={contact.id}>
+                <TableRow
+                  key={contact.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
+                >
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
@@ -218,10 +225,13 @@ export default function ContactsPage() {
                   </TableCell>
                   <TableCell className="text-gray-600">{contact.position || "—"}</TableCell>
                   <TableCell className="text-gray-500">{formatDate(contact.createdAt)}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      href={`/contacts/${contact.id}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
                       Ver
-                    </Button>
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))

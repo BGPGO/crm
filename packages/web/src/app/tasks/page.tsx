@@ -14,12 +14,13 @@ import {
   TableCell,
 } from "@/components/ui/Table";
 import Badge from "@/components/ui/Badge";
-import { Plus, Phone, Mail, Calendar, MessageSquare, CheckCircle, Clock, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Phone, Mail, Calendar, MapPin, MoreHorizontal, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import clsx from "clsx";
 
-type ApiTaskType = "CALL" | "EMAIL" | "MEETING" | "NOTE";
+type ApiTaskType = "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
 type ApiTaskStatus = "PENDING" | "COMPLETED" | "OVERDUE";
 type FilterTab = "ALL" | "PENDING" | "COMPLETED" | "OVERDUE";
 
@@ -36,6 +37,7 @@ interface User {
 interface Task {
   id: string;
   title: string;
+  description: string | null;
   type: ApiTaskType;
   dueDate: string | null;
   status: ApiTaskStatus;
@@ -56,6 +58,10 @@ interface TasksResponse {
   meta: Meta;
 }
 
+interface UsersResponse {
+  data: User[];
+}
+
 interface TaskCounts {
   ALL: number;
   PENDING: number;
@@ -63,31 +69,36 @@ interface TaskCounts {
   OVERDUE: number;
 }
 
-interface NewTaskForm {
+interface TaskForm {
   title: string;
   type: ApiTaskType;
   dueDate: string;
+  userId: string;
+  description: string;
 }
 
 const typeIcons: Record<ApiTaskType, typeof Phone> = {
   CALL: Phone,
   EMAIL: Mail,
   MEETING: Calendar,
-  NOTE: MessageSquare,
+  VISIT: MapPin,
+  OTHER: MoreHorizontal,
 };
 
 const typeLabels: Record<ApiTaskType, string> = {
   CALL: "Ligação",
   EMAIL: "E-mail",
   MEETING: "Reunião",
-  NOTE: "Nota",
+  VISIT: "Visita",
+  OTHER: "Outro",
 };
 
 const typeColors: Record<ApiTaskType, string> = {
   CALL: "text-blue-600 bg-blue-100",
   EMAIL: "text-green-600 bg-green-100",
   MEETING: "text-purple-600 bg-purple-100",
-  NOTE: "text-orange-600 bg-orange-100",
+  VISIT: "text-orange-600 bg-orange-100",
+  OTHER: "text-gray-600 bg-gray-100",
 };
 
 const statusConfig: Record<ApiTaskStatus, { label: string; variant: "green" | "yellow" | "red" | "gray" }> = {
@@ -107,26 +118,56 @@ const TASK_TYPES: { value: ApiTaskType; label: string }[] = [
   { value: "CALL", label: "Ligação" },
   { value: "EMAIL", label: "E-mail" },
   { value: "MEETING", label: "Reunião" },
-  { value: "NOTE", label: "Nota" },
+  { value: "VISIT", label: "Visita" },
+  { value: "OTHER", label: "Outro" },
 ];
 
+function dueDateToInput(iso: string | null): string {
+  if (!iso) return "";
+  return iso.slice(0, 10);
+}
+
 export default function TasksPage() {
+  const { user: authUser } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [counts, setCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("ALL");
+  const [userFilter, setUserFilter] = useState<string>("");
   const [page, setPage] = useState(1);
-  const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [defaultUserId, setDefaultUserId] = useState<string>("");
-  const [form, setForm] = useState<NewTaskForm>({ title: "", type: "CALL", dueDate: "" });
 
-  const fetchTasks = useCallback(async (currentPage: number, filter: FilterTab) => {
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [form, setForm] = useState<TaskForm>({ title: "", type: "CALL", dueDate: "", userId: "", description: "" });
+
+  // Users list for assignee picker
+  const [users, setUsers] = useState<User[]>([]);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const result = await api.get<UsersResponse>("/users?limit=50");
+      setUsers(result.data);
+    } catch (err) {
+      console.error("Erro ao buscar usuários:", err);
+    }
+  }, []);
+
+  const buildBaseParams = useCallback((uid: string) => {
+    const p = new URLSearchParams();
+    if (uid) p.set("userId", uid);
+    return p;
+  }, []);
+
+  const fetchTasks = useCallback(async (currentPage: number, filter: FilterTab, uid: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(currentPage), limit: "20" });
+      const params = buildBaseParams(uid);
+      params.set("page", String(currentPage));
+      params.set("limit", "20");
       if (filter !== "ALL") params.set("status", filter);
       const result = await api.get<TasksResponse>(`/tasks?${params.toString()}`);
       setTasks(result.data);
@@ -136,49 +177,37 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buildBaseParams]);
 
-  const fetchCounts = useCallback(async () => {
+  const fetchCounts = useCallback(async (uid: string) => {
     try {
-      const [all, pending, completed, overdue] = await Promise.all([
-        api.get<TasksResponse>("/tasks?limit=1"),
-        api.get<TasksResponse>("/tasks?limit=1&status=PENDING"),
-        api.get<TasksResponse>("/tasks?limit=1&status=COMPLETED"),
-        api.get<TasksResponse>("/tasks?limit=1&status=OVERDUE"),
-      ]);
-      setCounts({
-        ALL: all.meta.total,
-        PENDING: pending.meta.total,
-        COMPLETED: completed.meta.total,
-        OVERDUE: overdue.meta.total,
-      });
+      const params = uid ? `?userId=${uid}` : "";
+      const res = await api.get<{ data: TaskCounts }>(`/tasks/counts${params}`);
+      setCounts(res.data);
     } catch (err) {
       console.error("Erro ao buscar contagens:", err);
     }
   }, []);
 
-  const fetchDefaultUser = useCallback(async () => {
-    try {
-      const result = await api.get<{ data: User[] }>("/users");
-      if (result.data.length > 0) {
-        setDefaultUserId(result.data[0].id);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar usuários:", err);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchDefaultUser();
-    fetchCounts();
+    fetchUsers();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetchTasks(page, activeFilter);
-  }, [page, activeFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchCounts(userFilter);
+  }, [userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetchTasks(page, activeFilter, userFilter);
+  }, [page, activeFilter, userFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFilterChange = (filter: FilterTab) => {
     setActiveFilter(filter);
+    setPage(1);
+  };
+
+  const handleUserFilterChange = (uid: string) => {
+    setUserFilter(uid);
     setPage(1);
   };
 
@@ -187,8 +216,8 @@ export default function TasksPage() {
     try {
       const newStatus = task.status === "COMPLETED" ? "PENDING" : "COMPLETED";
       await api.put(`/tasks/${task.id}`, { status: newStatus });
-      await fetchTasks(page, activeFilter);
-      await fetchCounts();
+      await fetchTasks(page, activeFilter, userFilter);
+      await fetchCounts(userFilter);
     } catch (err) {
       console.error("Erro ao atualizar tarefa:", err);
     } finally {
@@ -196,26 +225,77 @@ export default function TasksPage() {
     }
   };
 
-  const openModal = () => {
-    setForm({ title: "", type: "CALL", dueDate: "" });
+  // Open modal to create
+  const openCreateModal = () => {
+    setEditingTask(null);
+    setForm({
+      title: "",
+      type: "CALL",
+      dueDate: "",
+      userId: authUser?.id || "",
+      description: "",
+    });
     setModalOpen(true);
   };
 
+  // Open modal to edit
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      type: task.type,
+      dueDate: dueDateToInput(task.dueDate),
+      userId: task.user?.id || "",
+      description: task.description || "",
+    });
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingTask(null);
+  };
+
+  // Create or update
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post("/tasks", {
+      const payload = {
         title: form.title,
         type: form.type,
-        userId: defaultUserId,
+        userId: form.userId || authUser?.id,
         dueDate: form.dueDate || undefined,
-      });
-      setModalOpen(false);
-      await fetchTasks(page, activeFilter);
-      await fetchCounts();
+        description: form.description || undefined,
+      };
+
+      if (editingTask) {
+        await api.put(`/tasks/${editingTask.id}`, payload);
+      } else {
+        await api.post("/tasks", payload);
+      }
+      closeModal();
+      await fetchTasks(page, activeFilter, userFilter);
+      await fetchCounts(userFilter);
     } catch (err) {
-      console.error("Erro ao criar tarefa:", err);
+      console.error("Erro ao salvar tarefa:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Delete task
+  const handleDelete = async () => {
+    if (!editingTask) return;
+    if (!confirm("Tem certeza que deseja excluir esta tarefa?")) return;
+    setSubmitting(true);
+    try {
+      await api.delete(`/tasks/${editingTask.id}`);
+      closeModal();
+      await fetchTasks(page, activeFilter, userFilter);
+      await fetchCounts(userFilter);
+    } catch (err) {
+      console.error("Erro ao excluir tarefa:", err);
     } finally {
       setSubmitting(false);
     }
@@ -223,6 +303,8 @@ export default function TasksPage() {
 
   const start = meta.total === 0 ? 0 : (meta.page - 1) * meta.limit + 1;
   const end = Math.min(meta.page * meta.limit, meta.total);
+
+  const isEditing = !!editingTask;
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -255,10 +337,22 @@ export default function TasksPage() {
             ))}
           </div>
 
-          <Button variant="primary" size="sm" onClick={openModal}>
-            <Plus size={14} />
-            Nova Tarefa
-          </Button>
+          <div className="flex items-center gap-2">
+            <select
+              value={userFilter}
+              onChange={(e) => handleUserFilterChange(e.target.value)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todos os responsáveis</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            <Button variant="primary" size="sm" onClick={openCreateModal}>
+              <Plus size={14} />
+              Nova Tarefa
+            </Button>
+          </div>
         </div>
 
         {/* Table */}
@@ -271,14 +365,13 @@ export default function TasksPage() {
               <TableHeader>Responsável</TableHeader>
               <TableHeader>Vencimento</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-gray-100 rounded animate-pulse" />
                     </TableCell>
@@ -287,7 +380,7 @@ export default function TasksPage() {
               ))
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={6}>
                   <div className="py-10 text-center text-gray-400 text-sm">
                     Nenhuma tarefa encontrada.
                   </div>
@@ -300,11 +393,15 @@ export default function TasksPage() {
                 const isOverdue = task.status === "OVERDUE";
 
                 return (
-                  <TableRow key={task.id}>
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => openEditModal(task)}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleToggleStatus(task)}
+                          onClick={(e) => { e.stopPropagation(); handleToggleStatus(task); }}
                           disabled={togglingId === task.id}
                           className="flex-shrink-0 disabled:opacity-50"
                           title={isCompleted ? "Marcar como pendente" : "Marcar como concluída"}
@@ -348,9 +445,6 @@ export default function TasksPage() {
                         {statusConfig[task.status].label}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm">Editar</Button>
-                    </TableCell>
                   </TableRow>
                 );
               })
@@ -387,8 +481,8 @@ export default function TasksPage() {
         )}
       </main>
 
-      {/* New Task Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Nova Tarefa">
+      {/* Create / Edit Task Modal */}
+      <Modal isOpen={modalOpen} onClose={closeModal} title={isEditing ? "Editar Tarefa" : "Nova Tarefa"}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Título *"
@@ -397,18 +491,34 @@ export default function TasksPage() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             required
           />
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Tipo *</label>
-            <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ApiTaskType }))}
-              required
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            >
-              {TASK_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Tipo *</label>
+              <select
+                value={form.type}
+                onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ApiTaskType }))}
+                required
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                {TASK_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Responsável *</label>
+              <select
+                value={form.userId}
+                onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))}
+                required
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="">Selecione...</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <Input
             label="Data de vencimento"
@@ -416,13 +526,38 @@ export default function TasksPage() {
             value={form.dueDate}
             onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
           />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" variant="primary" size="sm" loading={submitting} disabled={!defaultUserId}>
-              Criar Tarefa
-            </Button>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Descrição</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Observações sobre a tarefa..."
+              rows={3}
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white resize-none"
+            />
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Excluir
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={closeModal}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={submitting} disabled={!form.userId}>
+                {isEditing ? "Salvar" : "Criar Tarefa"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -11,8 +12,6 @@ import {
   DollarSign,
   Trophy,
   Percent,
-  ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { api } from "@/lib/api";
@@ -35,23 +34,40 @@ interface DealsResponse {
   meta: { total: number };
 }
 
-interface Pipeline {
+interface PipelineStub {
   id: string;
   name: string;
-  stages: PipelineStage[];
-}
-
-interface PipelineStage {
-  id: string;
-  name: string;
-  color: string;
-  order: number;
-  _count?: { deals: number };
-  deals?: { value: number }[];
 }
 
 interface PipelinesResponse {
-  data: Pipeline[];
+  data: PipelineStub[];
+}
+
+interface PipelineSummaryStage {
+  id: string;
+  name: string;
+  order: number;
+  color: string;
+  dealCount: number;
+  totalValue: number;
+}
+
+interface PipelineSummaryResponse {
+  data: {
+    stages: PipelineSummaryStage[];
+    totalDeals: number;
+    totalValue: number;
+    countsByStatus?: { OPEN: number; WON: number; LOST: number };
+  };
+}
+
+interface ApiUser {
+  id: string;
+  name: string;
+}
+
+interface UsersResponse {
+  data: ApiUser[];
 }
 
 interface ApiActivity {
@@ -87,17 +103,16 @@ interface DashboardData {
   topDeals: TopDeal[];
 }
 
+// ── Filter types ──────────────────────────────────────────────────────────────
+
+type StatusFilter = "all" | "active" | "won" | "lost";
+type PeriodFilter = "all" | "this_month" | "last_3" | "last_6" | "this_year";
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const FUNNEL_COLORS = [
-  "#3B82F6",
-  "#06B6D4",
-  "#8B5CF6",
-  "#F59E0B",
-  "#F97316",
-  "#EF4444",
-  "#EC4899",
-  "#22C55E",
+  "#3B82F6", "#06B6D4", "#8B5CF6", "#F59E0B",
+  "#F97316", "#EF4444", "#EC4899", "#22C55E",
 ];
 
 const STAGE_BADGE: Record<string, "blue" | "green" | "yellow" | "orange" | "purple" | "red" | "gray"> = {
@@ -111,27 +126,51 @@ const STAGE_BADGE: Record<string, "blue" | "green" | "yellow" | "orange" | "purp
   "Ganho Fechado": "green",
 };
 
+const SELECT_CLASS =
+  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 function mapActivityType(apiType: string): Activity["type"] {
   const map: Record<string, Activity["type"]> = {
-    CALL: "call",
-    call: "call",
-    EMAIL: "email",
-    email: "email",
-    TASK: "task",
-    task: "task",
-    NOTE: "note",
-    note: "note",
-    STAGE_CHANGE: "stage_change",
-    stage_change: "stage_change",
-    NEW_LEAD: "new_lead",
-    new_lead: "new_lead",
-    WON: "won",
-    won: "won",
+    CALL: "call", call: "call",
+    EMAIL: "email", email: "email",
+    TASK: "task", task: "task",
+    NOTE: "note", note: "note",
+    STAGE_CHANGE: "stage_change", stage_change: "stage_change",
+    NEW_LEAD: "new_lead", new_lead: "new_lead",
+    WON: "won", won: "won",
   };
   return map[apiType] ?? "note";
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
+/** Build deals query string from filters */
+function buildDealsQs(
+  opts: { status?: string; userId?: string; period?: string },
+  extra?: Record<string, string>
+): string {
+  const params = new URLSearchParams();
+  if (opts.status && opts.status !== "all") {
+    const map: Record<string, string> = { active: "OPEN", won: "WON", lost: "LOST" };
+    params.set("status", map[opts.status] || opts.status);
+  }
+  if (opts.userId && opts.userId !== "all") params.set("userId", opts.userId);
+  if (opts.period && opts.period !== "all") params.set("period", opts.period);
+  if (extra) Object.entries(extra).forEach(([k, v]) => params.set(k, v));
+  return params.toString();
+}
+
+/** Build summary query string */
+function buildSummaryQs(opts: { status?: string; userId?: string; period?: string }): string {
+  const params = new URLSearchParams();
+  if (opts.status && opts.status !== "all") {
+    const map: Record<string, string> = { active: "OPEN", won: "WON", lost: "LOST" };
+    params.set("status", map[opts.status] || opts.status);
+  }
+  if (opts.userId && opts.userId !== "all") params.set("userId", opts.userId);
+  if (opts.period && opts.period !== "all") params.set("period", opts.period);
+  return params.toString();
+}
+
+// ── Skeletons ─────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
   return (
@@ -158,138 +197,132 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Filters
+  const [pipelines, setPipelines] = useState<PipelineStub[]>([]);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
+  const [users, setUsers] = useState<ApiUser[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+
+  // ── Load pipelines + users once ─────────────────────────────────────────
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
+    async function init() {
       try {
-        // Fire all requests in parallel
-        const [openDealsRes, wonDealsRes, pipelinesRes, activitiesRes] =
-          await Promise.all([
-            api.get<DealsResponse>("/deals?status=OPEN"),
-            api.get<DealsResponse>("/deals?status=WON"),
-            api.get<PipelinesResponse>("/pipelines"),
-            api.get<ActivitiesResponse>("/activities?limit=10"),
-          ]);
-
-        if (cancelled) return;
-
-        const toNum = (v: unknown): number => Number(v) || 0;
-        const openDeals = (openDealsRes.data ?? []).map(d => ({ ...d, value: toNum(d.value) }));
-        const wonDeals = (wonDealsRes.data ?? []).map(d => ({ ...d, value: toNum(d.value) }));
-
-        // ── Metrics ────────────────────────────────────────────────────────────
-        const activeDealsCount = openDeals.length;
-        const pipelineValue = openDeals.reduce((sum, d) => sum + (d.value ?? 0), 0);
-        const closedDealsCount = wonDeals.length;
-        const conversionRate =
-          openDeals.length + wonDeals.length > 0
-            ? (wonDeals.length / (openDeals.length + wonDeals.length)) * 100
-            : 0;
-
-        // ── Funnel stages ──────────────────────────────────────────────────────
-        // Try to use the first pipeline's stage data; fall back to deriving from open deals
-        let funnelStages: FunnelStage[] = [];
-
-        const pipelines = pipelinesRes.data ?? [];
-        if (pipelines.length > 0) {
-          // Fetch the first pipeline details (includes stages with deal counts/values)
-          try {
-            const pipelineRes = await api.get<{ data: Pipeline & { deals?: Deal[] } }>(
-              `/pipelines/${pipelines[0].id}`
-            );
-            const pipelineDetail = pipelineRes.data;
-            if (!cancelled && pipelineDetail?.stages?.length && pipelineDetail.deals) {
-              // Group deals by stageId
-              const dealsByStage = new Map<string, { count: number; value: number }>();
-              for (const d of pipelineDetail.deals) {
-                const stageId = (d as unknown as { stageId: string }).stageId;
-                const entry = dealsByStage.get(stageId) ?? { count: 0, value: 0 };
-                entry.count += 1;
-                entry.value += Number(d.value) || 0;
-                dealsByStage.set(stageId, entry);
-              }
-              const sorted = [...pipelineDetail.stages].sort(
-                (a, b) => (a.order ?? 0) - (b.order ?? 0)
-              );
-              funnelStages = sorted.map((stage, i) => {
-                const stageColor = stage.color || FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-                const entry = dealsByStage.get(stage.id) ?? { count: 0, value: 0 };
-                return { name: stage.name, color: stageColor, count: entry.count, value: entry.value };
-              });
-            }
-          } catch {
-            // Pipeline detail failed — fall through to client-side derivation
-          }
-        }
-
-        // If API didn't give us stage data, derive it from open deals client-side
-        if (funnelStages.length === 0) {
-          const stageMap = new Map<string, { count: number; value: number }>();
-          for (const deal of openDeals) {
-            const stageName = deal.stage?.name ?? "Sem etapa";
-            const entry = stageMap.get(stageName) ?? { count: 0, value: 0 };
-            entry.count += 1;
-            entry.value += deal.value ?? 0;
-            stageMap.set(stageName, entry);
-          }
-          funnelStages = Array.from(stageMap.entries()).map(
-            ([name, { count, value }], i) => ({
-              name,
-              color: FUNNEL_COLORS[i % FUNNEL_COLORS.length],
-              count,
-              value,
-            })
-          );
-        }
-
-        // ── Activities ─────────────────────────────────────────────────────────
-        const recentActivities: Activity[] = (activitiesRes.data ?? []).map(
-          (a) => ({
-            id: a.id,
-            type: mapActivityType(a.type),
-            text: a.content,
-            deal: a.deal?.title ?? undefined,
-            dealId: a.deal?.id ?? undefined,
-            time: a.createdAt,
-          })
-        );
-
-        // ── Top deals ──────────────────────────────────────────────────────────
-        const topDeals: TopDeal[] = [...openDeals]
-          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-          .slice(0, 5)
-          .map((d) => ({
-            id: d.id,
-            name: d.organization?.name ?? d.contact?.name ?? d.title,
-            value: d.value ?? 0,
-            stage: d.stage?.name ?? "",
-            owner: d.user?.name ?? "—",
-          }));
-
-        setData({
-          activeDealsCount,
-          pipelineValue,
-          closedDealsCount,
-          conversionRate,
-          funnelStages,
-          recentActivities,
-          topDeals,
-        });
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Erro ao carregar dados");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        const [pRes, uRes] = await Promise.all([
+          api.get<PipelinesResponse>("/pipelines"),
+          api.get<UsersResponse>("/users?limit=100"),
+        ]);
+        const list = pRes.data ?? [];
+        setPipelines(list);
+        if (list.length > 0) setPipelineId(list[0].id);
+        setUsers(uRes.data ?? []);
+      } catch {
+        // non-fatal
       }
     }
-
-    load();
-    return () => { cancelled = true; };
+    init();
   }, []);
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Load dashboard data when filters or pipeline change ─────────────────
+
+  const loadData = useCallback(async () => {
+    if (!pipelineId) return;
+    setLoading(true);
+    setError(null);
+
+    const filterOpts = { status: statusFilter, userId: userFilter, period: periodFilter };
+
+    try {
+      // Build query strings
+      const topDealsQs = buildDealsQs(filterOpts, { limit: "100" });
+      const summaryQs = buildSummaryQs(filterOpts);
+
+      let activeCount = 0;
+      let wonCount = 0;
+      let lostCount = 0;
+
+      const [
+        summaryRes,
+        activitiesRes,
+        topDealsRes,
+      ] = await Promise.all([
+        api.get<PipelineSummaryResponse>(
+          `/pipelines/${pipelineId}/summary${summaryQs ? `?${summaryQs}` : ""}`
+        ),
+        api.get<ActivitiesResponse>("/activities?limit=10"),
+        api.get<DealsResponse>(
+          `/deals?pipelineId=${pipelineId}&${topDealsQs}`
+        ),
+      ]);
+
+      // Extract counts from summary's countsByStatus (no extra requests needed)
+      const cbs = summaryRes.data?.countsByStatus;
+      if (cbs) {
+        activeCount = cbs.OPEN ?? 0;
+        wonCount = cbs.WON ?? 0;
+        lostCount = cbs.LOST ?? 0;
+      }
+
+      const totalDeals = activeCount + wonCount + lostCount;
+      const conversionRate = totalDeals > 0 ? (wonCount / totalDeals) * 100 : 0;
+
+      // Funnel from summary
+      const sorted = [...(summaryRes.data?.stages ?? [])].sort(
+        (a, b) => a.order - b.order
+      );
+      const funnelStages: FunnelStage[] = sorted.map((stage, i) => ({
+        name: stage.name,
+        color: stage.color || FUNNEL_COLORS[i % FUNNEL_COLORS.length],
+        count: stage.dealCount,
+        value: stage.totalValue,
+      }));
+      const pipelineValue = summaryRes.data?.totalValue ?? 0;
+
+      // Activities
+      const recentActivities: Activity[] = (activitiesRes.data ?? []).map((a) => ({
+        id: a.id,
+        type: mapActivityType(a.type),
+        text: a.content,
+        deal: a.deal?.title ?? undefined,
+        dealId: a.deal?.id ?? undefined,
+        time: a.createdAt,
+      }));
+
+      // Top deals
+      const topDeals: TopDeal[] = [...(topDealsRes.data ?? [])]
+        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+        .slice(0, 5)
+        .map((d) => ({
+          id: d.id,
+          name: d.organization?.name ?? d.contact?.name ?? d.title,
+          value: d.value ?? 0,
+          stage: d.stage?.name ?? "",
+          owner: d.user?.name ?? "—",
+        }));
+
+      setData({
+        activeDealsCount: activeCount,
+        pipelineValue,
+        closedDealsCount: wonCount,
+        conversionRate,
+        funnelStages,
+        recentActivities,
+        topDeals,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  }, [pipelineId, statusFilter, userFilter, periodFilter]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ── Metrics ───────────────────────────────────────────────────────────────
 
   const metrics = data
     ? [
@@ -304,7 +337,7 @@ export default function DashboardPage() {
         {
           title: "Valor Total no Pipeline",
           value: formatCurrency(data.pipelineValue),
-          sub: "em aberto",
+          sub: "valor total",
           icon: DollarSign,
           color: "text-green-600",
           bg: "bg-green-50",
@@ -320,13 +353,15 @@ export default function DashboardPage() {
         {
           title: "Taxa de Conversão",
           value: `${data.conversionRate.toFixed(1)}%`,
-          sub: "ganhos vs. total",
+          sub: "ganhos / total",
           icon: Percent,
           color: "text-purple-600",
           bg: "bg-purple-50",
         },
       ]
     : [];
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -339,6 +374,76 @@ export default function DashboardPage() {
             Erro ao carregar dados: {error}
           </div>
         )}
+
+        {/* ── Filters bar ──────────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Pipeline dropdown */}
+          <div className="relative">
+            <select
+              value={pipelineId || ""}
+              onChange={(e) => setPipelineId(e.target.value)}
+              className={`${SELECT_CLASS} text-gray-700 font-medium`}
+            >
+              {pipelines.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+          </div>
+
+          {/* User dropdown */}
+          <div className="relative">
+            <select
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className={`${SELECT_CLASS} text-gray-600`}
+            >
+              <option value="all">Todos os usuários</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+          </div>
+
+          {/* Period dropdown */}
+          <div className="relative">
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+              className={`${SELECT_CLASS} text-gray-600`}
+            >
+              <option value="all">Todos os períodos</option>
+              <option value="this_month">Este mês</option>
+              <option value="last_3">Últimos 3 meses</option>
+              <option value="last_6">Últimos 6 meses</option>
+              <option value="this_year">Este ano</option>
+            </select>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+          </div>
+
+          {/* Status pills */}
+          <div className="flex items-center gap-1 ml-1">
+            {([
+              { value: "all", label: "Todos" },
+              { value: "active", label: "Em andamento" },
+              { value: "won", label: "Ganhos" },
+              { value: "lost", label: "Perdidos" },
+            ] as { value: StatusFilter; label: string }[]).map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                  statusFilter === f.value
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Métricas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -377,7 +482,15 @@ export default function DashboardPage() {
             <Card padding="md">
               <CardHeader>
                 <CardTitle>Funil de Vendas</CardTitle>
-                <span className="text-xs text-gray-400">Negociações em aberto</span>
+                <span className="text-xs text-gray-400">
+                  {statusFilter === "all"
+                    ? "Todas as negociações"
+                    : statusFilter === "active"
+                    ? "Em andamento"
+                    : statusFilter === "won"
+                    ? "Ganhos"
+                    : "Perdidos"}
+                </span>
               </CardHeader>
               {loading ? (
                 <SkeletonBlock className="h-64 mt-2" />
@@ -423,9 +536,9 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 ))}
-                {!loading && (data?.topDeals ?? []).length === 0 && (
+                {(data?.topDeals ?? []).length === 0 && (
                   <p className="text-sm text-gray-400 text-center py-4">
-                    Nenhuma negociação em aberto
+                    Nenhuma negociação encontrada
                   </p>
                 )}
               </div>
@@ -437,9 +550,9 @@ export default function DashboardPage() {
         <Card padding="md">
           <CardHeader>
             <CardTitle>Últimas Atividades</CardTitle>
-            <button className="text-xs text-blue-600 hover:underline">
+            <Link href="/tasks" className="text-xs text-blue-600 hover:underline">
               Ver todas
-            </button>
+            </Link>
           </CardHeader>
           {loading ? (
             <div className="space-y-4 mt-1">

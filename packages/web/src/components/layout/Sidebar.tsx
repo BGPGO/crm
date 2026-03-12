@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Kanban,
@@ -13,21 +14,125 @@ import {
   Bell,
   Search,
   ChevronDown,
+  LogOut,
+  Settings,
+  User,
+  Clock,
+  Phone,
+  Mail,
+  Calendar,
+  MapPin,
+  MoreHorizontal,
 } from "lucide-react";
 import clsx from "clsx";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
 
 const navItems = [
-  { href: "/", label: "Início", icon: LayoutDashboard },
-  { href: "/pipeline", label: "Negociações", icon: Kanban },
+  { href: "/", label: "Inicio", icon: LayoutDashboard },
+  { href: "/pipeline", label: "Negociacoes", icon: Kanban },
   { href: "/organizations", label: "Empresas", icon: Building2 },
   { href: "/contacts", label: "Contatos", icon: Users },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/reports", label: "Análises", icon: BarChart3 },
+  { href: "/reports", label: "Analises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
 ];
 
+interface NotifTask {
+  id: string;
+  title: string;
+  type: "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
+  dueDate: string | null;
+  status: "PENDING" | "COMPLETED" | "OVERDUE";
+}
+
+interface NotifResponse {
+  data: NotifTask[];
+  meta: { total: number };
+}
+
+const taskTypeIcons: Record<string, typeof Phone> = {
+  CALL: Phone,
+  EMAIL: Mail,
+  MEETING: Calendar,
+  VISIT: MapPin,
+  OTHER: MoreHorizontal,
+};
+
+function getInitials(name: string): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function TopNavbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTasks, setNotifTasks] = useState<NotifTask[]>([]);
+  const [notifCount, setNotifCount] = useState(0);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const [pending, overdue] = await Promise.all([
+        api.get<NotifResponse>(`/tasks?userId=${user.id}&status=PENDING&limit=5`),
+        api.get<NotifResponse>(`/tasks?userId=${user.id}&status=OVERDUE&limit=5`),
+      ]);
+      const total = pending.meta.total + overdue.meta.total;
+      setNotifCount(total);
+      // Merge overdue first, then pending, max 8
+      const merged = [...overdue.data, ...pending.data].slice(0, 8);
+      setNotifTasks(merged);
+    } catch {
+      // silent
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 300000);
+    const onTasksChanged = () => fetchNotifications();
+    window.addEventListener('tasks-changed', onTasksChanged);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('tasks-changed', onTasksChanged);
+    };
+  }, [fetchNotifications]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+      if (
+        notifRef.current &&
+        !notifRef.current.contains(event.target as Node)
+      ) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    setDropdownOpen(false);
+    await logout();
+    router.replace("/login");
+  };
+
+  const initials = user ? getInitials(user.name) : "?";
+  const displayName = user?.name || "Usuario";
 
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-6 flex-shrink-0 z-30">
@@ -79,21 +184,144 @@ export default function TopNavbar() {
         </div>
 
         {/* Notifications */}
-        <button className="relative p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-          <Bell size={18} />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-500 rounded-full" />
-        </button>
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={() => setNotifOpen((prev) => !prev)}
+            className="relative p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <Bell size={18} />
+            {notifCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
+                {notifCount > 99 ? "99+" : notifCount}
+              </span>
+            )}
+          </button>
 
-        {/* Avatar */}
-        <button className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 transition-colors">
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
-            U
-          </div>
-          <span className="hidden sm:block text-sm font-medium text-gray-900">
-            Usuário
-          </span>
-          <ChevronDown size={13} className="text-gray-400" />
-        </button>
+          {notifOpen && (
+            <div className="absolute right-0 top-full mt-1 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Notificações</h3>
+                {notifCount > 0 && (
+                  <span className="text-xs text-gray-500">{notifCount} pendente{notifCount !== 1 ? "s" : ""}</span>
+                )}
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {notifTasks.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-gray-400">
+                    Nenhuma tarefa pendente
+                  </div>
+                ) : (
+                  notifTasks.map((task) => {
+                    const TIcon = taskTypeIcons[task.type] || MoreHorizontal;
+                    const isOverdue = task.status === "OVERDUE";
+                    return (
+                      <Link
+                        key={task.id}
+                        href="/tasks"
+                        onClick={() => setNotifOpen(false)}
+                        className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                      >
+                        <div className={clsx(
+                          "mt-0.5 p-1.5 rounded-full flex-shrink-0",
+                          isOverdue ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
+                        )}>
+                          {isOverdue ? <Clock size={12} /> : <TIcon size={12} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 truncate">{task.title}</p>
+                          <p className={clsx(
+                            "text-xs mt-0.5",
+                            isOverdue ? "text-red-500 font-medium" : "text-gray-400"
+                          )}>
+                            {isOverdue ? "Atrasada" : "Pendente"}
+                            {task.dueDate && ` · ${new Date(task.dueDate).toLocaleDateString("pt-BR")}`}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+              {notifCount > notifTasks.length && (
+                <Link
+                  href="/tasks"
+                  onClick={() => setNotifOpen(false)}
+                  className="block px-4 py-2.5 text-center text-xs font-medium text-blue-600 hover:bg-blue-50 border-t border-gray-100 transition-colors"
+                >
+                  Ver todas as tarefas
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Avatar + Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+              {initials}
+            </div>
+            <span className="hidden sm:block text-sm font-medium text-gray-900 max-w-[120px] truncate">
+              {displayName}
+            </span>
+            <ChevronDown
+              size={13}
+              className={clsx(
+                "text-gray-400 transition-transform",
+                dropdownOpen && "rotate-180"
+              )}
+            />
+          </button>
+
+          {/* Dropdown menu */}
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+              {/* User info */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {displayName}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.email || ""}
+                </p>
+              </div>
+
+              {/* Menu items */}
+              <div className="py-1">
+                <Link
+                  href="/settings"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Settings size={15} className="text-gray-400" />
+                  Configuracoes
+                </Link>
+                <Link
+                  href="/settings"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <User size={15} className="text-gray-400" />
+                  Meu Perfil
+                </Link>
+              </div>
+
+              {/* Logout */}
+              <div className="border-t border-gray-100 py-1">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut size={15} />
+                  Sair
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

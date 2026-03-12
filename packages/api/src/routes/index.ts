@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import authRouter from './auth';
 import contactsRouter from './contacts';
 import organizationsRouter from './organizations';
 import dealsRouter from './deals';
@@ -16,8 +17,17 @@ import campaignsRouter from './campaigns';
 import customFieldsRouter from './custom-fields';
 import webhooksRouter from './webhooks';
 import webhookConfigsRouter from './webhook-configs';
+import { optionalAuth } from '../middleware/auth';
 
 const router = Router();
+
+// ─── Auth routes (no auth middleware needed for login/logout) ─────────────────
+router.use('/auth', authRouter);
+
+// ─── Optional auth for all other routes ──────────────────────────────────────
+// Attaches req.user if a valid token is present, but doesn't block requests.
+// Switch to requireAuth when ready to enforce authentication.
+router.use(optionalAuth);
 
 router.use('/contacts', contactsRouter);
 router.use('/organizations', organizationsRouter);

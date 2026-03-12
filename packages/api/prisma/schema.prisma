@@ -270,6 +270,10 @@ model Deal {
   @@index([organizationId])
   @@index([status])
   @@index([sourceId])
+  @@index([pipelineId, stageId])
+  @@index([pipelineId, status])
+  @@index([status, createdAt])
+  @@index([createdAt])
 }
 
 model Product {
@@ -352,6 +356,7 @@ model Task {
   @@index([contactId])
   @@index([status])
   @@index([dueDate])
+  @@index([userId, status])
 }
 
 model Activity {
@@ -376,6 +381,7 @@ model Activity {
   @@index([dealId])
   @@index([contactId])
   @@index([type])
+  @@index([dealId, createdAt])
 }
 
 model CustomField {

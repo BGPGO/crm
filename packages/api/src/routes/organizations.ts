@@ -57,7 +57,6 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
           include: { stage: true, pipeline: true, user: { select: { id: true, name: true } } },
           orderBy: { createdAt: 'desc' },
         },
-        customFieldValues: { include: { customField: true } },
       },
     });
 

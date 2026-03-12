@@ -9,7 +9,7 @@ const router = Router();
 
 const dealInclude = {
   pipeline: { select: { id: true, name: true } },
-  stage: true,
+  stage: { select: { id: true, name: true, order: true, color: true } },
   user: { select: { id: true, name: true, email: true } },
   contact: { select: { id: true, name: true, email: true } },
   organization: { select: { id: true, name: true } },
@@ -24,7 +24,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { pipelineId, stageId, userId, status } = req.query;
+    const { pipelineId, stageId, userId, status, period } = req.query;
 
     const where: Record<string, unknown> = {};
 
@@ -32,6 +32,28 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     if (stageId) where.stageId = stageId as string;
     if (userId) where.userId = userId as string;
     if (status) where.status = status as string;
+
+    if (period) {
+      const now = new Date();
+      let from: Date;
+      switch (period) {
+        case 'this_month':
+          from = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'last_3':
+          from = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+          break;
+        case 'last_6':
+          from = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+          break;
+        case 'this_year':
+          from = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          from = new Date(0);
+      }
+      where.createdAt = { gte: from };
+    }
 
     const [total, data] = await Promise.all([
       prisma.deal.count({ where }),
@@ -208,10 +230,12 @@ router.patch(
         updateData.closedAt = new Date();
         updateData.lostReasonId = null;
 
-        // Move to last stage ("Ganho Fechado")
-        const lastStage = existing.pipeline.stages[existing.pipeline.stages.length - 1];
-        if (lastStage) {
-          updateData.stageId = lastStage.id;
+        // Move to "Ganho fechado" stage (or last stage as fallback)
+        const ganhoStage = existing.pipeline.stages.find(
+          (s) => s.name.toLowerCase().includes('ganho')
+        ) ?? existing.pipeline.stages[existing.pipeline.stages.length - 1];
+        if (ganhoStage) {
+          updateData.stageId = ganhoStage.id;
         }
       } else if (status === 'LOST') {
         updateData.closedAt = new Date();

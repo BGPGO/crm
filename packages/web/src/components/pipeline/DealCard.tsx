@@ -1,7 +1,8 @@
 "use client";
 
+import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Star, User, Info, Plus, Calendar } from "lucide-react";
+import { Star, User, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
@@ -17,6 +18,7 @@ export interface Deal {
   user?: { id: string; name: string } | null;
   stage: { id: string; name: string };
   dealContacts?: Array<{ contact: { id: string; name: string } }>;
+  createdAt?: string;
 }
 
 interface DealCardProps {
@@ -49,7 +51,7 @@ function StatusBadge({ status }: { status: Deal["status"] }) {
   );
 }
 
-export default function DealCard({ deal, index }: DealCardProps) {
+const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
   const router = useRouter();
 
   // Primary contact name: prefer `contact`, fall back to first dealContact
@@ -79,15 +81,9 @@ export default function DealCard({ deal, index }: DealCardProps) {
             className="p-3"
             onClick={() => router.push(`/pipeline/${deal.id}`)}
           >
-            {/* Top row: status badge + info icon */}
+            {/* Top row: status badge */}
             <div className="flex items-start justify-between mb-1.5">
               <StatusBadge status={deal.status} />
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0"
-              >
-                <Info size={13} />
-              </button>
             </div>
 
             {/* Deal title */}
@@ -129,6 +125,7 @@ export default function DealCard({ deal, index }: DealCardProps) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                router.push(`/pipeline/${deal.id}?tab=tarefas`);
               }}
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
             >
@@ -140,4 +137,6 @@ export default function DealCard({ deal, index }: DealCardProps) {
       )}
     </Draggable>
   );
-}
+});
+
+export default DealCard;

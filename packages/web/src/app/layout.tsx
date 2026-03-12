@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import TopNavbar from "@/components/layout/Sidebar";
+import { AuthProvider } from "@/contexts/AuthContext";
+import AuthGate from "@/components/layout/AuthGate";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "CRM BGPGO",
-  description: "CRM próprio inspirado no RD Station CRM",
+  description: "CRM proprio inspirado no RD Station CRM",
 };
 
 export default function RootLayout({
@@ -18,10 +19,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${inter.className} flex flex-col h-screen bg-gray-50 overflow-hidden`}>
-        <TopNavbar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {children}
-        </div>
+        <AuthProvider>
+          <AuthGate>{children}</AuthGate>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   Check,
@@ -109,11 +109,11 @@ type TabKey = "historico" | "tarefas" | "produtos" | "arquivos";
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TASK_TYPES = [
-  { value: "Ligação", label: "Ligação" },
-  { value: "Reunião", label: "Reunião" },
-  { value: "Proposta", label: "Proposta" },
-  { value: "Email", label: "Email" },
-  { value: "Outro", label: "Outro" },
+  { value: "CALL", label: "Ligação" },
+  { value: "MEETING", label: "Reunião" },
+  { value: "VISIT", label: "Visita" },
+  { value: "EMAIL", label: "Email" },
+  { value: "OTHER", label: "Outro" },
 ];
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -138,7 +138,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     status: mapApiStatus(data.status as string),
     stageId: (data.stage as { id: string; name: string; order: number } | undefined)?.id ?? "",
     stageName: (data.stage as { id: string; name: string; order: number } | undefined)?.name ?? "",
-    value: Number(data.value) || 0,
+    value: (data.value as number) ?? 0,
     expectedCloseDate: data.expectedCloseDate as string | undefined,
     closedAt: data.closedAt as string | undefined,
     classification: data.classification as number | undefined,
@@ -167,9 +167,9 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
       return {
         id: d.id as string,
         product: { id: prod.id as string | undefined, name: prod.name as string },
-        quantity: Number(d.quantity) || 1,
-        unitPrice: Number(d.unitPrice) || 0,
-        discount: Number(d.discount) || 0,
+        quantity: (d.quantity as number) ?? 1,
+        unitPrice: (d.unitPrice as number) ?? 0,
+        discount: (d.discount as number) ?? 0,
       };
     }),
     dealContacts: ((data.dealContacts as unknown[]) ?? []).map((dc: unknown) => {
@@ -411,6 +411,7 @@ function ErrorState({ message, onBack }: { message: string; onBack: () => void }
 
 export default function DealDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dealId = params.id;
 
   // ── Data state ────────────────────────────────────────────────────────────
@@ -425,6 +426,14 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("historico");
+
+  // Auto-select tab from ?tab= query param
+  useEffect(() => {
+    const tab = searchParams.get("tab") as TabKey | null;
+    if (tab && TABS.some((t) => t.key === tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // Modals
   const [showLossModal, setShowLossModal] = useState(false);
@@ -445,7 +454,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   // Add-task form
   const [taskTitle, setTaskTitle] = useState("");
-  const [taskType, setTaskType] = useState("Ligação");
+  const [taskType, setTaskType] = useState("CALL");
   const [taskDueDate, setTaskDueDate] = useState("");
 
   // Submission loading flags
@@ -660,7 +669,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       setDeal((d) => d ? { ...d, tasks: [...d.tasks, newTask] } : d);
       setShowAddTask(false);
       setTaskTitle("");
-      setTaskType("Ligação");
+      setTaskType("CALL");
       setTaskDueDate("");
     } catch (err: unknown) {
       const e = err as { message?: string };

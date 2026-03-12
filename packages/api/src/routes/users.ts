@@ -78,7 +78,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/users
 router.post(
   '/',
-  validate({ name: 'required', email: 'required' }),
+  validate({ name: 'required', email: 'required', password: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       // Check email uniqueness

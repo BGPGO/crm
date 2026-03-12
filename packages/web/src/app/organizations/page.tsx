@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -64,6 +66,7 @@ const segmentColors: Record<string, "blue" | "green" | "yellow" | "purple" | "or
 const SEGMENTS = ["Tecnologia", "Indústria", "Logística", "Comércio", "Varejo", "Consultoria", "Serviços", "Saúde", "Educação", "Outro"];
 
 export default function OrganizationsPage() {
+  const router = useRouter();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -198,7 +201,11 @@ export default function OrganizationsPage() {
               </TableRow>
             ) : (
               organizations.map((org) => (
-                <TableRow key={org.id}>
+                <TableRow
+                  key={org.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => router.push(`/organizations/${org.id}`)}
+                >
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center flex-shrink-0">
@@ -221,10 +228,13 @@ export default function OrganizationsPage() {
                   </TableCell>
                   <TableCell className="text-gray-600">{org._count.contacts} contatos</TableCell>
                   <TableCell className="text-gray-600">{org._count.deals} negociações</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="sm">
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      href={`/organizations/${org.id}`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
                       Ver
-                    </Button>
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))

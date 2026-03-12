@@ -51,6 +51,30 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/tasks/counts — grouped counts by status
+router.get('/counts', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const where: Record<string, unknown> = {};
+    if (req.query.userId) where.userId = req.query.userId as string;
+
+    const grouped = await prisma.task.groupBy({
+      by: ['status'],
+      where,
+      _count: { id: true },
+    });
+
+    const counts: Record<string, number> = { ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 };
+    for (const g of grouped) {
+      counts[g.status] = g._count.id;
+      counts.ALL += g._count.id;
+    }
+
+    res.json({ data: counts });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/tasks/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -98,9 +122,16 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Task not found', 404));
 
+    const data = { ...req.body };
+    if (data.status === 'COMPLETED') {
+      data.completedAt = new Date();
+    } else if (data.status && data.status !== 'COMPLETED') {
+      data.completedAt = null;
+    }
+
     const task = await prisma.task.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: {
         user: { select: { id: true, name: true } },
         deal: { select: { id: true, title: true } },

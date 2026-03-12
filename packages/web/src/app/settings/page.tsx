@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TabKey =
   | "profile"
@@ -80,6 +81,7 @@ type ApiUser = {
 };
 
 function ProfileTab() {
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -88,36 +90,72 @@ function ProfileTab() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState("");
+
+  // Password change
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwFeedback, setPwFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
-    api.get<{ data: ApiUser[] }>("/users")
-      .then((res) => {
-        const u = res.data[0];
-        if (u) {
-          setUser(u);
-          setName(u.name);
-          setEmail(u.email);
-          setPhone(u.phone ?? "");
-          setRole(u.role);
-        }
+    api.get<ApiUser>("/auth/me")
+      .then((u) => {
+        // API may return { data: user } or user directly
+        const userData = (u as unknown as { data: ApiUser }).data ?? u;
+        setUser(userData);
+        setName(userData.name);
+        setEmail(userData.email);
+        setPhone(userData.phone ?? "");
       })
       .catch(() => setFeedback({ type: "error", text: "Erro ao carregar perfil." }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [authUser]);
 
   async function handleSave() {
     if (!user) return;
     setSaving(true);
     setFeedback(null);
     try {
-      await api.put(`/users/${user.id}`, { name, email, phone: phone || undefined, role });
+      await api.put(`/users/${user.id}`, { name, email, phone: phone || undefined });
       setFeedback({ type: "success", text: "Alterações salvas." });
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
       setFeedback({ type: "error", text: msg });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange() {
+    setPwFeedback(null);
+    if (!newPassword) {
+      setPwFeedback({ type: "error", text: "Informe a nova senha." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPwFeedback({ type: "error", text: "A senha deve ter pelo menos 6 caracteres." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwFeedback({ type: "error", text: "As senhas não coincidem." });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await api.post("/auth/change-password", {
+        currentPassword: currentPassword || undefined,
+        newPassword,
+      });
+      setPwFeedback({ type: "success", text: "Senha alterada com sucesso." });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao alterar senha.";
+      setPwFeedback({ type: "error", text: msg });
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -130,6 +168,12 @@ function ProfileTab() {
       </Card>
     );
   }
+
+  const roleLabel: Record<string, string> = {
+    ADMIN: "Administrador",
+    MANAGER: "Gestor",
+    SELLER: "Vendedor",
+  };
 
   return (
     <div className="space-y-6">
@@ -154,11 +198,12 @@ function ProfileTab() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
-          <Input
-            label="Cargo"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+            <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+              {roleLabel[user?.role ?? ""] ?? user?.role ?? "—"}
+            </p>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-3">
           <FeedbackMsg msg={feedback} />
@@ -172,13 +217,32 @@ function ProfileTab() {
       <Card padding="lg">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Alterar Senha</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
-          <Input label="Senha atual" type="password" />
+          <Input
+            label="Senha atual"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
           <div />
-          <Input label="Nova senha" type="password" />
-          <Input label="Confirmar nova senha" type="password" />
+          <Input
+            label="Nova senha"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <Input
+            label="Confirmar nova senha"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button variant="primary">Atualizar senha</Button>
+        <div className="mt-4 flex items-center justify-end gap-3">
+          <FeedbackMsg msg={pwFeedback} />
+          <Button variant="primary" onClick={handlePasswordChange} disabled={pwSaving}>
+            {pwSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+            Atualizar senha
+          </Button>
         </div>
       </Card>
     </div>

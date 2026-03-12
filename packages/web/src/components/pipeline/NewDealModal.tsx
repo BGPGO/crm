@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -87,12 +87,18 @@ export default function NewDealModal({
   const [stages, setStages] = useState<ApiStage[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
+  // Organization search state
+  const [orgSearch, setOrgSearch] = useState("");
+  const [loadingOrgs, setLoadingOrgs] = useState(false);
+  const orgSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setForm(emptyForm(defaultStageId));
       setTitleError("");
       setSubmitError("");
+      setOrgSearch("");
     }
   }, [isOpen, defaultStageId]);
 
@@ -104,7 +110,7 @@ export default function NewDealModal({
       const [contactsRes, orgsRes, usersRes, sourcesRes, stagesRes] =
         await Promise.all([
           api.get<ApiListResponse>("/contacts?limit=200"),
-          api.get<ApiListResponse>("/organizations?limit=200"),
+          api.get<ApiListResponse>("/organizations?limit=20"),
           api.get<ApiListResponse>("/users?limit=200"),
           api.get<ApiListResponse>("/sources?limit=200"),
           api.get<ApiStagesResponse>(
@@ -129,6 +135,40 @@ export default function NewDealModal({
   useEffect(() => {
     if (isOpen) loadOptions();
   }, [isOpen, loadOptions]);
+
+  // Debounced organization search
+  const searchOrganizations = useCallback(
+    (query: string) => {
+      if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current);
+      orgSearchTimer.current = setTimeout(async () => {
+        setLoadingOrgs(true);
+        try {
+          const params = query.trim()
+            ? `/organizations?search=${encodeURIComponent(query.trim())}&limit=20`
+            : "/organizations?limit=20";
+          const res = await api.get<ApiListResponse>(params);
+          setOrganizations(res.data ?? []);
+        } catch {
+          // keep current list on error
+        } finally {
+          setLoadingOrgs(false);
+        }
+      }, 300);
+    },
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (orgSearchTimer.current) clearTimeout(orgSearchTimer.current);
+    };
+  }, []);
+
+  function handleOrgSearchChange(value: string) {
+    setOrgSearch(value);
+    searchOrganizations(value);
+  }
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -220,14 +260,31 @@ export default function NewDealModal({
         />
 
         {/* Empresa */}
-        <Select
-          label="Empresa"
-          options={toOptions(organizations)}
-          placeholder={loadingOptions ? "Carregando…" : "Selecionar empresa"}
-          value={form.organizationId}
-          onChange={(e) => setField("organizationId", e.target.value)}
-          disabled={loadingOptions || organizations.length === 0}
-        />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700">Empresa</label>
+          <input
+            type="text"
+            placeholder="Buscar empresa…"
+            value={orgSearch}
+            onChange={(e) => handleOrgSearchChange(e.target.value)}
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
+          />
+          <select
+            value={form.organizationId}
+            onChange={(e) => setField("organizationId", e.target.value)}
+            disabled={loadingOptions || (organizations.length === 0 && !loadingOrgs)}
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="" disabled>
+              {loadingOptions || loadingOrgs ? "Carregando…" : "Selecionar empresa"}
+            </option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Responsável */}
         <Select

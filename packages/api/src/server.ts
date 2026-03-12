@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
+import { responseSerializer, inputSanitizer } from './middleware/serializer';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -20,6 +21,11 @@ app.use(
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ─── Serialization layer ─────────────────────────────────────────────────────
+// Converts Prisma Decimal→number in responses, sanitizes empty strings in inputs
+app.use(responseSerializer());
+app.use(inputSanitizer());
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
