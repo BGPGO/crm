@@ -21,7 +21,7 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
   return (
     <div className="space-y-2">
       {stages.map((stage, i) => {
-        const widthPct = Math.max((stage.count / maxCount) * 100, 8);
+        const widthPct = stage.count === 0 ? 2 : Math.max((stage.count / maxCount) * 100, 4);
         const isHovered = hoveredIndex === i;
 
         return (
@@ -40,17 +40,27 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
 
             {/* Barra */}
             <div className="flex-1 relative h-8">
-              <div
-                className="h-full rounded-md transition-all duration-200 flex items-center px-3"
-                style={{
-                  width: `${widthPct}%`,
-                  backgroundColor: stage.color,
-                  opacity: isHovered ? 1 : 0.85,
-                }}
-              >
-                <span className="text-white text-xs font-semibold whitespace-nowrap">
-                  {stage.count}
-                </span>
+              <div className="flex items-center h-full gap-1.5">
+                <div
+                  className="h-full rounded-md transition-all duration-200 flex items-center justify-center"
+                  style={{
+                    width: `${widthPct}%`,
+                    minWidth: stage.count === 0 ? "8px" : "24px",
+                    backgroundColor: stage.color,
+                    opacity: isHovered ? 1 : 0.85,
+                  }}
+                >
+                  {widthPct >= 6 && (
+                    <span className="text-white text-xs font-semibold whitespace-nowrap px-2">
+                      {stage.count}
+                    </span>
+                  )}
+                </div>
+                {widthPct < 6 && (
+                  <span className="text-xs font-semibold text-gray-500">
+                    {stage.count}
+                  </span>
+                )}
               </div>
 
               {/* Tooltip */}
