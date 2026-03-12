@@ -12,8 +12,7 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
 
-    // Merge body (POST) and query (GET) — body takes precedence
-    const raw: Record<string, unknown> = { ...req.query, ...req.body };
+    const raw: Record<string, unknown> = { ...req.body };
 
     // 1. Fetch and validate WebhookConfig
     const webhookConfig = await prisma.webhookConfig.findUnique({ where: { id } });
@@ -304,10 +303,7 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-// POST /api/webhooks/incoming/:id  (POST + POST+JSON)
+// POST /api/webhooks/incoming/:id  (POST+JSON)
 router.post('/incoming/:id', handleIncoming);
-
-// GET /api/webhooks/incoming/:id  (GET with query params)
-router.get('/incoming/:id', handleIncoming);
 
 export default router;
