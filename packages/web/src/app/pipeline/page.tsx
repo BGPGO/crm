@@ -82,7 +82,9 @@ function buildStages(pipeline: ApiPipelineDetail): Stage[] {
     id: s.id,
     name: s.name,
     color: stageColor(s.color, idx),
-    deals: pipeline.deals.filter((d) => d.stage?.id === s.id),
+    deals: pipeline.deals
+      .filter((d) => d.stage?.id === s.id)
+      .map((d) => ({ ...d, value: Number(d.value) || 0 })),
   }));
 }
 

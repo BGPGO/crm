@@ -167,9 +167,9 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
       return {
         id: d.id as string,
         product: { id: prod.id as string | undefined, name: prod.name as string },
-        quantity: d.quantity as number,
-        unitPrice: d.unitPrice as number,
-        discount: d.discount as number | undefined,
+        quantity: Number(d.quantity) || 1,
+        unitPrice: Number(d.unitPrice) || 0,
+        discount: Number(d.discount) || 0,
       };
     }),
     dealContacts: ((data.dealContacts as unknown[]) ?? []).map((dc: unknown) => {

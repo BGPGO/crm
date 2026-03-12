@@ -174,8 +174,9 @@ export default function DashboardPage() {
 
         if (cancelled) return;
 
-        const openDeals = openDealsRes.data ?? [];
-        const wonDeals = wonDealsRes.data ?? [];
+        const toNum = (v: unknown): number => Number(v) || 0;
+        const openDeals = (openDealsRes.data ?? []).map(d => ({ ...d, value: toNum(d.value) }));
+        const wonDeals = (wonDealsRes.data ?? []).map(d => ({ ...d, value: toNum(d.value) }));
 
         // ── Metrics ────────────────────────────────────────────────────────────
         const activeDealsCount = openDeals.length;
@@ -194,21 +195,27 @@ export default function DashboardPage() {
         if (pipelines.length > 0) {
           // Fetch the first pipeline details (includes stages with deal counts/values)
           try {
-            const pipelineRes = await api.get<{ data: Pipeline }>(
+            const pipelineRes = await api.get<{ data: Pipeline & { deals?: Deal[] } }>(
               `/pipelines/${pipelines[0].id}`
             );
             const pipelineDetail = pipelineRes.data;
-            if (!cancelled && pipelineDetail?.stages?.length) {
+            if (!cancelled && pipelineDetail?.stages?.length && pipelineDetail.deals) {
+              // Group deals by stageId
+              const dealsByStage = new Map<string, { count: number; value: number }>();
+              for (const d of pipelineDetail.deals) {
+                const stageId = (d as unknown as { stageId: string }).stageId;
+                const entry = dealsByStage.get(stageId) ?? { count: 0, value: 0 };
+                entry.count += 1;
+                entry.value += Number(d.value) || 0;
+                dealsByStage.set(stageId, entry);
+              }
               const sorted = [...pipelineDetail.stages].sort(
                 (a, b) => (a.order ?? 0) - (b.order ?? 0)
               );
               funnelStages = sorted.map((stage, i) => {
-                const stageColor =
-                  stage.color || FUNNEL_COLORS[i % FUNNEL_COLORS.length];
-                const count = stage._count?.deals ?? 0;
-                const value =
-                  stage.deals?.reduce((s, d) => s + (d.value ?? 0), 0) ?? 0;
-                return { name: stage.name, color: stageColor, count, value };
+                const stageColor = stage.color || FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+                const entry = dealsByStage.get(stage.id) ?? { count: 0, value: 0 };
+                return { name: stage.name, color: stageColor, count: entry.count, value: entry.value };
               });
             }
           } catch {
