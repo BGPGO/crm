@@ -81,31 +81,31 @@ async function processLead(
 
   // ── Extract fields ──────────────────────────────────────────────────
 
-  const contactName = resolve(body, ["name", "nome", "full_name", "fullName", "lead_name"]) ?? "Contato sem nome";
-  const contactEmail = resolve(body, ["email", "e_mail", "email_address", "lead_email"]);
-  const contactPhone = resolve(body, ["phone", "telefone", "celular", "whatsapp", "phone_number", "lead_phone"]);
-  const contactPosition = resolve(body, ["position", "cargo", "job_title"]);
-  const contactInstagram = resolve(body, ["instagram", "ig"]);
+  const contactName = resolve(body, ["name", "nome", "Nome", "full_name", "fullName", "lead_name"]) ?? "Contato sem nome";
+  const contactEmail = resolve(body, ["email", "e_mail", "E_mail", "email_address", "lead_email"]);
+  const contactPhone = resolve(body, ["phone", "telefone", "Telefone", "celular", "whatsapp", "phone_number", "lead_phone"]);
+  const contactPosition = resolve(body, ["position", "cargo", "Cargo", "job_title"]);
+  const contactInstagram = resolve(body, ["instagram", "Instagram", "ig"]);
 
-  const orgName = resolve(body, ["company", "empresa", "organization", "company_name"]);
-  const orgCnpj = resolve(body, ["cnpj", "document"]);
+  const orgName = resolve(body, ["company", "empresa", "Empresa", "organization", "company_name"]);
+  const orgCnpj = resolve(body, ["cnpj", "CNPJ", "document"]);
   const orgWebsite = resolve(body, ["website", "site", "company_website"]);
-  const orgSegment = resolve(body, ["segment", "segmento", "industry"]);
+  const orgSegment = resolve(body, ["segment", "segmento", "Segmento", "industry"]);
 
   const dealTitle = resolve(body, ["deal_title", "titulo", "title"]);
   const dealValue = resolve(body, ["value", "valor", "deal_value"]);
 
-  const sourceName = resolve(body, ["source", "fonte", "lead_source", "origem"]);
+  const sourceName = resolve(body, ["source", "fonte", "lead_source", "origem", "Referral_Source"]);
   const campaignName = resolve(body, ["campaign", "campanha", "campaign_name"]);
 
-  const utmSource = resolve(body, ["utm_source"]);
-  const utmMedium = resolve(body, ["utm_medium"]);
-  const utmCampaign = resolve(body, ["utm_campaign"]);
-  const utmTerm = resolve(body, ["utm_term"]);
-  const utmContent = resolve(body, ["utm_content"]);
-  const referrer = resolve(body, ["referrer", "ref"]);
-  const landingPage = resolve(body, ["landing_page", "page_url", "pageUrl", "page"]);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const utmSource = resolve(body, ["utm_source", "UTM_Source"]);
+  const utmMedium = resolve(body, ["utm_medium", "UTM_Medium"]);
+  const utmCampaign = resolve(body, ["utm_campaign", "UTM_Campaign"]);
+  const utmTerm = resolve(body, ["utm_term", "UTM_Term"]);
+  const utmContent = resolve(body, ["utm_content", "UTM_Content"]);
+  const referrer = resolve(body, ["referrer", "ref", "Referral_Source"]);
+  const landingPage = resolve(body, ["landing_page", "page_url", "pageUrl", "page", "URL"]);
+  const ip = resolve(body, ["IP_do_usuario"]) ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = req.headers.get("user-agent") ?? null;
 
   // ── Source (find or create) ───────────────────────────────────────
