@@ -1,20 +1,20 @@
 FROM node:20-alpine
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY packages/api/package.json packages/api/
-COPY packages/shared/package.json packages/shared/
+# Copy everything
+COPY . .
 
-RUN npm ci --workspace=packages/api --workspace=packages/shared --include-workspace-root
+# Install all dependencies
+RUN npm install
 
-COPY packages/shared/ packages/shared/
-COPY packages/api/ packages/api/
-
+# Generate Prisma client
 RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
-RUN npm run build --workspace=packages/shared 2>/dev/null || true
-RUN npm run build --workspace=packages/api
+
+# Build shared and API
+RUN cd packages/shared && npx tsc || true
+RUN cd packages/api && npx tsc
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma db push --schema=packages/api/prisma/schema.prisma --accept-data-loss && node packages/api/dist/index.js"]
+CMD ["sh", "-c", "cd /app && npx prisma db push --schema=packages/api/prisma/schema.prisma --accept-data-loss && node packages/api/dist/index.js"]
