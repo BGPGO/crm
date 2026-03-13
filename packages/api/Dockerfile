@@ -15,6 +15,7 @@ RUN cd packages/shared && npx tsc || true
 RUN cd packages/api && npx tsc
 
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY --from=build /app/node_modules/ node_modules/
