@@ -17,4 +17,5 @@ RUN cd packages/api && npx tsc
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["sh", "-c", "cd /app && npx prisma db push --schema=packages/api/prisma/schema.prisma --accept-data-loss && node packages/api/dist/index.js"]
+WORKDIR /app/packages/api
+CMD ["node", "dist/index.js"]
