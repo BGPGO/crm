@@ -1,6 +1,14 @@
-# CRM BGPGO
+# Plataforma BGPGO
 
-CRM próprio para substituir o RD Station CRM, focado na operação de vendas da BGPGO.
+Plataforma unificada de vendas e marketing da BGPGO. Inclui três módulos:
+
+| Módulo | Branch | Status | Descrição |
+|--------|--------|--------|-----------|
+| **CRM** | `main` | Em produção | Pipeline de vendas, contatos, negociações |
+| **Marketing** | `main` | Planejado | Campanhas de email, automações, segmentações |
+| **SDR IA** | `feature/sdr-ia` | Em desenvolvimento | Assistente IA que conversa com leads e qualifica |
+
+> Para trabalhar no SDR IA, veja o arquivo [SDR-IA.md](SDR-IA.md) com instruções completas.
 
 ## Tech Stack
 
@@ -21,13 +29,17 @@ CRM próprio para substituir o RD Station CRM, focado na operação de vendas da
 ```
 crm/
 ├── CLAUDE.md
+├── SDR-IA.md             ← guia do módulo SDR IA
 ├── package.json          ← raiz do monorepo
 ├── packages/
 │   ├── api/              ← backend Express + Prisma
 │   │   ├── src/
 │   │   │   ├── routes/
+│   │   │   │   ├── *.ts          ← rotas CRM (existentes)
+│   │   │   │   └── sdr/          ← rotas SDR IA (branch feature/sdr-ia)
 │   │   │   ├── middleware/
 │   │   │   ├── services/
+│   │   │   │   └── sdr/          ← lógica SDR IA
 │   │   │   └── server.ts
 │   │   ├── prisma/
 │   │   │   └── schema.prisma
@@ -35,11 +47,18 @@ crm/
 │   ├── web/              ← frontend Next.js
 │   │   ├── src/
 │   │   │   ├── app/
+│   │   │   │   ├── pipeline/     ← CRM
+│   │   │   │   ├── marketing/    ← Marketing
+│   │   │   │   └── sdr/          ← SDR IA
 │   │   │   ├── components/
+│   │   │   │   └── sdr/          ← componentes SDR IA
 │   │   │   └── lib/
 │   │   └── package.json
 │   └── shared/           ← tipos compartilhados
 │       └── src/
+│           ├── index.ts          ← tipos CRM
+│           └── types/
+│               └── sdr.ts        ← tipos SDR IA
 ```
 
 ## Fluxo da Operação
