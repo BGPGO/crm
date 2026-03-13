@@ -28,4 +28,4 @@ ENV NODE_ENV=production
 EXPOSE 3001
 
 WORKDIR /app/packages/api
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss 2>&1 && node dist/index.js"]
