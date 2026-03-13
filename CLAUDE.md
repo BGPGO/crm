@@ -1,6 +1,14 @@
-# CRM BGPGO
+# Plataforma BGPGO
 
-CRM próprio para substituir o RD Station CRM, focado na operação de vendas da BGPGO.
+Plataforma unificada de vendas e marketing da BGPGO. Inclui três módulos:
+
+| Módulo | Branch | Status | Descrição |
+|--------|--------|--------|-----------|
+| **CRM** | `main` | Em produção | Pipeline de vendas, contatos, negociações |
+| **Marketing** | `main` | Planejado | Campanhas de email, automações, segmentações |
+| **SDR IA** | `feature/sdr-ia` | Em desenvolvimento | Assistente IA que conversa com leads e qualifica |
+
+> Para trabalhar no SDR IA: `git checkout feature/sdr-ia` — veja [SDR-IA.md](SDR-IA.md)
 
 ## Tech Stack
 
