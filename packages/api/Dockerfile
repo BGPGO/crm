@@ -1,16 +1,20 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# Copy everything
-COPY . .
+# Copy only package files for dependency install
+COPY package.json package-lock.json ./
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
 
-# Install all dependencies
-RUN npm install
+# Install ONLY api and shared workspaces (not web/playwright)
+RUN npm ci --workspace=packages/api --workspace=packages/shared --include-workspace-root
 
-# Generate Prisma client
+# Copy source code
+COPY packages/shared/ packages/shared/
+COPY packages/api/ packages/api/
+
+# Generate Prisma client and build
 RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
-
-# Build shared and API
 RUN cd packages/shared && npx tsc || true
 RUN cd packages/api && npx tsc
 
