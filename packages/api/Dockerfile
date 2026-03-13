@@ -28,4 +28,4 @@ ENV NODE_ENV=production
 EXPOSE 3001
 
 WORKDIR /app/packages/api
-CMD ["sh", "-c", "echo 'Starting...' && echo \"DB=$DATABASE_URL\" | head -c 30 && echo '...' && echo \"SUPA=$SUPABASE_URL\" && node -e \"try{require('./dist/index.js')}catch(e){console.error('CRASH:',e.message);process.exit(1)}\""]
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss 2>&1; node dist/index.js"]
