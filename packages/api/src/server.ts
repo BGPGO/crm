@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { responseSerializer, inputSanitizer } from './middleware/serializer';
+import { startAllJobs } from './jobs';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
@@ -51,6 +52,7 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`[api] Server running on http://localhost:${PORT}`);
   console.log(`[api] Environment: ${process.env.NODE_ENV ?? 'development'}`);
+  startAllJobs();
 });
 
 export default app;

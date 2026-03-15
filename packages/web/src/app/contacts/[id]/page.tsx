@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import InlineField from "@/components/deal/InlineField";
+import TagBadge from "@/components/marketing/TagBadge";
+import EngagementBadge from "@/components/marketing/EngagementBadge";
 import { api } from "@/lib/api";
 import {
   formatDate,
@@ -66,6 +68,19 @@ interface Activity {
   createdAt: string;
 }
 
+interface ContactTag {
+  tag: {
+    id: string;
+    name: string;
+    color: string;
+  };
+}
+
+interface LeadScore {
+  score: number;
+  engagementLevel: "ENGAGED" | "INTERMEDIATE" | "DISENGAGED";
+}
+
 interface ContactDetail {
   id: string;
   name: string;
@@ -83,6 +98,8 @@ interface ContactDetail {
   tasks: Task[];
   activities: Activity[];
   customFieldValues: unknown[];
+  tags?: ContactTag[];
+  leadScore?: LeadScore | null;
 }
 
 interface ContactResponse {
@@ -402,6 +419,35 @@ export default function ContactDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Tags card */}
+            {contact.tags && contact.tags.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  Tags
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {contact.tags.map(({ tag }) => (
+                    <TagBadge key={tag.id} name={tag.name} color={tag.color} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lead Score card */}
+            {contact.leadScore && (
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  Lead Score
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {contact.leadScore.score}
+                  </span>
+                  <EngagementBadge level={contact.leadScore.engagementLevel} />
+                </div>
+              </div>
+            )}
           </aside>
 
           {/* ── Right Content ── */}

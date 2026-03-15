@@ -4,6 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
+import { onStageChanged } from '../services/automationTriggerListener';
 
 const router = Router();
 
@@ -197,6 +198,10 @@ router.patch(
         fromStage,
         toStage,
       });
+
+      if (deal.contactId) {
+        onStageChanged(deal.contactId, stageId, deal.id);
+      }
 
       res.json({ data: deal });
     } catch (err) {

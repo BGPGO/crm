@@ -49,6 +49,11 @@ enum ActivityType {
   TASK_COMPLETED
   DEAL_CREATED
   WEBHOOK_RECEIVED
+  EMAIL_SENT
+  EMAIL_OPENED
+  TAG_ADDED
+  TAG_REMOVED
+  AUTOMATION_ENROLLED
 }
 
 enum CustomFieldType {
@@ -68,6 +73,81 @@ enum CustomFieldEntity {
 enum WebhookType {
   INCOMING
   OUTGOING
+}
+
+enum EngagementLevel {
+  ENGAGED
+  INTERMEDIATE
+  DISENGAGED
+}
+
+enum SegmentFilterOperator {
+  EQUALS
+  CONTAINS
+  GREATER_THAN
+  LESS_THAN
+  IN
+  NOT_IN
+  BETWEEN
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum EmailStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+enum EmailSendStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  SPAM
+  UNSUBSCRIBED
+}
+
+enum AutomationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AutomationTriggerType {
+  TAG_ADDED
+  TAG_REMOVED
+  STAGE_CHANGED
+  CONTACT_CREATED
+  FIELD_UPDATED
+  DATE_BASED
+}
+
+enum AutomationActionType {
+  ADD_TAG
+  REMOVE_TAG
+  SEND_EMAIL
+  WAIT
+  UPDATE_FIELD
+  MOVE_PIPELINE_STAGE
+  CONDITION
+}
+
+enum AutomationEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  FAILED
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -148,6 +228,10 @@ model Contact {
   customFieldValues CustomFieldValue[]
   leadTrackings     LeadTracking[]
   dealContacts      DealContact[]
+  tags              ContactTag[]
+  leadScore         LeadScore?
+  emailSends        EmailSend[]
+  automationEnrollments AutomationEnrollment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -456,4 +540,293 @@ model LeadTracking {
   createdAt DateTime @default(now())
 
   @@index([contactId])
+}
+
+// ─── Marketing: Tags ────────────────────────────────────────────────────────
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String @default("#6366f1")
+
+  contacts ContactTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContactTag {
+  id String @id @default(cuid())
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  tagId String
+  tag   Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([contactId, tagId])
+  @@index([contactId])
+  @@index([tagId])
+}
+
+// ─── Marketing: Segmentos ───────────────────────────────────────────────────
+
+model Segment {
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  filters      Json
+  isActive     Boolean @default(true)
+  contactCount Int     @default(0)
+
+  emailCampaigns EmailCampaign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Marketing: Lead Scoring ────────────────────────────────────────────────
+
+model LeadScore {
+  id               String          @id @default(cuid())
+  score            Int             @default(0)
+  engagementLevel  EngagementLevel @default(ENGAGED)
+  lastEmailOpenedAt  DateTime?
+  lastEmailClickedAt DateTime?
+
+  contactId String  @unique
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@index([score])
+  @@index([engagementLevel])
+}
+
+model LeadScoreRule {
+  id       String  @id @default(cuid())
+  name     String
+  field    String
+  operator SegmentFilterOperator
+  value    String
+  points   Int
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Marketing: Import de Contatos ──────────────────────────────────────────
+
+model ContactImport {
+  id            String       @id @default(cuid())
+  fileName      String
+  status        ImportStatus @default(PENDING)
+  totalRows     Int          @default(0)
+  processedRows Int          @default(0)
+  errorRows     Int          @default(0)
+  errors        Json?
+
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Email Marketing ────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id           String  @id @default(cuid())
+  name         String
+  subject      String
+  htmlContent  String
+  jsonContent  Json?
+  thumbnailUrl String?
+  isActive     Boolean @default(true)
+
+  campaigns EmailCampaign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailCampaign {
+  id              String      @id @default(cuid())
+  name            String
+  subject         String
+  fromName        String      @default("BGPGO")
+  fromEmail       String      @default("noreply@bertuzzipatrimonial.app.br")
+  status          EmailStatus @default(DRAFT)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  totalRecipients Int         @default(0)
+
+  templateId String?
+  template   EmailTemplate? @relation(fields: [templateId], references: [id])
+
+  segmentId String?
+  segment   Segment? @relation(fields: [segmentId], references: [id])
+
+  sends EmailSend[]
+  links EmailLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([segmentId])
+}
+
+model EmailSend {
+  id             String          @id @default(cuid())
+  status         EmailSendStatus @default(QUEUED)
+  sentAt         DateTime?
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  bouncedAt      DateTime?
+  unsubscribedAt DateTime?
+  messageId      String?
+
+  emailCampaignId String
+  emailCampaign   EmailCampaign @relation(fields: [emailCampaignId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  events EmailEvent[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([emailCampaignId, contactId])
+  @@index([emailCampaignId])
+  @@index([contactId])
+  @@index([status])
+  @@index([messageId])
+}
+
+model EmailLink {
+  id          String @id @default(cuid())
+  originalUrl String
+  trackingId  String @unique @default(cuid())
+  clickCount  Int    @default(0)
+
+  emailCampaignId String
+  emailCampaign   EmailCampaign @relation(fields: [emailCampaignId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([emailCampaignId])
+  @@index([trackingId])
+}
+
+model EmailEvent {
+  id       String  @id @default(cuid())
+  type     String
+  metadata Json?
+
+  emailSendId String
+  emailSend   EmailSend @relation(fields: [emailSendId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([emailSendId])
+  @@index([type])
+}
+
+model UnsubscribeList {
+  id        String  @id @default(cuid())
+  email     String  @unique
+  contactId String?
+  reason    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+// ─── Automações de Marketing ────────────────────────────────────────────────
+
+model Automation {
+  id            String              @id @default(cuid())
+  name          String
+  description   String?
+  status        AutomationStatus    @default(DRAFT)
+  triggerType   AutomationTriggerType
+  triggerConfig Json
+
+  steps       AutomationStep[]
+  enrollments AutomationEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model AutomationStep {
+  id         String              @id @default(cuid())
+  order      Int
+  actionType AutomationActionType
+  config     Json
+
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  nextStepId  String?
+  trueStepId  String?
+  falseStepId String?
+
+  enrollments AutomationEnrollment[] @relation("CurrentStep")
+  logs        AutomationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([automationId])
+  @@index([automationId, order])
+}
+
+model AutomationEnrollment {
+  id           String                     @id @default(cuid())
+  status       AutomationEnrollmentStatus @default(ACTIVE)
+  enrolledAt   DateTime                   @default(now())
+  completedAt  DateTime?
+  nextActionAt DateTime?
+  metadata     Json?
+
+  automationId String
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  currentStepId String?
+  currentStep   AutomationStep? @relation("CurrentStep", fields: [currentStepId], references: [id])
+
+  logs AutomationLog[]
+
+  @@index([automationId])
+  @@index([contactId])
+  @@index([status])
+  @@index([nextActionAt])
+  @@index([automationId, status])
+}
+
+model AutomationLog {
+  id         String  @id @default(cuid())
+  actionType String
+  result     Json?
+
+  enrollmentId String
+  enrollment   AutomationEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  stepId String
+  step   AutomationStep @relation(fields: [stepId], references: [id])
+
+  executedAt DateTime @default(now())
+
+  @@index([enrollmentId])
+  @@index([stepId])
 }

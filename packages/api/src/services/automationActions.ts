@@ -1,0 +1,262 @@
+import prisma from '../lib/prisma';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface ActionResult {
+  success: boolean;
+  output?: any;
+  conditionResult?: boolean; // for CONDITION type
+}
+
+// ─── Action Executor ─────────────────────────────────────────────────────────
+
+/**
+ * Executes a single automation step action and returns the result.
+ */
+export async function executeAction(
+  enrollment: any,
+  step: any
+): Promise<ActionResult> {
+  const config = step.config as any;
+
+  try {
+    switch (step.actionType) {
+      case 'ADD_TAG':
+        return await addTag(enrollment.contactId, config);
+
+      case 'REMOVE_TAG':
+        return await removeTag(enrollment.contactId, config);
+
+      case 'SEND_EMAIL':
+        return await sendEmail(enrollment.contactId, config);
+
+      case 'WAIT':
+        return await wait(enrollment, config);
+
+      case 'UPDATE_FIELD':
+        return await updateField(enrollment.contactId, config);
+
+      case 'MOVE_PIPELINE_STAGE':
+        return await movePipelineStage(enrollment.contactId, config);
+
+      case 'CONDITION':
+        return await evaluateCondition(enrollment.contactId, config);
+
+      default:
+        return { success: false, output: `Unknown action type: ${step.actionType}` };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      output: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+// ─── Individual Actions ──────────────────────────────────────────────────────
+
+async function addTag(
+  contactId: string,
+  config: { tagId: string }
+): Promise<ActionResult> {
+  await prisma.contactTag.create({
+    data: {
+      contactId,
+      tagId: config.tagId,
+    },
+  });
+  return { success: true, output: { tagId: config.tagId, action: 'added' } };
+}
+
+async function removeTag(
+  contactId: string,
+  config: { tagId: string }
+): Promise<ActionResult> {
+  await prisma.contactTag.deleteMany({
+    where: {
+      contactId,
+      tagId: config.tagId,
+    },
+  });
+  return { success: true, output: { tagId: config.tagId, action: 'removed' } };
+}
+
+async function sendEmail(
+  contactId: string,
+  config: { templateId: string }
+): Promise<ActionResult> {
+  const template = await prisma.emailTemplate.findUniqueOrThrow({
+    where: { id: config.templateId },
+  });
+
+  const contact = await prisma.contact.findUniqueOrThrow({
+    where: { id: contactId },
+  });
+
+  if (!contact.email) {
+    return { success: false, output: 'Contact has no email address' };
+  }
+
+  const result = await resend.emails.send({
+    from: `BGPGO <noreply@bgpgo.com>`,
+    to: contact.email,
+    subject: template.subject || template.name,
+    html: template.htmlContent,
+  });
+
+  return {
+    success: true,
+    output: { messageId: result.data?.id, templateId: config.templateId },
+  };
+}
+
+async function wait(
+  enrollment: any,
+  config: { duration: number; unit: 'minutes' | 'hours' | 'days' }
+): Promise<ActionResult> {
+  const now = new Date();
+  let nextActionAt: Date;
+
+  switch (config.unit) {
+    case 'minutes':
+      nextActionAt = new Date(now.getTime() + config.duration * 60 * 1000);
+      break;
+    case 'hours':
+      nextActionAt = new Date(now.getTime() + config.duration * 60 * 60 * 1000);
+      break;
+    case 'days':
+      nextActionAt = new Date(now.getTime() + config.duration * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      nextActionAt = new Date(now.getTime() + config.duration * 60 * 1000);
+  }
+
+  await prisma.automationEnrollment.update({
+    where: { id: enrollment.id },
+    data: { nextActionAt },
+  });
+
+  return {
+    success: true,
+    output: { waitUntil: nextActionAt.toISOString(), duration: config.duration, unit: config.unit },
+  };
+}
+
+async function updateField(
+  contactId: string,
+  config: { field: string; value: string }
+): Promise<ActionResult> {
+  await prisma.contact.update({
+    where: { id: contactId },
+    data: { [config.field]: config.value },
+  });
+
+  return {
+    success: true,
+    output: { field: config.field, value: config.value },
+  };
+}
+
+async function movePipelineStage(
+  contactId: string,
+  config: { stageId: string }
+): Promise<ActionResult> {
+  // Find the contact's active deals and move them to the target stage
+  const deals = await prisma.deal.findMany({
+    where: {
+      contactId,
+      status: 'OPEN',
+    },
+  });
+
+  if (deals.length === 0) {
+    return { success: false, output: 'No active deals found for contact' };
+  }
+
+  for (const deal of deals) {
+    await prisma.deal.update({
+      where: { id: deal.id },
+      data: { stageId: config.stageId },
+    });
+  }
+
+  return {
+    success: true,
+    output: {
+      stageId: config.stageId,
+      dealsUpdated: deals.length,
+      dealIds: deals.map((d) => d.id),
+    },
+  };
+}
+
+async function evaluateCondition(
+  contactId: string,
+  config: { field: string; operator: string; value: string }
+): Promise<ActionResult> {
+  const contact = await prisma.contact.findUniqueOrThrow({
+    where: { id: contactId },
+  });
+
+  const fieldValue = String((contact as any)[config.field] ?? '');
+  const targetValue = config.value;
+  let conditionResult = false;
+
+  switch (config.operator) {
+    case 'equals':
+    case 'eq':
+      conditionResult = fieldValue === targetValue;
+      break;
+    case 'not_equals':
+    case 'neq':
+      conditionResult = fieldValue !== targetValue;
+      break;
+    case 'contains':
+      conditionResult = fieldValue.includes(targetValue);
+      break;
+    case 'not_contains':
+      conditionResult = !fieldValue.includes(targetValue);
+      break;
+    case 'starts_with':
+      conditionResult = fieldValue.startsWith(targetValue);
+      break;
+    case 'ends_with':
+      conditionResult = fieldValue.endsWith(targetValue);
+      break;
+    case 'is_empty':
+      conditionResult = fieldValue === '' || fieldValue === 'null' || fieldValue === 'undefined';
+      break;
+    case 'is_not_empty':
+      conditionResult = fieldValue !== '' && fieldValue !== 'null' && fieldValue !== 'undefined';
+      break;
+    case 'gt':
+      conditionResult = Number(fieldValue) > Number(targetValue);
+      break;
+    case 'gte':
+      conditionResult = Number(fieldValue) >= Number(targetValue);
+      break;
+    case 'lt':
+      conditionResult = Number(fieldValue) < Number(targetValue);
+      break;
+    case 'lte':
+      conditionResult = Number(fieldValue) <= Number(targetValue);
+      break;
+    default:
+      conditionResult = false;
+  }
+
+  return {
+    success: true,
+    conditionResult,
+    output: {
+      field: config.field,
+      operator: config.operator,
+      expected: targetValue,
+      actual: fieldValue,
+      result: conditionResult,
+    },
+  };
+}

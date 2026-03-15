@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { onContactCreated } from '../services/automationTriggerListener';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { search, organizationId } = req.query;
+    const { search, organizationId, tagId, engagementLevel } = req.query;
 
     const where: Record<string, unknown> = {};
 
@@ -27,6 +28,14 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.organizationId = organizationId as string;
     }
 
+    if (tagId) {
+      where.tags = { some: { tagId: tagId as string } };
+    }
+
+    if (engagementLevel) {
+      where.leadScore = { engagementLevel: engagementLevel as string };
+    }
+
     const [total, data] = await Promise.all([
       prisma.contact.count({ where }),
       prisma.contact.findMany({
@@ -36,6 +45,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { createdAt: 'desc' },
         include: {
           organization: { select: { id: true, name: true } },
+          tags: { include: { tag: true } },
+          leadScore: true,
         },
       }),
     ]);
@@ -63,6 +74,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         tasks: { orderBy: { dueDate: 'asc' } },
         activities: { orderBy: { createdAt: 'desc' } },
         customFieldValues: { include: { customField: true } },
+        tags: { include: { tag: true } },
+        leadScore: true,
       },
     });
 
@@ -88,6 +101,7 @@ router.post(
           organization: { select: { id: true, name: true } },
         },
       });
+      onContactCreated(contact.id);
       res.status(201).json({ data: contact });
     } catch (err) {
       next(err);
