@@ -71,9 +71,9 @@ export default function AutomationDetailPage() {
   const fetchAutomation = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await api.get<Automation>(`/automations/${id}`);
-      setAutomation(result);
-      setSteps(result.steps ?? []);
+      const result = await api.get<{ data: Automation }>(`/automations/${id}`);
+      setAutomation(result.data);
+      setSteps(result.data.steps ?? []);
     } catch (err) {
       console.error("Erro ao buscar automação:", err);
     } finally {

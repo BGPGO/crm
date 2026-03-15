@@ -54,8 +54,8 @@ export default function CampaignDetailPage() {
     async function fetchCampaign() {
       setLoading(true);
       try {
-        const result = await api.get<Campaign>(`/email-campaigns/${id}`);
-        setCampaign(result);
+        const result = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
+        setCampaign(result.data);
       } catch (err) {
         console.error("Erro ao buscar campanha:", err);
       } finally {
@@ -70,8 +70,8 @@ export default function CampaignDetailPage() {
     setSending(true);
     try {
       await api.post(`/email-campaigns/${id}/send`, {});
-      const updated = await api.get<Campaign>(`/email-campaigns/${id}`);
-      setCampaign(updated);
+      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
+      setCampaign(updated.data);
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
     } finally {

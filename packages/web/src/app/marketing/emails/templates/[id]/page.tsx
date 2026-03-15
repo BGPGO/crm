@@ -33,10 +33,10 @@ export default function TemplateEditorPage() {
     async function fetchTemplate() {
       setLoading(true);
       try {
-        const result = await api.get<EmailTemplate>(`/email-templates/${id}`);
-        setName(result.name);
-        setSubject(result.subject);
-        setHtmlContent(result.htmlContent || "");
+        const result = await api.get<{ data: EmailTemplate }>(`/email-templates/${id}`);
+        setName(result.data.name);
+        setSubject(result.data.subject);
+        setHtmlContent(result.data.htmlContent || "");
       } catch (err) {
         console.error("Erro ao buscar template:", err);
       } finally {
@@ -51,12 +51,12 @@ export default function TemplateEditorPage() {
     setSaving(true);
     try {
       if (isNew) {
-        const created = await api.post<{ id: string }>("/email-templates", {
+        const created = await api.post<{ data: { id: string } }>("/email-templates", {
           name: name.trim(),
           subject: subject.trim(),
           htmlContent,
         });
-        router.push(`/marketing/emails/templates/${created.id}`);
+        router.push(`/marketing/emails/templates/${created.data.id}`);
       } else {
         await api.put(`/email-templates/${id}`, {
           name: name.trim(),

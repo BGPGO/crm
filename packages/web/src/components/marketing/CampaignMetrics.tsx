@@ -40,10 +40,10 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
     async function fetchStats() {
       setLoading(true);
       try {
-        const result = await api.get<CampaignStats>(
+        const result = await api.get<{ data: CampaignStats }>(
           `/email-campaigns/${campaignId}/stats`
         );
-        setStats(result);
+        setStats(result.data);
       } catch (err) {
         console.error("Erro ao buscar métricas:", err);
       } finally {

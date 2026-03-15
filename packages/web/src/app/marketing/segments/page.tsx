@@ -58,9 +58,9 @@ export default function SegmentsPage() {
   const handleRefreshCount = async (id: string) => {
     setRefreshingId(id);
     try {
-      const updated = await api.post<Segment>(`/segments/${id}/refresh-count`, {});
+      const updated = await api.post<{ data: Segment }>(`/segments/${id}/refresh-count`, {});
       setSegments((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, contactCount: updated.contactCount } : s))
+        prev.map((s) => (s.id === id ? { ...s, contactCount: updated.data.contactCount } : s))
       );
     } catch (err) {
       console.error("Erro ao atualizar contagem:", err);

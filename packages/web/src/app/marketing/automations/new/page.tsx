@@ -62,11 +62,11 @@ export default function NewAutomationPage() {
         triggerType,
         triggerConfig,
       };
-      const result = await api.post<AutomationResponse>(
+      const result = await api.post<{ data: AutomationResponse }>(
         "/automations",
         payload
       );
-      router.push(`/marketing/automations/${result.id}`);
+      router.push(`/marketing/automations/${result.data.id}`);
     } catch (err: any) {
       setError(err?.message ?? "Erro ao criar automação.");
     } finally {

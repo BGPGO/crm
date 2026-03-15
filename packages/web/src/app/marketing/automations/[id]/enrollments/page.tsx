@@ -109,8 +109,8 @@ export default function AutomationEnrollmentsPage() {
   useEffect(() => {
     // Fetch automation name
     api
-      .get<{ name: string }>(`/automations/${id}`)
-      .then((res) => setAutomationName(res.name))
+      .get<{ data: { name: string } }>(`/automations/${id}`)
+      .then((res) => setAutomationName(res.data.name))
       .catch(() => {});
   }, [id]);
 

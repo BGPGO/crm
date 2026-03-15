@@ -88,8 +88,8 @@ export default function SegmentDetailPage() {
   const fetchSegment = useCallback(async () => {
     setLoadingSegment(true);
     try {
-      const result = await api.get<Segment>(`/segments/${id}`);
-      setSegment(result);
+      const result = await api.get<{ data: Segment }>(`/segments/${id}`);
+      setSegment(result.data);
     } catch (err) {
       console.error("Erro ao buscar segmento:", err);
     } finally {
@@ -130,9 +130,9 @@ export default function SegmentDetailPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      const updated = await api.post<Segment>(`/segments/${id}/refresh-count`, {});
+      const updated = await api.post<{ data: Segment }>(`/segments/${id}/refresh-count`, {});
       setSegment((prev) =>
-        prev ? { ...prev, contactCount: updated.contactCount } : prev
+        prev ? { ...prev, contactCount: updated.data.contactCount } : prev
       );
       fetchContacts(1);
       setPage(1);

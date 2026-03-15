@@ -35,7 +35,7 @@ export default function AIEmailGenerator({
     setError("");
     setResult(null);
     try {
-      const response = await api.post<AIGenerateResponse>(
+      const response = await api.post<{ data: AIGenerateResponse }>(
         "/ai/generate-email",
         {
           topic: topic.trim(),
@@ -43,7 +43,7 @@ export default function AIEmailGenerator({
           audience: audience.trim() || undefined,
         }
       );
-      setResult(response);
+      setResult(response.data);
     } catch (err) {
       console.error("Erro ao gerar email:", err);
       setError("Erro ao gerar o email. Tente novamente.");

@@ -146,11 +146,11 @@ export default function ImportLeadsPage() {
         }
       });
 
-      const res = await api.post<ImportResult>("/contact-imports", {
+      const res = await api.post<{ data: ImportResult }>("/contact-imports", {
         csvContent,
         mapping: mappingObj,
       });
-      setResult(res);
+      setResult(res.data);
       setStep("done");
     } catch (err) {
       console.error("Erro na importação:", err);

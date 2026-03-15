@@ -107,7 +107,7 @@ export default function NewCampaignPage() {
   const handleSendNow = async () => {
     setSaving(true);
     try {
-      const campaign = await api.post<{ id: string }>("/email-campaigns", {
+      const campaign = await api.post<{ data: { id: string } }>("/email-campaigns", {
         name: name.trim(),
         subject: subject.trim(),
         fromName: fromName.trim(),
@@ -116,8 +116,8 @@ export default function NewCampaignPage() {
         templateId: useCustomHtml ? undefined : selectedTemplateId,
         segmentId: selectedSegmentId,
       });
-      await api.post(`/email-campaigns/${campaign.id}/send`, {});
-      router.push(`/marketing/emails/${campaign.id}`);
+      await api.post(`/email-campaigns/${campaign.data.id}/send`, {});
+      router.push(`/marketing/emails/${campaign.data.id}`);
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
     } finally {
@@ -129,7 +129,7 @@ export default function NewCampaignPage() {
     if (!scheduleDate) return;
     setScheduling(true);
     try {
-      const campaign = await api.post<{ id: string }>("/email-campaigns", {
+      const campaign = await api.post<{ data: { id: string } }>("/email-campaigns", {
         name: name.trim(),
         subject: subject.trim(),
         fromName: fromName.trim(),
@@ -138,10 +138,10 @@ export default function NewCampaignPage() {
         templateId: useCustomHtml ? undefined : selectedTemplateId,
         segmentId: selectedSegmentId,
       });
-      await api.post(`/email-campaigns/${campaign.id}/schedule`, {
+      await api.post(`/email-campaigns/${campaign.data.id}/schedule`, {
         scheduledAt: new Date(scheduleDate).toISOString(),
       });
-      router.push(`/marketing/emails/${campaign.id}`);
+      router.push(`/marketing/emails/${campaign.data.id}`);
     } catch (err) {
       console.error("Erro ao agendar campanha:", err);
     } finally {

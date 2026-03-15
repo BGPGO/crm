@@ -28,7 +28,7 @@ export default function MarketingDashboardPage() {
         const [contactsRes, segmentsRes, scoresRes] = await Promise.allSettled([
           api.get<{ meta: { total: number } }>("/contacts?limit=1"),
           api.get<{ data: unknown[] }>("/segments"),
-          api.get<{ averageScore: number }>("/lead-scores/summary"),
+          api.get<{ data: { averageScore: number } }>("/lead-scores/summary"),
         ]);
 
         setSummary({
@@ -37,7 +37,7 @@ export default function MarketingDashboardPage() {
           activeSegments:
             segmentsRes.status === "fulfilled" ? segmentsRes.value.data.length : 0,
           averageScore:
-            scoresRes.status === "fulfilled" ? scoresRes.value.averageScore : 0,
+            scoresRes.status === "fulfilled" ? scoresRes.value.data.averageScore : 0,
         });
       } catch {
         // keep defaults
