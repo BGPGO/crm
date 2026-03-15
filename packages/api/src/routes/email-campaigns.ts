@@ -73,8 +73,8 @@ router.post(
         data: {
           name,
           subject,
-          fromName: fromName ?? null,
-          fromEmail: fromEmail ?? null,
+          fromName: fromName || 'BGPGO',
+          fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.app.br',
           templateId: templateId ?? null,
           segmentId: segmentId ?? null,
           status: status ?? 'DRAFT',
@@ -175,6 +175,27 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
 
     const { sendCampaignEmails } = await import('../services/emailSender');
     sendCampaignEmails(campaign.id);
+
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/email-campaigns/:id/unschedule
+router.post('/:id/unschedule', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return next(createError('Email campaign not found', 404));
+
+    if (campaign.status !== 'SCHEDULED') {
+      return next(createError('Only SCHEDULED campaigns can be unscheduled', 400));
+    }
+
+    const updated = await prisma.emailCampaign.update({
+      where: { id: req.params.id },
+      data: { status: 'DRAFT', scheduledAt: null },
+    });
 
     res.json({ data: updated });
   } catch (err) {

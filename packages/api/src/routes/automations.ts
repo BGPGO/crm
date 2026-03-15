@@ -108,6 +108,26 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// POST /api/automations/:id/archive
+router.post('/:id/archive', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.automation.findUnique({ where: { id: req.params.id } });
+    if (!existing) return next(createError('Automation not found', 404));
+
+    if (existing.status !== 'PAUSED' && existing.status !== 'DRAFT') {
+      return next(createError('Only PAUSED or DRAFT automations can be archived', 400));
+    }
+
+    const automation = await prisma.automation.update({
+      where: { id: req.params.id },
+      data: { status: 'ARCHIVED' },
+    });
+    res.json({ data: automation });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/automations/:id/activate
 router.post('/:id/activate', async (req: Request, res: Response, next: NextFunction) => {
   try {

@@ -146,8 +146,12 @@ export async function recalculateAllScores(): Promise<{ total: number; updated: 
     const batch = contacts.slice(i, i + BATCH_SIZE);
     await Promise.all(
       batch.map(async (c) => {
-        await calculateScoreForContact(c.id);
-        updated++;
+        try {
+          await calculateScoreForContact(c.id);
+          updated++;
+        } catch {
+          // Contact may have been deleted between findMany and calculation
+        }
       })
     );
   }
