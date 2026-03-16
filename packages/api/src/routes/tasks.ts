@@ -18,7 +18,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     if (userId) where.userId = userId as string;
     if (dealId) where.dealId = dealId as string;
-    if (status) where.status = status as string;
+    if (status === 'OVERDUE') {
+      where.status = 'PENDING';
+      where.dueDate = { lt: new Date() };
+    } else if (status) {
+      where.status = status as string;
+    }
 
     if (dueDateFrom || dueDateTo) {
       const dueDateFilter: Record<string, Date> = {};
