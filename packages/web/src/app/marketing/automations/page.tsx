@@ -33,10 +33,9 @@ interface Automation {
   id: string;
   name: string;
   triggerType: string;
-  triggerConfig: any;
+  triggerConfig: Record<string, unknown>;
   status: AutomationStatus;
-  stepsCount: number;
-  enrollmentsCount: number;
+  _count?: { steps: number; enrollments: number };
   createdAt: string;
 }
 
@@ -127,23 +126,44 @@ export default function AutomationsPage() {
   }, [page, fetchAutomations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleStatus = async (automation: Automation) => {
-    const newStatus =
-      automation.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
     try {
-      await api.patch(`/automations/${automation.id}`, { status: newStatus });
+      if (automation.status === "ACTIVE") {
+        await api.post(`/automations/${automation.id}/pause`, {});
+      } else if (automation.status === "PAUSED" || automation.status === "DRAFT") {
+        await api.post(`/automations/${automation.id}/activate`, {});
+      }
       fetchAutomations(page);
     } catch (err) {
-      console.error("Erro ao alterar status:", err);
+      const msg = err instanceof Error ? err.message : "Erro ao alterar status";
+      alert(msg);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (automation: Automation) => {
+    if (automation.status !== "DRAFT" && automation.status !== "ARCHIVED") {
+      const shouldArchive = confirm(
+        "Esta automação precisa ser arquivada antes de excluir. Deseja arquivá-la?"
+      );
+      if (!shouldArchive) return;
+      try {
+        if (automation.status === "ACTIVE") {
+          await api.post(`/automations/${automation.id}/pause`, {});
+        }
+        await api.post(`/automations/${automation.id}/archive`, {});
+        fetchAutomations(page);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao arquivar";
+        alert(msg);
+      }
+      return;
+    }
     if (!confirm("Tem certeza que deseja excluir esta automação?")) return;
     try {
-      await api.delete(`/automations/${id}`);
+      await api.delete(`/automations/${automation.id}`);
       fetchAutomations(page);
     } catch (err) {
-      console.error("Erro ao excluir automação:", err);
+      const msg = err instanceof Error ? err.message : "Erro ao excluir";
+      alert(msg);
     }
   };
 
@@ -231,10 +251,10 @@ export default function AutomationsPage() {
                         automation.triggerType}
                     </TableCell>
                     <TableCell className="text-gray-700">
-                      {automation.stepsCount ?? 0}
+                      {automation._count?.steps ?? 0}
                     </TableCell>
                     <TableCell className="text-gray-700">
-                      {automation.enrollmentsCount ?? 0}
+                      {automation._count?.enrollments ?? 0}
                     </TableCell>
                     <TableCell>
                       <Badge variant={config.variant}>{config.label}</Badge>
@@ -278,9 +298,9 @@ export default function AutomationsPage() {
                           <Eye size={14} />
                         </Link>
                         <button
-                          onClick={() => handleDelete(automation.id)}
+                          onClick={() => handleDelete(automation)}
                           className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          title="Excluir"
+                          title={automation.status === "DRAFT" || automation.status === "ARCHIVED" ? "Excluir" : "Arquivar"}
                         >
                           <Trash2 size={14} />
                         </button>
