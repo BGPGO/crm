@@ -22,7 +22,7 @@ interface BotConfig {
   meetingLink: string;
   openaiApiKey: string;
   welcomeMessage: string;
-  systemPrompt: string;
+  botSystemPrompt: string;
   botEnabled: boolean;
 }
 
@@ -36,7 +36,7 @@ const defaultConfig: BotConfig = {
   meetingLink: "",
   openaiApiKey: "",
   welcomeMessage: "",
-  systemPrompt: "",
+  botSystemPrompt: "",
   botEnabled: false,
 };
 
@@ -86,8 +86,13 @@ export default function ConversasConfiguracaoPage() {
       await api.post("/whatsapp/instance/create", {});
       setSuccessMsg("Instância criada com sucesso.");
       await fetchStatus();
-    } catch {
-      setError("Erro ao criar instância.");
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      if (status === 403) {
+        setSuccessMsg("Instância já existe. Use Conectar (QR Code).");
+      } else {
+        setError("Erro ao criar instância.");
+      }
     }
   };
 
@@ -95,8 +100,9 @@ export default function ConversasConfiguracaoPage() {
     setError(null);
     setQrCode(null);
     try {
-      const res = await api.get<{ data: { qrcode: string } }>("/whatsapp/instance/connect");
-      setQrCode(res.data?.qrcode || null);
+      const res = await api.get<{ data: { base64?: string; qrcode?: { base64?: string } } }>("/whatsapp/instance/connect");
+      const qr = res.data?.base64 || res.data?.qrcode?.base64 || null;
+      setQrCode(qr);
     } catch {
       setError("Erro ao gerar QR Code.");
     }
@@ -105,7 +111,7 @@ export default function ConversasConfiguracaoPage() {
   const handleDisconnect = async () => {
     setError(null);
     try {
-      await api.post("/whatsapp/instance/disconnect", {});
+      await api.delete("/whatsapp/instance/logout");
       setSuccessMsg("Desconectado com sucesso.");
       setQrCode(null);
       await fetchStatus();
@@ -117,7 +123,7 @@ export default function ConversasConfiguracaoPage() {
   const handleDelete = async () => {
     setError(null);
     try {
-      await api.delete("/whatsapp/instance");
+      await api.delete("/whatsapp/instance/delete");
       setSuccessMsg("Instância deletada.");
       setQrCode(null);
       await fetchStatus();
@@ -129,7 +135,7 @@ export default function ConversasConfiguracaoPage() {
   const handleConfigureWebhook = async () => {
     setError(null);
     try {
-      await api.post("/whatsapp/instance/webhook", {});
+      await api.post("/whatsapp/instance/webhook/setup", {});
       setSuccessMsg("Webhook configurado com sucesso.");
     } catch {
       setError("Erro ao configurar webhook.");
@@ -386,8 +392,8 @@ export default function ConversasConfiguracaoPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
                 <textarea
-                  value={config.systemPrompt}
-                  onChange={(e) => updateField("systemPrompt", e.target.value)}
+                  value={config.botSystemPrompt}
+                  onChange={(e) => updateField("botSystemPrompt", e.target.value)}
                   placeholder="Você é um assistente de vendas da BGPGO..."
                   rows={5}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
