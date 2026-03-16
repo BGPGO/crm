@@ -1,0 +1,77 @@
+"use client";
+
+import React, { useRef, useState, useCallback } from "react";
+import type {
+  TextData,
+  SectionData,
+  SectionStyle,
+  GlobalStyle,
+} from "@/types/email-builder";
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface TextSectionProps {
+  data: TextData;
+  onUpdate: (data: Partial<SectionData>, style?: Partial<SectionStyle>) => void;
+  globalStyle: GlobalStyle;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function TextSection({ data, onUpdate, globalStyle }: TextSectionProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false);
+    if (ref.current) {
+      const html = ref.current.innerHTML;
+      if (html !== data.html) {
+        onUpdate({ ...data, html });
+      }
+    }
+  }, [data, onUpdate]);
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+  }, []);
+
+  const containerStyle: React.CSSProperties = {
+    fontFamily: globalStyle.fontFamily,
+    fontSize: globalStyle.fontSize,
+    color: globalStyle.textColor,
+    minHeight: 40,
+    cursor: "text",
+    outline: "none",
+    lineHeight: 1.6,
+  };
+
+  // When not focused, render via dangerouslySetInnerHTML for accurate display.
+  // When focused, the user edits the content directly via contentEditable.
+  if (!isFocused) {
+    return (
+      <div
+        ref={ref}
+        style={containerStyle}
+        tabIndex={0}
+        onFocus={handleFocus}
+        dangerouslySetInnerHTML={{ __html: data.html }}
+      />
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      style={containerStyle}
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={handleBlur}
+      dangerouslySetInnerHTML={{ __html: data.html }}
+    />
+  );
+}
