@@ -44,6 +44,8 @@ interface NotifTask {
   type: "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
   dueDate: string | null;
   status: "PENDING" | "COMPLETED" | "OVERDUE";
+  dealId: string | null;
+  deal: { id: string; title: string } | null;
 }
 
 interface NotifResponse {
@@ -238,7 +240,7 @@ export default function TopNavbar() {
                     return (
                       <Link
                         key={task.id}
-                        href="/tasks"
+                        href={task.deal ? `/pipeline/${task.deal.id}` : "/tasks"}
                         onClick={() => setNotifOpen(false)}
                         className={clsx(
                           "flex items-start gap-3 px-4 py-3 transition-colors border-b border-gray-50 last:border-0",
@@ -262,6 +264,9 @@ export default function TopNavbar() {
                             {isOverdue ? "Atrasada" : "Pendente"}
                             {task.dueDate && ` · ${new Date(task.dueDate).toLocaleDateString("pt-BR")}`}
                           </p>
+                          {task.deal && (
+                            <p className="text-xs text-blue-600 truncate mt-0.5">{task.deal.title}</p>
+                          )}
                         </div>
                       </Link>
                     );
