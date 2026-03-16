@@ -84,14 +84,17 @@ export default function SegmentDetailPage() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSegment = useCallback(async () => {
+    setError(null);
     setLoadingSegment(true);
     try {
       const result = await api.get<{ data: Segment }>(`/segments/${id}`);
       setSegment(result.data);
     } catch (err) {
       console.error("Erro ao buscar segmento:", err);
+      setError('Erro ao carregar dados. Tente novamente.');
     } finally {
       setLoadingSegment(false);
     }
@@ -112,6 +115,7 @@ export default function SegmentDetailPage() {
         setMeta(result.meta);
       } catch (err) {
         console.error("Erro ao buscar contatos do segmento:", err);
+        setError('Erro ao carregar dados. Tente novamente.');
       } finally {
         setLoadingContacts(false);
       }
@@ -161,6 +165,13 @@ export default function SegmentDetailPage() {
         breadcrumb={["Marketing", "Segmentos", segment?.name || "..."]}
       />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => { fetchSegment(); fetchContacts(page); }} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-6">
         {/* Back link */}

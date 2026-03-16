@@ -70,10 +70,7 @@ export default function ImportLeadsPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = (file: File) => {
     setFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -114,6 +111,12 @@ export default function ImportLeadsPage() {
       setMappings(autoMappings);
     };
     reader.readAsText(file, "UTF-8");
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
   };
 
   const updateMapping = (index: number, field: string) => {
@@ -261,6 +264,25 @@ export default function ImportLeadsPage() {
               {!fileName ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                    const file = e.dataTransfer.files?.[0];
+                    if (file && file.name.endsWith(".csv")) {
+                      processFile(file);
+                    }
+                  }}
                   className="mx-auto max-w-md border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-colors"
                 >
                   <FileSpreadsheet

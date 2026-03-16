@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -84,6 +85,7 @@ const taskTypeLabels: Record<string, string> = {
 };
 
 export default function ReportsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [pipelineSummary, setPipelineSummary] = useState<PipelineSummary | null>(null);
   const [taskCounts, setTaskCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
@@ -218,7 +220,11 @@ export default function ReportsPage() {
           </Card>
 
           {/* Tarefas Atrasadas */}
-          <Card padding="md" className={taskCounts.OVERDUE > 0 ? "ring-2 ring-red-200 bg-red-50" : ""}>
+          <Card
+            padding="md"
+            className={`${taskCounts.OVERDUE > 0 ? "ring-2 ring-red-200 bg-red-50 cursor-pointer hover:ring-red-300 transition-all" : ""}`}
+            onClick={() => taskCounts.OVERDUE > 0 && router.push("/tasks?status=OVERDUE")}
+          >
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl ${taskCounts.OVERDUE > 0 ? "bg-red-100 text-red-600 animate-pulse" : "bg-orange-50 text-orange-600"}`}>
                 <AlertTriangle size={20} />
@@ -397,23 +403,27 @@ export default function ReportsPage() {
               ) : (
                 pendingTasks.map((task) => {
                   const TIcon = taskTypeIcons[task.type] || MoreHorizontal;
+                  const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
+                  const overdueDays = isOverdue ? Math.floor((Date.now() - new Date(task.dueDate!).getTime()) / 86400000) : 0;
                   return (
                     <div
                       key={task.id}
-                      className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                      className={`flex items-center gap-3 px-5 py-3 border-b border-gray-50 last:border-0 transition-colors ${isOverdue ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500" : "hover:bg-gray-50"}`}
                     >
-                      <div className="p-1.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
+                      <div className={`p-1.5 rounded-full flex-shrink-0 ${isOverdue ? "bg-red-100 text-red-500" : "bg-gray-100 text-gray-500"}`}>
                         <TIcon size={12} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-700 truncate">{task.title}</p>
+                        <p className={`text-sm truncate ${isOverdue ? "text-red-700 font-medium" : "text-gray-700"}`}>{task.title}</p>
                         <p className="text-xs text-gray-400">
                           {taskTypeLabels[task.type] || task.type}
                         </p>
                       </div>
                       {task.dueDate && (
-                        <span className="text-xs text-gray-400 flex-shrink-0">
-                          {formatDate(task.dueDate)}
+                        <span className={`text-xs flex-shrink-0 ${isOverdue ? "text-red-600 font-bold" : "text-gray-400"}`}>
+                          {isOverdue
+                            ? overdueDays === 0 ? "Vence hoje" : `${overdueDays} dia${overdueDays !== 1 ? "s" : ""} atrasada`
+                            : formatDate(task.dueDate)}
                         </span>
                       )}
                     </div>

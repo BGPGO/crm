@@ -9,6 +9,7 @@ interface ActionResult {
   success: boolean;
   output?: any;
   conditionResult?: boolean; // for CONDITION type
+  nextActionAt?: Date; // returned by WAIT action so the engine uses the fresh value
 }
 
 // ─── Action Executor ─────────────────────────────────────────────────────────
@@ -62,8 +63,15 @@ async function addTag(
   contactId: string,
   config: { tagId: string }
 ): Promise<ActionResult> {
-  await prisma.contactTag.create({
-    data: {
+  await prisma.contactTag.upsert({
+    where: {
+      contactId_tagId: {
+        contactId,
+        tagId: config.tagId,
+      },
+    },
+    update: {},  // already exists — nothing to change
+    create: {
       contactId,
       tagId: config.tagId,
     },
@@ -142,13 +150,25 @@ async function wait(
   return {
     success: true,
     output: { waitUntil: nextActionAt.toISOString(), duration: config.duration, unit: config.unit },
+    nextActionAt,
   };
 }
+
+const ALLOWED_UPDATE_FIELDS = new Set([
+  'name', 'phone', 'position', 'notes', 'city', 'state',
+]);
 
 async function updateField(
   contactId: string,
   config: { field: string; value: string }
 ): Promise<ActionResult> {
+  if (!ALLOWED_UPDATE_FIELDS.has(config.field)) {
+    return {
+      success: false,
+      output: `Field "${config.field}" is not allowed. Allowed fields: ${[...ALLOWED_UPDATE_FIELDS].join(', ')}`,
+    };
+  }
+
   await prisma.contact.update({
     where: { id: contactId },
     data: { [config.field]: config.value },

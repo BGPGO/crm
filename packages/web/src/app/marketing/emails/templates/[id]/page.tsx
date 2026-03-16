@@ -71,7 +71,7 @@ type TabId = "ai" | "design" | "content";
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "ai", label: "IA", icon: Sparkles },
   { id: "design", label: "Design", icon: Paintbrush },
-  { id: "content", label: "Conteudo", icon: PenLine },
+  { id: "content", label: "Conteúdo", icon: PenLine },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -99,6 +99,7 @@ export default function TemplateEditorPage() {
   // AI state
   const [aiTopic, setAiTopic] = useState("");
   const [aiTone, setAiTone] = useState("profissional");
+  const [aiAudience, setAiAudience] = useState("clientes e leads do CRM");
   const [aiInstruction, setAiInstruction] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -275,8 +276,7 @@ ${htmlContent}
       }>("/ai/generate-email", {
         topic: aiTopic.trim(),
         tone: aiTone,
-        audience:
-          "clientes da Bertuzzi Patrimonial - consultoria patrimonial e sucessoria",
+        audience: aiAudience.trim() || "clientes e leads do CRM",
       });
       setHtmlContent(res.data.htmlContent);
       setSubject(res.data.subject);
@@ -308,7 +308,7 @@ ${htmlContent}
       );
       setHtmlContent(res.data.htmlContent);
       setPreviewKey((k) => k + 1);
-      showToast("Alteracao aplicada!");
+      showToast("Alteração aplicada!");
     } catch (err) {
       setAiError(
         "Erro: " + (err instanceof Error ? err.message : "Erro desconhecido")
@@ -459,7 +459,7 @@ ${htmlContent}
                     <textarea
                       value={aiTopic}
                       onChange={(e) => setAiTopic(e.target.value)}
-                      placeholder="Sobre o que e o email? Ex: Promocao de consultoria patrimonial..."
+                      placeholder="Sobre o que é o email? Ex: Promoção de consultoria patrimonial..."
                       rows={3}
                       disabled={aiLoading}
                       className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50"
@@ -478,8 +478,22 @@ ${htmlContent}
                         <option value="profissional">Profissional</option>
                         <option value="casual">Casual</option>
                         <option value="urgente">Urgente</option>
-                        <option value="amigavel">Amigavel</option>
+                        <option value="amigavel">Amigável</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                        Publico-alvo
+                      </label>
+                      <input
+                        type="text"
+                        value={aiAudience}
+                        onChange={(e) => setAiAudience(e.target.value)}
+                        placeholder="Ex: clientes e leads do CRM"
+                        disabled={aiLoading}
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50 placeholder:text-gray-400"
+                      />
                     </div>
 
                     <button
@@ -513,7 +527,7 @@ ${htmlContent}
                           Melhorar com IA
                         </h3>
                         <p className="text-xs text-gray-500">
-                          Escolha uma sugestao ou escreva o que quer mudar
+                          Escolha uma sugestão ou escreva o que quer mudar
                         </p>
                       </div>
                     </div>
@@ -649,7 +663,7 @@ ${htmlContent}
                 <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                   <Sparkles size={32} className="mb-3 text-gray-300" />
                   <p className="text-sm font-medium text-gray-500">
-                    Nenhum conteudo ainda
+                    Nenhum conteúdo ainda
                   </p>
                   <p className="text-xs mt-1 text-gray-400">
                     Use a aba IA ao lado para gerar seu email

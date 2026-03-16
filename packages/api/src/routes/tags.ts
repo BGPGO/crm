@@ -9,14 +9,26 @@ const router = Router();
 // GET /api/tags
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tags = await prisma.tag.findMany({
-      orderBy: { name: 'asc' },
-      include: {
-        _count: { select: { contacts: true } },
-      },
-    });
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
 
-    res.json({ data: tags });
+    const [total, tags] = await Promise.all([
+      prisma.tag.count(),
+      prisma.tag.findMany({
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' },
+        include: {
+          _count: { select: { contacts: true } },
+        },
+      }),
+    ]);
+
+    res.json({
+      data: tags,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     next(err);
   }
@@ -60,9 +72,14 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.tag.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Tag not found', 404));
 
+    const { name, color } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (color !== undefined) data.color = color;
+
     const tag = await prisma.tag.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     res.json({ data: tag });
   } catch (err) {
@@ -95,10 +112,18 @@ router.post(
         contactIds.map((contactId: string) => ({ tagId, contactId }))
       );
 
-      const result = await prisma.contactTag.createMany({
-        data,
-        skipDuplicates: true,
-      });
+      let result;
+      try {
+        result = await prisma.contactTag.createMany({
+          data,
+          skipDuplicates: true,
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2003') {
+          return next(createError('Um ou mais IDs de contato ou tag não existem', 422));
+        }
+        throw err;
+      }
 
       // Fire automation triggers
       for (const contactId of contactIds) {

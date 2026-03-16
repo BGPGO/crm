@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Button from "@/components/ui/Button";
@@ -67,16 +67,21 @@ export default function EmailCampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const statusFilterRef = useRef(statusFilter);
+  statusFilterRef.current = statusFilter;
 
   const fetchCampaigns = useCallback(
     async (currentPage: number) => {
+      setError(null);
       setLoading(true);
       try {
         const params = new URLSearchParams({
           page: String(currentPage),
           limit: "20",
         });
-        if (statusFilter) params.set("status", statusFilter);
+        if (statusFilterRef.current) params.set("status", statusFilterRef.current);
 
         const result = await api.get<CampaignsResponse>(
           `/email-campaigns?${params.toString()}`
@@ -85,21 +90,29 @@ export default function EmailCampaignsPage() {
         setMeta(result.meta);
       } catch (err) {
         console.error("Erro ao buscar campanhas:", err);
+        setError('Erro ao carregar dados. Tente novamente.');
       } finally {
         setLoading(false);
       }
     },
-    [statusFilter]
+    []
   );
 
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    fetchCampaigns(page);
-  }, [page, fetchCampaigns]);
-
-  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchCampaigns(page);
+      return;
+    }
     setPage(1);
     fetchCampaigns(1);
   }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isFirstRender.current) return;
+    fetchCampaigns(page);
+  }, [page, fetchCampaigns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatRate = (rate: number | null) => {
     if (rate === null || rate === undefined) return "\u2014";
@@ -119,6 +132,13 @@ export default function EmailCampaignsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Email Marketing" breadcrumb={["Marketing", "Emails"]} />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => fetchCampaigns(page)} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-4">
         {/* Toolbar */}

@@ -75,59 +75,20 @@ router.get('/t/click/:trackingId', async (req: Request, res: Response, _next: Ne
 
     const link = await prisma.emailLink.findUnique({
       where: { trackingId },
-      include: {
-        emailCampaign: {
-          include: {
-            sends: {
-              include: { contact: true },
-            },
-          },
-        },
-      },
     });
 
     if (!link) {
       return res.redirect(302, FALLBACK_URL);
     }
 
-    // Increment click count
+    // Increment click count on the link itself.
+    // Note: we cannot attribute the click to a specific EmailSend because
+    // the tracking URL only contains the link trackingId, not the sendId.
+    // Per-send click attribution would require embedding sendId in the URL.
     await prisma.emailLink.update({
       where: { id: link.id },
       data: { clickCount: { increment: 1 } },
     });
-
-    // Update all sends for this campaign that haven't been clicked yet
-    const sends = link.emailCampaign.sends;
-    for (const send of sends) {
-      if (!send.clickedAt) {
-        await prisma.emailSend.update({
-          where: { id: send.id },
-          data: {
-            clickedAt: new Date(),
-            status: 'CLICKED',
-          },
-        });
-      }
-
-      // Create email event
-      await prisma.emailEvent.create({
-        data: {
-          type: 'clicked',
-          emailSendId: send.id,
-          metadata: { url: link.originalUrl },
-        },
-      });
-
-      // Update LeadScore lastEmailClickedAt
-      await prisma.leadScore.upsert({
-        where: { contactId: send.contactId },
-        update: { lastEmailClickedAt: new Date() },
-        create: {
-          contactId: send.contactId,
-          lastEmailClickedAt: new Date(),
-        },
-      });
-    }
 
     return res.redirect(302, link.originalUrl);
   } catch (error) {
@@ -139,6 +100,14 @@ router.get('/t/click/:trackingId', async (req: Request, res: Response, _next: Ne
 // ─── POST /t/webhook — Resend webhook handler ──────────────────────────────
 
 router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunction) => {
+  // Basic payload validation
+  if (!req.body.type || typeof req.body.type !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid "type" field' });
+  }
+  if (!req.body.data || typeof req.body.data !== 'object') {
+    return res.status(400).json({ error: 'Missing or invalid "data" field' });
+  }
+
   try {
     const { type, data } = req.body as { type: string; data: { email_id: string } };
 

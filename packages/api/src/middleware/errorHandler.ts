@@ -13,16 +13,18 @@ export function errorHandler(
 ): void {
   const statusCode = err.statusCode ?? 500;
 
-  const body: { error: string; details?: unknown } = {
-    error: err.message || 'Internal Server Error',
-  };
-
-  if (err.details !== undefined) {
-    body.details = err.details;
+  if (statusCode === 500) {
+    console.error(err.stack || err.message);
   }
 
-  if (process.env.NODE_ENV === 'development' && statusCode === 500) {
-    console.error(err.stack);
+  const body: { error: string; details?: unknown } = {
+    error: statusCode === 500
+      ? 'Erro interno do servidor'
+      : (err.message || 'Internal Server Error'),
+  };
+
+  if (err.details !== undefined && statusCode !== 500) {
+    body.details = err.details;
   }
 
   res.status(statusCode).json(body);

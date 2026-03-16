@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
@@ -21,33 +21,36 @@ export default function MarketingDashboardPage() {
     averageScore: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSummary = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const [contactsRes, segmentsRes, scoresRes] = await Promise.allSettled([
+        api.get<{ meta: { total: number } }>("/contacts?limit=1"),
+        api.get<{ data: unknown[] }>("/segments"),
+        api.get<{ data: { averageScore: number } }>("/lead-scores/summary"),
+      ]);
+
+      setSummary({
+        totalLeads:
+          contactsRes.status === "fulfilled" ? contactsRes.value.meta.total : 0,
+        activeSegments:
+          segmentsRes.status === "fulfilled" ? segmentsRes.value.data.length : 0,
+        averageScore:
+          scoresRes.status === "fulfilled" ? scoresRes.value.data.averageScore : 0,
+      });
+    } catch {
+      setError('Erro ao carregar dados. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchSummary() {
-      try {
-        const [contactsRes, segmentsRes, scoresRes] = await Promise.allSettled([
-          api.get<{ meta: { total: number } }>("/contacts?limit=1"),
-          api.get<{ data: unknown[] }>("/segments"),
-          api.get<{ data: { averageScore: number } }>("/lead-scores/summary"),
-        ]);
-
-        setSummary({
-          totalLeads:
-            contactsRes.status === "fulfilled" ? contactsRes.value.meta.total : 0,
-          activeSegments:
-            segmentsRes.status === "fulfilled" ? segmentsRes.value.data.length : 0,
-          averageScore:
-            scoresRes.status === "fulfilled" ? scoresRes.value.data.averageScore : 0,
-        });
-      } catch {
-        // keep defaults
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchSummary();
-  }, []);
+  }, [fetchSummary]);
 
   const summaryCards = [
     {
@@ -119,6 +122,13 @@ export default function MarketingDashboardPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Marketing" breadcrumb={["Marketing"]} />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => fetchSummary()} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-6">
         {/* Summary cards */}

@@ -17,9 +17,7 @@ export default function MarketingNav() {
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === "/marketing/leads") {
-      return pathname === "/marketing/leads" || pathname === "/marketing";
-    }
+    if (pathname === "/marketing") return false;
     return pathname.startsWith(href);
   };
 

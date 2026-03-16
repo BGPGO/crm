@@ -32,6 +32,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.tags = { some: { tagId: tagId as string } };
     }
 
+    const validLevels = ['ENGAGED', 'INTERMEDIATE', 'DISENGAGED'];
+    if (engagementLevel && !validLevels.includes(engagementLevel as string)) {
+      return next(createError('engagementLevel inválido. Use: ENGAGED, INTERMEDIATE ou DISENGAGED', 400));
+    }
+
     if (engagementLevel) {
       where.leadScore = { engagementLevel: engagementLevel as string };
     }

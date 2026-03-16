@@ -98,9 +98,18 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError('Only DRAFT campaigns can be updated', 400));
     }
 
+    const { name, subject, fromName, fromEmail, templateId, segmentId } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (subject !== undefined) data.subject = subject;
+    if (fromName !== undefined) data.fromName = fromName;
+    if (fromEmail !== undefined) data.fromEmail = fromEmail;
+    if (templateId !== undefined) data.templateId = templateId;
+    if (segmentId !== undefined) data.segmentId = segmentId;
+
     const campaign = await prisma.emailCampaign.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
 
     res.json({ data: campaign });
@@ -174,7 +183,13 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
     });
 
     const { sendCampaignEmails } = await import('../services/emailSender');
-    sendCampaignEmails(campaign.id);
+    sendCampaignEmails(campaign.id).catch(async (error) => {
+      console.error(`Failed to send campaign ${campaign.id}:`, error);
+      await prisma.emailCampaign.update({
+        where: { id: campaign.id },
+        data: { status: 'FAILED' },
+      });
+    });
 
     res.json({ data: updated });
   } catch (err) {
@@ -209,14 +224,26 @@ router.post('/:id/schedule', async (req: Request, res: Response, next: NextFunct
     const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return next(createError('Email campaign not found', 404));
 
+    if (campaign.status !== 'DRAFT') {
+      return next(createError('Only DRAFT campaigns can be scheduled', 400));
+    }
+
     const { scheduledAt } = req.body;
     if (!scheduledAt) return next(createError('scheduledAt is required', 400));
+
+    const parsedDate = new Date(scheduledAt);
+    if (isNaN(parsedDate.getTime())) {
+      return next(createError('scheduledAt must be a valid date', 400));
+    }
+    if (parsedDate.getTime() <= Date.now()) {
+      return next(createError('scheduledAt must be in the future', 400));
+    }
 
     const updated = await prisma.emailCampaign.update({
       where: { id: req.params.id },
       data: {
         status: 'SCHEDULED',
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: parsedDate,
       },
     });
 

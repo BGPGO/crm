@@ -76,9 +76,16 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.segment.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Segment not found', 404));
 
+    const { name, description, filters, isActive } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (filters !== undefined) data.filters = filters;
+    if (isActive !== undefined) data.isActive = isActive;
+
     const segment = await prisma.segment.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
 
     res.json({ data: segment });

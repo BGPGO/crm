@@ -82,9 +82,18 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.emailTemplate.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Email template not found', 404));
 
+    const { name, subject, htmlContent, jsonContent, thumbnailUrl, isActive } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (subject !== undefined) data.subject = subject;
+    if (htmlContent !== undefined) data.htmlContent = htmlContent;
+    if (jsonContent !== undefined) data.jsonContent = jsonContent;
+    if (thumbnailUrl !== undefined) data.thumbnailUrl = thumbnailUrl;
+    if (isActive !== undefined) data.isActive = isActive;
+
     const template = await prisma.emailTemplate.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
 
     res.json({ data: template });

@@ -228,6 +228,7 @@ export default function TasksPage() {
     try {
       const newStatus = task.status === "COMPLETED" ? "PENDING" : "COMPLETED";
       await api.put(`/tasks/${task.id}`, { status: newStatus });
+      window.dispatchEvent(new Event('tasks-changed'));
       await fetchTasks(page, activeFilter, userFilter);
       await fetchCounts(userFilter);
     } catch (err) {
@@ -291,6 +292,7 @@ export default function TasksPage() {
         await api.patch("/tasks/batch", { ids, data: dataMap[batchAction] });
       }
 
+      window.dispatchEvent(new Event('tasks-changed'));
       closeBatchModal();
       setSelectedIds(new Set());
       await fetchTasks(page, activeFilter, userFilter);
@@ -351,6 +353,7 @@ export default function TasksPage() {
       } else {
         await api.post("/tasks", payload);
       }
+      window.dispatchEvent(new Event('tasks-changed'));
       closeModal();
       await fetchTasks(page, activeFilter, userFilter);
       await fetchCounts(userFilter);
@@ -368,6 +371,7 @@ export default function TasksPage() {
     setSubmitting(true);
     try {
       await api.delete(`/tasks/${editingTask.id}`);
+      window.dispatchEvent(new Event('tasks-changed'));
       closeModal();
       await fetchTasks(page, activeFilter, userFilter);
       await fetchCounts(userFilter);
@@ -622,6 +626,7 @@ export default function TasksPage() {
                         ? isOverdue
                           ? (() => {
                               const days = Math.floor((Date.now() - new Date(task.dueDate).getTime()) / 86400000);
+                              if (days === 0) return "Vence hoje";
                               return `${days} dia${days !== 1 ? "s" : ""} atrasada`;
                             })()
                           : formatDate(task.dueDate)

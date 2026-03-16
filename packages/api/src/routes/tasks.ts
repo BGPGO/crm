@@ -26,10 +26,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     if (dueDateFrom || dueDateTo) {
-      const dueDateFilter: Record<string, Date> = {};
-      if (dueDateFrom) dueDateFilter.gte = new Date(dueDateFrom as string);
-      if (dueDateTo) dueDateFilter.lte = new Date(dueDateTo as string);
-      where.dueDate = dueDateFilter;
+      const existing = (where.dueDate as Record<string, Date>) || {};
+      if (dueDateFrom) existing.gte = new Date(dueDateFrom as string);
+      if (dueDateTo) existing.lte = new Date(dueDateTo as string);
+      where.dueDate = existing;
     }
 
     const [total, data] = await Promise.all([

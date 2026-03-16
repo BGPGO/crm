@@ -64,7 +64,7 @@ router.post(
   validate({ name: 'required', triggerType: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, description, triggerType, triggerConfig } = req.body;
+      const { name, description, triggerType, triggerConfig = {} } = req.body;
       const automation = await prisma.automation.create({
         data: { name, description, triggerType, triggerConfig },
       });
@@ -81,9 +81,16 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.automation.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Automation not found', 404));
 
+    const { name, description, triggerType, triggerConfig } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (triggerType !== undefined) data.triggerType = triggerType;
+    if (triggerConfig !== undefined) data.triggerConfig = triggerConfig;
+
     const automation = await prisma.automation.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
     });
     res.json({ data: automation });
   } catch (err) {
@@ -207,24 +214,43 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
       return next(createError('steps must be an array', 422));
     }
 
-    // Delete all existing steps, then create new ones
-    await prisma.automationStep.deleteMany({ where: { automationId: req.params.id } });
+    // Validate actionType for every step before touching the DB
+    const validActionTypes: string[] = [
+      'ADD_TAG', 'REMOVE_TAG', 'SEND_EMAIL', 'WAIT',
+      'UPDATE_FIELD', 'MOVE_PIPELINE_STAGE', 'CONDITION',
+    ];
+    for (const step of steps) {
+      if (!validActionTypes.includes(step.actionType)) {
+        return next(
+          createError(
+            `Invalid actionType "${step.actionType}". Valid values: ${validActionTypes.join(', ')}`,
+            422
+          )
+        );
+      }
+    }
 
-    const created = await Promise.all(
-      steps.map((step) =>
-        prisma.automationStep.create({
-          data: {
-            order: step.order,
-            actionType: step.actionType as AutomationActionType,
-            config: step.config as any,
-            nextStepId: step.nextStepId,
-            trueStepId: step.trueStepId,
-            falseStepId: step.falseStepId,
-            automationId: req.params.id,
-          },
-        })
-      )
-    );
+    // Wrap delete + create in a transaction so steps are never lost
+    const automationId = req.params.id;
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.automationStep.deleteMany({ where: { automationId } });
+
+      return Promise.all(
+        steps.map((step) =>
+          tx.automationStep.create({
+            data: {
+              order: step.order,
+              actionType: step.actionType as AutomationActionType,
+              config: step.config as any,
+              nextStepId: step.nextStepId,
+              trueStepId: step.trueStepId,
+              falseStepId: step.falseStepId,
+              automationId,
+            },
+          })
+        )
+      );
+    });
 
     res.json({ data: created });
   } catch (err) {

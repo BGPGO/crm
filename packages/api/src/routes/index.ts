@@ -26,7 +26,7 @@ import emailCampaignsRouter from './email-campaigns';
 import emailTrackingRouter from './email-tracking';
 import aiEmailRouter from './ai-email';
 import automationsRouter from './automations';
-import { optionalAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -36,10 +36,9 @@ router.use('/auth', authRouter);
 // ─── Public routes (no auth — tracking pixels, unsubscribe, webhooks) ────────
 router.use('/email-tracking', emailTrackingRouter);
 
-// ─── Optional auth for all other routes ──────────────────────────────────────
-// Attaches req.user if a valid token is present, but doesn't block requests.
-// Switch to requireAuth when ready to enforce authentication.
-router.use(optionalAuth);
+// ─── Require auth for all other routes ───────────────────────────────────────
+// All routes below this middleware require a valid authentication token.
+router.use(requireAuth);
 
 router.use('/contacts', contactsRouter);
 router.use('/organizations', organizationsRouter);

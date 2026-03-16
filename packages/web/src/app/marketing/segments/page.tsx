@@ -38,14 +38,17 @@ export default function SegmentsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSegments = useCallback(async () => {
+    setError(null);
     setLoading(true);
     try {
       const result = await api.get<SegmentsResponse>("/segments");
       setSegments(result.data);
     } catch (err) {
       console.error("Erro ao buscar segmentos:", err);
+      setError('Erro ao carregar dados. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -96,6 +99,13 @@ export default function SegmentsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Segmentos" breadcrumb={["Marketing", "Segmentos"]} />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => fetchSegments()} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-4">
         {/* Toolbar */}

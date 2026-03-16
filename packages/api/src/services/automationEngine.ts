@@ -162,11 +162,13 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
       if (nextStepId) {
         // Advance to next step
+        // Use nextActionAt from the action result (e.g. WAIT sets a future date),
+        // otherwise default to "now" so the next step runs immediately.
         await prisma.automationEnrollment.update({
           where: { id: enrollment.id },
           data: {
             currentStepId: nextStepId,
-            nextActionAt: enrollment.nextActionAt, // keep current unless WAIT updated it
+            nextActionAt: result.nextActionAt ?? new Date(),
           },
         });
       } else {

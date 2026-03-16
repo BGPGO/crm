@@ -27,7 +27,7 @@ export default function UnsubscribePage() {
           <>
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <h1 className="text-lg font-semibold text-gray-900">Processando...</h1>
-            <p className="text-sm text-gray-500 mt-2">Aguarde enquanto processamos sua solicitacao.</p>
+            <p className="text-sm text-gray-500 mt-2">Aguarde enquanto processamos sua solicitação.</p>
           </>
         )}
         {status === "success" && (
@@ -39,7 +39,7 @@ export default function UnsubscribePage() {
             </div>
             <h1 className="text-lg font-semibold text-gray-900">Descadastrado com sucesso</h1>
             <p className="text-sm text-gray-500 mt-2">
-              Voce foi removido da nossa lista de emails. Nao recebera mais comunicacoes por email.
+              Você foi removido da nossa lista de emails. Não receberá mais comunicações por email.
             </p>
           </>
         )}
@@ -52,7 +52,7 @@ export default function UnsubscribePage() {
             </div>
             <h1 className="text-lg font-semibold text-gray-900">Erro ao processar</h1>
             <p className="text-sm text-gray-500 mt-2">
-              Nao foi possivel processar sua solicitacao. Tente novamente mais tarde.
+              Não foi possível processar sua solicitação. Tente novamente mais tarde.
             </p>
           </>
         )}

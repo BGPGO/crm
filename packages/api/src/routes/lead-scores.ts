@@ -15,6 +15,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { engagementLevel } = req.query;
 
+    const validLevels = ['ENGAGED', 'INTERMEDIATE', 'DISENGAGED'];
+    if (engagementLevel && !validLevels.includes(engagementLevel as string)) {
+      return next(createError('engagementLevel inválido. Use: ENGAGED, INTERMEDIATE ou DISENGAGED', 400));
+    }
+
     const where: Record<string, unknown> = {};
     if (engagementLevel) {
       where.engagementLevel = engagementLevel as string;

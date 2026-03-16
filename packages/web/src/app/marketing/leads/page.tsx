@@ -67,11 +67,19 @@ export default function LeadsPage() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkTagIds, setBulkTagIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const filterTagIdsRef = useRef(filterTagIds);
+  filterTagIdsRef.current = filterTagIds;
+
+  const filterEngagementRef = useRef(filterEngagement);
+  filterEngagementRef.current = filterEngagement;
+
   const fetchLeads = useCallback(
     async (currentPage: number, searchTerm: string) => {
+      setError(null);
       setLoading(true);
       try {
         const params = new URLSearchParams({
@@ -79,8 +87,8 @@ export default function LeadsPage() {
           limit: "20",
         });
         if (searchTerm) params.set("search", searchTerm);
-        if (filterTagIds.length > 0) params.set("tags", filterTagIds.join(","));
-        if (filterEngagement) params.set("engagementLevel", filterEngagement);
+        if (filterTagIdsRef.current.length > 0) params.set("tags", filterTagIdsRef.current.join(","));
+        if (filterEngagementRef.current) params.set("engagementLevel", filterEngagementRef.current);
 
         const result = await api.get<LeadsResponse>(
           `/contacts?${params.toString()}`
@@ -89,22 +97,30 @@ export default function LeadsPage() {
         setMeta(result.meta);
       } catch (err) {
         console.error("Erro ao buscar leads:", err);
+        setError('Erro ao carregar dados. Tente novamente.');
       } finally {
         setLoading(false);
       }
     },
-    [filterTagIds, filterEngagement]
+    []
   );
 
+  // Single effect: fetch on mount + when filters change reset page
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    fetchLeads(page, search);
-  }, [page, fetchLeads]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset page when filters change
-  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchLeads(page, search);
+      return;
+    }
     setPage(1);
     fetchLeads(1, search);
   }, [filterTagIds, filterEngagement]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isFirstRender.current) return;
+    fetchLeads(page, search);
+  }, [page, fetchLeads]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearchChange = (value: string) => {
     setSearch(value);
@@ -155,6 +171,13 @@ export default function LeadsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Leads" breadcrumb={["Marketing", "Leads"]} />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => fetchLeads(page, search)} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-4">
         {/* Toolbar */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Button from "@/components/ui/Button";
@@ -83,6 +83,9 @@ export default function AutomationsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
 
+  const statusFilterRef = useRef(statusFilter);
+  statusFilterRef.current = statusFilter;
+
   const fetchAutomations = useCallback(
     async (currentPage: number) => {
       setLoading(true);
@@ -91,7 +94,7 @@ export default function AutomationsPage() {
           page: String(currentPage),
           limit: "20",
         });
-        if (statusFilter) params.set("status", statusFilter);
+        if (statusFilterRef.current) params.set("status", statusFilterRef.current);
 
         const result = await api.get<AutomationsResponse>(
           `/automations?${params.toString()}`
@@ -104,17 +107,24 @@ export default function AutomationsPage() {
         setLoading(false);
       }
     },
-    [statusFilter]
+    []
   );
 
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    fetchAutomations(page);
-  }, [page, fetchAutomations]);
-
-  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      fetchAutomations(page);
+      return;
+    }
     setPage(1);
     fetchAutomations(1);
   }, [statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isFirstRender.current) return;
+    fetchAutomations(page);
+  }, [page, fetchAutomations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleStatus = async (automation: Automation) => {
     const newStatus =

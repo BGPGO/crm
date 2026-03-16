@@ -81,14 +81,17 @@ export default function LeadScoringPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchRules = useCallback(async () => {
+    setError(null);
     setLoading(true);
     try {
       const result = await api.get<RulesResponse>("/lead-scores/rules");
       setRules(result.data);
     } catch (err) {
       console.error("Erro ao buscar regras:", err);
+      setError('Erro ao carregar dados. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -185,6 +188,13 @@ export default function LeadScoringPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Lead Scoring" breadcrumb={["Marketing", "Lead Scoring"]} />
       <MarketingNav />
+
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-sm text-red-700">{error}</span>
+          <button onClick={() => fetchRules()} className="text-sm text-red-600 font-medium hover:underline">Tentar novamente</button>
+        </div>
+      )}
 
       <main className="flex-1 p-6 space-y-6">
         {/* Actions bar */}
