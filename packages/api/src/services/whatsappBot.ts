@@ -473,6 +473,19 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
       data: { needsHumanAttention: true },
     });
 
+    // Auto-tag "Atendimento Humano"
+    if (conversation.contactId) {
+      const humanTag = await prisma.tag.findUnique({ where: { name: 'Atendimento Humano' } });
+      if (humanTag) {
+        await prisma.contactTag.upsert({
+          where: { contactId_tagId: { contactId: conversation.contactId, tagId: humanTag.id } },
+          create: { contactId: conversation.contactId, tagId: humanTag.id },
+          update: {},
+        });
+        console.log(`[Bot] Auto-tagged contact ${conversation.contactId} with "Atendimento Humano"`);
+      }
+    }
+
     await client.sendText(phone, fallback);
   }
 }

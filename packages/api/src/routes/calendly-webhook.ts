@@ -436,6 +436,28 @@ router.post('/', async (req: Request, res: Response) => {
         } else {
           console.log(`[calendly-webhook] Contact found/created (${contact.id}) but could not find or create deal`);
         }
+
+        // Auto-tag based on journey
+        const calDiretoTag = await prisma.tag.findUnique({ where: { name: 'Calendly Direto' } });
+        const iaCalendlyTag = await prisma.tag.findUnique({ where: { name: 'IA → Calendly' } });
+
+        // Check if the contact has a WhatsAppConversation with bot messages
+        const hasConversation = await prisma.whatsAppConversation.findFirst({
+          where: { contactId: contact.id },
+          include: { messages: { where: { sender: 'BOT' }, take: 1 } },
+        });
+
+        const hasBotMessages = hasConversation && hasConversation.messages.length > 0;
+        const tagToApply = hasBotMessages ? iaCalendlyTag : calDiretoTag;
+
+        if (tagToApply) {
+          await prisma.contactTag.upsert({
+            where: { contactId_tagId: { contactId: contact.id, tagId: tagToApply.id } },
+            create: { contactId: contact.id, tagId: tagToApply.id },
+            update: {},
+          });
+          console.log(`[calendly-webhook] Auto-tagged contact ${contact.id} with "${tagToApply.name}"`);
+        }
       } else {
         console.log(`[calendly-webhook] No contact found and no email to auto-create`);
       }

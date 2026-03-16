@@ -266,6 +266,19 @@ ${campaignContext.context}
       data: { needsHumanAttention: true },
     });
 
+    // Auto-tag "Atendimento Humano"
+    if (conversation.contactId) {
+      const humanTag = await prisma.tag.findUnique({ where: { name: 'Atendimento Humano' } });
+      if (humanTag) {
+        await prisma.contactTag.upsert({
+          where: { contactId_tagId: { contactId: conversation.contactId, tagId: humanTag.id } },
+          create: { contactId: conversation.contactId, tagId: humanTag.id },
+          update: {},
+        });
+        console.log(`[LeadQualification] Auto-tagged contact ${conversation.contactId} with "Atendimento Humano"`);
+      }
+    }
+
     console.warn(`[LeadQualification] Conversa ${conversation.id} marcada para atenção humana`);
   }
 

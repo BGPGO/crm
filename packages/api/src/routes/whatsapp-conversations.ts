@@ -161,6 +161,19 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       },
     });
 
+    // Auto-tag "Atendimento Humano" when manually activated
+    if (needsHumanAttention === true && conversation.contactId) {
+      const humanTag = await prisma.tag.findUnique({ where: { name: 'Atendimento Humano' } });
+      if (humanTag) {
+        await prisma.contactTag.upsert({
+          where: { contactId_tagId: { contactId: conversation.contactId, tagId: humanTag.id } },
+          create: { contactId: conversation.contactId, tagId: humanTag.id },
+          update: {},
+        });
+        console.log(`[whatsapp-conversations] Auto-tagged contact ${conversation.contactId} with "Atendimento Humano"`);
+      }
+    }
+
     res.json({ data: conversation });
   } catch (err) {
     next(err);
