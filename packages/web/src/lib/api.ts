@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const BASE_URL = "/api";
 
 type RequestOptions = {
   method?: string;

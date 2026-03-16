@@ -29,8 +29,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+const BASE_URL = "/api";
 
 async function fetchCurrentUser(accessToken: string): Promise<AuthUser> {
   const response = await fetch(`${BASE_URL}/auth/me`, {

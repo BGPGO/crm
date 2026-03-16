@@ -11,8 +11,7 @@ export default function UnsubscribePage() {
   useEffect(() => {
     // The actual unsubscribe happens on the API side when the link is visited
     // This page just shows a confirmation
-    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-    fetch(`${BASE_URL}/email-tracking/unsubscribe/${token}`)
+    fetch(`/api/email-tracking/unsubscribe/${token}`)
       .then((res) => {
         if (res.ok) setStatus("success");
         else setStatus("error");
