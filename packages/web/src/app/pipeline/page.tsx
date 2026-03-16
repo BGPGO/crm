@@ -188,11 +188,23 @@ export default function PipelinePage() {
   // UI state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>("all");
-  const [userFilter, setUserFilter] = useState<string>("all");
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Persist filters in sessionStorage so they survive navigation to deal detail
+  const readSession = (key: string, fallback: string) => {
+    if (typeof window === "undefined") return fallback;
+    return sessionStorage.getItem(`pipeline_${key}`) || fallback;
+  };
+  const writeSession = (key: string, value: string) => {
+    if (typeof window !== "undefined") sessionStorage.setItem(`pipeline_${key}`, value);
+  };
+
+  const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "all") as FilterType);
+  const setFilter = (v: FilterType) => { setFilterRaw(v); writeSession("filter", v); };
+  const [userFilter, setUserFilterRaw] = useState<string>(() => readSession("userFilter", "all"));
+  const setUserFilter = (v: string) => { setUserFilterRaw(v); writeSession("userFilter", v); };
+  const [periodFilter, setPeriodFilterRaw] = useState<PeriodFilter>(() => readSession("periodFilter", "all") as PeriodFilter);
+  const setPeriodFilter = (v: PeriodFilter) => { setPeriodFilterRaw(v); writeSession("periodFilter", v); };
+  const [searchInput, setSearchInput] = useState(() => readSession("search", ""));
+  const [searchQuery, setSearchQuery] = useState(() => readSession("search", ""));
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -207,6 +219,7 @@ export default function PipelinePage() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => {
       setSearchQuery(value.trim());
+      writeSession("search", value.trim());
     }, 400);
   }, []);
 
