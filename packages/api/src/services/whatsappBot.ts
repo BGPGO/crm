@@ -33,7 +33,7 @@ interface ChatMessage {
 
 // ─── Default System Prompt ──────────────────────────────────────────────────
 
-export const DEFAULT_SYSTEM_PROMPT = `Você é a Bia, SDR da Bertuzzi Patrimonial. Atende pelo WhatsApp como uma pessoa real — sua META é agendar uma reunião ou demonstração com o consultor.
+export const DEFAULT_SYSTEM_PROMPT = `Você é a Bia, SDR da Bertuzzi Patrimonial. Atende pelo WhatsApp como uma pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro com o consultor.
 
 FORMATO OBRIGATÓRIO: Separe cada mensagem com ---. Cada bloco entre --- será enviado como mensagem separada no WhatsApp. NUNCA use --- dentro de uma mesma mensagem.
 
@@ -41,19 +41,33 @@ FUNIL SDR — siga essas etapas naturalmente na conversa:
 1. CONEXÃO: Cumprimente, crie rapport rápido, entenda o contexto básico do lead
 2. QUALIFICAÇÃO: Descubra empresa, cargo, dor atual e ferramenta que usam hoje
 3. INTERESSE: Apresente o benefício mais relevante à dor identificada, crie urgência leve
-4. AGENDAMENTO: Proponha a reunião de forma direta — "que tal uma demo rápida de 20 minutos?"
+4. AGENDAMENTO: Proponha a reunião de forma direta — "que tal uma conversa rápida de 45 minutinhos pra fazer um diagnóstico financeiro?"
 
 REGRA PRINCIPAL: A partir da 3ª troca de mensagens com engajamento positivo, comece a encaminhar para o agendamento. Não espere o cliente pedir. SDR bom é proativo.
 
+HORÁRIOS DE REUNIÃO:
+- Horário comercial: segunda a sexta, 9h às 17h (horário de Brasília)
+- Duração da reunião: 45 minutos (Diagnóstico Financeiro BGP)
+- A última reunião do dia começa às 16:15 (termina às 17h)
+- NÃO sugira horários antes das 9h, depois das 16:15, nem em fins de semana
+- Se o lead pedir horário fora do comercial, diga que só tem horário comercial e envie o link do Calendly para ele escolher
+
 AGENDAMENTO — quando o cliente aceitar a reunião:
-- Se houver um link de agendamento disponível, envie-o em mensagem separada (ex: "Agenda aqui no melhor horário pra você: <link>")
-- Se não houver link, combine dia e horário diretamente e confirme
+- SEMPRE envie o link de agendamento em uma mensagem SEPARADA (entre ---)
+- O link deve ser a ÚNICA coisa na mensagem separada, sem texto antes ou depois
+- Exemplo correto:
+  Perfeito! Vou te mandar o link pra você escolher o melhor horário 😊
+  ---
+  {meetingLink}
+  ---
+  Qualquer dúvida sobre o agendamento me avisa!
+- Se não houver link configurado, combine dia e horário diretamente e confirme
 - Após enviar o link ou combinar horário, confirme o agendamento e se despeça de forma simpática
 
 TRATAMENTO DE OBJEÇÕES:
-- "Não tenho tempo" → "São só 20 minutinhos, você tem hoje às X ou amanhã às Y?"
+- "Não tenho tempo" → "São só 45 minutinhos, você tem hoje às X ou amanhã às Y?"
 - "Já tenho solução" → "Que solução vocês usam hoje? Muitos clientes nossos vieram de lá exatamente porque..."
-- "Me manda mais informações" → Manda 1 dado concreto + "mas fica muito mais claro ao vivo, consigo mostrar em 20 min"
+- "Me manda mais informações" → Manda 1 dado concreto + "mas fica muito mais claro ao vivo, consigo mostrar em 45 min"
 - "Quanto custa?" → Dá o range de valores + propõe a demo pra entender o que faz mais sentido
 - "Não tenho interesse" / "Não quero" → Agradeça, se despeça educadamente e encerre. NÃO insista.
 
@@ -94,7 +108,7 @@ async function getSystemPrompt(): Promise<string> {
   return config?.botSystemPrompt || DEFAULT_SYSTEM_PROMPT;
 }
 
-export function getCurrentContext(): string {
+export async function getCurrentContext(): Promise<string> {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
   const dias = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
   const diaSemana = dias[now.getDay()];
@@ -102,25 +116,40 @@ export function getCurrentContext(): string {
   const minutos = now.getMinutes().toString().padStart(2, '0');
   const data = now.toLocaleDateString('pt-BR');
   const fimDeSemana = now.getDay() === 0 || now.getDay() === 6;
-  const foraDoPeriodo = hora >= 19 || hora < 8;
+  const foraDoPeriodo = hora >= 17 || hora < 9;
 
   let disponibilidade: string;
   if (fimDeSemana) {
     disponibilidade = 'Hoje é fim de semana — não há reuniões disponíveis. O próximo dia útil é a melhor opção.';
   } else if (foraDoPeriodo) {
-    disponibilidade = hora >= 19
-      ? 'Já passou das 19h — não há mais reuniões hoje. Sugira horários para amanhã (se dia útil) ou próximo dia útil.'
-      : 'Ainda não são 8h — sugira horários a partir das 8h de hoje.';
+    disponibilidade = hora >= 17
+      ? 'Já passou das 17h — não há mais reuniões hoje. Sugira horários para amanhã (se dia útil) ou próximo dia útil.'
+      : 'Ainda não são 9h — sugira horários a partir das 9h de hoje.';
+  } else if (hora >= 16 && parseInt(minutos) > 15) {
+    disponibilidade = 'Já passou das 16:15 — a última reunião de hoje já começou (45min). Sugira horários para amanhã ou próximo dia útil.';
   } else {
-    const proximaHora = hora + 1;
-    disponibilidade = `Horários disponíveis hoje: ${proximaHora}h até 19h. Amanhã também é uma boa opção.`;
+    const proximaHora = hora < 9 ? 9 : hora + 1;
+    const ultimoSlot = '16:15';
+    disponibilidade = `Horários disponíveis hoje: ${proximaHora}h até ${ultimoSlot} (última reunião do dia). Amanhã também é uma boa opção.`;
+  }
+
+  // Try to enrich with real Calendly availability
+  let slotsInfo = '';
+  try {
+    const { getNextAvailableSlots } = await import('./calendlyAvailability');
+    slotsInfo = await getNextAvailableSlots(3);
+    if (slotsInfo) {
+      slotsInfo = `\n- ${slotsInfo}`;
+    }
+  } catch {
+    // Calendly service not available — use generic info
   }
 
   return `\n\nCONTEXTO ATUAL (use para sugerir horários de reunião):
 - Data: ${data} (${diaSemana})
 - Hora atual: ${hora}:${minutos}
-- ${disponibilidade}
-- Regras: reuniões apenas de segunda a sexta, das 8h às 19h. NUNCA sugira horários passados ou fora desse período.`;
+- ${disponibilidade}${slotsInfo}
+- Regras: reuniões apenas de segunda a sexta, das 9h às 17h (última reunião às 16:15, duração 45min). NUNCA sugira horários passados ou fora desse período.`;
 }
 
 // ─── LID Resolution ─────────────────────────────────────────────────────────
@@ -199,7 +228,8 @@ export async function getAIResponse(
   extraContext?: string,
 ): Promise<string> {
   const basePrompt = await getSystemPrompt();
-  let systemMessage = basePrompt + getCurrentContext();
+  const context = await getCurrentContext();
+  let systemMessage = basePrompt + context;
   if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
   if (meetingLink) systemMessage += `\nLink para agendamento: ${meetingLink} — Quando o cliente aceitar agendar, envie este link em uma mensagem separada.`;
   else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
