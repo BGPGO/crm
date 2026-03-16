@@ -70,11 +70,14 @@ router.get('/:campaignId', async (req: Request, res: Response, next: NextFunctio
 router.put('/:campaignId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { campaignId } = req.params;
-    const { context, isDefault } = req.body;
+    const { context, isDefault, triggers } = req.body;
 
     if (!context || typeof context !== 'string' || !context.trim()) {
       return next(createError('Context text is required', 400));
     }
+
+    // Validate triggers if provided
+    const parsedTriggers = Array.isArray(triggers) ? triggers.filter((t: unknown) => typeof t === 'string') : [];
 
     // Verify campaign exists
     const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
@@ -94,10 +97,12 @@ router.put('/:campaignId', async (req: Request, res: Response, next: NextFunctio
         campaignId,
         context: context.trim(),
         isDefault: isDefault ?? false,
+        triggers: parsedTriggers,
       },
       update: {
         context: context.trim(),
         isDefault: isDefault ?? false,
+        triggers: parsedTriggers,
       },
       include: { campaign: { select: { id: true, name: true } } },
     });

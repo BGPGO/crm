@@ -102,13 +102,37 @@ async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
     return;
   }
 
-  // 7. Build context string — prefer CampaignContext from DB
+  // 7. Build context string — prefer CampaignContext from DB (with trigger matching)
   let contextString: string;
 
   // Try to load campaign-specific context from DB
   let campaignContext = deal.campaignId
     ? await prisma.campaignContext.findUnique({ where: { campaignId: deal.campaignId } })
     : null;
+
+  // If no direct match, try trigger-based matching
+  if (!campaignContext) {
+    const allContexts = await prisma.campaignContext.findMany({
+      include: { campaign: { select: { name: true } } },
+    });
+
+    const fieldsToMatch = [
+      deal.campaign?.name,
+      tracking?.utmCampaign,
+      tracking?.utmSource,
+      tracking?.landingPage,
+      deal.source?.name,
+    ].filter(Boolean).map(f => f!.toLowerCase());
+
+    campaignContext = allContexts.find(ctx => {
+      const triggers = Array.isArray(ctx.triggers) ? (ctx.triggers as string[]) : [];
+      if (triggers.length === 0) return false;
+      return triggers.some(trigger => {
+        const t = trigger.toLowerCase();
+        return fieldsToMatch.some(field => field.includes(t) || t.includes(field));
+      });
+    }) ?? null;
+  }
 
   // Fallback to default context if no campaign-specific one
   if (!campaignContext) {
@@ -379,6 +403,26 @@ export async function simulateLeadEntry(params: {
     if (campaign?.campaignContext) {
       campaignContext = campaign.campaignContext;
     }
+  }
+
+  // If no direct match, try trigger-based matching
+  if (!campaignContext && params.campaignName) {
+    const allContexts = await prisma.campaignContext.findMany({
+      include: { campaign: { select: { name: true } } },
+    });
+
+    const searchTerm = params.campaignName.toLowerCase();
+    const sourceTerm = params.sourceName?.toLowerCase();
+
+    campaignContext = allContexts.find(ctx => {
+      const triggers = Array.isArray(ctx.triggers) ? (ctx.triggers as string[]) : [];
+      if (triggers.length === 0) return false;
+      return triggers.some(trigger => {
+        const t = trigger.toLowerCase();
+        return searchTerm.includes(t) || t.includes(searchTerm) ||
+          (sourceTerm && (sourceTerm.includes(t) || t.includes(sourceTerm)));
+      });
+    }) ?? null;
   }
 
   // Fallback to default context

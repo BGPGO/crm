@@ -311,6 +311,7 @@ model CampaignContext {
   id          String  @id @default(cuid())
   context     String  @db.Text
   isDefault   Boolean @default(false)
+  triggers    Json    @default("[]")
 
   campaignId  String  @unique
   campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)

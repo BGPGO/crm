@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { FileText, Save, Sparkles, Trash2, Check, AlertCircle } from "lucide-react";
+import {
+  FileText,
+  Save,
+  Trash2,
+  Check,
+  AlertCircle,
+  Plus,
+  X,
+  Tag,
+} from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 
@@ -17,38 +26,39 @@ interface CampaignContextData {
   id: string;
   context: string;
   isDefault: boolean;
+  triggers: string[];
   campaignId: string;
   campaign: { id: string; name: string; description?: string | null };
 }
 
-type SelectedItem =
-  | { type: "default" }
-  | { type: "campaign"; campaign: CampaignInfo; hasContext: boolean };
-
 export default function ContextosPage() {
   const [contexts, setContexts] = useState<CampaignContextData[]>([]);
   const [campaignsWithoutContext, setCampaignsWithoutContext] = useState<CampaignInfo[]>([]);
-  const [selected, setSelected] = useState<SelectedItem | null>(null);
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(null);
 
   const [contextText, setContextText] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+  const [triggers, setTriggers] = useState<string[]>([]);
+  const [newTrigger, setNewTrigger] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Default context state
-  const [defaultContext, setDefaultContext] = useState<CampaignContextData | null>(null);
+  // Add context modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addCampaignId, setAddCampaignId] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const [listRes, defaultRes] = await Promise.all([
-        api.get<{ data: { contexts: CampaignContextData[]; campaignsWithoutContext: CampaignInfo[] } }>("/campaign-contexts"),
-        api.get<{ data: CampaignContextData | null }>("/campaign-contexts/default"),
-      ]);
+      const listRes = await api.get<{
+        data: {
+          contexts: CampaignContextData[];
+          campaignsWithoutContext: CampaignInfo[];
+        };
+      }>("/campaign-contexts");
       setContexts(listRes.data.contexts);
       setCampaignsWithoutContext(listRes.data.campaignsWithoutContext);
-      setDefaultContext(defaultRes.data);
     } catch {
       // Silent fail on load
     }
@@ -58,99 +68,44 @@ export default function ContextosPage() {
     fetchData();
   }, [fetchData]);
 
-  const selectDefault = () => {
-    setSelected({ type: "default" });
-    setIsDefault(true);
+  const selectedContext = contexts.find((c) => c.id === selectedContextId) ?? null;
+
+  const selectContext = (ctx: CampaignContextData) => {
+    setSelectedContextId(ctx.id);
+    setContextText(ctx.context);
+    setIsDefault(ctx.isDefault);
+    setTriggers(Array.isArray(ctx.triggers) ? ctx.triggers : []);
     setError(null);
     setSaveSuccess(false);
-    if (defaultContext) {
-      setContextText(defaultContext.context);
-    } else {
-      setContextText("");
-    }
   };
 
-  const selectCampaign = (campaign: CampaignInfo) => {
-    const existing = contexts.find((c) => c.campaignId === campaign.id);
-    const hasContext = !!existing;
-    setSelected({ type: "campaign", campaign, hasContext });
-    setIsDefault(false);
-    setError(null);
-    setSaveSuccess(false);
-
-    if (existing) {
-      setContextText(existing.context);
-    } else {
-      // Pre-fill suggestion
-      const desc = campaign.description ? `${campaign.description}\n\n` : "";
-      setContextText(
-        `Lead da campanha: ${campaign.name}\n${desc}Use esse contexto para personalizar a abordagem inicial.\nDirecione para agendamento via Calendly.`
-      );
-    }
+  const addTrigger = () => {
+    const val = newTrigger.trim().toLowerCase();
+    if (!val || triggers.includes(val)) return;
+    setTriggers([...triggers, val]);
+    setNewTrigger("");
   };
 
-  const fillSuggestion = () => {
-    if (!selected) return;
-    if (selected.type === "default") {
-      setContextText(
-        `Este e o contexto padrao usado quando a campanha do lead nao tem um contexto especifico.\n\nPersonalize a abordagem inicial com base nas informacoes disponiveis.\nObjetivo principal: agendar uma demonstracao.\nDirecione para agendamento via Calendly.`
-      );
-    } else {
-      const campaign = selected.campaign;
-      const desc = campaign.description ? `${campaign.description}\n\n` : "";
-      setContextText(
-        `Lead da campanha: ${campaign.name}\n${desc}Use esse contexto para personalizar a abordagem inicial.\nDirecione para agendamento via Calendly.`
-      );
-    }
+  const removeTrigger = (index: number) => {
+    setTriggers(triggers.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
-    if (!selected || !contextText.trim()) return;
+    if (!selectedContext || !contextText.trim()) return;
     setSaving(true);
     setError(null);
     setSaveSuccess(false);
 
     try {
-      if (selected.type === "default") {
-        // For default context, we need a "virtual" campaign or we use the first default context's campaign
-        // The default context is stored as a CampaignContext with isDefault=true
-        // If there's already a default, update it; otherwise we need a campaign to attach to
-        if (defaultContext) {
-          await api.put(`/campaign-contexts/${defaultContext.campaignId}`, {
-            context: contextText.trim(),
-            isDefault: true,
-          });
-        } else {
-          // We need at least one campaign to store the default
-          // Pick the first campaign without context, or the first campaign overall
-          const allCampaigns = [...campaignsWithoutContext, ...contexts.map((c) => c.campaign)];
-          if (allCampaigns.length === 0) {
-            setError("Nenhuma campanha encontrada. Crie uma campanha primeiro.");
-            setSaving(false);
-            return;
-          }
-          // Prefer a campaign without context
-          const target = campaignsWithoutContext[0] || allCampaigns[0];
-          await api.put(`/campaign-contexts/${target.id}`, {
-            context: contextText.trim(),
-            isDefault: true,
-          });
-        }
-      } else {
-        await api.put(`/campaign-contexts/${selected.campaign.id}`, {
-          context: contextText.trim(),
-          isDefault: false,
-        });
-      }
+      await api.put(`/campaign-contexts/${selectedContext.campaignId}`, {
+        context: contextText.trim(),
+        isDefault,
+        triggers,
+      });
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
       await fetchData();
-
-      // Update selected state
-      if (selected.type === "campaign") {
-        setSelected({ ...selected, hasContext: true });
-      }
     } catch {
       setError("Erro ao salvar contexto. Tente novamente.");
     } finally {
@@ -159,16 +114,18 @@ export default function ContextosPage() {
   };
 
   const handleDelete = async () => {
-    if (!selected || selected.type === "default") return;
+    if (!selectedContext) return;
     if (!confirm("Remover o contexto desta campanha?")) return;
 
     setDeleting(true);
     setError(null);
 
     try {
-      await api.delete(`/campaign-contexts/${selected.campaign.id}`);
+      await api.delete(`/campaign-contexts/${selectedContext.campaignId}`);
+      setSelectedContextId(null);
+      setContextText("");
+      setTriggers([]);
       await fetchData();
-      selectCampaign(selected.campaign);
     } catch {
       setError("Erro ao remover contexto.");
     } finally {
@@ -176,18 +133,38 @@ export default function ContextosPage() {
     }
   };
 
-  // Determine campaign lists
-  const campaignsConfigured = contexts
-    .filter((c) => !c.isDefault)
-    .map((c) => ({ ...c.campaign, contextId: c.id }));
+  const handleAddContext = async () => {
+    if (!addCampaignId) return;
+    setSaving(true);
+    setError(null);
 
-  const getSelectedCampaignId = () => {
-    if (!selected) return null;
-    if (selected.type === "default") return "__default__";
-    return selected.campaign.id;
+    try {
+      await api.put(`/campaign-contexts/${addCampaignId}`, {
+        context: "Configure o contexto aqui...",
+        isDefault: false,
+        triggers: [],
+      });
+      setShowAddModal(false);
+      setAddCampaignId("");
+      await fetchData();
+
+      // Select the newly created context
+      const listRes = await api.get<{
+        data: {
+          contexts: CampaignContextData[];
+          campaignsWithoutContext: CampaignInfo[];
+        };
+      }>("/campaign-contexts");
+      const newCtx = listRes.data.contexts.find((c) => c.campaignId === addCampaignId);
+      if (newCtx) {
+        selectContext(newCtx);
+      }
+    } catch {
+      setError("Erro ao criar contexto.");
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const selectedId = getSelectedCampaignId();
 
   return (
     <div className="flex flex-col h-full">
@@ -195,133 +172,168 @@ export default function ContextosPage() {
       <ConversasNav />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left sidebar */}
+        {/* Left sidebar — only contexts that exist */}
         <div className="w-72 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-200">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Campanhas
+              Contextos Configurados
             </h3>
+            <button
+              onClick={() => {
+                setShowAddModal(true);
+                setAddCampaignId("");
+              }}
+              className="p-1 rounded hover:bg-gray-200 transition-colors text-gray-500 hover:text-gray-700"
+              title="Adicionar contexto"
+            >
+              <Plus size={16} />
+            </button>
           </div>
 
-          {/* Default context item */}
-          <button
-            onClick={selectDefault}
-            className={clsx(
-              "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
-              selectedId === "__default__"
-                ? "bg-blue-50 border-l-2 border-l-blue-600"
-                : "hover:bg-gray-100"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-900">Contexto Padrao</span>
-              {defaultContext ? (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">
-                  <Check size={10} />
-                  Configurado
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-500">
-                  Sem contexto
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-gray-500 mt-0.5">Usado quando nao ha contexto especifico</p>
-          </button>
-
-          {/* Separator */}
-          {(campaignsConfigured.length > 0 || campaignsWithoutContext.length > 0) && (
-            <div className="px-4 py-2 border-b border-gray-200">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                Campanhas do CRM
-              </span>
-            </div>
-          )}
-
-          {/* Campaigns with context */}
-          {campaignsConfigured.map((campaign) => (
-            <button
-              key={campaign.id}
-              onClick={() => selectCampaign(campaign)}
-              className={clsx(
-                "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
-                selectedId === campaign.id
-                  ? "bg-blue-50 border-l-2 border-l-blue-600"
-                  : "hover:bg-gray-100"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900 truncate mr-2">
-                  {campaign.name}
-                </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700 flex-shrink-0">
-                  <Check size={10} />
-                  Configurado
-                </span>
-              </div>
-            </button>
-          ))}
-
-          {/* Campaigns without context */}
-          {campaignsWithoutContext.map((campaign) => (
-            <button
-              key={campaign.id}
-              onClick={() => selectCampaign(campaign)}
-              className={clsx(
-                "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
-                selectedId === campaign.id
-                  ? "bg-blue-50 border-l-2 border-l-blue-600"
-                  : "hover:bg-gray-100"
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900 truncate mr-2">
-                  {campaign.name}
-                </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
-                  Sem contexto
-                </span>
-              </div>
-            </button>
-          ))}
-
-          {campaignsConfigured.length === 0 && campaignsWithoutContext.length === 0 && (
+          {contexts.length === 0 && (
             <div className="px-4 py-6 text-center text-xs text-gray-400">
-              Nenhuma campanha encontrada no CRM.
+              Nenhum contexto configurado.
+              <br />
+              Clique em + para adicionar.
             </div>
           )}
+
+          {contexts.map((ctx) => (
+            <button
+              key={ctx.id}
+              onClick={() => selectContext(ctx)}
+              className={clsx(
+                "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
+                selectedContextId === ctx.id
+                  ? "bg-blue-50 border-l-2 border-l-blue-600"
+                  : "hover:bg-gray-100"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-900 truncate mr-2">
+                  {ctx.campaign.name}
+                </span>
+                {ctx.isDefault && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                    Padrao
+                  </span>
+                )}
+              </div>
+              {Array.isArray(ctx.triggers) && ctx.triggers.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {ctx.triggers.slice(0, 3).map((t, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono rounded bg-gray-100 text-gray-500"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                  {ctx.triggers.length > 3 && (
+                    <span className="text-[10px] text-gray-400">
+                      +{ctx.triggers.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Right panel */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {!selected ? (
+          {!selectedContext ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
               <FileText size={48} strokeWidth={1.5} />
-              <p className="text-sm">Selecione uma campanha para configurar o contexto</p>
+              <p className="text-sm">Selecione um contexto para editar</p>
               <p className="text-xs text-gray-300">
                 O contexto e usado pelo Agente SDR IA para personalizar a abordagem
               </p>
             </div>
           ) : (
             <div className="p-6 max-w-3xl">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                {selected.type === "default"
-                  ? "Contexto Padrao"
-                  : `Contexto para: ${selected.campaign.name}`}
-              </h2>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {selectedContext.campaign.name}
+                </h2>
+              </div>
               <p className="text-sm text-gray-500 mb-6">
-                {selected.type === "default"
-                  ? "Este contexto sera usado quando a campanha do lead nao tiver um contexto especifico configurado."
-                  : "Configure o contexto que o Agente SDR IA usara para leads desta campanha."}
+                Configure o contexto que o Agente SDR IA usara para leads desta campanha.
               </p>
 
+              {/* Triggers section */}
+              <div className="mb-6">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                  <Tag size={14} />
+                  Triggers
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Strings que sao matcheadas contra utm_campaign, utm_source, source name, campaign name ou landing page URL do lead. Se qualquer trigger corresponder, este contexto sera usado.
+                </p>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {triggers.map((trigger, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-blue-50 text-blue-700 rounded-lg border border-blue-200"
+                    >
+                      {trigger}
+                      <button
+                        onClick={() => removeTrigger(index)}
+                        className="ml-0.5 text-blue-400 hover:text-blue-700 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  {triggers.length === 0 && (
+                    <span className="text-xs text-gray-400 italic">
+                      Nenhum trigger configurado
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTrigger}
+                    onChange={(e) => setNewTrigger(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTrigger())}
+                    placeholder="Novo trigger (ex: gobi, novo-gobi, lp.bertuzzi...)"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                  />
+                  <button
+                    onClick={addTrigger}
+                    disabled={!newTrigger.trim()}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+
+              {/* Context textarea */}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Contexto da Campanha
+              </label>
               <textarea
                 value={contextText}
                 onChange={(e) => setContextText(e.target.value)}
                 rows={15}
-                placeholder={`Este lead veio da campanha de GoBI.\nFoque em dashboards financeiros, indicadores em tempo real, integracao com ERPs.\nProduto principal: GoBI (a partir de R$397/mes).\nObjetivo: agendar uma demonstracao de 45 minutos.`}
+                placeholder="Descreva o produto, proposta, beneficios, publico-alvo, abordagem ideal..."
                 className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y font-mono"
               />
+
+              {/* Default checkbox */}
+              <label className="flex items-center gap-2 mt-3 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isDefault}
+                  onChange={(e) => setIsDefault(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Usar como contexto padrao (quando nenhum trigger corresponder)
+              </label>
 
               {error && (
                 <div className="flex items-center gap-2 mt-3 text-sm text-red-600">
@@ -357,28 +369,74 @@ export default function ContextosPage() {
                 </button>
 
                 <button
-                  onClick={fillSuggestion}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
                 >
-                  <Sparkles size={14} />
-                  Preencher com sugestao
+                  <Trash2 size={14} />
+                  {deleting ? "Removendo..." : "Remover"}
                 </button>
-
-                {selected.type === "campaign" && selected.hasContext && (
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="flex items-center gap-2 px-4 py-2 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-                  >
-                    <Trash2 size={14} />
-                    {deleting ? "Removendo..." : "Remover"}
-                  </button>
-                )}
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Add Context Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Adicionar Contexto</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded hover:bg-gray-100 transition-colors text-gray-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+              Selecione uma campanha que ainda nao tem contexto configurado.
+            </p>
+
+            {campaignsWithoutContext.length === 0 ? (
+              <p className="text-sm text-gray-400 italic py-4 text-center">
+                Todas as campanhas ja tem contexto configurado.
+              </p>
+            ) : (
+              <select
+                value={addCampaignId}
+                onChange={(e) => setAddCampaignId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+              >
+                <option value="">Selecione uma campanha...</option>
+                {campaignsWithoutContext.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddContext}
+                disabled={!addCampaignId || saving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? "Criando..." : "Criar Contexto"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
