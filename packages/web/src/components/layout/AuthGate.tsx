@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import TopNavbar from "@/components/layout/Sidebar";
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ["/login"];
+const PUBLIC_ROUTES = ["/login", "/unsubscribe"];
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -23,6 +23,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [loading, isAuthenticated, isPublicRoute, router]);
 
+  // Public route: always render without navbar (never block with spinner)
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
+
   // Show a full-page loading spinner while checking auth
   if (loading) {
     return (
@@ -33,11 +38,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
-  }
-
-  // Public route: render without navbar
-  if (isPublicRoute) {
-    return <>{children}</>;
   }
 
   // Not authenticated and not a public route: render nothing (redirect will happen)
