@@ -133,7 +133,7 @@ export default function TasksPage() {
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [counts, setCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterTab>("ALL");
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("PENDING");
   const [userFilter, setUserFilter] = useState<string>("");
   const [page, setPage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
