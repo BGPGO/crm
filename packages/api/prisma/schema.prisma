@@ -232,6 +232,7 @@ model Contact {
   leadScore         LeadScore?
   emailSends        EmailSend[]
   automationEnrollments AutomationEnrollment[]
+  whatsappConversations WhatsAppConversation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -657,7 +658,7 @@ model EmailCampaign {
   name            String
   subject         String
   fromName        String      @default("BGPGO")
-  fromEmail       String      @default("noreply@bertuzzipatrimonial.app.br")
+  fromEmail       String      @default("noreply@bertuzzipatrimonial.com.br")
   status          EmailStatus @default(DRAFT)
   scheduledAt     DateTime?
   sentAt          DateTime?
@@ -829,4 +830,182 @@ model AutomationLog {
 
   @@index([enrollmentId])
   @@index([stepId])
+}
+
+// ─── WhatsApp / Conversas ───────────────────────────────────────────────────
+
+enum WhatsAppConnectionStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+}
+
+enum WaCampaignStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum WaCampaignContactStatus {
+  PENDING
+  SENT
+  ERROR
+}
+
+enum MessageSender {
+  CLIENT
+  BOT
+  HUMAN
+}
+
+enum FollowUpTone {
+  CASUAL
+  REFORCO
+  ENCERRAMENTO
+}
+
+model WhatsAppConfig {
+  id                 String                    @id @default(cuid())
+  evolutionApiUrl    String                    @default("http://localhost:8080")
+  evolutionApiKey    String                    @default("")
+  instanceName       String                    @default("bgpgo-bot")
+  baseUrl            String                    @default("http://localhost:3001")
+  companyName        String                    @default("")
+  companyPhone       String                    @default("")
+  meetingLink        String                    @default("")
+  openaiApiKey       String                    @default("")
+  botEnabled         Boolean                   @default(true)
+  botSystemPrompt    String?                   @db.Text
+  welcomeMessage     String?                   @db.Text
+  connectionStatus   WhatsAppConnectionStatus  @default(DISCONNECTED)
+  followUpEnabled    Boolean                   @default(false)
+
+  followUpSteps WhatsAppFollowUpStep[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WhatsAppFollowUpStep {
+  id           String       @id @default(cuid())
+  order        Int
+  delayMinutes Int          @default(30)
+  tone         FollowUpTone @default(CASUAL)
+
+  configId String
+  config   WhatsAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId])
+  @@index([configId, order])
+}
+
+model WhatsAppConversation {
+  id                  String    @id @default(cuid())
+  phone               String    @unique
+  pushName            String?
+  isActive            Boolean   @default(true)
+  meetingBooked       Boolean   @default(false)
+  needsHumanAttention Boolean   @default(false)
+  lastMessageAt       DateTime?
+
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  messages     WhatsAppMessage[]
+  aiHistory    WhatsAppAIHistory[]
+  followUpState WhatsAppFollowUpState?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+  @@index([contactId])
+  @@index([lastMessageAt])
+  @@index([isActive])
+}
+
+model WhatsAppMessage {
+  id           String        @id @default(cuid())
+  sender       MessageSender
+  text         String        @db.Text
+  externalId   String?
+  isFollowUp   Boolean       @default(false)
+  followUpStep Int?
+  metadata     Json?
+
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@index([externalId])
+}
+
+model WhatsAppAIHistory {
+  id      String @id @default(cuid())
+  role    String
+  content String @db.Text
+
+  conversationId String
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+}
+
+model WhatsAppFollowUpState {
+  id                    String    @id @default(cuid())
+  followUpCount         Int       @default(0)
+  lastFollowUpAt        DateTime?
+  lastBotMessageAt      DateTime?
+  respondedSinceLastBot Boolean   @default(false)
+  paused                Boolean   @default(false)
+
+  conversationId String               @unique
+  conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId])
+}
+
+model WhatsAppCampaign {
+  id          String           @id @default(cuid())
+  name        String
+  message     String           @db.Text
+  status      WaCampaignStatus @default(DRAFT)
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  contacts WhatsAppCampaignContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model WhatsAppCampaignContact {
+  id     String                  @id @default(cuid())
+  phone  String
+  status WaCampaignContactStatus @default(PENDING)
+  sentAt DateTime?
+  error  String?
+
+  campaignId String
+  campaign   WhatsAppCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([campaignId, status])
 }

@@ -9,7 +9,7 @@ const TRANSPARENT_GIF = Buffer.from(
   'base64'
 );
 
-const FALLBACK_URL = 'https://bertuzzipatrimonial.app.br';
+const FALLBACK_URL = 'https://crm.bertuzzipatrimonial.com.br';
 
 // ─── GET /t/open/:sendId — Track email open ────────────────────────────────
 

@@ -11,6 +11,7 @@ import {
   CheckSquare,
   BarChart3,
   Megaphone,
+  MessageSquare,
   Bell,
   Search,
   ChevronDown,
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/reports", label: "Análises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
+  { href: "/conversas", label: "Conversas", icon: MessageSquare },
 ];
 
 interface NotifTask {

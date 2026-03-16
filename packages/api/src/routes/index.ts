@@ -26,6 +26,13 @@ import emailCampaignsRouter from './email-campaigns';
 import emailTrackingRouter from './email-tracking';
 import aiEmailRouter from './ai-email';
 import automationsRouter from './automations';
+import whatsappWebhookRouter from './whatsapp-webhook';
+import whatsappConfigRouter from './whatsapp-config';
+import whatsappInstanceRouter from './whatsapp-instance';
+import whatsappConversationsRouter from './whatsapp-conversations';
+import whatsappLeadsRouter from './whatsapp-leads';
+import whatsappCampaignsRouter from './whatsapp-campaigns';
+import whatsappFollowupRouter from './whatsapp-followup';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -35,6 +42,7 @@ router.use('/auth', authRouter);
 
 // ─── Public routes (no auth — tracking pixels, unsubscribe, webhooks) ────────
 router.use('/email-tracking', emailTrackingRouter);
+router.use('/whatsapp-webhook', whatsappWebhookRouter);
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
@@ -65,5 +73,11 @@ router.use('/email-templates', emailTemplatesRouter);
 router.use('/email-campaigns', emailCampaignsRouter);
 router.use('/ai', aiEmailRouter);
 router.use('/automations', automationsRouter);
+router.use('/whatsapp-config', whatsappConfigRouter);
+router.use('/whatsapp-instance', whatsappInstanceRouter);
+router.use('/whatsapp-conversations', whatsappConversationsRouter);
+router.use('/whatsapp-leads', whatsappLeadsRouter);
+router.use('/whatsapp-campaigns', whatsappCampaignsRouter);
+router.use('/whatsapp-followup', whatsappFollowupRouter);
 
 export default router;

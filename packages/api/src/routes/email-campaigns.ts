@@ -74,7 +74,7 @@ router.post(
           name,
           subject,
           fromName: fromName || 'BGPGO',
-          fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.app.br',
+          fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.com.br',
           templateId: templateId ?? null,
           segmentId: segmentId ?? null,
           status: status ?? 'DRAFT',
