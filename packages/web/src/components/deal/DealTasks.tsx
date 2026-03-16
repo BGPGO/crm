@@ -16,6 +16,7 @@ interface DealTasksProps {
   tasks: DealTask[];
   onAdd?: () => void;
   onToggle?: (id: string) => void;
+  onEdit?: (task: DealTask) => void;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -74,7 +75,7 @@ function EmptyState({ onAdd }: { onAdd?: () => void }) {
 const pending = (tasks: DealTask[]) => tasks.filter((t) => !t.done);
 const done = (tasks: DealTask[]) => tasks.filter((t) => t.done);
 
-export default function DealTasks({ tasks, onAdd, onToggle }: DealTasksProps) {
+export default function DealTasks({ tasks, onAdd, onToggle, onEdit }: DealTasksProps) {
   const nextTasks = pending(tasks);
   const doneTasks = done(tasks);
 
@@ -100,7 +101,7 @@ export default function DealTasks({ tasks, onAdd, onToggle }: DealTasksProps) {
       {nextTasks.length > 0 && (
         <div className="space-y-2">
           {nextTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onToggle={onToggle} />
+            <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} />
           ))}
         </div>
       )}
@@ -113,7 +114,7 @@ export default function DealTasks({ tasks, onAdd, onToggle }: DealTasksProps) {
           </p>
           <div className="space-y-2">
             {doneTasks.map((task) => (
-              <TaskRow key={task.id} task={task} onToggle={onToggle} />
+              <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} />
             ))}
           </div>
         </div>
@@ -125,22 +126,29 @@ export default function DealTasks({ tasks, onAdd, onToggle }: DealTasksProps) {
 function TaskRow({
   task,
   onToggle,
+  onEdit,
 }: {
   task: DealTask;
   onToggle?: (id: string) => void;
+  onEdit?: (task: DealTask) => void;
 }) {
   return (
     <div
       className={clsx(
-        "flex items-start gap-3 p-3 border rounded-lg transition-colors",
+        "flex items-start gap-3 p-3 border rounded-lg transition-colors group",
         task.done
           ? "border-gray-100 bg-gray-50"
-          : "border-gray-200 bg-white hover:border-blue-200"
+          : "border-gray-200 bg-white hover:border-blue-200",
+        onEdit && "cursor-pointer"
       )}
+      onClick={() => onEdit?.(task)}
     >
       <button
         type="button"
-        onClick={() => onToggle?.(task.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle?.(task.id);
+        }}
         className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors"
       >
         {task.done ? (
@@ -154,7 +162,7 @@ function TaskRow({
         <p
           className={clsx(
             "text-sm font-medium",
-            task.done ? "line-through text-gray-400" : "text-gray-800"
+            task.done ? "line-through text-gray-400" : "text-gray-800 group-hover:text-blue-600"
           )}
         >
           {task.title}

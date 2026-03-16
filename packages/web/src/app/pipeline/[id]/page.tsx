@@ -480,10 +480,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productQuantity, setProductQuantity] = useState(1);
 
-  // Add-task form
+  // Add/edit task form
   const [taskTitle, setTaskTitle] = useState("");
   const [taskType, setTaskType] = useState("CALL");
   const [taskDueDate, setTaskDueDate] = useState("");
+  const [editingTask, setEditingTask] = useState<DealTask | null>(null);
 
   // Submission loading flags
   const [submitting, setSubmitting] = useState(false);
@@ -702,6 +703,72 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     } catch (err: unknown) {
       const e = err as { message?: string };
       alert(`Erro ao criar tarefa: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditTask = (task: DealTask) => {
+    setEditingTask(task);
+    setTaskTitle(task.title);
+    setTaskType(task.type);
+    setTaskDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "");
+    setShowAddTask(true);
+  };
+
+  const handleUpdateTask = async () => {
+    if (!editingTask || !taskTitle.trim()) return;
+    setSubmitting(true);
+    try {
+      await api.put(`/tasks/${editingTask.id}`, {
+        title: taskTitle.trim(),
+        type: taskType,
+        dueDate: taskDueDate || undefined,
+      });
+      setDeal((d) =>
+        d
+          ? {
+              ...d,
+              tasks: d.tasks.map((t) =>
+                t.id === editingTask.id
+                  ? { ...t, title: taskTitle.trim(), type: taskType, dueDate: taskDueDate || undefined }
+                  : t
+              ),
+            }
+          : d
+      );
+      setShowAddTask(false);
+      setEditingTask(null);
+      setTaskTitle("");
+      setTaskType("CALL");
+      setTaskDueDate("");
+      window.dispatchEvent(new Event("tasks-changed"));
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao atualizar tarefa: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!editingTask) return;
+    if (!confirm("Tem certeza que deseja excluir esta tarefa?")) return;
+    setSubmitting(true);
+    try {
+      await api.delete(`/tasks/${editingTask.id}`);
+      setDeal((d) =>
+        d ? { ...d, tasks: d.tasks.filter((t) => t.id !== editingTask.id) } : d
+      );
+      setShowAddTask(false);
+      setEditingTask(null);
+      setTaskTitle("");
+      setTaskType("CALL");
+      setTaskDueDate("");
+      window.dispatchEvent(new Event("tasks-changed"));
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao excluir tarefa: ${e?.message ?? "Tente novamente."}`);
     } finally {
       setSubmitting(false);
     }
@@ -1199,13 +1266,25 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 <DealTasks
                   tasks={deal.tasks}
                   onToggle={handleToggleTask}
-                  onAdd={() => setShowAddTask(true)}
+                  onAdd={() => {
+                    setEditingTask(null);
+                    setTaskTitle("");
+                    setTaskType("CALL");
+                    setTaskDueDate("");
+                    setShowAddTask(true);
+                  }}
+                  onEdit={handleEditTask}
                 />
 
                 {/* Inline add-task form */}
                 {showAddTask && (
-                  <div className="mt-4 border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-3">
-                    <p className="text-sm font-semibold text-gray-700">Nova Tarefa</p>
+                  <div className={clsx(
+                    "mt-4 border rounded-lg p-4 space-y-3",
+                    editingTask ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"
+                  )}>
+                    <p className="text-sm font-semibold text-gray-700">
+                      {editingTask ? "Editar Tarefa" : "Nova Tarefa"}
+                    </p>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Título</label>
                       <input
@@ -1239,18 +1318,39 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                         />
                       </div>
                     </div>
-                    <div className="flex gap-2 justify-end">
-                      <Button variant="secondary" size="sm" onClick={() => setShowAddTask(false)}>
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={!taskTitle.trim() || submitting}
-                        onClick={handleCreateTask}
-                      >
-                        {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
-                        Criar Tarefa
-                      </Button>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        {editingTask && (
+                          <button
+                            type="button"
+                            onClick={handleDeleteTask}
+                            disabled={submitting}
+                            className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => {
+                          setShowAddTask(false);
+                          setEditingTask(null);
+                          setTaskTitle("");
+                          setTaskType("CALL");
+                          setTaskDueDate("");
+                        }}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={!taskTitle.trim() || submitting}
+                          onClick={editingTask ? handleUpdateTask : handleCreateTask}
+                        >
+                          {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+                          {editingTask ? "Salvar" : "Criar Tarefa"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
