@@ -49,6 +49,15 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       }
     }
 
+    // Don't overwrite secrets with masked values
+    const sensitiveFields = ['openaiApiKey', 'evolutionApiKey'];
+    for (const field of sensitiveFields) {
+      const val = updateData[field];
+      if (typeof val === 'string' && val.includes('...')) {
+        delete updateData[field];
+      }
+    }
+
     const updated = await prisma.whatsAppConfig.update({
       where: { id: config.id },
       data: updateData,
