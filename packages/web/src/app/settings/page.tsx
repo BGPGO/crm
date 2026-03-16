@@ -18,6 +18,7 @@ import {
   Radio,
   Globe,
   Package,
+  Tag,
   Copy,
   Check,
   Pencil,
@@ -30,6 +31,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import TagBadge from "@/components/marketing/TagBadge";
 
 type TabKey =
   | "profile"
@@ -38,6 +40,7 @@ type TabKey =
   | "custom-fields"
   | "lost-reasons"
   | "sources"
+  | "tags"
   | "webhooks"
   | "products";
 
@@ -48,6 +51,7 @@ const tabs: { key: TabKey; label: string; icon: typeof User }[] = [
   { key: "custom-fields", label: "Campos Personalizados",   icon: Sliders },
   { key: "lost-reasons",  label: "Motivos de Perda",        icon: XCircle },
   { key: "sources",       label: "Fontes",                  icon: Radio },
+  { key: "tags",          label: "Tags",                    icon: Tag },
   { key: "webhooks",      label: "Webhooks",                icon: Globe },
   { key: "products",      label: "Produtos",                icon: Package },
 ];
@@ -1171,6 +1175,275 @@ function SourcesTab() {
 }
 
 // ---------------------------------------------------------------------------
+// TagsTab
+// ---------------------------------------------------------------------------
+type ApiTag = {
+  id: string;
+  name: string;
+  color: string;
+  _count?: { contacts: number };
+};
+
+function TagsTab() {
+  const [tags, setTags] = useState<ApiTag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Inline add form
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#3B82F6");
+  const [savingNew, setSavingNew] = useState(false);
+
+  // Edit modal
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTag, setEditTag] = useState<ApiTag | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("#3B82F6");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editFeedback, setEditFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Delete confirm modal
+  const [deleteTag, setDeleteTag] = useState<ApiTag | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const loadTags = useCallback(() => {
+    setLoading(true);
+    api.get<{ data: ApiTag[] }>("/tags?limit=100")
+      .then((res) => setTags(res.data))
+      .catch(() => setFeedback({ type: "error", text: "Erro ao carregar tags." }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadTags(); }, [loadTags]);
+
+  function openEdit(t: ApiTag) {
+    setEditTag(t);
+    setEditName(t.name);
+    setEditColor(t.color || "#3B82F6");
+    setEditFeedback(null);
+    setEditOpen(true);
+  }
+
+  async function handleAdd() {
+    if (!newName.trim()) return;
+    setSavingNew(true);
+    setFeedback(null);
+    try {
+      await api.post("/tags", { name: newName.trim(), color: newColor });
+      setNewName("");
+      setNewColor("#3B82F6");
+      setAdding(false);
+      loadTags();
+      setFeedback({ type: "success", text: "Tag adicionada." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao adicionar.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setSavingNew(false);
+    }
+  }
+
+  async function handleEditSave() {
+    if (!editTag) return;
+    setEditSaving(true);
+    setEditFeedback(null);
+    try {
+      await api.put(`/tags/${editTag.id}`, { name: editName, color: editColor });
+      setEditOpen(false);
+      loadTags();
+      setFeedback({ type: "success", text: "Tag atualizada." });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao salvar.";
+      setEditFeedback({ type: "error", text: msg });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTag) return;
+    setDeleteSaving(true);
+    try {
+      await api.delete(`/tags/${deleteTag.id}`);
+      setDeleteTag(null);
+      loadTags();
+      setFeedback({ type: "success", text: "Tag removida." });
+    } catch (err) {
+      setDeleteTag(null);
+      const msg = err instanceof ApiError ? err.message : "Erro ao remover.";
+      setFeedback({ type: "error", text: msg });
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-600">
+            {loading ? "Carregando..." : `${tags.length} tags cadastradas`}
+          </p>
+          <FeedbackMsg msg={feedback} />
+        </div>
+        <Button variant="primary" size="sm" onClick={() => { setAdding(true); setFeedback(null); }}>
+          <Plus size={14} className="mr-1" />
+          Nova Tag
+        </Button>
+      </div>
+
+      <Card padding="none">
+        <div className="divide-y divide-gray-100">
+          {loading && (
+            <div className="px-5 py-6 flex justify-center">
+              <Spinner />
+            </div>
+          )}
+          {!loading && tags.map((tag) => (
+            <div key={tag.id} className="px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TagBadge name={tag.name} color={tag.color} />
+                {tag._count && tag._count.contacts > 0 && (
+                  <span className="text-xs text-gray-400">
+                    ({tag._count.contacts} contato{tag._count.contacts !== 1 ? "s" : ""})
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(tag)}>
+                  <Pencil size={13} className="mr-1" />
+                  Editar
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-400 hover:text-red-600"
+                  onClick={() => setDeleteTag(tag)}
+                >
+                  <Trash2 size={13} />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          {adding && (
+            <div className="px-5 py-4 space-y-3 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAdd();
+                    if (e.key === "Escape") { setAdding(false); setNewName(""); setNewColor("#3B82F6"); }
+                  }}
+                  placeholder="Nome da tag..."
+                  className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {newName && (
+                  <TagBadge name={newName} color={newColor} />
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewColor(c)}
+                    className={clsx(
+                      "w-6 h-6 rounded-full border-2 transition-all",
+                      newColor === c ? "border-gray-700 scale-110" : "border-transparent"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="primary" onClick={handleAdd} disabled={savingNew}>
+                  {savingNew ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewName(""); setNewColor("#3B82F6"); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Edit Modal */}
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Editar tag">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Input
+              label="Nome da tag"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+            />
+            {editName && (
+              <div className="pt-5 flex-shrink-0">
+                <TagBadge name={editName} color={editColor} />
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-2">Cor</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setEditColor(c)}
+                  className={clsx(
+                    "w-7 h-7 rounded-full border-2 transition-all",
+                    editColor === c ? "border-gray-700 scale-110" : "border-transparent"
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <FeedbackMsg msg={editFeedback} />
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancelar</Button>
+            <Button variant="primary" onClick={handleEditSave} disabled={editSaving}>
+              {editSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+              Salvar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal isOpen={!!deleteTag} onClose={() => setDeleteTag(null)} title="Remover tag" size="sm">
+        <p className="text-sm text-gray-600 mb-2">
+          Tem certeza que deseja remover a tag{" "}
+          {deleteTag && <TagBadge name={deleteTag.name} color={deleteTag.color} />}?
+        </p>
+        {deleteTag?._count && deleteTag._count.contacts > 0 && (
+          <p className="text-xs text-amber-600 mb-4">
+            Esta tag está associada a {deleteTag._count.contacts} contato{deleteTag._count.contacts !== 1 ? "s" : ""} e será desvinculada.
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-3 mt-4">
+          <Button variant="ghost" onClick={() => setDeleteTag(null)}>Cancelar</Button>
+          <Button
+            variant="primary"
+            className="bg-red-600 hover:bg-red-700 border-red-600"
+            onClick={handleDelete}
+            disabled={deleteSaving}
+          >
+            {deleteSaving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
+            Remover
+          </Button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // WebhooksTab helpers
 // ---------------------------------------------------------------------------
 function CopyButton({ value }: { value: string }) {
@@ -1857,6 +2130,7 @@ export default function SettingsPage() {
             {activeTab === "custom-fields" && <CustomFieldsTab />}
             {activeTab === "lost-reasons"  && <LostReasonsTab />}
             {activeTab === "sources"       && <SourcesTab />}
+            {activeTab === "tags"          && <TagsTab />}
             {activeTab === "webhooks"      && <WebhooksTab />}
             {activeTab === "products"      && <ProductsTab />}
           </div>

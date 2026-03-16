@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Tag {
@@ -24,6 +25,125 @@ const selectClass =
 
 const inputClass =
   "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+// Inline tag selector with create support
+interface TagDropdownProps {
+  tags: Tag[];
+  value: string;
+  onChange: (tagId: string) => void;
+  onTagCreated: (tag: Tag) => void;
+}
+
+function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = tags.filter((t) =>
+    t.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const showCreate =
+    search.trim().length > 0 &&
+    !tags.some((t) => t.name.toLowerCase() === search.trim().toLowerCase());
+
+  const selectedTag = tags.find((t) => t.id === value);
+
+  const handleCreate = async () => {
+    const name = search.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const newTag = await api.post<Tag>("/tags", { name });
+      onTagCreated(newTag);
+      onChange(newTag.id);
+      setSearch("");
+      setOpen(false);
+    } catch (err) {
+      console.error("Erro ao criar tag:", err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${selectClass} text-left flex items-center justify-between`}
+      >
+        <span className={selectedTag ? "text-gray-900" : "text-gray-400"}>
+          {selectedTag ? selectedTag.name : "Selecione uma tag..."}
+        </span>
+        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              type="text"
+              placeholder="Buscar ou criar tag..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto max-h-40 p-1">
+            {showCreate && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 rounded-md hover:bg-blue-50 transition-colors text-left font-medium"
+              >
+                <Plus size={14} className="flex-shrink-0" />
+                {creating ? "Criando..." : `Criar: "${search.trim()}"`}
+              </button>
+            )}
+            {filtered.length === 0 && !showCreate ? (
+              <div className="px-3 py-2 text-sm text-gray-400 text-center">
+                Nenhuma tag encontrada
+              </div>
+            ) : (
+              filtered.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(tag.id);
+                    setSearch("");
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center px-3 py-1.5 text-sm rounded-md hover:bg-gray-50 transition-colors text-left ${
+                    tag.id === value ? "text-blue-600 font-medium" : "text-gray-700"
+                  }`}
+                >
+                  {tag.name}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TriggerConfig({
   triggerType,
@@ -64,18 +184,12 @@ export default function TriggerConfig({
         {loadingTags ? (
           <div className="h-10 bg-gray-100 rounded animate-pulse" />
         ) : (
-          <select
+          <TagDropdown
+            tags={tags}
             value={config?.tagId ?? ""}
-            onChange={(e) => onChange({ ...config, tagId: e.target.value })}
-            className={selectClass}
-          >
-            <option value="">Selecione uma tag...</option>
-            {tags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
+            onChange={(tagId) => onChange({ ...config, tagId })}
+            onTagCreated={(tag) => setTags((prev) => [...prev, tag])}
+          />
         )}
       </div>
     );

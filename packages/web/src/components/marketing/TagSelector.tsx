@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import TagBadge from "./TagBadge";
 
@@ -20,16 +20,20 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
   const [tags, setTags] = useState<Tag[]>([]);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [creating, setCreating] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const fetchTags = () => {
     api
       .get<{ data: Tag[] }>("/tags")
-      .then((res) => setTags(res.data))
+      .then((res) => setTags(Array.isArray(res) ? res : res.data ?? []))
       .catch(() => {
-        // If the API returns a plain array instead of { data: [...] }
-        api.get<Tag[]>("/tags").then(setTags).catch(console.error);
+        api.get<Tag[]>("/tags").then((res) => setTags(Array.isArray(res) ? res : [])).catch(console.error);
       });
+  };
+
+  useEffect(() => {
+    fetchTags();
   }, []);
 
   // Close dropdown on outside click
@@ -50,12 +54,33 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
       t.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const showCreateOption =
+    search.trim().length > 0 &&
+    !tags.some((t) => t.name.toLowerCase() === search.trim().toLowerCase());
+
   const addTag = (id: string) => {
     onChange([...selectedTagIds, id]);
+    setSearch("");
   };
 
   const removeTag = (id: string) => {
     onChange(selectedTagIds.filter((tid) => tid !== id));
+  };
+
+  const handleCreate = async () => {
+    const name = search.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const newTag = await api.post<Tag>("/tags", { name });
+      await fetchTags();
+      onChange([...selectedTagIds, newTag.id]);
+      setSearch("");
+    } catch (err) {
+      console.error("Erro ao criar tag:", err);
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -81,7 +106,7 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
       {/* Dropdown */}
       {open && (
         <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden">
-          {/* Search */}
+          {/* Search / Create input */}
           <div className="p-2 border-b border-gray-100">
             <div className="relative">
               <Search
@@ -90,7 +115,7 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
               />
               <input
                 type="text"
-                placeholder="Buscar tags..."
+                placeholder="Buscar ou criar tag..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -101,7 +126,20 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
 
           {/* Tag list */}
           <div className="overflow-y-auto max-h-44 p-1">
-            {availableTags.length === 0 ? (
+            {/* Create option */}
+            {showCreateOption && (
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 rounded-md hover:bg-blue-50 transition-colors text-left font-medium"
+              >
+                <Plus size={14} className="flex-shrink-0" />
+                {creating ? "Criando..." : `Criar tag: "${search.trim()}"`}
+              </button>
+            )}
+
+            {availableTags.length === 0 && !showCreateOption ? (
               <div className="px-3 py-2 text-sm text-gray-400 text-center">
                 Nenhuma tag encontrada
               </div>
