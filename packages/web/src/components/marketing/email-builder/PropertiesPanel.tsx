@@ -661,7 +661,7 @@ export default function PropertiesPanel({
   const updateStyle = (s: Partial<SectionStyle>) => onUpdateSection({}, s);
 
   return (
-    <aside className="w-[280px] shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
+    <aside className="w-[300px] shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
       <div className="p-4 space-y-4">
         {!section ? (
           <GlobalStyleEditor globalStyle={globalStyle} onChange={onUpdateGlobalStyle} />

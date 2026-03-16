@@ -67,7 +67,7 @@ export default function SectionPalette({
   const [activeTab, setActiveTab] = useState<"sections" | "blocks">("sections");
 
   return (
-    <aside className="w-[200px] shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+    <aside className="w-[220px] shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
       {/* Tabs */}
       <div className="flex border-b border-gray-200">
         <button
@@ -124,7 +124,7 @@ function SectionsGrid({
             key={item.type}
             type="button"
             onClick={() => onAddSection(item.type)}
-            className="flex flex-col items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-600 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
+            className="flex flex-col items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3.5 text-gray-600 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
           >
             <Icon className="h-5 w-5" />
             <span className="text-[10px] font-medium leading-tight text-center">

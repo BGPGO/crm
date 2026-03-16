@@ -17,31 +17,7 @@ import type {
 } from "@/types/email-builder";
 import { SectionWrapper } from "./SectionWrapper";
 import { SectionRenderer } from "./SectionRenderer";
-
-// ---------------------------------------------------------------------------
-// Add Section Button (between sections)
-// ---------------------------------------------------------------------------
-
-function AddSectionButton({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="group flex items-center justify-center py-1">
-      <div className="flex-1 h-px bg-transparent group-hover:bg-blue-200 transition-colors" />
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider
-                   text-gray-400 rounded-full border border-transparent
-                   hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50
-                   opacity-0 group-hover:opacity-100
-                   transition-all duration-200"
-      >
-        <Plus className="h-3 w-3" />
-        Adicionar
-      </button>
-      <div className="flex-1 h-px bg-transparent group-hover:bg-blue-200 transition-colors" />
-    </div>
-  );
-}
+import { AddSectionButton } from "./AddSectionButton";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -106,7 +82,7 @@ export default function EmailBuilderCanvas({
       style={{ backgroundColor: globalStyle.bodyBackgroundColor }}
       onClick={handleCanvasClick}
     >
-      <div className="flex justify-center py-8 px-4">
+      <div className="flex justify-center py-8 px-6">
         <div
           className="w-full rounded-lg shadow-sm"
           style={{
@@ -128,7 +104,7 @@ export default function EmailBuilderCanvas({
 
           {/* Add button at the top */}
           {sections.length > 0 && (
-            <AddSectionButton onClick={() => onAddSection("text", 0)} />
+            <AddSectionButton onAdd={(type) => onAddSection(type, 0)} />
           )}
 
           {/* Drag & drop context */}
@@ -187,7 +163,7 @@ export default function EmailBuilderCanvas({
 
                       {/* Add section button between sections */}
                       <AddSectionButton
-                        onClick={() => onAddSection("text", index + 1)}
+                        onAdd={(type) => onAddSection(type, index + 1)}
                       />
                     </React.Fragment>
                   ))}

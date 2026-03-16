@@ -33,10 +33,10 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
 ];
 
 const QUICK_CHIPS = [
-  "Mude cores para azul",
+  "Use cores da marca BGP (azul e branco)",
   "Adicione CTA",
-  "Torne mais profissional",
-  "Adicione rodape",
+  "Tom mais consultivo",
+  "Adicione rodape BGP Patrimonial",
   "Melhore o design",
 ];
 
@@ -110,7 +110,7 @@ export default function AIBuilderChat({
       const res = await api.post<AIGenerateResponse>("/ai/generate-email", {
         topic: topic.trim(),
         tone,
-        audience: audience.trim() || undefined,
+        audience: audience.trim() || "clientes da Bertuzzi Patrimonial - consultoria patrimonial e sucessoria",
       });
 
       onApplyHtml(res.data.htmlContent);
