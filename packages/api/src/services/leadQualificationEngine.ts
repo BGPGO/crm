@@ -102,13 +102,40 @@ async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
     return;
   }
 
-  // 7. Build context string
-  const contextString = buildCampaignContext({
-    contactName: contact.name,
-    campaignName: deal.campaign?.name,
-    sourceName: deal.source?.name,
-    landingPage: tracking?.landingPage,
-  });
+  // 7. Build context string — prefer CampaignContext from DB
+  let contextString: string;
+
+  // Try to load campaign-specific context from DB
+  let campaignContext = deal.campaignId
+    ? await prisma.campaignContext.findUnique({ where: { campaignId: deal.campaignId } })
+    : null;
+
+  // Fallback to default context if no campaign-specific one
+  if (!campaignContext) {
+    campaignContext = await prisma.campaignContext.findFirst({ where: { isDefault: true } });
+  }
+
+  if (campaignContext) {
+    contextString = `CONTEXTO DO LEAD (use para personalizar a primeira abordagem):
+- Nome: ${contact.name}
+- Campanha: ${deal.campaign?.name || 'Não identificada'}
+- Fonte: ${deal.source?.name || 'Não identificada'}
+- Página de entrada: ${tracking?.landingPage || 'Não identificada'}
+
+CONTEXTO DA CAMPANHA:
+${campaignContext.context}
+
+- Este lead acabou de se cadastrar e ainda NÃO agendou reunião.
+- Sua missão: iniciar a conversa de forma natural, usar o contexto para criar rapport, e direcionar para o agendamento.
+- Esta é a PRIMEIRA mensagem — não há histórico. Comece com uma saudação personalizada.`;
+  } else {
+    contextString = buildCampaignContext({
+      contactName: contact.name,
+      campaignName: deal.campaign?.name,
+      sourceName: deal.source?.name,
+      landingPage: tracking?.landingPage,
+    });
+  }
 
   console.log(`[LeadQualification] Contexto construído para ${contact.name}`);
 
@@ -340,12 +367,46 @@ export async function simulateLeadEntry(params: {
 }): Promise<{ aiReply: string; context: string }> {
   console.log(`[LeadQualification] Simulando entrada de lead: ${params.contactName}`);
 
-  const contextString = buildCampaignContext({
-    contactName: params.contactName,
-    campaignName: params.campaignName,
-    sourceName: params.sourceName,
-    landingPage: null,
-  });
+  let contextString: string;
+
+  // Try to find CampaignContext by campaign name
+  let campaignContext = null;
+  if (params.campaignName) {
+    const campaign = await prisma.campaign.findFirst({
+      where: { name: { equals: params.campaignName, mode: 'insensitive' } },
+      include: { campaignContext: true },
+    });
+    if (campaign?.campaignContext) {
+      campaignContext = campaign.campaignContext;
+    }
+  }
+
+  // Fallback to default context
+  if (!campaignContext) {
+    campaignContext = await prisma.campaignContext.findFirst({ where: { isDefault: true } });
+  }
+
+  if (campaignContext) {
+    contextString = `CONTEXTO DO LEAD (use para personalizar a primeira abordagem):
+- Nome: ${params.contactName}
+- Campanha: ${params.campaignName || 'Não identificada'}
+- Fonte: ${params.sourceName || 'Não identificada'}
+- Página de entrada: Não identificada
+
+CONTEXTO DA CAMPANHA:
+${campaignContext.context}
+
+- Este lead acabou de se cadastrar e ainda NÃO agendou reunião.
+- Sua missão: iniciar a conversa de forma natural, usar o contexto para criar rapport, e direcionar para o agendamento.
+- Esta é a PRIMEIRA mensagem — não há histórico. Comece com uma saudação personalizada.`;
+  } else {
+    contextString = buildCampaignContext({
+      contactName: params.contactName,
+      campaignName: params.campaignName,
+      sourceName: params.sourceName,
+      landingPage: null,
+    });
+  }
 
   const config = await prisma.whatsAppConfig.findFirst();
   const meetingLink = config?.meetingLink || null;
