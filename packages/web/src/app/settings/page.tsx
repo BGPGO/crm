@@ -29,6 +29,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
 
 type TabKey =
   | "profile"
@@ -1830,6 +1831,22 @@ export default function SettingsPage() {
                 ))}
               </nav>
             </Card>
+
+            {/* Integrations section */}
+            <div className="mt-4">
+              <p className="px-3 mb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Integrações</p>
+              <Card padding="sm">
+                <nav className="space-y-0.5">
+                  <Link
+                    href="/settings/calendly"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Calendly
+                  </Link>
+                </nav>
+              </Card>
+            </div>
           </div>
 
           {/* Content */}

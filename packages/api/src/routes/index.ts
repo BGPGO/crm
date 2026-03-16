@@ -33,6 +33,9 @@ import whatsappConversationsRouter from './whatsapp-conversations';
 import whatsappLeadsRouter from './whatsapp-leads';
 import whatsappCampaignsRouter from './whatsapp-campaigns';
 import whatsappFollowupRouter from './whatsapp-followup';
+import whatsappTestChatRouter from './whatsapp-test-chat';
+import calendlyWebhookRouter from './calendly-webhook';
+import calendlyConfigRouter from './calendly-config';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -43,6 +46,7 @@ router.use('/auth', authRouter);
 // ─── Public routes (no auth — tracking pixels, unsubscribe, webhooks) ────────
 router.use('/email-tracking', emailTrackingRouter);
 router.use('/whatsapp/webhook', whatsappWebhookRouter);
+router.use('/calendly/webhook', calendlyWebhookRouter);
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
@@ -79,5 +83,7 @@ router.use('/whatsapp/conversations', whatsappConversationsRouter);
 router.use('/whatsapp/leads', whatsappLeadsRouter);
 router.use('/whatsapp/campaigns', whatsappCampaignsRouter);
 router.use('/whatsapp/followup', whatsappFollowupRouter);
+router.use('/whatsapp/test-chat', whatsappTestChatRouter);
+router.use('/calendly/config', calendlyConfigRouter);
 
 export default router;

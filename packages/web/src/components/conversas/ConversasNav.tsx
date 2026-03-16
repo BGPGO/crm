@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, Users, Send, Zap, Settings } from "lucide-react";
+import { MessageSquare, Users, Send, Zap, Bot, Settings } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -10,6 +10,7 @@ const tabs = [
   { label: "Leads WhatsApp", href: "/conversas/leads", icon: Users },
   { label: "Campanhas", href: "/conversas/campanhas", icon: Send },
   { label: "Automações", href: "/conversas/automacoes", icon: Zap },
+  { label: "Testar IA", href: "/conversas/testar-ia", icon: Bot },
   { label: "Configuração", href: "/conversas/configuracao", icon: Settings },
 ] as const;
 

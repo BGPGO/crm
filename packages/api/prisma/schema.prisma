@@ -233,6 +233,7 @@ model Contact {
   emailSends        EmailSend[]
   automationEnrollments AutomationEnrollment[]
   whatsappConversations WhatsAppConversation[]
+  calendlyEvents    CalendlyEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -992,6 +993,43 @@ model WhatsAppCampaign {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+}
+
+// ─── Calendly Integration ──────────────────────────────────────────────────
+
+model CalendlyConfig {
+  id              String  @id @default(cuid())
+  apiKey          String  @default("")
+  webhookSecret   String  @default("")
+  isActive        Boolean @default(true)
+  organizationUri String  @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CalendlyEvent {
+  id              String   @id @default(cuid())
+  calendlyEventId String   @unique
+  eventType       String
+  inviteeEmail    String
+  inviteeName     String?
+  hostEmail       String?
+  hostName        String?
+  startTime       DateTime
+  endTime         DateTime
+  status          String   @default("active")
+
+  contactId       String?
+  contact         Contact? @relation(fields: [contactId], references: [id])
+  dealId          String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([inviteeEmail])
+  @@index([calendlyEventId])
+  @@index([contactId])
 }
 
 model WhatsAppCampaignContact {
