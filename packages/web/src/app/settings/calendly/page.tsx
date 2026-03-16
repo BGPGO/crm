@@ -150,10 +150,10 @@ export default function CalendlySettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex flex-col h-full overflow-auto">
       <Header title="Integração Calendly" />
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      <main className="flex-1 p-6 space-y-6 mx-auto max-w-5xl w-full">
         {/* Back link */}
         <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft size={14} />

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
 import Card from "@/components/ui/Card";
-import { Search, Link2, Check, X } from "lucide-react";
+import { Search, Link2, Check, X, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 
@@ -87,6 +87,18 @@ export default function ConversasLeadsPage() {
     }
   };
 
+  const handleDelete = async (leadId: string, leadName: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o lead "${leadName}"? Todas as mensagens e dados relacionados serão removidos.`)) {
+      return;
+    }
+    try {
+      await api.delete(`/whatsapp/leads/${leadId}`);
+      await fetchLeads();
+    } catch {
+      setError("Erro ao excluir lead.");
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("pt-BR", {
       day: "2-digit",
@@ -134,13 +146,14 @@ export default function ConversasLeadsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Última Mensagem</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Criado em</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">CRM</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-gray-100 rounded animate-pulse" />
                         </td>
@@ -149,7 +162,7 @@ export default function ConversasLeadsPage() {
                   ))
                 ) : filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                       Nenhum lead encontrado
                     </td>
                   </tr>
@@ -185,6 +198,15 @@ export default function ConversasLeadsPage() {
                             <Link2 size={12} /> Vincular ao CRM
                           </button>
                         )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleDelete(lead.id, lead.name || lead.phone)}
+                          className="inline-flex items-center justify-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir lead"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </td>
                     </tr>
                   ))

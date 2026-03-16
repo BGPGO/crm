@@ -61,20 +61,27 @@ router.post('/', async (req: Request, res: Response) => {
     if (event === 'invitee.created') {
       const payload = body.payload;
       if (!payload) {
+        console.log('[calendly-webhook] No payload in body, ignoring');
         return res.status(200).json({ received: true });
       }
 
-      const inviteeEmail = payload.email?.toLowerCase() || '';
-      const inviteeName = payload.name || null;
-      const calendlyEventId = payload.uri || payload.event || '';
-      const eventType = payload.event_type?.name || payload.event_type || 'Meeting';
-      const startTime = payload.scheduled_event?.start_time || payload.event?.start_time;
-      const endTime = payload.scheduled_event?.end_time || payload.event?.end_time;
+      console.log('[calendly-webhook] Received invitee.created payload:', JSON.stringify(payload, null, 2));
+
+      const inviteeEmail = payload.email?.toLowerCase()?.trim() || '';
+      const inviteeName = payload.name?.trim() || null;
+      // payload.uri is the invitee URI; scheduled_event.uri is the event URI
+      const scheduledEvent = payload.scheduled_event || {};
+      const calendlyEventId = payload.uri || scheduledEvent.uri || '';
+      const eventType = scheduledEvent.name || payload.event_type?.name || payload.event_type || 'Meeting';
+      const startTime = scheduledEvent.start_time;
+      const endTime = scheduledEvent.end_time;
 
       // Host info (the closer)
-      const eventMemberships = payload.scheduled_event?.event_memberships || [];
+      const eventMemberships = scheduledEvent.event_memberships || [];
       const hostEmail = eventMemberships[0]?.user_email?.toLowerCase() || null;
       const hostName = eventMemberships[0]?.user_name || null;
+
+      console.log(`[calendly-webhook] Parsed: email=${inviteeEmail}, name=${inviteeName}, eventId=${calendlyEventId}, type=${eventType}, start=${startTime}, host=${hostEmail}`);
 
       // 1. Save CalendlyEvent
       const calendlyEvent = await prisma.calendlyEvent.upsert({
@@ -102,12 +109,33 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
 
-      // 2. Find Contact by email
+      console.log(`[calendly-webhook] Saved CalendlyEvent: ${calendlyEvent.id}`);
+
+      // 2. Find Contact by email (case-insensitive)
       let contact = inviteeEmail
-        ? await prisma.contact.findFirst({ where: { email: inviteeEmail } })
+        ? await prisma.contact.findFirst({
+            where: {
+              email: { equals: inviteeEmail, mode: 'insensitive' },
+            },
+          })
         : null;
 
+      // Fallback: try matching by name if email didn't match
+      if (!contact && inviteeName) {
+        console.log(`[calendly-webhook] Email match failed, trying name match: "${inviteeName}"`);
+        contact = await prisma.contact.findFirst({
+          where: {
+            name: { equals: inviteeName, mode: 'insensitive' },
+          },
+        });
+        if (contact) {
+          console.log(`[calendly-webhook] Found contact by name: ${contact.id} (${contact.name})`);
+        }
+      }
+
       if (contact) {
+        console.log(`[calendly-webhook] Found contact: id=${contact.id}, name=${contact.name}, email=${contact.email}`);
+
         // Link event to contact
         await prisma.calendlyEvent.update({
           where: { id: calendlyEvent.id },
@@ -125,27 +153,39 @@ router.post('/', async (req: Request, res: Response) => {
         });
 
         if (deal) {
+          console.log(`[calendly-webhook] Found deal: id=${deal.id}, currentStage=${deal.stage?.name}, pipelineId=${deal.pipelineId}`);
+
           // 4. Find "Reunião Marcada" stage in the same pipeline
-          const reuniaoStage = await prisma.pipelineStage.findFirst({
-            where: {
-              pipelineId: deal.pipelineId,
-              name: 'Reunião Marcada',
-            },
+          // Log all stages for debugging
+          const allStages = await prisma.pipelineStage.findMany({
+            where: { pipelineId: deal.pipelineId },
+            orderBy: { order: 'asc' },
           });
+          console.log(`[calendly-webhook] Pipeline stages:`, allStages.map(s => `${s.name} (${s.id})`).join(', '));
+
+          // Try exact match first, then case-insensitive contains
+          let reuniaoStage = allStages.find(s => s.name === 'Reunião Marcada') || null;
+          if (!reuniaoStage) {
+            reuniaoStage = allStages.find(s => s.name.toLowerCase().includes('reuni')) || null;
+          }
 
           const updateData: Record<string, unknown> = {};
 
           if (reuniaoStage) {
             updateData.stageId = reuniaoStage.id;
+            console.log(`[calendly-webhook] Moving deal to stage: ${reuniaoStage.name} (${reuniaoStage.id})`);
+          } else {
+            console.warn(`[calendly-webhook] Stage "Reunião Marcada" not found in pipeline ${deal.pipelineId}`);
           }
 
           // 5. Map host email to CRM user (closer)
           if (hostEmail) {
             const closerUser = await prisma.user.findFirst({
-              where: { email: hostEmail, isActive: true },
+              where: { email: { equals: hostEmail, mode: 'insensitive' }, isActive: true },
             });
             if (closerUser) {
               updateData.userId = closerUser.id;
+              console.log(`[calendly-webhook] Assigning deal to closer: ${closerUser.name} (${closerUser.id})`);
             }
           }
 
@@ -154,6 +194,7 @@ router.post('/', async (req: Request, res: Response) => {
               where: { id: deal.id },
               data: updateData,
             });
+            console.log(`[calendly-webhook] Deal updated with:`, updateData);
           }
 
           // Link event to deal
@@ -189,7 +230,7 @@ router.post('/', async (req: Request, res: Response) => {
           console.log(`[calendly-webhook] Contact found (${contact.id}) but no OPEN deal`);
         }
       } else {
-        console.log(`[calendly-webhook] No contact found for email: ${inviteeEmail}`);
+        console.log(`[calendly-webhook] No contact found for email="${inviteeEmail}" or name="${inviteeName}"`);
       }
     } else if (event === 'invitee.canceled') {
       const payload = body.payload;

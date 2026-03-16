@@ -108,4 +108,23 @@ router.post('/:id/link-contact', async (req: Request, res: Response, next: NextF
   }
 });
 
+// DELETE /api/whatsapp-leads/:id — Delete a lead and all related records (cascade)
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.whatsAppConversation.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!existing) return next(createError('Conversation not found', 404));
+
+    // Related records (messages, aiHistory, followUpState) are deleted via onDelete: Cascade
+    await prisma.whatsAppConversation.delete({
+      where: { id: req.params.id },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
