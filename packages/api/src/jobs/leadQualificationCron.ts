@@ -20,8 +20,8 @@ let isProcessing = false;
 // ─── Core: find new deals created by external sources (Edge Function, etc.) ──
 
 async function processNewDeals(): Promise<{ found: number; triggered: number }> {
-  // Look for deals created in the last 2 minutes
-  const since = new Date(Date.now() - 2 * 60 * 1000);
+  // Look for deals created in the last 5 minutes (wider window for reliability)
+  const since = new Date(Date.now() - 5 * 60 * 1000);
 
   // Find the first stage of every default pipeline
   const defaultPipeline = await prisma.pipeline.findFirst({
@@ -110,9 +110,9 @@ export function startLeadQualificationCron(): void {
 
     try {
       const result = await processNewDeals();
-      if (result.triggered > 0) {
+      if (result.found > 0 || result.triggered > 0) {
         console.log(
-          `[leadQualificationCron] Tick complete: ${result.found} recent deals, ${result.triggered} newly triggered`,
+          `[leadQualificationCron] Tick: ${result.found} recent deals, ${result.triggered} newly triggered`,
         );
       }
     } catch (error) {
