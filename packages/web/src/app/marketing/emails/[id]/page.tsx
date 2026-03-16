@@ -49,15 +49,19 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<"not_found" | "network" | null>(null);
 
   useEffect(() => {
     async function fetchCampaign() {
       setLoading(true);
+      setError(null);
       try {
         const result = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
         setCampaign(result.data);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Erro ao buscar campanha:", err);
+        const status = (err as { status?: number })?.status ?? (err as { response?: { status?: number } })?.response?.status;
+        setError(status === 404 ? "not_found" : "network");
       } finally {
         setLoading(false);
       }
@@ -87,6 +91,24 @@ export default function CampaignDetailPage() {
         <div className="flex-1 flex items-center justify-center text-gray-400">
           <Loader2 size={24} className="animate-spin mr-2" />
           Carregando...
+        </div>
+      </div>
+    );
+  }
+
+  if (error === "network") {
+    return (
+      <div className="flex flex-col h-full overflow-auto">
+        <Header title="Campanha" breadcrumb={["Marketing", "Emails"]} />
+        <MarketingNav />
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <p className="text-gray-500 text-sm">Erro de conexão ao carregar a campanha.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );

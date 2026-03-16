@@ -41,7 +41,7 @@ async function fetchCurrentUser(accessToken: string): Promise<AuthUser> {
   });
 
   if (!response.ok) {
-    throw new Error("Falha ao obter dados do usuario");
+    throw new Error("Falha ao obter dados do usuário");
   }
 
   const data = await response.json();
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!data.session) {
-        throw new Error("Sessao nao foi criada");
+        throw new Error("Sessão não foi criada");
       }
 
       const currentUser = await fetchCurrentUser(data.session.access_token);

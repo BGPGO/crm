@@ -96,7 +96,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
       bgColor: "bg-purple-100",
     },
     {
-      label: "Bounced",
+      label: "Rejeitados",
       value: stats.bounced,
       icon: AlertTriangle,
       rate: null as number | null,

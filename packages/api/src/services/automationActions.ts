@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
+import { isUnsubscribed } from './unsubscribeManager';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -106,6 +107,11 @@ async function sendEmail(
 
   if (!contact.email) {
     return { success: false, output: 'Contact has no email address' };
+  }
+
+  // Check if the contact has unsubscribed before sending
+  if (await isUnsubscribed(contact.email)) {
+    return { success: false, output: 'Contact unsubscribed' };
   }
 
   const result = await resend.emails.send({

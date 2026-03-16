@@ -35,7 +35,7 @@ export default function LoginPage() {
       if (message.includes("Invalid login credentials")) {
         setError("E-mail ou senha incorretos.");
       } else if (message.includes("Email not confirmed")) {
-        setError("E-mail ainda nao foi confirmado. Verifique sua caixa de entrada.");
+        setError("E-mail ainda não foi confirmado. Verifique sua caixa de entrada.");
       } else {
         setError(message);
       }

@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin", "latin-ext"] });
 
 export const metadata: Metadata = {
   title: "CRM BGPGO",
-  description: "CRM proprio inspirado no RD Station CRM",
+  description: "CRM próprio inspirado no RD Station CRM",
 };
 
 export default function RootLayout({

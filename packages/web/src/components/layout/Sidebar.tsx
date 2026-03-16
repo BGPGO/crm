@@ -29,12 +29,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 
 const navItems = [
-  { href: "/", label: "Inicio", icon: LayoutDashboard },
-  { href: "/pipeline", label: "Negociacoes", icon: Kanban },
+  { href: "/", label: "Início", icon: LayoutDashboard },
+  { href: "/pipeline", label: "Negociações", icon: Kanban },
   { href: "/organizations", label: "Empresas", icon: Building2 },
   { href: "/contacts", label: "Contatos", icon: Users },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/reports", label: "Analises", icon: BarChart3 },
+  { href: "/reports", label: "Análises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
 ];
 
@@ -141,7 +141,7 @@ export default function TopNavbar() {
   };
 
   const initials = user ? getInitials(user.name) : "?";
-  const displayName = user?.name || "Usuario";
+  const displayName = user?.name || "Usuário";
 
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-6 flex-shrink-0 z-30">
@@ -328,7 +328,7 @@ export default function TopNavbar() {
                   className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Settings size={15} className="text-gray-400" />
-                  Configuracoes
+                  Configurações
                 </Link>
                 <Link
                   href="/settings"

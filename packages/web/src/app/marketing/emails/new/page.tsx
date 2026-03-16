@@ -50,6 +50,10 @@ export default function NewCampaignPage() {
   const [fromName, setFromName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
 
+  // Error states
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
   // Step 2 - Template
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
@@ -71,11 +75,13 @@ export default function NewCampaignPage() {
   useEffect(() => {
     async function fetchTemplates() {
       setLoadingTemplates(true);
+      setTemplateError(null);
       try {
         const result = await api.get<TemplatesResponse>("/email-templates");
         setTemplates(result.data);
       } catch (err) {
         console.error("Erro ao buscar templates:", err);
+        setTemplateError("Falha ao carregar templates. Verifique sua conexão e tente novamente.");
       } finally {
         setLoadingTemplates(false);
       }
@@ -106,6 +112,7 @@ export default function NewCampaignPage() {
 
   const handleSendNow = async () => {
     setSaving(true);
+    setSendError(null);
     try {
       const campaign = await api.post<{ data: { id: string } }>("/email-campaigns", {
         name: name.trim(),
@@ -120,6 +127,7 @@ export default function NewCampaignPage() {
       router.push(`/marketing/emails/${campaign.data.id}`);
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
+      setSendError("Falha ao enviar campanha. Verifique os dados e tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -128,6 +136,7 @@ export default function NewCampaignPage() {
   const handleSchedule = async () => {
     if (!scheduleDate) return;
     setScheduling(true);
+    setSendError(null);
     try {
       const campaign = await api.post<{ data: { id: string } }>("/email-campaigns", {
         name: name.trim(),
@@ -144,6 +153,7 @@ export default function NewCampaignPage() {
       router.push(`/marketing/emails/${campaign.data.id}`);
     } catch (err) {
       console.error("Erro ao agendar campanha:", err);
+      setSendError("Falha ao agendar campanha. Verifique os dados e tente novamente.");
     } finally {
       setScheduling(false);
     }
@@ -298,6 +308,12 @@ export default function NewCampaignPage() {
                 </button>
               </div>
 
+              {templateError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  {templateError}
+                </div>
+              )}
+
               {!useCustomHtml ? (
                 <div>
                   {loadingTemplates ? (
@@ -447,6 +463,13 @@ export default function NewCampaignPage() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Send/Schedule Error */}
+                  {sendError && (
+                    <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                      {sendError}
+                    </div>
+                  )}
 
                   {/* Actions */}
                   <div className="border-t border-gray-200 pt-4 space-y-3">

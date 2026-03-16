@@ -159,9 +159,35 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
   }
 });
 
-// ─── GET /unsubscribe/:token — Unsubscribe page ────────────────────────────
+// ─── GET /unsubscribe/:token — Show confirmation page ───────────────────────
 
 router.get('/unsubscribe/:token', async (req: Request, res: Response, _next: NextFunction) => {
+  try {
+    const { token } = req.params;
+
+    // Decode token (base64-encoded EmailSend ID)
+    const sendId = Buffer.from(token, 'base64').toString('utf-8');
+
+    const send = await prisma.emailSend.findUnique({
+      where: { id: sendId },
+      include: { contact: true },
+    });
+
+    if (!send) {
+      return res.status(404).send(buildUnsubscribeHtml(false, 'Link inválido ou expirado.'));
+    }
+
+    // Show confirmation page — do NOT unsubscribe on GET (bots/link previewers would trigger it)
+    return res.status(200).send(buildUnsubscribeConfirmHtml(token));
+  } catch (error) {
+    console.error('Error loading unsubscribe page:', error);
+    return res.status(500).send(buildUnsubscribeHtml(false, 'Erro interno. Tente novamente.'));
+  }
+});
+
+// ─── POST /unsubscribe/:token — Actually perform the unsubscribe ────────────
+
+router.post('/unsubscribe/:token', async (req: Request, res: Response, _next: NextFunction) => {
   try {
     const { token } = req.params;
 
@@ -206,11 +232,44 @@ router.get('/unsubscribe/:token', async (req: Request, res: Response, _next: Nex
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function buildUnsubscribeConfirmHtml(token: string): string {
+  const safeToken = escapeHtml(token);
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirmar descadastro</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f5f5f5; color: #333; }
+    .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #666; line-height: 1.5; }
+    button { margin-top: 1rem; padding: 0.75rem 1.5rem; background: #e53e3e; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    button:hover { background: #c53030; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Deseja se descadastrar?</h1>
+    <p>Ao confirmar, você não receberá mais nossos emails.</p>
+    <form method="POST" action="/unsubscribe/${safeToken}">
+      <button type="submit">Confirmar descadastro</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
+
 function buildUnsubscribeHtml(success: boolean, errorMessage?: string): string {
   const title = success ? 'Descadastrado com sucesso' : 'Erro';
+  const safeError = escapeHtml(errorMessage || 'Ocorreu um erro.');
   const body = success
     ? '<h1>Descadastrado com sucesso</h1><p>Você não receberá mais nossos emails. Se isso foi um engano, entre em contato conosco.</p>'
-    : `<h1>Ops!</h1><p>${errorMessage || 'Ocorreu um erro.'}</p>`;
+    : `<h1>Ops!</h1><p>${safeError}</p>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">

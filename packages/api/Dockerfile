@@ -11,7 +11,7 @@ COPY packages/shared/ packages/shared/
 COPY packages/api/ packages/api/
 
 RUN npx prisma generate --schema=packages/api/prisma/schema.prisma
-RUN cd packages/shared && npx tsc || true
+RUN cd packages/shared && npx tsc
 RUN cd packages/api && npx tsc
 
 FROM node:20-alpine
@@ -23,10 +23,12 @@ COPY --from=build /app/packages/api/dist/ packages/api/dist/
 COPY --from=build /app/packages/api/prisma/ packages/api/prisma/
 COPY --from=build /app/packages/api/node_modules/ packages/api/node_modules/
 COPY --from=build /app/packages/api/package.json packages/api/
+COPY --from=build /app/packages/shared/dist/ packages/shared/dist/
+COPY --from=build /app/packages/shared/package.json packages/shared/
 COPY --from=build /app/package.json ./
 
 ENV NODE_ENV=production
 EXPOSE 3001
 
 WORKDIR /app/packages/api
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss 2>&1; node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate 2>&1; node dist/index.js"]

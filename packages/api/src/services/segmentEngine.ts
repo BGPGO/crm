@@ -4,11 +4,23 @@ export interface SegmentFilter {
   value: any;
 }
 
+const VALID_SEGMENT_FIELDS = new Set([
+  'name', 'email', 'phone', 'city', 'state', 'position', 'notes',
+  'createdAt', 'updatedAt',
+  // Special/relation fields handled separately
+  'tags', 'engagementLevel', 'score',
+]);
+
 export function buildSegmentWhere(filters: SegmentFilter[]): Record<string, any> {
   const conditions: Record<string, any>[] = [];
 
   for (const filter of filters) {
     const { field, operator, value } = filter;
+
+    // Reject fields not in the whitelist to prevent arbitrary Prisma field access
+    if (!VALID_SEGMENT_FIELDS.has(field)) {
+      throw new Error(`Invalid segment field: "${field}". Allowed fields: ${[...VALID_SEGMENT_FIELDS].join(', ')}`);
+    }
 
     // Special fields that map to relations
     if (field === 'tags') {

@@ -81,12 +81,14 @@ export default function AutomationEnrollmentsPage() {
     totalPages: 1,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [automationName, setAutomationName] = useState("");
 
   const fetchEnrollments = useCallback(
     async (currentPage: number) => {
       setLoading(true);
+      setError(null);
       try {
         const params = new URLSearchParams({
           page: String(currentPage),
@@ -99,6 +101,7 @@ export default function AutomationEnrollmentsPage() {
         setMeta(result.meta);
       } catch (err) {
         console.error("Erro ao buscar inscrições:", err);
+        setError("Falha ao carregar inscrições. Verifique sua conexão e tente novamente.");
       } finally {
         setLoading(false);
       }
@@ -143,6 +146,19 @@ export default function AutomationEnrollmentsPage() {
           <ArrowLeft size={14} />
           Voltar para {automationName || "Automação"}
         </Link>
+
+        {/* Error state */}
+        {error && (
+          <div className="p-4 rounded-lg bg-red-50 border border-red-200 flex items-center justify-between">
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={() => fetchEnrollments(page)}
+              className="px-4 py-2 text-sm font-medium text-red-700 hover:text-red-800 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <Table>

@@ -329,7 +329,7 @@ export default function DashboardPage() {
         {
           title: "Negociações em Andamento",
           value: String(data.activeDealsCount),
-          sub: "deals ativos",
+          sub: "negociações ativas",
           icon: TrendingUp,
           color: "text-blue-600",
           bg: "bg-blue-50",

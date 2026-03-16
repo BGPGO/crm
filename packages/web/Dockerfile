@@ -11,7 +11,7 @@ RUN npm ci --workspace=packages/web --workspace=packages/shared --include-worksp
 # Build shared
 FROM deps AS build-shared
 COPY packages/shared/ packages/shared/
-RUN npm run build --workspace=packages/shared 2>/dev/null || true
+RUN npm run build --workspace=packages/shared
 
 # Build Web
 FROM deps AS build
@@ -20,6 +20,10 @@ COPY packages/web/ packages/web/
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 RUN npm run build --workspace=packages/web
 
 # Production

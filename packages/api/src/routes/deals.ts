@@ -111,8 +111,9 @@ router.post(
   validate({ title: 'required', pipelineId: 'required', stageId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
       const deal = await prisma.deal.create({
-        data: req.body,
+        data: { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId },
         include: dealInclude,
       });
       res.status(201).json({ data: deal });
@@ -128,9 +129,24 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.deal.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Deal not found', 404));
 
+    const { title, value, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+    const data: Record<string, unknown> = {};
+    if (title !== undefined) data.title = title;
+    if (value !== undefined) data.value = value;
+    if (stageId !== undefined) data.stageId = stageId;
+    if (userId !== undefined) data.userId = userId;
+    if (contactId !== undefined) data.contactId = contactId;
+    if (organizationId !== undefined) data.organizationId = organizationId;
+    if (sourceId !== undefined) data.sourceId = sourceId;
+    if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate;
+    if (classification !== undefined) data.classification = classification;
+    if (contaAzulCode !== undefined) data.contaAzulCode = contaAzulCode;
+    if (recurrence !== undefined) data.recurrence = recurrence;
+    if (campaignId !== undefined) data.campaignId = campaignId;
+
     const deal = await prisma.deal.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: dealInclude,
     });
     res.json({ data: deal });

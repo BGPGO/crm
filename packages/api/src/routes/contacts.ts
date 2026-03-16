@@ -100,8 +100,9 @@ router.post(
   validate({ name: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const { name, email, phone, position, birthday, instagram, notes, organizationId } = req.body;
       const contact = await prisma.contact.create({
-        data: req.body,
+        data: { name, email, phone, position, birthday, instagram, notes, organizationId },
         include: {
           organization: { select: { id: true, name: true } },
         },
@@ -120,9 +121,20 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.contact.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Contact not found', 404));
 
+    const { name, email, phone, position, birthday, instagram, notes, organizationId } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (phone !== undefined) data.phone = phone;
+    if (position !== undefined) data.position = position;
+    if (birthday !== undefined) data.birthday = birthday;
+    if (instagram !== undefined) data.instagram = instagram;
+    if (notes !== undefined) data.notes = notes;
+    if (organizationId !== undefined) data.organizationId = organizationId;
+
     const contact = await prisma.contact.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: {
         organization: { select: { id: true, name: true } },
       },

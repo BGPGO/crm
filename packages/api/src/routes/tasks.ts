@@ -89,8 +89,16 @@ router.patch('/batch', async (req: Request, res: Response, next: NextFunction) =
       return next(createError('data object is required', 400));
     }
 
+    // Whitelist allowed fields for batch update
+    const allowedBatchFields = ['title', 'type', 'dueDate', 'userId', 'description', 'status'];
+    const updateData: Record<string, unknown> = {};
+    for (const key of allowedBatchFields) {
+      if ((data as Record<string, unknown>)[key] !== undefined) {
+        updateData[key] = (data as Record<string, unknown>)[key];
+      }
+    }
+
     // Handle completedAt for status changes
-    const updateData = { ...data };
     if (updateData.status === 'COMPLETED') {
       updateData.completedAt = new Date();
     } else if (updateData.status && updateData.status !== 'COMPLETED') {
@@ -158,8 +166,9 @@ router.post(
   validate({ title: 'required', userId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const { title, type, dueDate, userId, dealId, contactId, description } = req.body;
       const task = await prisma.task.create({
-        data: req.body,
+        data: { title, type, dueDate, userId, dealId, contactId, description },
         include: {
           user: { select: { id: true, name: true } },
           deal: { select: { id: true, title: true } },
@@ -179,7 +188,15 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Task not found', 404));
 
-    const data = { ...req.body };
+    const { title, type, dueDate, userId, description, status } = req.body;
+    const data: Record<string, unknown> = {};
+    if (title !== undefined) data.title = title;
+    if (type !== undefined) data.type = type;
+    if (dueDate !== undefined) data.dueDate = dueDate;
+    if (userId !== undefined) data.userId = userId;
+    if (description !== undefined) data.description = description;
+    if (status !== undefined) data.status = status;
+
     if (data.status === 'COMPLETED') {
       data.completedAt = new Date();
     } else if (data.status && data.status !== 'COMPLETED') {
