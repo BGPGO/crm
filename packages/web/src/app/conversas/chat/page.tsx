@@ -287,7 +287,7 @@ export default function ConversasChatPage() {
                           )}
                           <p
                             className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
-                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text) }}
+                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
                           />
                           <p className="text-[10px] text-gray-400 mt-1 text-right">
                             {formatTime(msg.createdAt)}
