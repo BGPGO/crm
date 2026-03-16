@@ -8,21 +8,29 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 
+interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  sender: "CLIENT" | "BOT" | "HUMAN";
+  text: string;
+  createdAt: string;
+}
+
 interface Conversation {
   id: string;
   phone: string;
   pushName: string | null;
-  lastMessage: string | null;
   lastMessageAt: string | null;
   isActive: boolean;
   needsHumanAttention: boolean;
+  messages?: ConversationMessage[];
 }
 
 interface Message {
   id: string;
   conversationId: string;
-  direction: "CLIENT" | "BOT" | "HUMAN";
-  content: string;
+  sender: "CLIENT" | "BOT" | "HUMAN";
+  text: string;
   createdAt: string;
 }
 
@@ -194,7 +202,7 @@ export default function ConversasChatPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <p className="text-xs text-gray-500 truncate flex-1">
-                          {truncate(conv.lastMessage, 40)}
+                          {truncate(conv.messages?.[0]?.text ?? null, 40)}
                         </p>
                         {conv.needsHumanAttention && (
                           <AlertCircle size={12} className="text-yellow-500 flex-shrink-0" />
@@ -252,8 +260,8 @@ export default function ConversasChatPage() {
                   </div>
                 ) : (
                   messages.map((msg) => {
-                    const isClient = msg.direction === "CLIENT";
-                    const isBot = msg.direction === "BOT";
+                    const isClient = msg.sender === "CLIENT";
+                    const isBot = msg.sender === "BOT";
                     return (
                       <div
                         key={msg.id}
@@ -279,7 +287,7 @@ export default function ConversasChatPage() {
                           )}
                           <p
                             className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
-                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.content) }}
+                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text) }}
                           />
                           <p className="text-[10px] text-gray-400 mt-1 text-right">
                             {formatTime(msg.createdAt)}

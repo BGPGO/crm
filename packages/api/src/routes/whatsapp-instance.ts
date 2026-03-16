@@ -34,6 +34,26 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
     const client = await EvolutionApiClient.fromConfig();
     const result = await client.getInstanceStatus();
 
+    // Sync connection status to DB so it stays up-to-date
+    const state = result?.instance?.state || 'unknown';
+    const stateLC = state.toLowerCase();
+    let mappedStatus: 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED';
+    if (stateLC === 'open' || stateLC === 'connected') {
+      mappedStatus = 'CONNECTED';
+    } else if (stateLC === 'connecting' || stateLC === 'pairing') {
+      mappedStatus = 'CONNECTING';
+    } else {
+      mappedStatus = 'DISCONNECTED';
+    }
+
+    const config = await prisma.whatsAppConfig.findFirst();
+    if (config) {
+      await prisma.whatsAppConfig.update({
+        where: { id: config.id },
+        data: { connectionStatus: mappedStatus },
+      });
+    }
+
     res.json({ data: result });
   } catch (err) {
     next(err);

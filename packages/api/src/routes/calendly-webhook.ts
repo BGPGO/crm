@@ -294,12 +294,15 @@ router.post('/', async (req: Request, res: Response) => {
           });
 
           if (defaultPipeline && defaultPipeline.stages.length > 0) {
-            // Find "Reuniao Marcada" stage or use first stage
+            // Find "Reunião agendada" stage — prefer exact match, then "agendada", then highest-order "reuni" stage
             const reuniaoStageForNew = defaultPipeline.stages.find(
-              (s) => s.name === 'Reunião Marcada'
+              (s) => s.name.toLowerCase() === 'reunião agendada'
             ) || defaultPipeline.stages.find(
-              (s) => s.name.toLowerCase().includes('reuni')
-            ) || defaultPipeline.stages[0];
+              (s) => s.name.toLowerCase().includes('agendada')
+            ) || [...defaultPipeline.stages]
+              .filter((s) => s.name.toLowerCase().includes('reuni'))
+              .sort((a, b) => b.order - a.order)[0]
+            || defaultPipeline.stages[0];
 
             // Find closer user or use first active user
             let dealUserId: string | null = null;
@@ -357,10 +360,15 @@ router.post('/', async (req: Request, res: Response) => {
           });
           console.log(`[calendly-webhook] Pipeline stages:`, allStages.map(s => `${s.name} (${s.id})`).join(', '));
 
-          // Try exact match first, then case-insensitive contains
-          let reuniaoStage = allStages.find(s => s.name === 'Reunião Marcada') || null;
+          // Try exact "Reunião agendada" first, then "agendada", then highest-order "reuni" stage
+          let reuniaoStage = allStages.find(s => s.name.toLowerCase() === 'reunião agendada') || null;
           if (!reuniaoStage) {
-            reuniaoStage = allStages.find(s => s.name.toLowerCase().includes('reuni')) || null;
+            reuniaoStage = allStages.find(s => s.name.toLowerCase().includes('agendada')) || null;
+          }
+          if (!reuniaoStage) {
+            reuniaoStage = [...allStages]
+              .filter(s => s.name.toLowerCase().includes('reuni'))
+              .sort((a, b) => b.order - a.order)[0] || null;
           }
 
           const updateData: Record<string, unknown> = {};
