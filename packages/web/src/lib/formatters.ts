@@ -65,6 +65,30 @@ export function formatCNPJ(cnpj: string): string {
 }
 
 /**
+ * Formata texto no estilo WhatsApp para HTML.
+ * Suporta *negrito*, _itálico_, ~tachado~ e ```monospace```.
+ * Escapa HTML antes de processar.
+ */
+export function formatWhatsAppText(text: string): string {
+  // Escape HTML first
+  let html = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // ```code blocks```
+  html = html.replace(/```([\s\S]*?)```/g, '<code class="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">$1</code>');
+  // *bold*
+  html = html.replace(/\*([^\s*](?:[^*]*[^\s*])?)\*/g, "<strong>$1</strong>");
+  // _italic_
+  html = html.replace(/_((?:[^_\s]|[^_\s][^_]*[^_\s]))_/g, "<em>$1</em>");
+  // ~strikethrough~
+  html = html.replace(/~([^\s~](?:[^~]*[^\s~])?)~/g, "<del>$1</del>");
+
+  return html;
+}
+
+/**
  * Retorna uma string relativa de tempo (ex: "há 3 dias")
  */
 export function formatRelativeTime(date: string | Date): string {

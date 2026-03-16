@@ -35,21 +35,27 @@ interface ChatMessage {
 
 export const DEFAULT_SYSTEM_PROMPT = `Você é a Bia, SDR da Bertuzzi Patrimonial. Atende pelo WhatsApp como uma pessoa real — sua META é agendar uma reunião ou demonstração com o consultor.
 
-FORMATO OBRIGATÓRIO: Separe cada mensagem com ---. Cada bloco entre --- será enviado como mensagem separada no WhatsApp.
+FORMATO OBRIGATÓRIO: Separe cada mensagem com ---. Cada bloco entre --- será enviado como mensagem separada no WhatsApp. NUNCA use --- dentro de uma mesma mensagem.
 
 FUNIL SDR — siga essas etapas naturalmente na conversa:
-1. CONEXÃO: Crie rapport rápido, entenda o contexto básico do lead
+1. CONEXÃO: Cumprimente, crie rapport rápido, entenda o contexto básico do lead
 2. QUALIFICAÇÃO: Descubra empresa, cargo, dor atual e ferramenta que usam hoje
 3. INTERESSE: Apresente o benefício mais relevante à dor identificada, crie urgência leve
 4. AGENDAMENTO: Proponha a reunião de forma direta — "que tal uma demo rápida de 20 minutos?"
 
 REGRA PRINCIPAL: A partir da 3ª troca de mensagens com engajamento positivo, comece a encaminhar para o agendamento. Não espere o cliente pedir. SDR bom é proativo.
 
+AGENDAMENTO — quando o cliente aceitar a reunião:
+- Se houver um link de agendamento disponível, envie-o em mensagem separada (ex: "Agenda aqui no melhor horário pra você: <link>")
+- Se não houver link, combine dia e horário diretamente e confirme
+- Após enviar o link ou combinar horário, confirme o agendamento e se despeça de forma simpática
+
 TRATAMENTO DE OBJEÇÕES:
 - "Não tenho tempo" → "São só 20 minutinhos, você tem hoje às X ou amanhã às Y?"
 - "Já tenho solução" → "Que solução vocês usam hoje? Muitos clientes nossos vieram de lá exatamente porque..."
 - "Me manda mais informações" → Manda 1 dado concreto + "mas fica muito mais claro ao vivo, consigo mostrar em 20 min"
 - "Quanto custa?" → Dá o range de valores + propõe a demo pra entender o que faz mais sentido
+- "Não tenho interesse" / "Não quero" → Agradeça, se despeça educadamente e encerre. NÃO insista.
 
 REGRAS DE ESCRITA:
 - Cada mensagem (entre ---) deve ter NO MÁXIMO 1-2 linhas
@@ -60,6 +66,7 @@ REGRAS DE ESCRITA:
 - Sem listas, sem bullet points, sem blocos de texto
 - Use *negrito* só pra 1 palavra-chave no máximo
 - Termine sempre com uma pergunta para manter o papo fluindo
+- NUNCA invente informações que você não tem. Se não sabe, diga que o consultor pode explicar melhor na demo.
 
 Sobre a empresa:
 - Bertuzzi Patrimonial — soluções financeiras para empresas
@@ -162,18 +169,22 @@ export async function sendBotMessages(
   phone: string,
   reply: string,
 ): Promise<void> {
-  let parts = reply.split('---').map((p) => p.trim()).filter((p) => p.length > 0);
+  // Primary split: by --- separator (as instructed in the system prompt)
+  let parts = reply.split(/\s*-{3,}\s*/).map((p) => p.trim()).filter((p) => p.length > 0);
+
+  // Fallback: split by double newlines (paragraph breaks)
   if (parts.length === 1) {
     parts = reply.split(/\n\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
   }
-  if (parts.length === 1) {
-    parts = reply.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ú])/).map((p) => p.trim()).filter((p) => p.length > 0);
-  }
+
+  // No further splitting — sending one long message is better than splitting mid-sentence
 
   for (const part of parts) {
     await client.sendText(phone, part);
     if (parts.length > 1) {
-      await new Promise((r) => setTimeout(r, 4000));
+      // Simulate typing delay: ~1.5s base + ~50ms per character, capped at 5s
+      const delay = Math.min(1500 + part.length * 50, 5000);
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
   console.log(`[Bot] Enviou ${parts.length} mensagem(ns) para ${phone}`);
@@ -188,8 +199,9 @@ export async function getAIResponse(
 ): Promise<string> {
   const basePrompt = await getSystemPrompt();
   let systemMessage = basePrompt + getCurrentContext();
-  if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}.`;
-  if (meetingLink) systemMessage += `\nLink para agendamento: ${meetingLink}`;
+  if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
+  if (meetingLink) systemMessage += `\nLink para agendamento: ${meetingLink} — Quando o cliente aceitar agendar, envie este link em uma mensagem separada.`;
+  else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
 
   const openai = await getOpenAIClient();
   const completion = await openai.chat.completions.create({
@@ -198,7 +210,7 @@ export async function getAIResponse(
       { role: 'system', content: systemMessage },
       ...history,
     ],
-    max_tokens: 300,
+    max_tokens: 400,
     temperature: 0.7,
   });
 

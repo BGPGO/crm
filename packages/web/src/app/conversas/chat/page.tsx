@@ -6,6 +6,7 @@ import ConversasNav from "@/components/conversas/ConversasNav";
 import { MessageSquare, Send, UserCheck, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import { formatWhatsAppText } from "@/lib/formatters";
 
 interface Conversation {
   id: string;
@@ -113,6 +114,13 @@ export default function ConversasChatPage() {
       setError("Erro ao atualizar conversa.");
     }
   };
+
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
 
   const selectedConv = conversations.find((c) => c.id === selectedId);
 
@@ -269,7 +277,10 @@ export default function ConversasChatPage() {
                               {isBot ? "Bot" : "Você"}
                             </p>
                           )}
-                          <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                          <p
+                            className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.content) }}
+                          />
                           <p className="text-[10px] text-gray-400 mt-1 text-right">
                             {formatTime(msg.createdAt)}
                           </p>
@@ -288,7 +299,7 @@ export default function ConversasChatPage() {
                     type="text"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                     placeholder="Digite sua mensagem..."
                     className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={sending}

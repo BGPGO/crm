@@ -50,6 +50,13 @@ export default function ConversasConfiguracaoPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Auto-dismiss success messages after 4 seconds
+  useEffect(() => {
+    if (!successMsg) return;
+    const timer = setTimeout(() => setSuccessMsg(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMsg]);
+
   const fetchStatus = useCallback(async () => {
     try {
       const res = await api.get<{ data: InstanceStatus }>("/whatsapp/instance/status");
@@ -379,7 +386,7 @@ export default function ConversasConfiguracaoPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Welcome Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de Boas-vindas</label>
                 <textarea
                   value={config.welcomeMessage}
                   onChange={(e) => updateField("welcomeMessage", e.target.value)}
@@ -390,7 +397,7 @@ export default function ConversasConfiguracaoPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prompt do Sistema</label>
                 <textarea
                   value={config.botSystemPrompt}
                   onChange={(e) => updateField("botSystemPrompt", e.target.value)}

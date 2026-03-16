@@ -3,13 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { Send, Trash2, Loader2, Bot } from "lucide-react";
+import { Send, Trash2, Bot, AlertTriangle } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import { formatWhatsAppText } from "@/lib/formatters";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  isError?: boolean;
 }
 
 export default function TestarIAPage() {
@@ -57,6 +59,7 @@ export default function TestarIAPage() {
       const errorMessage: ChatMessage = {
         role: "assistant",
         content: "Erro ao se comunicar com a IA. Verifique se a API Key da OpenAI esta configurada.",
+        isError: true,
       };
       setMessages([...updatedMessages, errorMessage]);
     } finally {
@@ -104,21 +107,37 @@ export default function TestarIAPage() {
                 >
                   <div
                     className={clsx(
-                      "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap",
+                      "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
                       msg.role === "user"
                         ? "bg-blue-600 text-white rounded-br-md"
+                        : msg.isError
+                        ? "bg-red-50 border border-red-200 text-red-700 rounded-bl-md"
                         : "bg-gray-100 text-gray-900 rounded-bl-md"
                     )}
                   >
-                    {msg.content}
+                    {msg.isError ? (
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-red-500" />
+                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                      </div>
+                    ) : msg.role === "user" ? (
+                      <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+                    ) : (
+                      <span
+                        className="whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                        dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.content) }}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5">
-                    <Loader2 size={16} className="animate-spin text-gray-400" />
+                  <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 </div>
               )}

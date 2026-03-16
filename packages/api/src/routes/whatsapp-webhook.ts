@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { handleMessage } from '../services/whatsappBot';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
@@ -14,7 +15,17 @@ function isDuplicate(messageId: string): boolean {
   return false;
 }
 
-// POST /api/whatsapp-webhook/:instance — Webhook receiver from Evolution API (PUBLIC)
+/**
+ * Map Evolution API connection state strings to our enum.
+ */
+function mapConnectionStatus(state: string): 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' {
+  const s = state.toLowerCase();
+  if (s === 'open' || s === 'connected') return 'CONNECTED';
+  if (s === 'connecting' || s === 'pairing') return 'CONNECTING';
+  return 'DISCONNECTED';
+}
+
+// POST /api/whatsapp/webhook/:instance — Webhook receiver from Evolution API (PUBLIC)
 router.post('/:instance', async (req: Request, res: Response) => {
   // Always return 200 to Evolution API — never error
   try {
@@ -40,6 +51,11 @@ router.post('/:instance', async (req: Request, res: Response) => {
         return res.status(200).json({ received: true });
       }
 
+      // Ignore status broadcasts
+      if (remoteJid === 'status@broadcast') {
+        return res.status(200).json({ received: true });
+      }
+
       // Dedup check
       const messageId = message.key?.id;
       if (messageId && isDuplicate(messageId)) {
@@ -51,9 +67,23 @@ router.post('/:instance', async (req: Request, res: Response) => {
       handleMessage(payload, instance).catch((err) => {
         console.error('[whatsapp-webhook] Error handling message:', err);
       });
-    } else if (event === 'connection.update') {
+    } else if (event === 'connection.update' || event === 'CONNECTION_UPDATE') {
       const state = body.data?.state || body.data?.status || 'unknown';
       console.log(`[whatsapp-webhook] Connection update for ${instance}: ${state}`);
+
+      // Persist connection status in the DB
+      try {
+        const mappedStatus = mapConnectionStatus(state);
+        await prisma.whatsAppConfig.updateMany({
+          where: { instanceName: instance },
+          data: { connectionStatus: mappedStatus },
+        });
+      } catch (dbErr) {
+        console.error('[whatsapp-webhook] Failed to update connection status:', dbErr);
+      }
+    } else if (event === 'qrcode.updated' || event === 'QRCODE_UPDATED') {
+      console.log(`[whatsapp-webhook] QR code updated for ${instance}`);
+      // QR code events are handled by the /connect endpoint polling; log only
     }
 
     res.status(200).json({ received: true });

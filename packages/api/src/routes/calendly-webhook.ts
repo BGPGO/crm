@@ -33,10 +33,27 @@ function verifySignature(
     .update(data)
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
+  // timingSafeEqual requires same-length buffers
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return false;
+
+  return crypto.timingSafeEqual(sigBuf, expBuf);
+}
+
+/**
+ * Extract phone number from Calendly questions_and_answers if available.
+ */
+function extractPhoneFromQA(questionsAndAnswers: Array<{ question: string; answer: string }> | undefined): string | null {
+  if (!Array.isArray(questionsAndAnswers)) return null;
+  const phoneQA = questionsAndAnswers.find(
+    (qa) =>
+      qa.question?.toLowerCase().includes('telefone') ||
+      qa.question?.toLowerCase().includes('phone') ||
+      qa.question?.toLowerCase().includes('whatsapp') ||
+      qa.question?.toLowerCase().includes('celular')
   );
+  return phoneQA?.answer?.trim() || null;
 }
 
 // POST /api/calendly/webhook — Receive Calendly webhook events (PUBLIC)
@@ -49,9 +66,14 @@ router.post('/', async (req: Request, res: Response) => {
     const config = await prisma.calendlyConfig.findFirst();
 
     // If webhookSecret is configured, validate signature
+    // NOTE: For proper signature verification, the raw body should be captured
+    // via express.raw() middleware. Using JSON.stringify(body) as a fallback
+    // may differ from the original payload. If signature issues occur,
+    // configure a raw body capture middleware.
     if (config?.webhookSecret) {
       const signatureHeader = req.headers['calendly-webhook-signature'] as string | undefined;
-      const rawBody = JSON.stringify(body);
+      // Use raw body if available (set by middleware), else fall back to stringify
+      const rawBody = (req as unknown as Record<string, string>).rawBody || JSON.stringify(body);
       if (!verifySignature(rawBody, signatureHeader, config.webhookSecret)) {
         console.warn('[calendly-webhook] Invalid signature — ignoring');
         return res.status(200).json({ received: true, error: 'invalid_signature' });
@@ -69,19 +91,34 @@ router.post('/', async (req: Request, res: Response) => {
 
       const inviteeEmail = payload.email?.toLowerCase()?.trim() || '';
       const inviteeName = payload.name?.trim() || null;
-      // payload.uri is the invitee URI; scheduled_event.uri is the event URI
+      const timezone = payload.timezone || null;
+      const cancelUrl = payload.cancel_url || null;
+      const rescheduleUrl = payload.reschedule_url || null;
+      const questionsAndAnswers = payload.questions_and_answers;
+      const inviteePhone = extractPhoneFromQA(questionsAndAnswers);
+
+      // The invitee URI uniquely identifies this invitee record
+      const inviteeUri = payload.uri || '';
+
+      // scheduled_event contains the actual event details
       const scheduledEvent = payload.scheduled_event || {};
-      const calendlyEventId = payload.uri || scheduledEvent.uri || '';
-      const eventType = scheduledEvent.name || payload.event_type?.name || payload.event_type || 'Meeting';
+      const scheduledEventUri = scheduledEvent.uri || '';
+
+      // Use invitee URI as the unique key (each invitee is unique per event)
+      const calendlyEventId = inviteeUri || scheduledEventUri;
+
+      // Event type name comes from scheduled_event.name (human-readable)
+      // payload.event_type is a URL string, NOT an object — do not use .name on it
+      const eventType = scheduledEvent.name || 'Meeting';
       const startTime = scheduledEvent.start_time;
       const endTime = scheduledEvent.end_time;
 
-      // Host info (the closer)
+      // Host info (the closer) — from event_memberships
       const eventMemberships = scheduledEvent.event_memberships || [];
       const hostEmail = eventMemberships[0]?.user_email?.toLowerCase() || null;
       const hostName = eventMemberships[0]?.user_name || null;
 
-      console.log(`[calendly-webhook] Parsed: email=${inviteeEmail}, name=${inviteeName}, eventId=${calendlyEventId}, type=${eventType}, start=${startTime}, host=${hostEmail}`);
+      console.log(`[calendly-webhook] Parsed: email=${inviteeEmail}, name=${inviteeName}, phone=${inviteePhone}, eventId=${calendlyEventId}, type=${eventType}, start=${startTime}, host=${hostEmail}`);
 
       // 1. Save CalendlyEvent
       const calendlyEvent = await prisma.calendlyEvent.upsert({
@@ -120,9 +157,22 @@ router.post('/', async (req: Request, res: Response) => {
           })
         : null;
 
-      // Fallback: try matching by name if email didn't match
+      // Fallback: try matching by phone if available
+      if (!contact && inviteePhone) {
+        console.log(`[calendly-webhook] Email match failed, trying phone match: "${inviteePhone}"`);
+        contact = await prisma.contact.findFirst({
+          where: {
+            phone: { contains: inviteePhone.replace(/\D/g, '').slice(-9) },
+          },
+        });
+        if (contact) {
+          console.log(`[calendly-webhook] Found contact by phone: ${contact.id} (${contact.name})`);
+        }
+      }
+
+      // Fallback: try matching by name if email and phone didn't match
       if (!contact && inviteeName) {
-        console.log(`[calendly-webhook] Email match failed, trying name match: "${inviteeName}"`);
+        console.log(`[calendly-webhook] Phone match failed, trying name match: "${inviteeName}"`);
         contact = await prisma.contact.findFirst({
           where: {
             name: { equals: inviteeName, mode: 'insensitive' },
@@ -133,8 +183,29 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
+      // 2b. Auto-create Contact if none found and we have an email
+      if (!contact && inviteeEmail) {
+        console.log(`[calendly-webhook] No contact found, auto-creating for email=${inviteeEmail}`);
+        contact = await prisma.contact.create({
+          data: {
+            name: inviteeName || inviteeEmail.split('@')[0],
+            email: inviteeEmail,
+            phone: inviteePhone,
+          },
+        });
+        console.log(`[calendly-webhook] Auto-created contact: ${contact.id}`);
+      }
+
       if (contact) {
-        console.log(`[calendly-webhook] Found contact: id=${contact.id}, name=${contact.name}, email=${contact.email}`);
+        console.log(`[calendly-webhook] Using contact: id=${contact.id}, name=${contact.name}, email=${contact.email}`);
+
+        // Update contact phone if we got one from Calendly and contact doesn't have one
+        if (inviteePhone && !contact.phone) {
+          await prisma.contact.update({
+            where: { id: contact.id },
+            data: { phone: inviteePhone },
+          });
+        }
 
         // Link event to contact
         await prisma.calendlyEvent.update({
@@ -143,7 +214,7 @@ router.post('/', async (req: Request, res: Response) => {
         });
 
         // 3. Find OPEN deal associated to this contact
-        const deal = await prisma.deal.findFirst({
+        let deal = await prisma.deal.findFirst({
           where: {
             contactId: contact.id,
             status: 'OPEN',
@@ -152,11 +223,74 @@ router.post('/', async (req: Request, res: Response) => {
           orderBy: { createdAt: 'desc' },
         });
 
+        // 3b. Auto-create deal if none exists
+        if (!deal) {
+          console.log(`[calendly-webhook] No OPEN deal found, auto-creating for contact=${contact.id}`);
+
+          // Find default pipeline
+          const defaultPipeline = await prisma.pipeline.findFirst({
+            where: { isDefault: true },
+            include: { stages: { orderBy: { order: 'asc' } } },
+          });
+
+          if (defaultPipeline && defaultPipeline.stages.length > 0) {
+            // Find "Reuniao Marcada" stage or use first stage
+            const reuniaoStageForNew = defaultPipeline.stages.find(
+              (s) => s.name === 'Reunião Marcada'
+            ) || defaultPipeline.stages.find(
+              (s) => s.name.toLowerCase().includes('reuni')
+            ) || defaultPipeline.stages[0];
+
+            // Find closer user or use first active user
+            let dealUserId: string | null = null;
+            if (hostEmail) {
+              const closerUser = await prisma.user.findFirst({
+                where: { email: { equals: hostEmail, mode: 'insensitive' }, isActive: true },
+              });
+              if (closerUser) dealUserId = closerUser.id;
+            }
+            if (!dealUserId) {
+              const fallbackUser = await prisma.user.findFirst({
+                where: { isActive: true },
+                orderBy: { createdAt: 'asc' },
+              });
+              dealUserId = fallbackUser?.id || '';
+            }
+
+            if (dealUserId) {
+              // Find Calendly source or create one
+              let source = await prisma.source.findFirst({
+                where: { name: 'Calendly' },
+              });
+              if (!source) {
+                source = await prisma.source.create({
+                  data: { name: 'Calendly' },
+                });
+              }
+
+              deal = await prisma.deal.create({
+                data: {
+                  title: `${inviteeName || inviteeEmail} - ${eventType}`,
+                  pipelineId: defaultPipeline.id,
+                  stageId: reuniaoStageForNew.id,
+                  contactId: contact.id,
+                  userId: dealUserId,
+                  sourceId: source.id,
+                  status: 'OPEN',
+                },
+                include: { stage: true },
+              });
+              console.log(`[calendly-webhook] Auto-created deal: ${deal.id} in stage ${reuniaoStageForNew.name}`);
+            }
+          } else {
+            console.warn(`[calendly-webhook] Cannot auto-create deal: no default pipeline found`);
+          }
+        }
+
         if (deal) {
           console.log(`[calendly-webhook] Found deal: id=${deal.id}, currentStage=${deal.stage?.name}, pipelineId=${deal.pipelineId}`);
 
           // 4. Find "Reunião Marcada" stage in the same pipeline
-          // Log all stages for debugging
           const allStages = await prisma.pipelineStage.findMany({
             where: { pipelineId: deal.pipelineId },
             orderBy: { order: 'asc' },
@@ -204,7 +338,6 @@ router.post('/', async (req: Request, res: Response) => {
           });
 
           // 6. Create Activity on deal
-          // Find a system user for the activity (prefer closer, fallback to deal owner)
           const activityUserId = (updateData.userId as string) || deal.userId;
 
           await prisma.activity.create({
@@ -214,10 +347,16 @@ router.post('/', async (req: Request, res: Response) => {
               metadata: {
                 source: 'calendly',
                 calendlyEventId,
+                scheduledEventUri,
                 inviteeEmail,
+                inviteePhone,
                 hostEmail,
                 startTime,
                 endTime,
+                timezone,
+                cancelUrl,
+                rescheduleUrl,
+                questionsAndAnswers,
               },
               userId: activityUserId,
               dealId: deal.id,
@@ -227,21 +366,60 @@ router.post('/', async (req: Request, res: Response) => {
 
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);
         } else {
-          console.log(`[calendly-webhook] Contact found (${contact.id}) but no OPEN deal`);
+          console.log(`[calendly-webhook] Contact found/created (${contact.id}) but could not find or create deal`);
         }
       } else {
-        console.log(`[calendly-webhook] No contact found for email="${inviteeEmail}" or name="${inviteeName}"`);
+        console.log(`[calendly-webhook] No contact found and no email to auto-create`);
       }
     } else if (event === 'invitee.canceled') {
       const payload = body.payload;
-      const calendlyEventId = payload?.uri || payload?.event || '';
+      if (!payload) {
+        return res.status(200).json({ received: true });
+      }
+
+      // payload.uri is the invitee URI — same key we stored as calendlyEventId on creation
+      const calendlyEventId = payload.uri || '';
 
       if (calendlyEventId) {
-        await prisma.calendlyEvent.updateMany({
+        const updated = await prisma.calendlyEvent.updateMany({
           where: { calendlyEventId },
           data: { status: 'canceled' },
         });
-        console.log(`[calendly-webhook] Canceled event: ${calendlyEventId}`);
+        console.log(`[calendly-webhook] Canceled event: ${calendlyEventId} (${updated.count} records updated)`);
+
+        // If we have a linked deal, create an activity noting the cancellation
+        if (updated.count > 0) {
+          const canceledEvent = await prisma.calendlyEvent.findFirst({
+            where: { calendlyEventId },
+          });
+          if (canceledEvent?.dealId && canceledEvent?.contactId) {
+            // Find a user for the activity
+            const deal = await prisma.deal.findFirst({
+              where: { id: canceledEvent.dealId },
+            });
+            if (deal) {
+              await prisma.activity.create({
+                data: {
+                  type: 'MEETING',
+                  content: `Reunião Calendly cancelada: ${canceledEvent.eventType}. Invitado: ${canceledEvent.inviteeName || canceledEvent.inviteeEmail}.`,
+                  metadata: {
+                    source: 'calendly',
+                    action: 'canceled',
+                    calendlyEventId,
+                    cancelerName: payload.canceler_name || null,
+                    cancelReason: payload.cancel_reason || null,
+                  },
+                  userId: deal.userId,
+                  dealId: canceledEvent.dealId,
+                  contactId: canceledEvent.contactId,
+                },
+              });
+              console.log(`[calendly-webhook] Created cancellation activity for deal ${canceledEvent.dealId}`);
+            }
+          }
+        }
+      } else {
+        console.warn(`[calendly-webhook] invitee.canceled but no URI in payload`);
       }
     }
 

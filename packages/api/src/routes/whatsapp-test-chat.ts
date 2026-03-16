@@ -21,9 +21,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     const config = await prisma.whatsAppConfig.findFirst();
     const meetingLink = config?.meetingLink || null;
 
+    // Sanitize history: only allow valid roles and non-empty content
+    const validRoles = new Set(['user', 'assistant']);
+    const sanitizedHistory = (Array.isArray(history) ? history : []).filter(
+      (h) => h && validRoles.has(h.role) && typeof h.content === 'string' && h.content.trim().length > 0,
+    );
+
     // Build history with current message
     const chatHistory = [
-      ...(Array.isArray(history) ? history : []),
+      ...sanitizedHistory,
       { role: 'user' as const, content: message },
     ];
 

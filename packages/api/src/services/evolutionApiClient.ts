@@ -142,8 +142,11 @@ export class EvolutionApiClient {
   // ─── Messaging ──────────────────────────────────────────────────────────
 
   async sendText(number: string, text: string): Promise<SendTextResponse> {
+    // Evolution API v2 accepts both formats; v2 prefers { number, text }
+    // but we send both for backwards compatibility with v1 (textMessage: { text })
     const res = await this.client.post(`/message/sendText/${this.instance}`, {
       number,
+      text,
       textMessage: { text },
     });
     return res.data;
