@@ -96,6 +96,12 @@ async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
     return;
   }
 
+  // 6b. Check if SDR auto message is enabled
+  if (!config.sdrAutoMessageEnabled) {
+    console.log('[LeadQualification] Mensagem automática SDR desabilitada — SDR IA não ativada');
+    return;
+  }
+
   // 7. Build context string
   const contextString = buildCampaignContext({
     contactName: contact.name,
@@ -294,6 +300,13 @@ async function delayedCalendlyCheck(contactId: string, dealId: string): Promise<
 
 export async function onLeadCreated(contactId: string, dealId: string): Promise<void> {
   console.log(`[LeadQualification] Lead criado: contact=${contactId} deal=${dealId}`);
+
+  // Check if lead qualification is enabled
+  const config = await prisma.whatsAppConfig.findFirst();
+  if (config && !config.leadQualificationEnabled) {
+    console.log('[LeadQualification] Qualificação de leads desabilitada — ignorando lead criado');
+    return;
+  }
 
   const timerKey = `${contactId}:${dealId}`;
 

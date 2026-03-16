@@ -880,7 +880,9 @@ model WhatsAppConfig {
   botSystemPrompt    String?                   @db.Text
   welcomeMessage     String?                   @db.Text
   connectionStatus   WhatsAppConnectionStatus  @default(DISCONNECTED)
-  followUpEnabled    Boolean                   @default(false)
+  followUpEnabled              Boolean                   @default(false)
+  leadQualificationEnabled     Boolean                   @default(true)
+  sdrAutoMessageEnabled        Boolean                   @default(true)
 
   followUpSteps WhatsAppFollowUpStep[]
 

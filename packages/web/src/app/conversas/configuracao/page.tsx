@@ -24,6 +24,9 @@ interface BotConfig {
   welcomeMessage: string;
   botSystemPrompt: string;
   botEnabled: boolean;
+  followUpEnabled: boolean;
+  leadQualificationEnabled: boolean;
+  sdrAutoMessageEnabled: boolean;
 }
 
 const defaultConfig: BotConfig = {
@@ -38,6 +41,9 @@ const defaultConfig: BotConfig = {
   welcomeMessage: "",
   botSystemPrompt: "",
   botEnabled: false,
+  followUpEnabled: true,
+  leadQualificationEnabled: true,
+  sdrAutoMessageEnabled: true,
 };
 
 export default function ConversasConfiguracaoPage() {
@@ -270,7 +276,73 @@ export default function ConversasConfiguracaoPage() {
           )}
         </Card>
 
-        {/* Section 2: Bot Configuration */}
+        {/* Section 2: Feature Toggles */}
+        <Card padding="lg">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">Funcionalidades</h2>
+          {configLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {([
+                {
+                  field: "botEnabled" as keyof BotConfig,
+                  label: "Bot SDR IA",
+                  description: "Ativa/desativa o bot que responde mensagens no WhatsApp",
+                },
+                {
+                  field: "followUpEnabled" as keyof BotConfig,
+                  label: "Follow-up Automático",
+                  description: "Envia follow-ups automáticos para leads que não responderam",
+                },
+                {
+                  field: "leadQualificationEnabled" as keyof BotConfig,
+                  label: "Qualificação de Leads",
+                  description: "Verifica Calendly e ativa SDR IA quando lead entra pela LP",
+                },
+                {
+                  field: "sdrAutoMessageEnabled" as keyof BotConfig,
+                  label: "Mensagem Automática SDR",
+                  description: "Envia primeira mensagem automática via WhatsApp para novos leads",
+                },
+              ] as Array<{ field: keyof BotConfig; label: string; description: string }>).map(({ field, label, description }) => (
+                <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                  <div className="flex-1 mr-4">
+                    <p className="text-sm font-medium text-gray-800">{label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+                  </div>
+                  <button
+                    onClick={() => updateField(field, !config[field])}
+                    className={clsx(
+                      "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
+                      config[field] ? "bg-blue-600" : "bg-gray-300"
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                        config[field] ? "translate-x-6" : "translate-x-1"
+                      )}
+                    />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={saveConfig}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save size={16} />
+                {saving ? "Salvando..." : "Salvar Configurações"}
+              </button>
+            </div>
+          )}
+        </Card>
+
+        {/* Section 3: Bot Configuration */}
         <Card padding="lg">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-900">Configurações do Bot</h2>
