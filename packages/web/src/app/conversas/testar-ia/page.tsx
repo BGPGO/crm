@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { Send, Trash2, Bot, AlertTriangle } from "lucide-react";
+import { Send, Trash2, Bot, AlertTriangle, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
@@ -20,6 +20,15 @@ export default function TestarIAPage() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Simulate Lead panel state
+  const [simPanelOpen, setSimPanelOpen] = useState(false);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
+  const [simContext, setSimContext] = useState<string | null>(null);
+  const [contactName, setContactName] = useState("");
+  const [campaignName, setCampaignName] = useState("");
+  const [sourceName, setSourceName] = useState("");
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -78,13 +87,128 @@ export default function TestarIAPage() {
   const clearChat = () => {
     setMessages([]);
     setInput("");
+    setSimContext(null);
     inputRef.current?.focus();
+  };
+
+  const simulateLead = async () => {
+    if (!contactName.trim() || simLoading) return;
+    setSimLoading(true);
+    setSimError(null);
+    try {
+      const res = await api.post<{ data: { reply: string; context?: string } }>(
+        "/whatsapp/test-chat/simulate-lead",
+        {
+          contactName: contactName.trim(),
+          campaignName: campaignName.trim() || undefined,
+          sourceName: sourceName.trim() || undefined,
+        }
+      );
+      const botMessage: ChatMessage = {
+        role: "assistant",
+        content: res.data.reply,
+      };
+      setMessages([botMessage]);
+      if (res.data.context) {
+        setSimContext(res.data.context);
+      }
+      setSimPanelOpen(false);
+    } catch {
+      setSimError("Erro ao simular lead. Verifique se a API esta acessivel.");
+    } finally {
+      setSimLoading(false);
+    }
   };
 
   return (
     <div className="flex flex-col h-full">
       <Header title="Testar IA" breadcrumb={["Conversas", "Testar IA"]} />
       <ConversasNav />
+
+      {/* Simulate Lead Panel */}
+      <div className="bg-indigo-50 border border-indigo-200 mx-4 mt-3 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setSimPanelOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <UserPlus size={16} />
+            Simular Entrada de Lead
+          </span>
+          {simPanelOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {simPanelOpen && (
+          <div className="px-4 pb-4 pt-1 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                  Nome do Lead <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={contactName}
+                  onChange={(e) => setContactName(e.target.value)}
+                  placeholder="Ex: João Silva"
+                  disabled={simLoading}
+                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                  Campanha
+                </label>
+                <input
+                  type="text"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  placeholder="Ex: GoBI Maio 2026"
+                  disabled={simLoading}
+                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                  Fonte
+                </label>
+                <input
+                  type="text"
+                  value={sourceName}
+                  onChange={(e) => setSourceName(e.target.value)}
+                  placeholder="Ex: Google Ads"
+                  disabled={simLoading}
+                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            {simError && (
+              <p className="text-xs text-red-600 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                {simError}
+              </p>
+            )}
+
+            <button
+              onClick={simulateLead}
+              disabled={!contactName.trim() || simLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {simLoading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Simulando...
+                </>
+              ) : (
+                <>
+                  <UserPlus size={14} />
+                  Simular
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="flex-1 flex flex-col min-h-0">
         {/* Messages area */}
@@ -97,6 +221,12 @@ export default function TestarIAPage() {
             </div>
           ) : (
             <div className="max-w-3xl mx-auto space-y-4">
+              {simContext && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-700">
+                  <UserPlus size={13} className="mt-0.5 flex-shrink-0" />
+                  <span><span className="font-medium">Contexto usado:</span> {simContext}</span>
+                </div>
+              )}
               {messages.map((msg, i) => (
                 <div
                   key={i}

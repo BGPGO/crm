@@ -41,4 +41,27 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// POST /api/whatsapp/test-chat/simulate-lead — Simulate a lead entry with campaign context
+router.post('/simulate-lead', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { contactName, campaignName, sourceName } = req.body;
+
+    if (!contactName) {
+      return res.status(400).json({ error: 'contactName é obrigatório' });
+    }
+
+    const { simulateLeadEntry } = await import('../services/leadQualificationEngine');
+    const result = await simulateLeadEntry({
+      contactName,
+      campaignName: campaignName || undefined,
+      sourceName: sourceName || undefined,
+    });
+
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
+

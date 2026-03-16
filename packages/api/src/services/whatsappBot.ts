@@ -196,12 +196,16 @@ export async function getAIResponse(
   history: ChatMessage[],
   pushName: string,
   meetingLink?: string | null,
+  extraContext?: string,
 ): Promise<string> {
   const basePrompt = await getSystemPrompt();
   let systemMessage = basePrompt + getCurrentContext();
   if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
   if (meetingLink) systemMessage += `\nLink para agendamento: ${meetingLink} — Quando o cliente aceitar agendar, envie este link em uma mensagem separada.`;
   else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
+  if (extraContext) {
+    systemMessage += '\n\n' + extraContext;
+  }
 
   const openai = await getOpenAIClient();
   const completion = await openai.chat.completions.create({

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
+import { onLeadCreated } from '../services/leadQualificationEngine';
 
 const router = Router();
 
@@ -295,6 +296,11 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       source: sourceName ?? null,
       campaign: campaignRef ?? null,
       tracking: { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, referrer, landingPage },
+    });
+
+    // Trigger lead qualification engine (checks Calendly, activates SDR IA if needed)
+    onLeadCreated(contact.id, deal.id).catch((err: unknown) => {
+      console.error('[LeadQualification] Erro ao iniciar qualificação:', err);
     });
 
     return res.status(200).json({ success: true, contactId: contact.id, dealId: deal.id });
