@@ -74,6 +74,7 @@ export default function TopNavbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifTasks, setNotifTasks] = useState<NotifTask[]>([]);
   const [notifCount, setNotifCount] = useState(0);
+  const [overdueCount, setOverdueCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +87,7 @@ export default function TopNavbar() {
       ]);
       const total = pending.meta.total + overdue.meta.total;
       setNotifCount(total);
+      setOverdueCount(overdue.meta.total);
       // Merge overdue first, then pending, max 8
       const merged = [...overdue.data, ...pending.data].slice(0, 8);
       setNotifTasks(merged);
@@ -187,11 +189,19 @@ export default function TopNavbar() {
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen((prev) => !prev)}
-            className="relative p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className={clsx(
+              "relative p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors",
+              overdueCount > 0 && "animate-bounce"
+            )}
           >
-            <Bell size={18} />
+            <Bell size={18} className={clsx(overdueCount > 0 && "text-red-500")} />
             {notifCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
+              <span className={clsx(
+                "absolute -top-1 -right-1 flex items-center justify-center bg-red-500 text-white font-bold rounded-full",
+                overdueCount > 0
+                  ? "min-w-[20px] h-5 px-1.5 text-[11px] animate-pulse"
+                  : "min-w-[16px] h-4 px-1 text-[10px]"
+              )}>
                 {notifCount > 99 ? "99+" : notifCount}
               </span>
             )}
@@ -199,6 +209,12 @@ export default function TopNavbar() {
 
           {notifOpen && (
             <div className="absolute right-0 top-full mt-1 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+              {overdueCount > 0 && (
+                <div className="px-4 py-2.5 bg-red-600 text-white flex items-center gap-2 rounded-t-lg">
+                  <span className="text-sm">🔴</span>
+                  <span className="text-xs font-bold">{overdueCount} tarefa{overdueCount > 1 ? "s" : ""} atrasada{overdueCount > 1 ? "s" : ""}</span>
+                </div>
+              )}
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-900">Notificações</h3>
                 {notifCount > 0 && (
@@ -219,7 +235,12 @@ export default function TopNavbar() {
                         key={task.id}
                         href="/tasks"
                         onClick={() => setNotifOpen(false)}
-                        className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                        className={clsx(
+                          "flex items-start gap-3 px-4 py-3 transition-colors border-b border-gray-50 last:border-0",
+                          isOverdue
+                            ? "bg-red-50 border-l-4 border-l-red-500 hover:bg-red-100"
+                            : "hover:bg-gray-50"
+                        )}
                       >
                         <div className={clsx(
                           "mt-0.5 p-1.5 rounded-full flex-shrink-0",

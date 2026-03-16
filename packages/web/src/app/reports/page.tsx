@@ -1,89 +1,427 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
-import { BarChart3, TrendingUp, Users, DollarSign } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
+import Badge from "@/components/ui/Badge";
+import {
+  DollarSign,
+  TrendingUp,
+  BarChart3,
+  AlertTriangle,
+  Clock,
+  Phone,
+  Mail,
+  Calendar,
+  MapPin,
+  MoreHorizontal,
+  CheckCircle,
+  XCircle,
+  Loader2,
+} from "lucide-react";
+import { formatCurrency, formatDate, formatRelativeTime } from "@/lib/formatters";
+import { api } from "@/lib/api";
 
-const reportCards = [
-  {
-    title: "Receita por Mês",
-    icon: DollarSign,
-    color: "text-green-600",
-    bg: "bg-green-50",
-    description: "Evolução da receita fechada nos últimos 6 meses",
-  },
-  {
-    title: "Funil de Conversão",
-    icon: TrendingUp,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
-    description: "Taxa de conversão entre etapas do pipeline",
-  },
-  {
-    title: "Desempenho por Vendedor",
-    icon: Users,
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-    description: "Negociações e receita por membro da equipe",
-  },
-  {
-    title: "Produtos Mais Vendidos",
-    icon: BarChart3,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
-    description: "Ranking dos produtos com maior volume de vendas",
-  },
-];
+interface PipelineStage {
+  id: string;
+  name: string;
+  color: string;
+  order: number;
+  _count?: { deals: number };
+}
 
-const summaryStats = [
-  { label: "Receita Total (ano)", value: formatCurrency(1284500) },
-  { label: "Ticket Médio", value: formatCurrency(32800) },
-  { label: "Ciclo Médio de Venda", value: "18 dias" },
-  { label: "Deals Ganhos (ano)", value: "39" },
-];
+interface PipelineSummary {
+  pipeline: { id: string; name: string };
+  stages: PipelineStage[];
+  summary: {
+    totalDeals: number;
+    totalValue: number;
+    openDeals: number;
+    wonDeals: number;
+    lostDeals: number;
+    conversionRate: number;
+  };
+}
+
+interface Activity {
+  id: string;
+  type: string;
+  description: string;
+  createdAt: string;
+  deal?: { title: string } | null;
+  user?: { name: string } | null;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  type: "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
+  dueDate: string | null;
+  status: "PENDING" | "COMPLETED" | "OVERDUE";
+}
+
+interface TaskCounts {
+  ALL: number;
+  PENDING: number;
+  COMPLETED: number;
+  OVERDUE: number;
+}
+
+const taskTypeIcons: Record<string, typeof Phone> = {
+  CALL: Phone,
+  EMAIL: Mail,
+  MEETING: Calendar,
+  VISIT: MapPin,
+  OTHER: MoreHorizontal,
+};
+
+const taskTypeLabels: Record<string, string> = {
+  CALL: "Ligação",
+  EMAIL: "E-mail",
+  MEETING: "Reunião",
+  VISIT: "Visita",
+  OTHER: "Outro",
+};
 
 export default function ReportsPage() {
+  const [loading, setLoading] = useState(true);
+  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummary | null>(null);
+  const [taskCounts, setTaskCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch pipelines first to get the default one
+      const pipelinesRes = await api.get<{ data: { id: string; name: string }[] }>("/pipelines");
+      const defaultPipeline = pipelinesRes.data?.[0];
+
+      const promises: Promise<void>[] = [];
+
+      // Pipeline summary
+      if (defaultPipeline) {
+        promises.push(
+          api.get<{ data: PipelineSummary }>(`/pipelines/${defaultPipeline.id}/summary`).then((res) => {
+            setPipelineSummary(res.data);
+          }).catch(() => {})
+        );
+      }
+
+      // Task counts
+      promises.push(
+        api.get<{ data: TaskCounts }>("/tasks/counts").then((res) => {
+          setTaskCounts(res.data);
+        }).catch(() => {})
+      );
+
+      // Recent activities
+      promises.push(
+        api.get<{ data: Activity[] }>("/activities?limit=10").then((res) => {
+          setActivities(res.data);
+        }).catch(() => {})
+      );
+
+      // Pending tasks
+      promises.push(
+        api.get<{ data: Task[] }>("/tasks?status=PENDING&limit=8").then((res) => {
+          setPendingTasks(res.data);
+        }).catch(() => {})
+      );
+
+      await Promise.all(promises);
+    } catch (err) {
+      console.error("Erro ao carregar relatórios:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const summary = pipelineSummary?.summary;
+  const stages = pipelineSummary?.stages || [];
+  const maxDealsInStage = Math.max(...stages.map((s) => s._count?.deals || 0), 1);
+
+  const totalDeals = summary?.totalDeals || 0;
+  const openDeals = summary?.openDeals || 0;
+  const wonDeals = summary?.wonDeals || 0;
+  const lostDeals = summary?.lostDeals || 0;
+  const openPct = totalDeals > 0 ? Math.round((openDeals / totalDeals) * 100) : 0;
+  const wonPct = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
+  const lostPct = totalDeals > 0 ? Math.round((lostDeals / totalDeals) * 100) : 0;
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full overflow-auto">
+        <Header title="Relatórios" breadcrumb={["Analytics", "Relatórios"]} />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-gray-400">
+            <Loader2 size={24} className="animate-spin" />
+            <span className="text-sm">Carregando relatórios...</span>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Relatórios" breadcrumb={["Analytics", "Relatórios"]} />
 
       <main className="flex-1 p-6 space-y-6">
-        {/* Summary */}
+        {/* Row 1 - Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {summaryStats.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
-            >
-              <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-              <p className="text-xl font-bold text-gray-900">{stat.value}</p>
+          {/* Total de Negociações */}
+          <Card padding="md">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+                <BarChart3 size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Total de Negociações</p>
+                <p className="text-2xl font-bold text-gray-900">{totalDeals}</p>
+              </div>
             </div>
-          ))}
+          </Card>
+
+          {/* Valor Total em Aberto */}
+          <Card padding="md">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-green-50 text-green-600">
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Valor em Aberto</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(summary?.totalValue || 0)}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Taxa de Conversão */}
+          <Card padding="md">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+                <TrendingUp size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Taxa de Conversão</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {summary?.conversionRate?.toFixed(1) || "0"}%
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Tarefas Atrasadas */}
+          <Card padding="md" className={taskCounts.OVERDUE > 0 ? "ring-2 ring-red-200 bg-red-50" : ""}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${taskCounts.OVERDUE > 0 ? "bg-red-100 text-red-600 animate-pulse" : "bg-orange-50 text-orange-600"}`}>
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Tarefas Atrasadas</p>
+                <p className={`text-2xl font-bold ${taskCounts.OVERDUE > 0 ? "text-red-600" : "text-gray-900"}`}>
+                  {taskCounts.OVERDUE}
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
 
-        {/* Report Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {reportCards.map((report) => {
-            const Icon = report.icon;
-            return (
-              <Card key={report.title} padding="md">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className={`${report.bg} ${report.color} p-2.5 rounded-xl`}>
-                    <Icon size={22} />
+        {/* Row 2 - Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pipeline por Etapa */}
+          <Card padding="md">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Pipeline por Etapa</h3>
+            {stages.length === 0 ? (
+              <div className="py-8 text-center text-sm text-gray-400">
+                Nenhum dado de pipeline disponível
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {stages
+                  .sort((a, b) => a.order - b.order)
+                  .map((stage) => {
+                    const count = stage._count?.deals || 0;
+                    const pct = Math.max((count / maxDealsInStage) * 100, 2);
+                    return (
+                      <div key={stage.id} className="flex items-center gap-3">
+                        <div className="w-28 text-xs text-gray-600 truncate flex-shrink-0 text-right">
+                          {stage.name}
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                          <div
+                            className="h-full rounded-full flex items-center justify-end pr-2 transition-all duration-500"
+                            style={{
+                              width: `${pct}%`,
+                              backgroundColor: stage.color || "#3B82F6",
+                              minWidth: count > 0 ? "32px" : "0",
+                            }}
+                          >
+                            {count > 0 && (
+                              <span className="text-[10px] font-bold text-white drop-shadow-sm">
+                                {count}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </Card>
+
+          {/* Negociações por Status */}
+          <Card padding="md">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Negociações por Status</h3>
+            <div className="space-y-5">
+              {/* Open */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} className="text-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">Em Aberto</span>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900">{report.title}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{report.description}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-gray-900">{openDeals}</span>
+                    <Badge variant="blue">{openPct}%</Badge>
                   </div>
                 </div>
-                <div className="flex items-center justify-center h-40 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                  <div className="text-center">
-                    <Icon size={28} className="text-gray-300 mx-auto mb-1.5" />
-                    <p className="text-xs text-gray-400">Gráfico em desenvolvimento</p>
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                    style={{ width: `${openPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Won */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle size={14} className="text-green-500" />
+                    <span className="text-sm font-medium text-gray-700">Ganhas</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-gray-900">{wonDeals}</span>
+                    <Badge variant="green">{wonPct}%</Badge>
                   </div>
                 </div>
-              </Card>
-            );
-          })}
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                    style={{ width: `${wonPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Lost */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <XCircle size={14} className="text-red-500" />
+                    <span className="text-sm font-medium text-gray-700">Perdidas</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-gray-900">{lostDeals}</span>
+                    <Badge variant="red">{lostPct}%</Badge>
+                  </div>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div
+                    className="h-full bg-red-500 rounded-full transition-all duration-500"
+                    style={{ width: `${lostPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Row 3 - Activities & Tasks */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Últimas Atividades */}
+          <Card padding="none">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900">Últimas Atividades</h3>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {activities.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-gray-400">
+                  Nenhuma atividade registrada
+                </div>
+              ) : (
+                activities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-3 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="mt-0.5 w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 truncate">{activity.description}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {activity.deal?.title && (
+                          <span className="text-xs text-blue-600 truncate">{activity.deal.title}</span>
+                        )}
+                        {activity.user?.name && (
+                          <span className="text-xs text-gray-400">· {activity.user.name}</span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">
+                      {formatRelativeTime(activity.createdAt)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          {/* Tarefas Pendentes */}
+          <Card padding="none">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">Tarefas Pendentes</h3>
+              <Badge variant="yellow">{taskCounts.PENDING}</Badge>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {pendingTasks.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-gray-400">
+                  Nenhuma tarefa pendente
+                </div>
+              ) : (
+                pendingTasks.map((task) => {
+                  const TIcon = taskTypeIcons[task.type] || MoreHorizontal;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="p-1.5 rounded-full bg-gray-100 text-gray-500 flex-shrink-0">
+                        <TIcon size={12} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{task.title}</p>
+                        <p className="text-xs text-gray-400">
+                          {taskTypeLabels[task.type] || task.type}
+                        </p>
+                      </div>
+                      {task.dueDate && (
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {formatDate(task.dueDate)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Card>
         </div>
       </main>
     </div>

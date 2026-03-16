@@ -398,6 +398,22 @@ export default function TasksPage() {
       <Header title="Tarefas" breadcrumb={["CRM", "Tarefas"]} />
 
       <main className="flex-1 p-6 space-y-4">
+        {/* Overdue Banner */}
+        {counts.OVERDUE > 0 && (
+          <div className="flex items-center gap-3 bg-red-600 text-white rounded-lg px-5 py-3 shadow-md animate-pulse">
+            <span className="text-xl">⚠️</span>
+            <span className="font-semibold text-sm">
+              Você tem {counts.OVERDUE} tarefa{counts.OVERDUE > 1 ? "s" : ""} atrasada{counts.OVERDUE > 1 ? "s" : ""}!
+            </span>
+            <button
+              onClick={() => handleFilterChange("OVERDUE")}
+              className="ml-auto px-3 py-1 text-xs font-bold bg-white text-red-600 rounded-md hover:bg-red-50 transition-colors"
+            >
+              Ver atrasadas
+            </button>
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* Filter Tabs */}
@@ -416,7 +432,11 @@ export default function TasksPage() {
                 {tab.label}
                 <span className={clsx(
                   "ml-1.5 px-1.5 py-0.5 rounded-full text-xs",
-                  activeFilter === tab.key ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-500"
+                  tab.key === "OVERDUE" && counts.OVERDUE > 0
+                    ? "bg-red-500 text-white font-bold animate-pulse"
+                    : activeFilter === tab.key
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-200 text-gray-500"
                 )}>
                   {counts[tab.key]}
                 </span>
@@ -541,7 +561,11 @@ export default function TasksPage() {
                     key={task.id}
                     className={clsx(
                       "cursor-pointer",
-                      isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"
+                      isOverdue && !isSelected
+                        ? "bg-red-50 border-l-4 border-l-red-500 hover:bg-red-100"
+                        : isSelected
+                          ? "bg-blue-50 hover:bg-blue-100"
+                          : "hover:bg-gray-50"
                     )}
                     onClick={() => openEditModal(task)}
                   >
@@ -592,9 +616,16 @@ export default function TasksPage() {
                     </TableCell>
                     <TableCell className={clsx(
                       "text-sm",
-                      isOverdue ? "text-red-600 font-medium" : "text-gray-500"
+                      isOverdue ? "text-red-600 font-bold" : "text-gray-500"
                     )}>
-                      {task.dueDate ? formatDate(task.dueDate) : "—"}
+                      {task.dueDate
+                        ? isOverdue
+                          ? (() => {
+                              const days = Math.floor((Date.now() - new Date(task.dueDate).getTime()) / 86400000);
+                              return `${days} dia${days !== 1 ? "s" : ""} atrasada`;
+                            })()
+                          : formatDate(task.dueDate)
+                        : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusConfig[task.status].variant}>
