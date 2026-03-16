@@ -170,22 +170,82 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
-      // Fallback: try matching by name if email and phone didn't match
+      // Fallback: try matching by name (exact)
       if (!contact && inviteeName) {
-        console.log(`[calendly-webhook] Phone match failed, trying name match: "${inviteeName}"`);
+        console.log(`[calendly-webhook] Phone match failed, trying exact name match: "${inviteeName}"`);
         contact = await prisma.contact.findFirst({
           where: {
             name: { equals: inviteeName, mode: 'insensitive' },
           },
         });
         if (contact) {
-          console.log(`[calendly-webhook] Found contact by name: ${contact.id} (${contact.name})`);
+          console.log(`[calendly-webhook] Found contact by exact name: ${contact.id} (${contact.name})`);
+        }
+      }
+
+      // Fallback: fuzzy name match on recently created contacts (last 10 min)
+      // This handles the case where the lead entered via LP with one email
+      // and booked via Calendly with another email, but the name is similar
+      if (!contact && inviteeName) {
+        console.log(`[calendly-webhook] Trying fuzzy name + time proximity match...`);
+        const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+        const recentContacts = await prisma.contact.findMany({
+          where: { createdAt: { gte: tenMinAgo } },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+        });
+
+        const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const inviteeNorm = normalize(inviteeName);
+        const inviteeParts = inviteeNorm.split(/\s+/);
+
+        for (const c of recentContacts) {
+          const contactNorm = normalize(c.name);
+          const contactParts = contactNorm.split(/\s+/);
+
+          // Match if: first name matches + (last name matches OR only 1 name provided)
+          const firstMatch = inviteeParts[0] === contactParts[0];
+          const lastMatch = inviteeParts.length > 1 && contactParts.length > 1
+            ? inviteeParts[inviteeParts.length - 1] === contactParts[contactParts.length - 1]
+            : true;
+          // Also match if one name contains the other
+          const containsMatch = inviteeNorm.includes(contactNorm) || contactNorm.includes(inviteeNorm);
+
+          if ((firstMatch && lastMatch) || containsMatch) {
+            contact = c;
+            console.log(`[calendly-webhook] Found contact by fuzzy name+time: ${c.id} (${c.name}) — matched "${inviteeName}"`);
+            break;
+          }
+        }
+      }
+
+      // Fallback: if still no match, check if there's a recent contact with a Deal
+      // in the first pipeline stage that was created in the last 5 minutes
+      // (high probability it's the same person who just came from the LP)
+      if (!contact && inviteeName) {
+        console.log(`[calendly-webhook] Trying recent LP lead match (last 5min, first stage)...`);
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const defaultPipeline = await prisma.pipeline.findFirst({ where: { isDefault: true }, include: { stages: { orderBy: { order: 'asc' }, take: 1 } } });
+        if (defaultPipeline?.stages[0]) {
+          const recentDeal = await prisma.deal.findFirst({
+            where: {
+              createdAt: { gte: fiveMinAgo },
+              stageId: defaultPipeline.stages[0].id,
+              status: 'OPEN',
+            },
+            include: { contact: true },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (recentDeal?.contact) {
+            contact = recentDeal.contact;
+            console.log(`[calendly-webhook] Found contact via recent LP deal: ${contact.id} (${contact.name})`);
+          }
         }
       }
 
       // 2b. Auto-create Contact if none found and we have an email
       if (!contact && inviteeEmail) {
-        console.log(`[calendly-webhook] No contact found, auto-creating for email=${inviteeEmail}`);
+        console.log(`[calendly-webhook] No contact found after all attempts, auto-creating for email=${inviteeEmail}`);
         contact = await prisma.contact.create({
           data: {
             name: inviteeName || inviteeEmail.split('@')[0],
