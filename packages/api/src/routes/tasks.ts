@@ -57,17 +57,14 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
     const where: Record<string, unknown> = {};
     if (req.query.userId) where.userId = req.query.userId as string;
 
-    const grouped = await prisma.task.groupBy({
-      by: ['status'],
-      where,
-      _count: { id: true },
-    });
+    const [pending, completed, overdue] = await Promise.all([
+      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDate: null }, { dueDate: { gte: new Date() } }] } }),
+      prisma.task.count({ where: { ...where, status: 'COMPLETED' } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', dueDate: { lt: new Date() } } }),
+    ]);
 
-    const counts: Record<string, number> = { ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 };
-    for (const g of grouped) {
-      counts[g.status] = g._count.id;
-      counts.ALL += g._count.id;
-    }
+    const all = pending + completed + overdue;
+    const counts = { ALL: all, PENDING: pending, COMPLETED: completed, OVERDUE: overdue };
 
     res.json({ data: counts });
   } catch (err) {

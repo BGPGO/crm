@@ -553,7 +553,7 @@ export default function TasksPage() {
               tasks.map((task) => {
                 const Icon = typeIcons[task.type] ?? Phone;
                 const isCompleted = task.status === "COMPLETED";
-                const isOverdue = task.status === "OVERDUE";
+                const isOverdue = task.status === "OVERDUE" || (task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date());
                 const isSelected = selectedIds.has(task.id);
 
                 return (

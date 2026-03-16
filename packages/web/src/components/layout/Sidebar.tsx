@@ -81,15 +81,20 @@ export default function TopNavbar() {
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const [pending, overdue] = await Promise.all([
+      const today = new Date().toISOString().split("T")[0];
+      const [pending, overduePending] = await Promise.all([
         api.get<NotifResponse>(`/tasks?userId=${user.id}&status=PENDING&limit=5`),
-        api.get<NotifResponse>(`/tasks?userId=${user.id}&status=OVERDUE&limit=5`),
+        api.get<NotifResponse>(`/tasks?userId=${user.id}&status=PENDING&dueDateTo=${today}&limit=5`),
       ]);
-      const total = pending.meta.total + overdue.meta.total;
+      const overdueTotal = overduePending.meta.total;
+      const total = pending.meta.total;
       setNotifCount(total);
-      setOverdueCount(overdue.meta.total);
-      // Merge overdue first, then pending, max 8
-      const merged = [...overdue.data, ...pending.data].slice(0, 8);
+      setOverdueCount(overdueTotal);
+      // Mark overdue tasks, merge overdue first, then non-overdue pending
+      const overdueIds = new Set(overduePending.data.map((t) => t.id));
+      const overdueTasks = overduePending.data.map((t) => ({ ...t, status: "OVERDUE" as const }));
+      const nonOverduePending = pending.data.filter((t) => !overdueIds.has(t.id));
+      const merged = [...overdueTasks, ...nonOverduePending].slice(0, 8);
       setNotifTasks(merged);
     } catch {
       // silent
