@@ -36,24 +36,18 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       config = await prisma.whatsAppConfig.create({ data: {} });
     }
 
-    const {
-      evolutionApiUrl,
-      evolutionApiKey,
-      instanceName,
-      openaiApiKey,
-      systemPrompt,
-      botEnabled,
-      followUpEnabled,
-    } = req.body;
+    const allowedFields = [
+      'evolutionApiUrl', 'evolutionApiKey', 'instanceName', 'baseUrl',
+      'companyName', 'companyPhone', 'meetingLink', 'openaiApiKey',
+      'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
+    ];
 
     const updateData: Record<string, unknown> = {};
-    if (evolutionApiUrl !== undefined) updateData.evolutionApiUrl = evolutionApiUrl;
-    if (evolutionApiKey !== undefined) updateData.evolutionApiKey = evolutionApiKey;
-    if (instanceName !== undefined) updateData.instanceName = instanceName;
-    if (openaiApiKey !== undefined) updateData.openaiApiKey = openaiApiKey;
-    if (systemPrompt !== undefined) updateData.systemPrompt = systemPrompt;
-    if (botEnabled !== undefined) updateData.botEnabled = botEnabled;
-    if (followUpEnabled !== undefined) updateData.followUpEnabled = followUpEnabled;
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
 
     const updated = await prisma.whatsAppConfig.update({
       where: { id: config.id },

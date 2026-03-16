@@ -1,15 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { createError } from '../middleware/errorHandler';
+import prisma from '../lib/prisma';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
 
 const router = Router();
 
-// POST /api/whatsapp-instance/create — Create Evolution API instance
+// POST /api/whatsapp/instance/create — Create Evolution API instance
 router.post('/create', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { instanceName } = req.body;
-    if (!instanceName) return next(createError('instanceName is required', 400));
-
     const client = await EvolutionApiClient.fromConfig();
     const result = await client.createInstance();
 
@@ -67,16 +64,18 @@ router.delete('/delete', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
-// POST /api/whatsapp-instance/webhook/setup — Configure webhook URL on Evolution API
+// POST /api/whatsapp/instance/webhook/setup — Configure webhook URL on Evolution API
 router.post('/webhook/setup', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { webhookUrl } = req.body;
-    if (!webhookUrl) return next(createError('webhookUrl is required', 400));
+    const config = await prisma.whatsAppConfig.findFirst();
+    const baseUrl = config?.baseUrl || process.env.BASE_URL || 'http://localhost:3001';
+    const instanceName = config?.instanceName || 'bgpgo-bot';
+    const webhookUrl = req.body.webhookUrl || `${baseUrl}/api/whatsapp/webhook/${instanceName}`;
 
     const client = await EvolutionApiClient.fromConfig();
     const result = await client.setWebhook(webhookUrl);
 
-    res.json({ data: result });
+    res.json({ data: { webhookUrl, result } });
   } catch (err) {
     next(err);
   }
