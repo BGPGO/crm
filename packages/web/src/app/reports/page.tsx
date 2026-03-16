@@ -28,20 +28,15 @@ interface PipelineStage {
   name: string;
   color: string;
   order: number;
-  _count?: { deals: number };
+  dealCount: number;
+  totalValue: number;
 }
 
-interface PipelineSummary {
-  pipeline: { id: string; name: string };
+interface PipelineSummaryData {
   stages: PipelineStage[];
-  summary: {
-    totalDeals: number;
-    totalValue: number;
-    openDeals: number;
-    wonDeals: number;
-    lostDeals: number;
-    conversionRate: number;
-  };
+  totalDeals: number;
+  totalValue: number;
+  countsByStatus: { OPEN: number; WON: number; LOST: number };
 }
 
 interface Activity {
@@ -87,7 +82,7 @@ const taskTypeLabels: Record<string, string> = {
 export default function ReportsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummary | null>(null);
+  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryData | null>(null);
   const [taskCounts, setTaskCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
   const [activities, setActivities] = useState<Activity[]>([]);
   const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
@@ -104,7 +99,7 @@ export default function ReportsPage() {
       // Pipeline summary
       if (defaultPipeline) {
         promises.push(
-          api.get<{ data: PipelineSummary }>(`/pipelines/${defaultPipeline.id}/summary`).then((res) => {
+          api.get<{ data: PipelineSummaryData }>(`/pipelines/${defaultPipeline.id}/summary`).then((res) => {
             setPipelineSummary(res.data);
           }).catch(() => {})
         );
@@ -119,14 +114,14 @@ export default function ReportsPage() {
 
       // Recent activities
       promises.push(
-        api.get<{ data: Activity[] }>("/activities?limit=10").then((res) => {
+        api.get<{ data: Activity[]; meta: unknown }>("/activities?limit=10").then((res) => {
           setActivities(res.data);
         }).catch(() => {})
       );
 
       // Pending tasks
       promises.push(
-        api.get<{ data: Task[] }>("/tasks?status=PENDING&limit=8").then((res) => {
+        api.get<{ data: Task[]; meta: unknown }>("/tasks?status=PENDING&limit=8").then((res) => {
           setPendingTasks(res.data);
         }).catch(() => {})
       );
@@ -143,14 +138,15 @@ export default function ReportsPage() {
     fetchData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const summary = pipelineSummary?.summary;
   const stages = pipelineSummary?.stages || [];
-  const maxDealsInStage = Math.max(...stages.map((s) => s._count?.deals || 0), 1);
+  const maxDealsInStage = Math.max(...stages.map((s) => s.dealCount || 0), 1);
 
-  const totalDeals = summary?.totalDeals || 0;
-  const openDeals = summary?.openDeals || 0;
-  const wonDeals = summary?.wonDeals || 0;
-  const lostDeals = summary?.lostDeals || 0;
+  const totalDeals = pipelineSummary?.totalDeals || 0;
+  const totalValue = pipelineSummary?.totalValue || 0;
+  const openDeals = pipelineSummary?.countsByStatus?.OPEN || 0;
+  const wonDeals = pipelineSummary?.countsByStatus?.WON || 0;
+  const lostDeals = pipelineSummary?.countsByStatus?.LOST || 0;
+  const conversionRate = totalDeals > 0 ? (wonDeals / totalDeals) * 100 : 0;
   const openPct = totalDeals > 0 ? Math.round((openDeals / totalDeals) * 100) : 0;
   const wonPct = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
   const lostPct = totalDeals > 0 ? Math.round((lostDeals / totalDeals) * 100) : 0;
@@ -198,7 +194,7 @@ export default function ReportsPage() {
               <div>
                 <p className="text-xs text-gray-500">Valor em Aberto</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(summary?.totalValue || 0)}
+                  {formatCurrency(totalValue)}
                 </p>
               </div>
             </div>
@@ -213,7 +209,7 @@ export default function ReportsPage() {
               <div>
                 <p className="text-xs text-gray-500">Taxa de Conversão</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {summary?.conversionRate?.toFixed(1) || "0"}%
+                  {conversionRate.toFixed(1)}%
                 </p>
               </div>
             </div>
@@ -253,7 +249,7 @@ export default function ReportsPage() {
                 {stages
                   .sort((a, b) => a.order - b.order)
                   .map((stage) => {
-                    const count = stage._count?.deals || 0;
+                    const count = stage.dealCount || 0;
                     const pct = Math.max((count / maxDealsInStage) * 100, 2);
                     return (
                       <div key={stage.id} className="flex items-center gap-3">
