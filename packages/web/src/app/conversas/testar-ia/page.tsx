@@ -96,7 +96,7 @@ export default function TestarIAPage() {
     setSimLoading(true);
     setSimError(null);
     try {
-      const res = await api.post<{ data: { reply: string; context?: string } }>(
+      const res = await api.post<{ data: { aiReply: string; context?: string } }>(
         "/whatsapp/test-chat/simulate-lead",
         {
           contactName: contactName.trim(),
@@ -106,7 +106,7 @@ export default function TestarIAPage() {
       );
       const botMessage: ChatMessage = {
         role: "assistant",
-        content: res.data.reply,
+        content: res.data.aiReply,
       };
       setMessages([botMessage]);
       if (res.data.context) {
