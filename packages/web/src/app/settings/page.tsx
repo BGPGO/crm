@@ -1514,6 +1514,11 @@ function WebhooksTab() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Detail panel
+  const [selectedWh, setSelectedWh] = useState<ApiWebhook | null>(null);
+  const [whLogs, setWhLogs] = useState<Array<{ id: string; type: string; content: string; createdAt: string; metadata: any }>>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
   // New webhook modal
   const [newOpen, setNewOpen] = useState(false);
   const [newType, setNewType] = useState<"INCOMING" | "OUTGOING">("INCOMING");
@@ -1594,6 +1599,34 @@ function WebhooksTab() {
     }
   }
 
+  async function openDetails(wh: ApiWebhook) {
+    setSelectedWh(wh);
+    setWhLogs([]);
+    setLogsLoading(true);
+    try {
+      const res = await api.get<{ data: Array<{ id: string; type: string; content: string; createdAt: string; metadata: any }> }>(`/activities?limit=100&type=WEBHOOK_RECEIVED`);
+      const all = res.data || [];
+      const nameLower = wh.name.toLowerCase();
+      const filtered = all.filter(log => {
+        // Match by webhookConfigId in metadata (new format)
+        if (log.metadata?.webhookConfigId === wh.id) return true;
+        if (log.metadata?.webhookName === wh.name) return true;
+        // Match by name in content
+        if (log.content?.toLowerCase().includes(nameLower)) return true;
+        // Match Landing Pages by "greatpages" source or "GreatPages" in content
+        if (nameLower.includes("landing") && (log.metadata?.source === "greatpages" || log.content?.includes("GreatPages"))) return true;
+        // Match Autentique by name
+        if (nameLower.includes("autentique") && (log.metadata?.source === "contract-signed" || log.content?.toLowerCase().includes("autentique"))) return true;
+        return false;
+      });
+      setWhLogs(filtered.slice(0, 20));
+    } catch {
+      setWhLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }
+
   function toggleEvent(evt: string) {
     setNewEvents((prev) =>
       prev.includes(evt) ? prev.filter((e) => e !== evt) : [...prev, evt]
@@ -1640,7 +1673,7 @@ function WebhooksTab() {
               </p>
             )}
             {!loading && incoming.map((wh) => (
-              <div key={wh.id} className="px-5 py-4 space-y-2">
+              <div key={wh.id} className="px-5 py-4 space-y-2 hover:bg-gray-50/50 cursor-pointer transition-colors" onClick={() => openDetails(wh)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Globe size={15} className="text-blue-500 flex-shrink-0" />
@@ -1649,7 +1682,7 @@ function WebhooksTab() {
                       {wh.isActive ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <Toggle enabled={wh.isActive} onChange={() => handleToggle(wh)} />
                     <Button
                       variant="ghost"
@@ -1665,6 +1698,14 @@ function WebhooksTab() {
                   <span className="text-xs text-gray-600 font-mono flex-1 truncate">{wh.url}</span>
                   <CopyButton value={wh.url} />
                 </div>
+                {wh.events && wh.events.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-gray-400">Eventos:</span>
+                    {(wh.events as string[]).map((evt) => (
+                      <span key={evt} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1699,7 +1740,7 @@ function WebhooksTab() {
               </p>
             )}
             {!loading && outgoing.map((wh) => (
-              <div key={wh.id} className="px-5 py-4 space-y-2">
+              <div key={wh.id} className="px-5 py-4 space-y-2 hover:bg-gray-50/50 cursor-pointer transition-colors" onClick={() => openDetails(wh)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Globe size={15} className="text-purple-500 flex-shrink-0" />
@@ -1708,7 +1749,7 @@ function WebhooksTab() {
                       {wh.isActive ? "Ativo" : "Inativo"}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <Toggle enabled={wh.isActive} onChange={() => handleToggle(wh)} />
                     <Button
                       variant="ghost"
@@ -1727,13 +1768,8 @@ function WebhooksTab() {
                 {wh.events && wh.events.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs text-gray-400">Eventos:</span>
-                    {wh.events.map((evt) => (
-                      <span
-                        key={evt}
-                        className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono"
-                      >
-                        {evt}
-                      </span>
+                    {(wh.events as string[]).map((evt) => (
+                      <span key={evt} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
                     ))}
                   </div>
                 )}
@@ -1742,6 +1778,107 @@ function WebhooksTab() {
           </div>
         </Card>
       </div>
+
+      {/* Webhook Detail Modal */}
+      <Modal
+        isOpen={!!selectedWh}
+        onClose={() => setSelectedWh(null)}
+        title={selectedWh?.name || "Detalhes do Webhook"}
+      >
+        {selectedWh && (
+          <div className="space-y-4">
+            {/* Info */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Badge variant={selectedWh.type === "INCOMING" ? "blue" : "purple"}>
+                  {selectedWh.type === "INCOMING" ? "Entrada" : "Saída"}
+                </Badge>
+                <Badge variant={selectedWh.isActive ? "green" : "gray"}>
+                  {selectedWh.isActive ? "Ativo" : "Inativo"}
+                </Badge>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                <div>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">URL</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <code className="text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1 flex-1 break-all">{selectedWh.url}</code>
+                    <CopyButton value={selectedWh.url} />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">ID</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <code className="text-xs text-gray-500 font-mono">{selectedWh.id}</code>
+                    <CopyButton value={selectedWh.id} />
+                  </div>
+                </div>
+                {selectedWh.secret && (
+                  <div>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Secret</span>
+                    <code className="text-xs text-gray-500 font-mono block mt-0.5">••••••••{selectedWh.secret.slice(-6)}</code>
+                  </div>
+                )}
+                {selectedWh.events && (selectedWh.events as string[]).length > 0 && (
+                  <div>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase">Eventos</span>
+                    <div className="flex gap-1 flex-wrap mt-0.5">
+                      {(selectedWh.events as string[]).map(evt => (
+                        <span key={evt} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedWh.type === "INCOMING" && (() => {
+                  const fullUrl = selectedWh.url.startsWith("http")
+                    ? selectedWh.url
+                    : `http://opjlp6hp5ejuctjmck9dzd7b.187.77.238.125.sslip.io/api/webhooks/incoming/${selectedWh.id}`;
+                  return (
+                    <div>
+                      <span className="text-[10px] font-semibold text-gray-400 uppercase">URL Completa para Configurar</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <code className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 flex-1 break-all">
+                          {fullUrl}
+                        </code>
+                        <CopyButton value={fullUrl} />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Logs */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">Últimos logs</h4>
+              {logsLoading ? (
+                <div className="flex justify-center py-4"><Spinner /></div>
+              ) : whLogs.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">Nenhum log encontrado</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {whLogs.map(log => (
+                    <div key={log.id} className="bg-gray-50 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-700">{log.type}</span>
+                        <span className="text-[10px] text-gray-400">{new Date(log.createdAt).toLocaleString("pt-BR")}</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{log.content}</p>
+                      {log.metadata && (
+                        <details className="mt-1">
+                          <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">Payload</summary>
+                          <pre className="text-[10px] text-gray-500 mt-1 bg-white border border-gray-200 rounded p-2 overflow-x-auto max-h-32">{JSON.stringify(log.metadata, null, 2)}</pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* New Webhook Modal */}
       <Modal

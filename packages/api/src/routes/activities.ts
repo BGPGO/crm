@@ -12,13 +12,14 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { dealId, contactId, userId } = req.query;
+    const { dealId, contactId, userId, type } = req.query;
 
     const where: Record<string, unknown> = {};
 
     if (dealId) where.dealId = dealId as string;
     if (contactId) where.contactId = contactId as string;
     if (userId) where.userId = userId as string;
+    if (type) where.type = type as string;
 
     const [total, data] = await Promise.all([
       prisma.activity.count({ where }),
