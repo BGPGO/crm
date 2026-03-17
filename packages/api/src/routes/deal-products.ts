@@ -61,7 +61,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/deal-products
 router.post(
   '/',
-  validate({ dealId: 'required', productId: 'required', quantity: 'required' }),
+  validate({ dealId: 'required', productId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { dealId, productId } = req.body as { dealId: string; productId: string };
@@ -74,11 +74,18 @@ router.post(
       if (!deal) return next(createError('Deal not found', 404));
       if (!product) return next(createError('Product not found', 404));
 
-      // Use product price as default if unitPrice not provided
-      const data = {
-        ...req.body,
-        unitPrice: req.body.unitPrice ?? product.price,
+      const data: Record<string, unknown> = {
+        dealId,
+        productId,
+        quantity: parseInt(req.body.quantity) || 1,
+        unitPrice: parseFloat(req.body.unitPrice) || product.price,
+        discount: parseFloat(req.body.discount) || 0,
       };
+
+      if (req.body.discountMonths != null) data.discountMonths = parseInt(req.body.discountMonths) || null;
+      if (req.body.setupPrice != null) data.setupPrice = parseFloat(req.body.setupPrice) || null;
+      if (req.body.setupInstallments != null) data.setupInstallments = parseInt(req.body.setupInstallments) || null;
+      if (req.body.recurrenceValue != null) data.recurrenceValue = parseFloat(req.body.recurrenceValue) || null;
 
       const dealProduct = await prisma.dealProduct.create({
         data,
@@ -100,9 +107,18 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.dealProduct.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Deal product not found', 404));
 
+    const data: Record<string, unknown> = {};
+    if (req.body.quantity !== undefined) data.quantity = parseInt(req.body.quantity) || 1;
+    if (req.body.unitPrice !== undefined) data.unitPrice = parseFloat(req.body.unitPrice);
+    if (req.body.discount !== undefined) data.discount = parseFloat(req.body.discount) || 0;
+    if (req.body.discountMonths !== undefined) data.discountMonths = req.body.discountMonths ? parseInt(req.body.discountMonths) : null;
+    if (req.body.setupPrice !== undefined) data.setupPrice = req.body.setupPrice ? parseFloat(req.body.setupPrice) : null;
+    if (req.body.setupInstallments !== undefined) data.setupInstallments = req.body.setupInstallments ? parseInt(req.body.setupInstallments) : null;
+    if (req.body.recurrenceValue !== undefined) data.recurrenceValue = req.body.recurrenceValue ? parseFloat(req.body.recurrenceValue) : null;
+
     const dealProduct = await prisma.dealProduct.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       include: {
         product: true,
         deal: { select: { id: true, title: true } },

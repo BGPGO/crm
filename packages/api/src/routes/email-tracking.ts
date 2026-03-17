@@ -1,7 +1,30 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import prisma from '../lib/prisma';
 
 const router = Router();
+
+// HMAC-based unsubscribe tokens (replaces trivial base64)
+const UNSUB_SECRET = process.env.AUTENTIQUE_WEBHOOK_SECRET || 'unsub-fallback-secret-change-me';
+
+export function createUnsubToken(sendId: string): string {
+  const payload = Buffer.from(sendId, 'utf-8').toString('base64url');
+  const sig = crypto.createHmac('sha256', UNSUB_SECRET).update(payload).digest('base64url').slice(0, 16);
+  return `${payload}.${sig}`;
+}
+
+function verifyUnsubToken(token: string): string | null {
+  const dotIndex = token.lastIndexOf('.');
+  if (dotIndex === -1) {
+    // Legacy: try plain base64 for old links still in inboxes
+    try { return Buffer.from(token, 'base64').toString('utf-8'); } catch { return null; }
+  }
+  const payload = token.slice(0, dotIndex);
+  const sig = token.slice(dotIndex + 1);
+  const expected = crypto.createHmac('sha256', UNSUB_SECRET).update(payload).digest('base64url').slice(0, 16);
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  try { return Buffer.from(payload, 'base64url').toString('utf-8'); } catch { return null; }
+}
 
 // 1x1 transparent GIF pixel
 const TRANSPARENT_GIF = Buffer.from(
@@ -165,8 +188,10 @@ router.get('/unsubscribe/:token', async (req: Request, res: Response, _next: Nex
   try {
     const { token } = req.params;
 
-    // Decode token (base64-encoded EmailSend ID)
-    const sendId = Buffer.from(token, 'base64').toString('utf-8');
+    const sendId = verifyUnsubToken(token);
+    if (!sendId) {
+      return res.status(404).send(buildUnsubscribeHtml(false, 'Link inválido ou expirado.'));
+    }
 
     const send = await prisma.emailSend.findUnique({
       where: { id: sendId },
@@ -191,8 +216,10 @@ router.post('/unsubscribe/:token', async (req: Request, res: Response, _next: Ne
   try {
     const { token } = req.params;
 
-    // Decode token (base64-encoded EmailSend ID)
-    const sendId = Buffer.from(token, 'base64').toString('utf-8');
+    const sendId = verifyUnsubToken(token);
+    if (!sendId) {
+      return res.status(404).send(buildUnsubscribeHtml(false, 'Link inválido ou expirado.'));
+    }
 
     const send = await prisma.emailSend.findUnique({
       where: { id: sendId },

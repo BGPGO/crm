@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../lib/supabase';
 import prisma from '../lib/prisma';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, clearAuthCache } from '../middleware/auth';
 
 const router = Router();
 
@@ -56,9 +56,12 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // ─── POST /auth/logout ───────────────────────────────────────────────────────
-router.post('/logout', async (_req: Request, res: Response) => {
-  // Client-side handles token removal.
-  // If using service key, we could call admin.signOut, but it's not strictly necessary.
+router.post('/logout', async (req: Request, res: Response) => {
+  // Invalidate cached token
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    clearAuthCache(authHeader.slice(7));
+  }
   return res.json({ message: 'Logout realizado com sucesso' });
 });
 

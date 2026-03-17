@@ -94,6 +94,10 @@ interface DealDetail {
     quantity: number;
     unitPrice: number;
     discount?: number;
+    discountMonths?: number | null;
+    setupPrice?: number | null;
+    setupInstallments?: number | null;
+    recurrenceValue?: number | null;
   }>;
   dealContacts: DealContactLink[];
 }
@@ -481,6 +485,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // Add-product picker
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productQuantity, setProductQuantity] = useState(1);
+  const [productUnitPrice, setProductUnitPrice] = useState(0);
+  const [productDiscount, setProductDiscount] = useState(0);
+  const [productDiscountMonths, setProductDiscountMonths] = useState<number | null>(null);
+  const [productSetupPrice, setProductSetupPrice] = useState<number | null>(null);
+  const [productSetupInstallments, setProductSetupInstallments] = useState<number | null>(null);
+  const [productRecurrenceValue, setProductRecurrenceValue] = useState<number | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   // Add/edit task form
   const [taskTitle, setTaskTitle] = useState("");
@@ -532,10 +543,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   }, [loadDeal, loadTimeline]);
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const totalValue = (deal?.dealProducts ?? []).reduce(
-    (sum, p) => sum + p.unitPrice * p.quantity * (1 - (p.discount ?? 0) / 100),
+  const totalRecurrence = (deal?.dealProducts ?? []).reduce(
+    (sum, p) => sum + (p.recurrenceValue ?? p.unitPrice) * p.quantity,
     0
   );
+  const totalSetup = (deal?.dealProducts ?? []).reduce(
+    (sum, p) => sum + (p.setupPrice ?? 0),
+    0
+  );
+  const totalValue = totalRecurrence + totalSetup;
 
   const pendingTaskCount = (deal?.tasks ?? []).filter((t) => !t.done).length;
 
@@ -796,6 +812,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const resetProductForm = () => {
+    setSelectedProductId("");
+    setProductQuantity(1);
+    setProductUnitPrice(0);
+    setProductDiscount(0);
+    setProductDiscountMonths(null);
+    setProductSetupPrice(null);
+    setProductSetupInstallments(null);
+    setProductRecurrenceValue(null);
+    setEditingProductId(null);
+  };
+
   const handleOpenAddProduct = async () => {
     if (products.length === 0) {
       try {
@@ -805,8 +833,29 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         // ignore
       }
     }
-    setSelectedProductId("");
-    setProductQuantity(1);
+    resetProductForm();
+    setShowAddProduct(true);
+  };
+
+  const handleEditProduct = async (dpId: string) => {
+    if (!deal) return;
+    const dp = deal.dealProducts.find((p) => p.id === dpId);
+    if (!dp) return;
+    if (products.length === 0) {
+      try {
+        const res = await api.get<{ data: Product[] }>("/products");
+        setProducts(res.data ?? []);
+      } catch { /* ignore */ }
+    }
+    setEditingProductId(dpId);
+    setSelectedProductId(dp.product.id ?? "");
+    setProductQuantity(dp.quantity);
+    setProductUnitPrice(dp.unitPrice);
+    setProductDiscount(dp.discount ?? 0);
+    setProductDiscountMonths(dp.discountMonths ?? null);
+    setProductSetupPrice(dp.setupPrice ?? null);
+    setProductSetupInstallments(dp.setupInstallments ?? null);
+    setProductRecurrenceValue(dp.recurrenceValue ?? null);
     setShowAddProduct(true);
   };
 
@@ -814,34 +863,29 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     if (!selectedProductId || !deal) return;
     setSubmitting(true);
     try {
-      const res = await api.post<{ data: Record<string, unknown> }>("/deal-products", {
+      const payload = {
         dealId,
         productId: selectedProductId,
         quantity: productQuantity,
-      });
-      const newDp = res.data;
-      const prod = products.find((p) => p.id === selectedProductId);
-      setDeal((d) =>
-        d
-          ? {
-              ...d,
-              dealProducts: [
-                ...d.dealProducts,
-                {
-                  id: newDp.id as string,
-                  product: { id: selectedProductId, name: prod?.name ?? "" },
-                  quantity: productQuantity,
-                  unitPrice: (newDp.unitPrice as number) ?? prod?.price ?? 0,
-                  discount: 0,
-                },
-              ],
-            }
-          : d
-      );
+        unitPrice: productUnitPrice,
+        discount: productDiscount,
+        discountMonths: productDiscountMonths,
+        setupPrice: productSetupPrice,
+        setupInstallments: productSetupInstallments,
+        recurrenceValue: productRecurrenceValue,
+      };
+
+      if (editingProductId) {
+        await api.put(`/deal-products/${editingProductId}`, payload);
+      } else {
+        await api.post("/deal-products", payload);
+      }
+      // Reload deal to get fresh data
+      loadDeal();
       setShowAddProduct(false);
     } catch (err: unknown) {
       const e = err as { message?: string };
-      alert(`Erro ao adicionar produto: ${e?.message ?? "Tente novamente."}`);
+      alert(`Erro ao salvar produto: ${e?.message ?? "Tente novamente."}`);
     } finally {
       setSubmitting(false);
     }
@@ -913,9 +957,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const dealProductsForComponent: DealProduct[] = (deal?.dealProducts ?? []).map((dp) => ({
     id: dp.id,
     name: dp.product.name,
-    recurrence: dp.product?.recurrence ?? "—",
-    price: dp.unitPrice,
+    unitPrice: dp.unitPrice,
     quantity: dp.quantity,
+    discount: dp.discount ?? 0,
+    discountMonths: dp.discountMonths ?? null,
+    setupPrice: dp.setupPrice ?? null,
+    setupInstallments: dp.setupInstallments ?? null,
+    recurrenceValue: dp.recurrenceValue ?? null,
   }));
 
   // ── Filtered contacts search ────────────────────────────────────────────────
@@ -955,9 +1003,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               }}
             />
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xl font-bold text-blue-600">
+              <button
+                onClick={handleOpenAddProduct}
+                className="text-xl font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
+                title="Clique para adicionar produto"
+              >
                 {formatCurrency(totalValue || deal.value)}
-              </span>
+              </button>
               <StatusBadge status={deal.status} />
               {(deal.classification ?? 0) > 0 && (
                 <StarRating value={deal.classification!} />
@@ -1039,9 +1091,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               )}
               <div className="py-2">
                 <span className="text-xs text-gray-400">Valor total</span>
-                <p className="text-sm font-semibold text-blue-600 mt-0.5">
+                <button
+                  onClick={handleOpenAddProduct}
+                  className="block text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline mt-0.5 cursor-pointer transition-colors"
+                  title="Clique para adicionar produto"
+                >
                   {formatCurrency(totalValue || deal.value)}
-                </p>
+                </button>
               </div>
               <InlineField
                 label="Data de fechamento"
@@ -1370,6 +1426,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               <DealProducts
                 products={dealProductsForComponent}
                 onAdd={handleOpenAddProduct}
+                onEdit={handleEditProduct}
                 onRemove={handleRemoveProduct}
               />
             )}
@@ -1580,39 +1637,147 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         </div>
       </Modal>
 
-      {/* ── Modal: Adicionar Produto ── */}
+      {/* ── Modal: Adicionar/Editar Produto ── */}
       <Modal
         isOpen={showAddProduct}
         onClose={() => setShowAddProduct(false)}
-        title="Adicionar Produto"
-        size="sm"
+        title={editingProductId ? "Editar Produto" : "Adicionar Produto"}
+        size="md"
       >
         <div className="space-y-4">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Produto</label>
             <select
               value={selectedProductId}
-              onChange={(e) => setSelectedProductId(e.target.value)}
+              onChange={(e) => {
+                setSelectedProductId(e.target.value);
+                const prod = products.find((p) => p.id === e.target.value);
+                if (prod && !editingProductId) {
+                  setProductUnitPrice(prod.price);
+                  setProductRecurrenceValue(prod.price);
+                }
+              }}
               className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              disabled={!!editingProductId}
             >
               <option value="">Selecione um produto...</option>
               {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {formatCurrency(p.price)}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
-            <input
-              type="number"
-              min={1}
-              value={productQuantity}
-              onChange={(e) => setProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
+
+          {selectedProductId && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Valor mensal (recorrência)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={productRecurrenceValue ?? productUnitPrice}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value) || 0;
+                      setProductRecurrenceValue(v);
+                      setProductUnitPrice(v);
+                    }}
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Quantidade</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={productQuantity}
+                    onChange={(e) => setProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Desconto (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={productDiscount}
+                    onChange={(e) => setProductDiscount(Math.min(100, parseFloat(e.target.value) || 0))}
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Tempo do desconto (meses)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={productDiscountMonths ?? ""}
+                    placeholder="Permanente"
+                    onChange={(e) => setProductDiscountMonths(e.target.value ? parseInt(e.target.value) || null : null)}
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs font-medium text-gray-600 mb-2">Setup (opcional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Valor do setup</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={productSetupPrice ?? ""}
+                      placeholder="R$ 0,00"
+                      onChange={(e) => setProductSetupPrice(e.target.value ? parseFloat(e.target.value) || null : null)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Parcelas do setup</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={productSetupInstallments ?? ""}
+                      placeholder="1x"
+                      onChange={(e) => setProductSetupInstallments(e.target.value ? parseInt(e.target.value) || null : null)}
+                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Recorrência mensal</span>
+                  <span className="font-medium">{formatCurrency((productRecurrenceValue ?? productUnitPrice) * productQuantity)}</span>
+                </div>
+                {productDiscount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Com desconto{productDiscountMonths ? ` (${productDiscountMonths} meses)` : ""}</span>
+                    <span className="font-medium">
+                      {formatCurrency((productRecurrenceValue ?? productUnitPrice) * productQuantity * (1 - productDiscount / 100))}
+                    </span>
+                  </div>
+                )}
+                {productSetupPrice != null && productSetupPrice > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">
+                      Setup{productSetupInstallments && productSetupInstallments > 1 ? ` (${productSetupInstallments}x)` : ""}
+                    </span>
+                    <span className="font-medium">{formatCurrency(productSetupPrice)}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           <div className="flex gap-2 justify-end pt-2">
             <Button variant="secondary" size="sm" onClick={() => setShowAddProduct(false)}>
               Cancelar
@@ -1623,7 +1788,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               onClick={handleAddProduct}
             >
               {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
-              Adicionar
+              {editingProductId ? "Salvar" : "Adicionar"}
             </Button>
           </div>
         </div>

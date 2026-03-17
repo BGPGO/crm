@@ -3,6 +3,8 @@ node_modules/
 dist/
 .env
 .env.local
+.vscode/
+rd-data/
 rd-screenshots/
 rd-scraper.mjs
 *.tsbuildinfo

@@ -27,23 +27,15 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       return next(createError('Webhook is not active', 403));
     }
 
-    // 2. Validate secret/token — supports header OR query param
+    // 2. Validate secret — headers only (never accept secrets in body/query)
     if (webhookConfig.secret) {
       const incomingSecret =
-        req.headers['x-webhook-secret'] ??
-        req.headers['authorization']?.replace(/^Bearer\s+/i, '') ??
-        raw['token'] ??
-        raw['api_key'] ??
-        raw['secret'];
+        (req.headers['x-webhook-secret'] as string) ??
+        req.headers['authorization']?.replace(/^Bearer\s+/i, '');
 
-      if (String(incomingSecret ?? '') !== webhookConfig.secret) {
+      if (!incomingSecret || String(incomingSecret) !== webhookConfig.secret) {
         return next(createError('Invalid webhook secret', 401));
       }
-
-      // Remove token fields so they don't pollute lead data
-      delete raw['token'];
-      delete raw['api_key'];
-      delete raw['secret'];
     }
 
     // 2b. Check if this is an Autentique contract webhook

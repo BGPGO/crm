@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ const userSelect = {
   updatedAt: true,
 } as const;
 
-// GET /api/users
+// GET /api/users — any authenticated user (needed for dropdowns, assignments)
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -53,7 +54,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// GET /api/users/:id
+// GET /api/users/:id — any authenticated user
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await prisma.user.findUnique({
@@ -75,18 +76,19 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// POST /api/users
+// POST /api/users — ADMIN only
 router.post(
   '/',
+  requireRole('ADMIN'),
   validate({ name: 'required', email: 'required', password: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Check email uniqueness
       const existing = await prisma.user.findUnique({ where: { email: req.body.email } });
       if (existing) return next(createError('Email already in use', 409));
 
+      const { name, email, password, role, teamId, isActive } = req.body;
       const user = await prisma.user.create({
-        data: req.body,
+        data: { name, email, password, role: role || 'SELLER', teamId, isActive },
         select: userSelect,
       });
       res.status(201).json({ data: user });
@@ -96,21 +98,45 @@ router.post(
   }
 );
 
-// PUT /api/users/:id
+// PUT /api/users/:id — ADMIN only (except self-update for name/email)
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('User not found', 404));
 
-    // If changing email, ensure it's not taken by another user
+    const isSelf = req.user!.id === req.params.id;
+    const isAdmin = req.user!.role === 'ADMIN';
+
+    // Non-admins can only update their own name
+    if (!isAdmin) {
+      if (!isSelf) return next(createError('Permissão insuficiente', 403));
+      // Self-update: only allow name
+      const { name } = req.body;
+      const user = await prisma.user.update({
+        where: { id: req.params.id },
+        data: { name },
+        select: userSelect,
+      });
+      return res.json({ data: user });
+    }
+
+    // Admin: whitelist fields (prevent mass assignment)
     if (req.body.email && req.body.email !== existing.email) {
       const emailTaken = await prisma.user.findUnique({ where: { email: req.body.email } });
       if (emailTaken) return next(createError('Email already in use', 409));
     }
 
+    const { name, email, role, teamId, isActive } = req.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (email !== undefined) data.email = email;
+    if (role !== undefined) data.role = role;
+    if (teamId !== undefined) data.teamId = teamId;
+    if (isActive !== undefined) data.isActive = isActive;
+
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: req.body,
+      data,
       select: userSelect,
     });
     res.json({ data: user });
@@ -119,9 +145,13 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// DELETE /api/users/:id
-router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+// DELETE /api/users/:id — ADMIN only, cannot delete yourself
+router.delete('/:id', requireRole('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.user!.id === req.params.id) {
+      return next(createError('Não é possível excluir sua própria conta', 400));
+    }
+
     const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('User not found', 404));
 

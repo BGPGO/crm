@@ -61,6 +61,13 @@ async function resolveUser(token: string) {
 }
 
 /**
+ * Invalidate a specific token from the auth cache (used on logout).
+ */
+export function clearAuthCache(token: string) {
+  authCache.delete(token);
+}
+
+/**
  * Mandatory auth middleware.
  * Returns 401 if no valid token is present.
  */
@@ -85,6 +92,23 @@ export async function requireAuth(
   } catch (err) {
     return res.status(401).json({ error: 'Falha na autenticação' });
   }
+}
+
+/**
+ * Role-based access control middleware.
+ * Requires the user to have one of the specified roles.
+ * Must be used AFTER requireAuth.
+ */
+export function requireRole(...allowedRoles: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Permissão insuficiente. Necessário: ' + allowedRoles.join(' ou ') });
+    }
+    next();
+  };
 }
 
 /**

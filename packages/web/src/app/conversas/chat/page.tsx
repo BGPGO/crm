@@ -34,6 +34,7 @@ interface Conversation {
   messages?: ConversationMessage[];
   tags?: ConvTag[];
   hasUndelivered?: boolean;
+  unreadCount?: number;
   contact?: { id: string; name: string; email: string } | null;
 }
 
@@ -134,10 +135,11 @@ export default function ConversasChatPage() {
     return () => clearInterval(interval);
   }, [fetchConversations, fetchStats, fetchMessages, selectedId]);
 
-  // Load messages when selecting a conversation (with loading skeleton)
+  // Load messages when selecting a conversation (with loading skeleton) and mark as read
   useEffect(() => {
     if (selectedId) {
       fetchMessages(selectedId, true);
+      api.post(`/whatsapp/conversations/${selectedId}/read`).catch(() => {});
     }
   }, [selectedId, fetchMessages]);
 
@@ -193,6 +195,45 @@ export default function ConversasChatPage() {
     if (!dateStr) return "";
     const d = new Date(dateStr);
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatConvTimestamp = (dateStr: string | null) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 86400000);
+    const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    if (msgDay.getTime() === today.getTime()) {
+      return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+    if (msgDay.getTime() === yesterday.getTime()) {
+      return "Ontem";
+    }
+    // Same week: day name
+    const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / 86400000);
+    if (diffDays < 7) {
+      return d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    }
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  };
+
+  const formatDateSeparator = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today.getTime() - 86400000);
+    const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    if (msgDay.getTime() === today.getTime()) return "Hoje";
+    if (msgDay.getTime() === yesterday.getTime()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  };
+
+  const getMessageDateKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   };
 
   const truncate = (text: string | null, max: number) => {
@@ -311,8 +352,8 @@ export default function ConversasChatPage() {
                     selectedId === conv.id && "bg-blue-50 border-l-2 border-l-blue-600"
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
+                  <div className="flex items-start gap-3">
+                    <div className="relative flex-shrink-0 mt-0.5">
                       <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
                         <MessageSquare size={16} />
                       </div>
@@ -325,22 +366,27 @@ export default function ConversasChatPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className={clsx("text-sm truncate", (conv.unreadCount ?? 0) > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900")}>
                           {conv.pushName || conv.phone}
                         </p>
-                        <span className="text-[10px] text-gray-400 flex-shrink-0 ml-2">
-                          {formatTime(conv.lastMessageAt)}
+                        <span className={clsx("text-[11px] flex-shrink-0 whitespace-nowrap leading-none", (conv.unreadCount ?? 0) > 0 ? "text-green-600 font-semibold" : "text-gray-400")}>
+                          {formatConvTimestamp(conv.lastMessageAt) || formatConvTimestamp(conv.messages?.[0]?.createdAt ?? null)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <p className="text-xs text-gray-500 truncate flex-1">
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <p className={clsx("text-xs truncate flex-1", (conv.unreadCount ?? 0) > 0 ? "text-gray-700 font-medium" : "text-gray-500")}>
                           {truncate(conv.messages?.[0]?.text ?? null, 40)}
                         </p>
+                        {(conv.unreadCount ?? 0) > 0 && (
+                          <span className="flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center bg-green-500 text-white text-[10px] font-bold rounded-full px-1">
+                            {conv.unreadCount}
+                          </span>
+                        )}
                         {conv.needsHumanAttention && (
                           <AlertCircle size={12} className="text-yellow-500 flex-shrink-0" />
                         )}
-                        {!conv.needsHumanAttention && conv.isActive && conv.status !== 'closed' && (
+                        {!conv.needsHumanAttention && conv.isActive && conv.status !== 'closed' && (conv.unreadCount ?? 0) === 0 && (
                           <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium flex-shrink-0">IA</span>
                         )}
                         {conv.needsHumanAttention && (
@@ -485,48 +531,58 @@ export default function ConversasChatPage() {
                     Nenhuma mensagem ainda
                   </div>
                 ) : (
-                  messages.map((msg) => {
+                  messages.map((msg, idx) => {
                     const isClient = msg.sender === "CLIENT";
                     const isBot = msg.sender === "BOT";
+                    const currentDateKey = getMessageDateKey(msg.createdAt);
+                    const prevDateKey = idx > 0 ? getMessageDateKey(messages[idx - 1].createdAt) : null;
+                    const showDateSeparator = currentDateKey !== prevDateKey;
+
                     return (
-                      <div
-                        key={msg.id}
-                        className={clsx("flex", isClient ? "justify-start" : "justify-end")}
-                      >
-                        <div
-                          className={clsx(
-                            "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
-                            msg.delivered === false && !isClient
-                              ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
-                              : isClient
-                              ? "bg-gray-200 text-gray-900"
-                              : isBot
-                              ? "bg-green-50 border border-green-200 text-gray-900"
-                              : "bg-blue-50 border border-blue-200 text-gray-900"
-                          )}
-                        >
-                          {!isClient && (
-                            <p className={clsx(
-                              "text-[10px] font-semibold mb-0.5",
-                              isBot ? "text-green-600" : "text-blue-600"
-                            )}>
-                              {isBot ? "Bot" : "Você"}
-                            </p>
-                          )}
-                          <p
-                            className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
-                            dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
-                          />
-                          <div className="flex items-center justify-between mt-1 gap-2">
-                            {msg.delivered === false && !isClient && (
-                              <p className="text-[10px] text-red-500 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-                                Nao enviada
+                      <div key={msg.id}>
+                        {showDateSeparator && (
+                          <div className="flex items-center justify-center my-3">
+                            <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[11px] rounded-full shadow-sm font-medium">
+                              {formatDateSeparator(msg.createdAt)}
+                            </span>
+                          </div>
+                        )}
+                        <div className={clsx("flex", isClient ? "justify-start" : "justify-end")}>
+                          <div
+                            className={clsx(
+                              "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
+                              msg.delivered === false && !isClient
+                                ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
+                                : isClient
+                                ? "bg-gray-200 text-gray-900"
+                                : isBot
+                                ? "bg-green-50 border border-green-200 text-gray-900"
+                                : "bg-blue-50 border border-blue-200 text-gray-900"
+                            )}
+                          >
+                            {!isClient && (
+                              <p className={clsx(
+                                "text-[10px] font-semibold mb-0.5",
+                                isBot ? "text-green-600" : "text-blue-600"
+                              )}>
+                                {isBot ? "Bot" : "Você"}
                               </p>
                             )}
-                            <p className="text-[10px] text-gray-400 text-right flex-1">
-                              {formatTime(msg.createdAt)}
-                            </p>
+                            <p
+                              className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                              dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
+                            />
+                            <div className="flex items-center justify-between mt-1 gap-2">
+                              {msg.delivered === false && !isClient && (
+                                <p className="text-[10px] text-red-500 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                                  Nao enviada
+                                </p>
+                              )}
+                              <p className="text-[10px] text-gray-400 text-right flex-1">
+                                {formatTime(msg.createdAt)}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>

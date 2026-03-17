@@ -1,12 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { requireRole } from '../middleware/auth';
 import { parseCSV, processImport } from '../services/csvProcessor';
 
 const router = Router();
 
-// POST /api/contact-imports — Start an import
-router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/contact-imports — Start an import (ADMIN/MANAGER only)
+router.post('/', requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { fileName, csvContent, mapping } = req.body;
 
@@ -73,8 +74,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// GET /api/contact-imports/contacts/export — Export contacts as CSV
-router.get('/contacts/export', async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/contact-imports/contacts/export — Export contacts as CSV (ADMIN/MANAGER only)
+router.get('/contacts/export', requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const contacts = await prisma.contact.findMany({
       include: {

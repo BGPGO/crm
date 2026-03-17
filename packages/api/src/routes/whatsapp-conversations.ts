@@ -54,7 +54,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         where,
         skip,
         take: limit,
-        orderBy: { lastMessageAt: 'desc' },
+        orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
         include: {
           messages: {
             orderBy: { createdAt: 'desc' },
@@ -71,11 +71,30 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       }),
     ]);
 
-    // Flatten tags and add hasUndelivered flag
+    // Count unread CLIENT messages (after lastReadAt) for each conversation
+    const convIds = data.map((c) => c.id);
+    const unreadCounts: Record<string, number> = {};
+    if (convIds.length > 0) {
+      const unreadRows = await prisma.$queryRaw<Array<{ conversationId: string; cnt: bigint }>>`
+        SELECT "conversationId", COUNT(*) as cnt FROM "WhatsAppMessage"
+         WHERE "conversationId" = ANY(${convIds}::text[])
+           AND "sender" = 'CLIENT'
+           AND "createdAt" > COALESCE(
+             (SELECT "lastReadAt" FROM "WhatsAppConversation" WHERE id = "WhatsAppMessage"."conversationId"),
+             '1970-01-01'::timestamp
+           )
+         GROUP BY "conversationId"`;
+      for (const row of unreadRows) {
+        unreadCounts[row.conversationId] = Number(row.cnt);
+      }
+    }
+
+    // Flatten tags and add hasUndelivered + unreadCount
     const enriched = data.map((c) => ({
       ...c,
       tags: (c.contact as any)?.tags?.map((ct: any) => ct.tag) || [],
       hasUndelivered: ((c as any)._count?.messages || 0) > 0,
+      unreadCount: unreadCounts[c.id] || 0,
     }));
 
     res.json({
@@ -112,7 +131,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       where: { id: req.params.id },
       include: {
         messages: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: 'asc' },
           take: 50,
         },
         contact: { select: { id: true, name: true, email: true, phone: true } },
@@ -147,7 +166,7 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'asc' },
       }),
     ]);
 
@@ -155,6 +174,19 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/whatsapp-conversations/:id/read — Mark conversation as read
+router.post('/:id/read', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.whatsAppConversation.update({
+      where: { id: req.params.id },
+      data: { lastReadAt: new Date() },
+    });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

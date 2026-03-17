@@ -404,6 +404,10 @@ model DealProduct {
   quantity  Int     @default(1)
   unitPrice Decimal @db.Decimal(15, 2)
   discount  Decimal @default(0) @db.Decimal(5, 2)
+  discountMonths  Int?
+  setupPrice      Decimal? @db.Decimal(15, 2)
+  setupInstallments Int?
+  recurrenceValue Decimal? @db.Decimal(15, 2)
 
   dealId String
   deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
@@ -414,7 +418,6 @@ model DealProduct {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([dealId, productId])
   @@index([dealId])
   @@index([productId])
 }
@@ -1063,6 +1066,7 @@ model WhatsAppConversation {
   needsHumanAttention Boolean   @default(false)
   status              String    @default("open") // open, closed
   lastMessageAt       DateTime?
+  lastReadAt          DateTime?
 
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])

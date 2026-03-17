@@ -8,7 +8,7 @@
 
 import { writeFileSync, mkdirSync } from 'fs';
 
-const TOKEN = '69b2bc03765e3600164ba953';
+const TOKEN = process.env.RD_TOKEN || (() => { console.error('❌ Defina RD_TOKEN no .env'); process.exit(1); })();
 const BASE_URL = 'https://crm.rdstation.com/api/v1';
 const OUTPUT_DIR = './rd-data';
 const LIMIT = 200; // máximo permitido pela API

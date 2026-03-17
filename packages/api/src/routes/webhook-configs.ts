@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
 
@@ -52,9 +53,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// POST /api/webhook-configs
+// POST /api/webhook-configs (ADMIN/MANAGER only)
 router.post(
   '/',
+  requireRole('ADMIN', 'MANAGER'),
   validate({ name: 'required', url: 'required', type: 'required', events: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -68,8 +70,8 @@ router.post(
   }
 );
 
-// PUT /api/webhook-configs/:id
-router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
+// PUT /api/webhook-configs/:id (ADMIN/MANAGER only)
+router.put('/:id', requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await prisma.webhookConfig.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Webhook configuration not found', 404));
@@ -84,8 +86,8 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// DELETE /api/webhook-configs/:id
-router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+// DELETE /api/webhook-configs/:id (ADMIN only)
+router.delete('/:id', requireRole('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await prisma.webhookConfig.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Webhook configuration not found', 404));

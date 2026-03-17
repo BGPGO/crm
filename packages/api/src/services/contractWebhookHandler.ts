@@ -8,8 +8,20 @@ import { Resend } from 'resend';
  */
 export async function handleAutentiqueWebhook(req: Request, res: Response) {
   try {
+    // Validate webhook secret
+    const webhookSecret = process.env.AUTENTIQUE_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const incomingSecret =
+        (req.headers['x-webhook-secret'] as string) ??
+        req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+      if (!incomingSecret || incomingSecret !== webhookSecret) {
+        console.warn('[contract-webhook] Invalid or missing webhook secret');
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
     const body = req.body;
-    console.log('[contract-webhook] Received:', JSON.stringify(body).slice(0, 500));
+    console.log('[contract-webhook] Received event for processing');
 
     const documentId = body?.document?.id || body?.data?.document?.id || body?.id;
     if (!documentId) {
