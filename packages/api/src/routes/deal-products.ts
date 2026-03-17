@@ -74,21 +74,18 @@ router.post(
       if (!deal) return next(createError('Deal not found', 404));
       if (!product) return next(createError('Product not found', 404));
 
-      const data: Record<string, unknown> = {
-        dealId,
-        productId,
-        quantity: parseInt(req.body.quantity) || 1,
-        unitPrice: parseFloat(req.body.unitPrice) || product.price,
-        discount: parseFloat(req.body.discount) || 0,
-      };
-
-      if (req.body.discountMonths != null) data.discountMonths = parseInt(req.body.discountMonths) || null;
-      if (req.body.setupPrice != null) data.setupPrice = parseFloat(req.body.setupPrice) || null;
-      if (req.body.setupInstallments != null) data.setupInstallments = parseInt(req.body.setupInstallments) || null;
-      if (req.body.recurrenceValue != null) data.recurrenceValue = parseFloat(req.body.recurrenceValue) || null;
-
       const dealProduct = await prisma.dealProduct.create({
-        data,
+        data: {
+          deal: { connect: { id: dealId } },
+          product: { connect: { id: productId } },
+          quantity: parseInt(req.body.quantity) || 1,
+          unitPrice: parseFloat(req.body.unitPrice) || Number(product.price),
+          discount: parseFloat(req.body.discount) || 0,
+          discountMonths: req.body.discountMonths != null ? (parseInt(req.body.discountMonths) || null) : null,
+          setupPrice: req.body.setupPrice != null ? (parseFloat(req.body.setupPrice) || null) : null,
+          setupInstallments: req.body.setupInstallments != null ? (parseInt(req.body.setupInstallments) || null) : null,
+          recurrenceValue: req.body.recurrenceValue != null ? (parseFloat(req.body.recurrenceValue) || null) : null,
+        },
         include: {
           product: true,
           deal: { select: { id: true, title: true } },
