@@ -391,7 +391,7 @@ export async function onLeadCreated(contactId: string, dealId: string): Promise<
     return;
   }
 
-  console.log(`[LeadQualification] Agendando checagem Calendly em 30s para ${timerKey}`);
+  console.log(`[LeadQualification] Agendando checagem Calendly em 10min para ${timerKey}`);
 
   const timer = setTimeout(async () => {
     try {
@@ -401,7 +401,7 @@ export async function onLeadCreated(contactId: string, dealId: string): Promise<
       console.error(`[LeadQualification] Erro na checagem Calendly:`, errMsg);
       pendingTimers.delete(timerKey);
     }
-  }, 30 * 1000);
+  }, 10 * 60 * 1000);
 
   pendingTimers.set(timerKey, timer);
 }
