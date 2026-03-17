@@ -33,6 +33,21 @@ router.post('/:instance', async (req: Request, res: Response) => {
     const body = req.body;
     const event = body.event;
 
+    // Debug: save raw webhook payload to DB for remote inspection
+    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
+      const debugPayload = JSON.stringify({
+        event,
+        sender: body.sender,
+        data_key: body.data?.key,
+        data_pushName: body.data?.pushName,
+        data_participant: body.data?.participant,
+        top_level_keys: Object.keys(body),
+      });
+      prisma.activity.create({
+        data: { type: 'NOTE', content: `[WA-RAW] ${debugPayload}` },
+      }).catch(() => {});
+    }
+
     if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
       const message = body.data;
 
