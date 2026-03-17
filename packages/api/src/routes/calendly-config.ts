@@ -64,6 +64,69 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/calendly/config/meetings — List upcoming meetings ordered by proximity
+router.get('/meetings', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const { period } = req.query; // upcoming, past, all
+    const now = new Date();
+
+    const where: Record<string, unknown> = {};
+    if (period === 'past') {
+      where.startTime = { lt: now };
+    } else if (period !== 'all') {
+      // Default: upcoming
+      where.startTime = { gte: now };
+      where.status = 'active';
+    }
+
+    const [total, data] = await Promise.all([
+      prisma.calendlyEvent.count({ where }),
+      prisma.calendlyEvent.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { startTime: period === 'past' ? 'desc' : 'asc' },
+        include: {
+          contact: {
+            select: { id: true, name: true, email: true, phone: true },
+          },
+        },
+      }),
+    ]);
+
+    res.json({
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/calendly/config/meetings/stats — Meeting counts
+router.get('/meetings/stats', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const weekEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const [today, thisWeek, total] = await Promise.all([
+      prisma.calendlyEvent.count({ where: { startTime: { gte: todayStart, lt: todayEnd }, status: 'active' } }),
+      prisma.calendlyEvent.count({ where: { startTime: { gte: now, lt: weekEnd }, status: 'active' } }),
+      prisma.calendlyEvent.count({ where: { startTime: { gte: now }, status: 'active' } }),
+    ]);
+
+    res.json({ data: { today, thisWeek, total } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/calendly/config/events — List CalendlyEvents with pagination
 router.get('/events', async (req: Request, res: Response, next: NextFunction) => {
   try {

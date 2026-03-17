@@ -14,6 +14,7 @@ const ACTION_OPTIONS = [
   { value: "ADD_TAG", label: "Adicionar Tag" },
   { value: "REMOVE_TAG", label: "Remover Tag" },
   { value: "SEND_EMAIL", label: "Enviar Email" },
+  { value: "SEND_WHATSAPP", label: "Enviar WhatsApp" },
   { value: "WAIT", label: "Aguardar" },
   { value: "UPDATE_FIELD", label: "Atualizar Campo" },
   { value: "MOVE_PIPELINE_STAGE", label: "Mover Etapa" },

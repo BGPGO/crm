@@ -34,9 +34,11 @@ import whatsappConversationsRouter from './whatsapp-conversations';
 import whatsappLeadsRouter from './whatsapp-leads';
 import whatsappCampaignsRouter from './whatsapp-campaigns';
 import whatsappFollowupRouter from './whatsapp-followup';
+import whatsappMessageTemplatesRouter from './whatsapp-message-templates';
 import whatsappTestChatRouter from './whatsapp-test-chat';
 import calendlyWebhookRouter from './calendly-webhook';
 import calendlyConfigRouter from './calendly-config';
+import meetingRemindersRouter from './meeting-reminders';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -85,7 +87,9 @@ router.use('/whatsapp/conversations', whatsappConversationsRouter);
 router.use('/whatsapp/leads', whatsappLeadsRouter);
 router.use('/whatsapp/campaigns', whatsappCampaignsRouter);
 router.use('/whatsapp/followup', whatsappFollowupRouter);
+router.use('/whatsapp/message-templates', whatsappMessageTemplatesRouter);
 router.use('/whatsapp/test-chat', whatsappTestChatRouter);
 router.use('/calendly/config', calendlyConfigRouter);
+router.use('/meeting-reminders', meetingRemindersRouter);
 
 export default router;

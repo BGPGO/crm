@@ -130,7 +130,7 @@ export default function MarketingDashboardPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {summaryCards.map((card) => {

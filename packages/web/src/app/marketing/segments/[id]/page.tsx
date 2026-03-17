@@ -173,7 +173,7 @@ export default function SegmentDetailPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Back link */}
         <Link
           href="/marketing/segments"
@@ -187,16 +187,16 @@ export default function SegmentDetailPage() {
           <Card padding="md">
             <div className="space-y-3">
               <div className="h-6 w-48 bg-gray-100 rounded animate-pulse" />
-              <div className="h-4 w-96 bg-gray-100 rounded animate-pulse" />
+              <div className="h-4 w-full sm:w-96 bg-gray-100 rounded animate-pulse" />
             </div>
           </Card>
         ) : segment ? (
           <>
             {/* Segment info */}
             <Card padding="md">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <h2 className="text-lg font-semibold text-gray-900">
                       {segment.name}
                     </h2>
@@ -219,7 +219,7 @@ export default function SegmentDetailPage() {
                   {segment.description && (
                     <p className="text-sm text-gray-600">{segment.description}</p>
                   )}
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                     <span className="flex items-center gap-1.5">
                       <Users size={14} />
                       {segment.contactCount} contatos
@@ -264,13 +264,14 @@ export default function SegmentDetailPage() {
               <h3 className="text-sm font-semibold text-gray-900 mb-3">
                 Contatos no Segmento
               </h3>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHead>
                   <TableRow>
                     <TableHeader>Nome</TableHeader>
-                    <TableHeader>Email</TableHeader>
-                    <TableHeader>Telefone</TableHeader>
-                    <TableHeader>Criado em</TableHeader>
+                    <TableHeader className="hidden sm:table-cell">Email</TableHeader>
+                    <TableHeader className="hidden sm:table-cell">Telefone</TableHeader>
+                    <TableHeader className="hidden sm:table-cell">Criado em</TableHeader>
                     <TableHeader></TableHeader>
                   </TableRow>
                 </TableHead>
@@ -306,13 +307,13 @@ export default function SegmentDetailPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 hidden sm:table-cell">
                           {contact.email || "\u2014"}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="text-gray-600 hidden sm:table-cell">
                           {contact.phone || "\u2014"}
                         </TableCell>
-                        <TableCell className="text-gray-500">
+                        <TableCell className="text-gray-500 hidden sm:table-cell">
                           {formatDate(contact.createdAt)}
                         </TableCell>
                         <TableCell>
@@ -328,10 +329,11 @@ export default function SegmentDetailPage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination */}
               {!loadingContacts && meta.total > 0 && (
-                <div className="flex items-center justify-between text-sm text-gray-500 mt-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm text-gray-500 mt-4">
                   <span>
                     Mostrando {start}\u2013{end} de {meta.total} contatos
                   </span>

@@ -169,9 +169,9 @@ export default function ReportsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Relatórios" breadcrumb={["Analytics", "Relatórios"]} />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 px-4 sm:px-6 py-6 space-y-6">
         {/* Row 1 - Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total de Negociações */}
           <Card padding="md">
             <div className="flex items-center gap-3">

@@ -252,34 +252,45 @@ ${campaignContext.context}
 
   console.log(`[LeadQualification] Registros salvos no banco para conversa ${conversation.id}`);
 
-  // 13. Send via Evolution API (catch errors, mark needsHumanAttention if fails)
+  // 13. Check Evolution API connection BEFORE attempting to send
   try {
     const client = await EvolutionApiClient.fromConfig();
+
+    // Verify connection is active
+    let isConnected = false;
+    try {
+      const status = await client.getInstanceStatus();
+      const state = (status as any)?.instance?.state || (status as any)?.state;
+      isConnected = state === 'open' || state === 'connected';
+    } catch {
+      isConnected = false;
+    }
+
+    if (!isConnected) {
+      console.warn(`[LeadQualification] WhatsApp não conectado — marcando mensagens como não enviadas`);
+      // Mark the bot message we just saved as not delivered
+      await prisma.whatsAppMessage.updateMany({
+        where: { conversationId: conversation.id, sender: 'BOT' },
+        data: { delivered: false },
+      });
+      // Do NOT set needsHumanAttention — it's a connection issue, not a lead issue
+      return;
+    }
+
     await sendBotMessages(client, normalizedPhone, aiReply);
     console.log(`[LeadQualification] Mensagem enviada via Evolution API para ${normalizedPhone}`);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[LeadQualification] Erro ao enviar via Evolution API:`, errMsg);
 
-    await prisma.whatsAppConversation.update({
-      where: { id: conversation.id },
-      data: { needsHumanAttention: true },
+    // Mark messages as not delivered
+    await prisma.whatsAppMessage.updateMany({
+      where: { conversationId: conversation.id, sender: 'BOT' },
+      data: { delivered: false },
     });
 
-    // Auto-tag "Atendimento Humano"
-    if (conversation.contactId) {
-      const humanTag = await prisma.tag.findUnique({ where: { name: 'Atendimento Humano' } });
-      if (humanTag) {
-        await prisma.contactTag.upsert({
-          where: { contactId_tagId: { contactId: conversation.contactId, tagId: humanTag.id } },
-          create: { contactId: conversation.contactId, tagId: humanTag.id },
-          update: {},
-        });
-        console.log(`[LeadQualification] Auto-tagged contact ${conversation.contactId} with "Atendimento Humano"`);
-      }
-    }
-
-    console.warn(`[LeadQualification] Conversa ${conversation.id} marcada para atenção humana`);
+    // Do NOT set needsHumanAttention for connection/send failures
+    console.warn(`[LeadQualification] Mensagens marcadas como não enviadas para conversa ${conversation.id}`);
   }
 
   // 14. Create Activity on deal

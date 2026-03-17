@@ -19,6 +19,13 @@ interface EmailTemplate {
   name: string;
 }
 
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  content: string;
+  category: string;
+}
+
 interface ActionConfigProps {
   actionType: string;
   config: any;
@@ -174,6 +181,7 @@ export default function ActionConfig({
   const [tags, setTags] = useState<Tag[]>([]);
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [waTemplates, setWaTemplates] = useState<WhatsAppTemplate[]>([]);
 
   useEffect(() => {
     if (actionType === "ADD_TAG" || actionType === "REMOVE_TAG") {
@@ -191,6 +199,15 @@ export default function ActionConfig({
         .then((res) =>
           setTemplates(Array.isArray(res) ? res : res.data ?? [])
         )
+        .catch(() => {});
+    }
+  }, [actionType]);
+
+  useEffect(() => {
+    if (actionType === "SEND_WHATSAPP") {
+      api
+        .get<{ data: WhatsAppTemplate[] }>("/whatsapp/message-templates")
+        .then((res) => setWaTemplates(Array.isArray(res) ? res : res.data ?? []))
         .catch(() => {});
     }
   }, [actionType]);
@@ -242,7 +259,7 @@ export default function ActionConfig({
 
   if (actionType === "WAIT") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Duração
@@ -282,7 +299,7 @@ export default function ActionConfig({
 
   if (actionType === "UPDATE_FIELD") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Nome do Campo
@@ -337,10 +354,87 @@ export default function ActionConfig({
     );
   }
 
+  if (actionType === "SEND_WHATSAPP") {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Origem da Mensagem
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onChange({ ...config, mode: 'template', customMessage: undefined })}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                config?.mode !== 'custom'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Modelo
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange({ ...config, mode: 'custom', messageTemplateId: undefined })}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                config?.mode === 'custom'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Mensagem personalizada
+            </button>
+          </div>
+        </div>
+
+        {config?.mode === 'custom' ? (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Mensagem
+            </label>
+            <textarea
+              value={config?.customMessage ?? ""}
+              onChange={(e) => onChange({ ...config, customMessage: e.target.value })}
+              placeholder="Ola {{nome}}, tudo bem?"
+              rows={4}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500">
+              Placeholders: {'{{nome}}'}, {'{{email}}'}, {'{{telefone}}'}, {'{{cidade}}'}, {'{{estado}}'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Modelo de WhatsApp
+            </label>
+            <select
+              value={config?.messageTemplateId ?? ""}
+              onChange={(e) => onChange({ ...config, messageTemplateId: e.target.value })}
+              className={selectClass}
+            >
+              <option value="">Selecione um modelo...</option>
+              {waTemplates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name} ({tpl.category})
+                </option>
+              ))}
+            </select>
+            {config?.messageTemplateId && (
+              <div className="p-2 bg-gray-50 rounded-md text-xs text-gray-600">
+                {waTemplates.find(t => t.id === config.messageTemplateId)?.content?.slice(0, 150)}...
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (actionType === "CONDITION") {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Campo

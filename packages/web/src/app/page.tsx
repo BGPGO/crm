@@ -367,7 +367,7 @@ export default function DashboardPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Dashboard" />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Error banner */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">

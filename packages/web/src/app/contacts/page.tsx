@@ -147,7 +147,7 @@ export default function ContactsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Contatos" breadcrumb={["CRM", "Contatos"]} />
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="relative">
@@ -160,7 +160,7 @@ export default function ContactsPage() {
               placeholder="Buscar contatos..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <Button variant="primary" size="sm" onClick={openModal}>
@@ -170,15 +170,16 @@ export default function ContactsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Nome</TableHeader>
-              <TableHeader>Email</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Email</TableHeader>
               <TableHeader>Telefone</TableHeader>
-              <TableHeader>Empresa</TableHeader>
-              <TableHeader>Cargo</TableHeader>
-              <TableHeader>Criado em</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Empresa</TableHeader>
+              <TableHeader className="hidden md:table-cell">Cargo</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Criado em</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -216,15 +217,15 @@ export default function ContactsPage() {
                       <span className="font-medium text-gray-900">{contact.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-gray-600">{contact.email || "—"}</TableCell>
+                  <TableCell className="hidden sm:table-cell text-gray-600">{contact.email || "—"}</TableCell>
                   <TableCell className="text-gray-600">
                     {contact.phone ? formatPhone(contact.phone) : "—"}
                   </TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="hidden lg:table-cell text-gray-600">
                     {contact.organization?.name || "—"}
                   </TableCell>
-                  <TableCell className="text-gray-600">{contact.position || "—"}</TableCell>
-                  <TableCell className="text-gray-500">{formatDate(contact.createdAt)}</TableCell>
+                  <TableCell className="hidden md:table-cell text-gray-600">{contact.position || "—"}</TableCell>
+                  <TableCell className="hidden lg:table-cell text-gray-500">{formatDate(contact.createdAt)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Link
                       href={`/contacts/${contact.id}`}
@@ -238,10 +239,11 @@ export default function ContactsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}–{end} de {meta.total} contatos
             </span>

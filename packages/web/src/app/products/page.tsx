@@ -225,7 +225,7 @@ export default function ProductsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Produtos" breadcrumb={["Catálogo", "Produtos"]} />
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="relative">
@@ -238,7 +238,7 @@ export default function ProductsPage() {
               placeholder="Buscar produtos..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <Button variant="primary" size="sm" onClick={openCreateModal}>
@@ -248,14 +248,15 @@ export default function ProductsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Produto</TableHeader>
-              <TableHeader>SKU</TableHeader>
+              <TableHeader className="hidden md:table-cell">SKU</TableHeader>
               <TableHeader>Preço</TableHeader>
-              <TableHeader>Recorrência</TableHeader>
-              <TableHeader>Status</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Recorrência</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Status</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -294,13 +295,13 @@ export default function ProductsPage() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-gray-500">
+                  <TableCell className="hidden md:table-cell font-mono text-xs text-gray-500">
                     {product.sku || "—"}
                   </TableCell>
                   <TableCell className="font-semibold text-gray-900">
                     {formatCurrency(product.price)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {product.recurrence ? (
                       <Badge variant="blue">
                         {recurrenceLabels[product.recurrence] || product.recurrence}
@@ -309,7 +310,7 @@ export default function ProductsPage() {
                       <span className="text-gray-400 text-sm">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <Badge variant={product.isActive ? "green" : "gray"}>
                       {product.isActive ? "Ativo" : "Inativo"}
                     </Badge>
@@ -324,10 +325,11 @@ export default function ProductsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}–{end} de {meta.total} produtos
             </span>

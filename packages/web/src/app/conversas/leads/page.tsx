@@ -119,7 +119,7 @@ export default function ConversasLeadsPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Search */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1 max-w-md">
@@ -143,9 +143,9 @@ export default function ConversasLeadsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Telefone</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Última Mensagem</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Criado em</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">CRM</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Última Mensagem</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Criado em</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">CRM</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Ações</th>
                 </tr>
               </thead>
@@ -181,11 +181,11 @@ export default function ConversasLeadsPage() {
                           {statusLabels[lead.status] || lead.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate">
+                      <td className="px-4 py-3 text-gray-500 max-w-[200px] truncate hidden md:table-cell">
                         {lead.lastMessage || "-"}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{formatDate(lead.createdAt)}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{formatDate(lead.createdAt)}</td>
+                      <td className="px-4 py-3 hidden sm:table-cell">
                         {lead.contactId ? (
                           <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
                             <Check size={12} /> Vinculado
@@ -218,7 +218,7 @@ export default function ConversasLeadsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-sm text-gray-500">
               Página {page} de {totalPages} ({total} leads)
             </p>

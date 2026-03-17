@@ -663,7 +663,7 @@ export default function PipelinePage() {
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Buscar negociação..."
-            className="pl-8 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-md w-48 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="pl-8 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-md w-full sm:w-48 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           {searchInput && (
             <button
@@ -800,6 +800,7 @@ export default function PipelinePage() {
             </div>
           ) : (
             <>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHead>
                   <TableRow>
@@ -846,10 +847,11 @@ export default function PipelinePage() {
                   )}
                 </TableBody>
               </Table>
+              </div>
 
               {/* Pagination controls */}
               {listTotalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 px-1">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-4 px-1">
                   <span className="text-xs text-gray-500">
                     Mostrando {(listPage - 1) * LIST_PAGE_SIZE + 1}–
                     {Math.min(listPage * LIST_PAGE_SIZE, listTotal)} de{" "}

@@ -232,7 +232,7 @@ export default function TriggerConfig({
 
   if (triggerType === "FIELD_UPDATED") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Nome do Campo
@@ -267,7 +267,7 @@ export default function TriggerConfig({
 
   if (triggerType === "DATE_BASED") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Campo de Data

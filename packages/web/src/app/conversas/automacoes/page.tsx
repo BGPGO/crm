@@ -152,7 +152,7 @@ export default function ConversasAutomacoesPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Follow-up configuration */}
         <Card padding="lg">
           <div className="flex items-center justify-between mb-4">
@@ -187,7 +187,7 @@ export default function ConversasAutomacoesPage() {
             <>
               <div className="space-y-3">
                 {config.followUpSteps.map((step, index) => (
-                  <div key={index} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-gray-50 rounded-lg p-3">
                     <span className="text-xs font-semibold text-gray-500 w-6">#{step.order}</span>
                     <div className="flex-1">
                       <label className="text-xs text-gray-500 block mb-1">Delay (minutos)</label>
@@ -213,7 +213,7 @@ export default function ConversasAutomacoesPage() {
                     </div>
                     <button
                       onClick={() => removeStep(index)}
-                      className="mt-5 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="sm:mt-5 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors self-end sm:self-auto"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -221,7 +221,7 @@ export default function ConversasAutomacoesPage() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 mt-4">
+              <div className="flex items-center gap-3 mt-4 flex-wrap">
                 <button
                   onClick={addStep}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"

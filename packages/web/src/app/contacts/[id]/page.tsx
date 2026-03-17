@@ -130,10 +130,10 @@ function Skeleton() {
   return (
     <div className="flex flex-col h-full overflow-auto animate-pulse">
       <div className="h-16 bg-white border-b border-gray-200" />
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-4 sm:p-6 space-y-6">
         <div className="h-6 w-40 bg-gray-100 rounded" />
-        <div className="flex gap-6">
-          <div className="w-72 space-y-3 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row gap-6">
+          <div className="w-full sm:w-72 space-y-3 flex-shrink-0">
             <div className="h-24 bg-gray-100 rounded-xl" />
             <div className="h-64 bg-gray-100 rounded-xl" />
           </div>
@@ -237,7 +237,7 @@ export default function ContactDetailPage() {
         breadcrumb={["CRM", "Contatos", contact.name]}
       />
 
-      <main className="flex-1 p-6 space-y-4 max-w-screen-xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 space-y-4 max-w-screen-xl mx-auto w-full">
         {/* Back link */}
         <Link
           href="/contacts"
@@ -248,9 +248,9 @@ export default function ContactDetailPage() {
         </Link>
 
         {/* Body */}
-        <div className="flex gap-5 items-start">
+        <div className="flex flex-col sm:flex-row gap-5 items-start">
           {/* ── Left Sidebar ── */}
-          <aside className="w-72 flex-shrink-0 space-y-4">
+          <aside className="w-full sm:w-72 flex-shrink-0 space-y-4">
             {/* Avatar + name card */}
             <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
               <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-bold flex-shrink-0">
@@ -454,12 +454,12 @@ export default function ContactDetailPage() {
           <div className="flex-1 min-w-0">
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
               {/* Tab bar */}
-              <div className="flex border-b border-gray-200">
+              <div className="flex border-b border-gray-200 overflow-x-auto">
                 {TABS.map(({ id: tabId, label, icon: Icon }) => (
                   <button
                     key={tabId}
                     onClick={() => setActiveTab(tabId)}
-                    className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                    className={`flex items-center gap-2 px-3 sm:px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                       activeTab === tabId
                         ? "border-blue-600 text-blue-600"
                         : "border-transparent text-gray-500 hover:text-gray-800"
@@ -506,7 +506,7 @@ export default function ContactDetailPage() {
                               {deal.pipeline.name} &rsaquo; {deal.stage.name}
                             </p>
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0 ml-4">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2 sm:ml-4">
                             <span className="text-sm font-semibold text-gray-800">
                               {formatCurrency(deal.value)}
                             </span>

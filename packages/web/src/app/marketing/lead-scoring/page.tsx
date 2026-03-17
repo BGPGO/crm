@@ -196,13 +196,13 @@ export default function LeadScoringPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Actions bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-sm text-gray-500">
             Configure regras de pontuação para qualificar seus leads automaticamente.
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
@@ -221,14 +221,14 @@ export default function LeadScoringPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Rules table */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 overflow-x-auto">
             <Table>
               <TableHead>
                 <TableRow>
                   <TableHeader>Nome</TableHeader>
-                  <TableHeader>Campo</TableHeader>
-                  <TableHeader>Operador</TableHeader>
-                  <TableHeader>Valor</TableHeader>
+                  <TableHeader className="hidden sm:table-cell">Campo</TableHeader>
+                  <TableHeader className="hidden md:table-cell">Operador</TableHeader>
+                  <TableHeader className="hidden lg:table-cell">Valor</TableHeader>
                   <TableHeader>Pontos</TableHeader>
                   <TableHeader></TableHeader>
                 </TableRow>
@@ -265,11 +265,11 @@ export default function LeadScoringPage() {
                         <TableCell className="font-medium text-gray-900">
                           {rule.name}
                         </TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="hidden sm:table-cell text-gray-600">
                           {fieldLabel}
                         </TableCell>
-                        <TableCell className="text-gray-600">{opLabel}</TableCell>
-                        <TableCell className="text-gray-600">
+                        <TableCell className="hidden md:table-cell text-gray-600">{opLabel}</TableCell>
+                        <TableCell className="hidden lg:table-cell text-gray-600">
                           {rule.value || "\u2014"}
                         </TableCell>
                         <TableCell>

@@ -1,10 +1,41 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
-import { validate } from '../middleware/validate';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
 
 const router = Router();
+
+// GET /api/whatsapp-campaigns/stages — List pipeline stages with contact counts
+router.get('/stages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stages = await prisma.pipelineStage.findMany({
+      where: { pipeline: { isDefault: true } },
+      orderBy: { order: 'asc' },
+      include: {
+        pipeline: { select: { name: true } },
+        _count: { select: { deals: true } },
+      },
+    });
+
+    res.json({ data: stages });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/whatsapp-campaigns/segments — List segments with contact counts
+router.get('/segments', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const segments = await prisma.segment.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, contactCount: true },
+    });
+    res.json({ data: segments });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/whatsapp-campaigns — List campaigns with contact counts
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -26,6 +57,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { createdAt: 'desc' },
         include: {
           _count: { select: { contacts: true } },
+          stage: { select: { id: true, name: true } },
+          segment: { select: { id: true, name: true } },
         },
       }),
     ]);
@@ -46,6 +79,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       where: { id: req.params.id },
       include: {
         contacts: true,
+        stage: { select: { id: true, name: true } },
+        segment: { select: { id: true, name: true } },
       },
     });
 
@@ -60,21 +95,65 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/whatsapp-campaigns — Create campaign
 router.post(
   '/',
-  validate({ name: 'required', message: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, message, contacts } = req.body;
+      const { name, message, contacts, stageId, segmentId } = req.body;
 
-      if (!Array.isArray(contacts) || contacts.length === 0) {
-        return next(createError('contacts must be a non-empty array of phone numbers', 422));
+      if (!name || !message) return next(createError('name and message are required', 400));
+
+      let phoneNumbers: string[] = [];
+
+      if (segmentId) {
+        // Get contacts from segment filters
+        const segment = await prisma.segment.findUnique({ where: { id: segmentId } });
+        if (!segment) return next(createError('Segment not found', 404));
+
+        const { buildSegmentWhere } = await import('../services/segmentEngine');
+        const segmentWhere = buildSegmentWhere(segment.filters as any);
+
+        const segmentContacts = await prisma.contact.findMany({
+          where: { ...segmentWhere, phone: { not: null } },
+          select: { phone: true },
+        });
+
+        phoneNumbers = segmentContacts
+          .map(c => c.phone!)
+          .filter(p => p.trim() !== '');
+        phoneNumbers = [...new Set(phoneNumbers)];
+
+        if (phoneNumbers.length === 0) {
+          return next(createError('No contacts with phone numbers found in this segment', 422));
+        }
+      } else if (stageId) {
+        // Get all contacts from deals at this pipeline stage
+        const deals = await prisma.deal.findMany({
+          where: { stageId, status: 'OPEN' },
+          include: { contact: { select: { phone: true } } },
+        });
+        phoneNumbers = deals
+          .map(d => d.contact?.phone)
+          .filter((p): p is string => !!p && p.trim() !== '');
+
+        // Remove duplicates
+        phoneNumbers = [...new Set(phoneNumbers)];
+
+        if (phoneNumbers.length === 0) {
+          return next(createError('No contacts with phone numbers found in this stage', 422));
+        }
+      } else if (Array.isArray(contacts) && contacts.length > 0) {
+        phoneNumbers = contacts;
+      } else {
+        return next(createError('Either contacts array, stageId, or segmentId is required', 422));
       }
 
       const campaign = await prisma.whatsAppCampaign.create({
         data: {
           name,
           message,
+          stageId: stageId || null,
+          segmentId: segmentId || null,
           contacts: {
-            create: contacts.map((phone: string) => ({ phone })),
+            create: phoneNumbers.map((phone: string) => ({ phone })),
           },
         },
         include: {

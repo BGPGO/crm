@@ -927,7 +927,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-50">
       {/* ── Top: back link + stage bar ─────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex-shrink-0">
         <button
           onClick={() => router.push("/pipeline")}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mb-3 transition-colors"
@@ -937,7 +937,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         </button>
 
         {/* Title row */}
-        <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4 mb-3">
           <div className="flex flex-col gap-1.5 min-w-0 flex-1">
             <EditableTitle
               value={deal.title}
@@ -958,7 +958,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex gap-2 flex-shrink-0 flex-wrap">
             {deal.status === "active" && (
               <>
                 <Button
@@ -1005,10 +1005,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* ── Body: sidebar + main ───────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
 
         {/* ── Left sidebar (~35%) ── */}
-        <aside className="w-80 xl:w-96 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto">
+        <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 bg-white overflow-y-auto max-h-[40vh] lg:max-h-none">
 
           {/* Seção: Negociação */}
           <CollapsibleSection title="Negociação" defaultOpen>
@@ -1224,8 +1224,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         <main className="flex-1 overflow-y-auto flex flex-col">
 
           {/* Tabs */}
-          <div className="bg-white border-b border-gray-200 px-6 flex-shrink-0">
-            <nav className="flex gap-0 -mb-px">
+          <div className="bg-white border-b border-gray-200 px-4 sm:px-6 flex-shrink-0 overflow-x-auto">
+            <nav className="flex gap-0 -mb-px min-w-max">
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
@@ -1250,7 +1250,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 sm:p-6">
 
             {/* ── Histórico ── */}
             {activeTab === "historico" && (
@@ -1295,7 +1295,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                         className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <div className="flex-1">
                         <label className="text-xs text-gray-500 mb-1 block">Tipo</label>
                         <select

@@ -40,7 +40,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       'evolutionApiUrl', 'evolutionApiKey', 'instanceName', 'baseUrl',
       'companyName', 'companyPhone', 'meetingLink', 'openaiApiKey',
       'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
-      'leadQualificationEnabled', 'sdrAutoMessageEnabled',
+      'leadQualificationEnabled', 'sdrAutoMessageEnabled', 'meetingReminderEnabled',
     ];
 
     const updateData: Record<string, unknown> = {};

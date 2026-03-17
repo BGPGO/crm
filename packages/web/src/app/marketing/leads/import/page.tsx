@@ -178,7 +178,7 @@ export default function ImportLeadsPage() {
       />
       <MarketingNav />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Back link */}
         <Link
           href="/marketing/leads"
@@ -189,7 +189,7 @@ export default function ImportLeadsPage() {
         </Link>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
           {(["upload", "mapping", "preview", "confirm", "done"] as Step[]).map(
             (s, i) => {
               const labels = [
@@ -341,9 +341,9 @@ export default function ImportLeadsPage() {
               {mappings.map((mapping, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-4 py-2 border-b border-gray-100 last:border-0"
+                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 py-2 border-b border-gray-100 last:border-0"
                 >
-                  <div className="w-1/3">
+                  <div className="sm:w-1/3">
                     <span className="text-sm font-medium text-gray-700">
                       {mapping.csvHeader}
                     </span>
@@ -353,8 +353,8 @@ export default function ImportLeadsPage() {
                       </p>
                     )}
                   </div>
-                  <ArrowRight size={14} className="text-gray-400 flex-shrink-0" />
-                  <div className="w-1/3">
+                  <ArrowRight size={14} className="text-gray-400 flex-shrink-0 hidden sm:block" />
+                  <div className="sm:w-1/3">
                     <select
                       value={mapping.contactField}
                       onChange={(e) => updateMapping(i, e.target.value)}
@@ -410,6 +410,7 @@ export default function ImportLeadsPage() {
               Confira as primeiras 5 linhas com o mapeamento aplicado.
             </p>
 
+            <div className="overflow-x-auto">
             <Table>
               <TableHead>
                 <TableRow>
@@ -437,6 +438,7 @@ export default function ImportLeadsPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
 
             <p className="text-xs text-gray-400 mt-3">
               Mostrando {previewRows.length} de {rows.length} linhas.
@@ -494,7 +496,7 @@ export default function ImportLeadsPage() {
                     contatos do arquivo{" "}
                     <span className="font-semibold text-gray-900">{fileName}</span>.
                   </p>
-                  <div className="flex justify-center gap-3 pt-2">
+                  <div className="flex justify-center gap-3 pt-2 flex-wrap">
                     <Button
                       variant="secondary"
                       size="sm"

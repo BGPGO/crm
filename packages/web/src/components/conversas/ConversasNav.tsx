@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, Users, Send, Zap, FileText, Bot, Settings } from "lucide-react";
+import { MessageSquare, Users, Send, Zap, FileText, Bot, Settings, LayoutTemplate } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -10,6 +10,7 @@ const tabs = [
   { label: "Leads WhatsApp", href: "/conversas/leads", icon: Users },
   { label: "Campanhas", href: "/conversas/campanhas", icon: Send },
   { label: "Automações", href: "/conversas/automacoes", icon: Zap },
+  { label: "Modelos", href: "/conversas/modelos", icon: LayoutTemplate },
   { label: "Contextos", href: "/conversas/contextos", icon: FileText },
   { label: "Testar IA", href: "/conversas/testar-ia", icon: Bot },
   { label: "Configuração", href: "/conversas/configuracao", icon: Settings },
@@ -25,7 +26,8 @@ export default function ConversasNav() {
 
   return (
     <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
-      <nav className="flex items-center gap-1 px-6 overflow-x-auto">
+      <nav className="flex items-center gap-1 px-4 md:px-6 overflow-x-auto min-w-0">
+        <div className="flex items-center gap-1 min-w-max">
         {tabs.map((tab) => {
           const active = isActive(tab.href);
           const Icon = tab.icon;
@@ -45,6 +47,7 @@ export default function ConversasNav() {
             </Link>
           );
         })}
+        </div>
       </nav>
     </div>
   );

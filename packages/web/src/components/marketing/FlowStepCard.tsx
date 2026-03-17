@@ -5,6 +5,7 @@ import {
   Tag,
   X,
   Mail,
+  MessageCircle,
   Clock,
   Edit3,
   ArrowRight,
@@ -54,6 +55,12 @@ const ACTION_META: Record<
     color: "text-blue-600",
     bg: "bg-blue-50 border-blue-200",
   },
+  SEND_WHATSAPP: {
+    label: "Enviar WhatsApp",
+    icon: MessageCircle,
+    color: "text-emerald-600",
+    bg: "bg-emerald-50 border-emerald-200",
+  },
   WAIT: {
     label: "Aguardar",
     icon: Clock,
@@ -88,6 +95,9 @@ function getConfigSummary(actionType: string, config: any): string {
       return config.tagId ? `Tag: ${config.tagId}` : "";
     case "SEND_EMAIL":
       return config.templateId ? `Template: ${config.templateId}` : "";
+    case "SEND_WHATSAPP":
+      if (config.mode === "custom") return config.customMessage ? `Msg: ${config.customMessage.slice(0, 40)}...` : "";
+      return config.messageTemplateId ? `Modelo: ${config.messageTemplateId}` : "";
     case "WAIT": {
       const unitLabels: Record<string, string> = {
         minutes: "min",

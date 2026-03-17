@@ -27,6 +27,7 @@ interface BotConfig {
   followUpEnabled: boolean;
   leadQualificationEnabled: boolean;
   sdrAutoMessageEnabled: boolean;
+  meetingReminderEnabled: boolean;
 }
 
 const defaultConfig: BotConfig = {
@@ -44,6 +45,7 @@ const defaultConfig: BotConfig = {
   followUpEnabled: true,
   leadQualificationEnabled: true,
   sdrAutoMessageEnabled: true,
+  meetingReminderEnabled: true,
 };
 
 export default function ConversasConfiguracaoPage() {
@@ -204,7 +206,7 @@ export default function ConversasConfiguracaoPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-4 sm:p-6 space-y-6">
         {/* Section 1: WhatsApp Connection */}
         <Card padding="lg">
           <h2 className="text-sm font-semibold text-gray-900 mb-4">Conexão WhatsApp</h2>
@@ -267,7 +269,7 @@ export default function ConversasConfiguracaoPage() {
               <img
                 src={qrCode}
                 alt="QR Code WhatsApp"
-                className="w-64 h-64 border border-gray-200 rounded-lg"
+                className="w-48 h-48 sm:w-64 sm:h-64 border border-gray-200 rounded-lg"
               />
               <p className="text-xs text-gray-400 mt-3">
                 O QR Code expira em alguns segundos. Clique em &quot;Conectar&quot; novamente se necessário.
@@ -305,8 +307,13 @@ export default function ConversasConfiguracaoPage() {
                 },
                 {
                   field: "sdrAutoMessageEnabled" as keyof BotConfig,
-                  label: "Mensagem Automática SDR",
-                  description: "Envia primeira mensagem automática via WhatsApp para novos leads",
+                  label: "Mensagem Automatica SDR",
+                  description: "Envia primeira mensagem automatica via WhatsApp para novos leads",
+                },
+                {
+                  field: "meetingReminderEnabled" as keyof BotConfig,
+                  label: "Lembretes de Reuniao",
+                  description: "Envia lembretes automaticos via WhatsApp antes das reunioes (4h, 2h, 1h, 30min, 15min)",
                 },
               ] as Array<{ field: keyof BotConfig; label: string; description: string }>).map(({ field, label, description }) => (
                 <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">

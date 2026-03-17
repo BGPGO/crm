@@ -401,7 +401,7 @@ export default function TasksPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Tarefas" breadcrumb={["CRM", "Tarefas"]} />
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Overdue Banner */}
         {counts.OVERDUE > 0 && (
           <div className="flex items-center gap-3 bg-red-600 text-white rounded-lg px-5 py-3 shadow-md animate-pulse">
@@ -421,7 +421,7 @@ export default function TasksPage() {
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* Filter Tabs */}
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 overflow-x-auto">
             {filterTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -468,7 +468,7 @@ export default function TasksPage() {
 
         {/* Batch action bar */}
         {someSelected && (
-          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 animate-in fade-in">
+          <div className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 animate-in fade-in">
             <span className="text-sm font-medium text-blue-800">
               {selectedIds.size} {selectedIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}
             </span>
@@ -515,6 +515,7 @@ export default function TasksPage() {
         )}
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
@@ -527,10 +528,10 @@ export default function TasksPage() {
                 />
               </TableHeader>
               <TableHeader>Tarefa</TableHeader>
-              <TableHeader>Tipo</TableHeader>
-              <TableHeader>Negociação</TableHeader>
-              <TableHeader>Responsável</TableHeader>
-              <TableHeader>Vencimento</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Tipo</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Negociação</TableHeader>
+              <TableHeader className="hidden md:table-cell">Responsável</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Vencimento</TableHeader>
               <TableHeader>Status</TableHeader>
             </TableRow>
           </TableHead>
@@ -606,19 +607,20 @@ export default function TasksPage() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className={clsx("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium", typeColors[task.type])}>
                         <Icon size={12} />
                         {typeLabels[task.type]}
                       </div>
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="hidden lg:table-cell text-gray-600">
                       {task.deal?.title || "—"}
                     </TableCell>
-                    <TableCell className="text-gray-600">
+                    <TableCell className="hidden md:table-cell text-gray-600">
                       {task.user?.name || "—"}
                     </TableCell>
                     <TableCell className={clsx(
+                      "hidden sm:table-cell",
                       "text-sm",
                       isOverdue ? "text-red-600 font-bold" : "text-gray-500"
                     )}>
@@ -643,10 +645,11 @@ export default function TasksPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}–{end} de {meta.total} tarefas
             </span>
@@ -683,7 +686,7 @@ export default function TasksPage() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             required
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Tipo *</label>
               <select

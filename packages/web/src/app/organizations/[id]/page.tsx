@@ -114,10 +114,10 @@ function Skeleton() {
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Carregando..." breadcrumb={["CRM", "Empresas", "..."]} />
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-4 sm:p-6">
         <div className="h-4 w-24 bg-gray-100 rounded animate-pulse mb-6" />
-        <div className="flex gap-6">
-          <div className="w-72 flex-shrink-0 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-6">
+          <div className="w-full sm:w-72 flex-shrink-0 space-y-3">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               {Array.from({ length: 7 }).map((_, i) => (
                 <div key={i} className="space-y-1">
@@ -227,7 +227,7 @@ export default function OrganizationDetailPage() {
         breadcrumb={["CRM", "Empresas", org.name]}
       />
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-4 sm:p-6">
         {/* Back link */}
         <Link
           href="/organizations"
@@ -251,9 +251,9 @@ export default function OrganizationDetailPage() {
         </div>
 
         {/* Two-column layout */}
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col sm:flex-row gap-6 items-start">
           {/* ── Left sidebar: editable info ── */}
-          <aside className="w-72 flex-shrink-0">
+          <aside className="w-full sm:w-72 flex-shrink-0">
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                 Informações da empresa

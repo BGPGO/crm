@@ -12,14 +12,37 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { search } = req.query;
+    const { search, attendant, status } = req.query;
     const where: Record<string, unknown> = {};
 
     if (search) {
       where.OR = [
         { phone: { contains: search as string, mode: 'insensitive' } },
         { pushName: { contains: search as string, mode: 'insensitive' } },
+        { contact: { name: { contains: search as string, mode: 'insensitive' } } },
+        { contact: { email: { contains: search as string, mode: 'insensitive' } } },
       ];
+    }
+
+    // Filter by attendant type: ai, human, all
+    if (attendant === 'ai') {
+      where.needsHumanAttention = false;
+      where.isActive = true;
+    } else if (attendant === 'human') {
+      where.needsHumanAttention = true;
+    }
+
+    // Filter by status: open, closed
+    if (status === 'open') {
+      where.status = 'open';
+    } else if (status === 'closed') {
+      where.status = 'closed';
+    }
+
+    // Filter by errors: conversations with undelivered messages
+    const { hasErrors } = req.query;
+    if (hasErrors === 'true') {
+      where.messages = { some: { delivered: false } };
     }
 
     const [total, data] = await Promise.all([
@@ -34,15 +57,46 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
             orderBy: { createdAt: 'desc' },
             take: 1,
           },
-          contact: { select: { id: true, name: true, email: true } },
+          contact: {
+            select: {
+              id: true, name: true, email: true,
+              tags: { include: { tag: { select: { id: true, name: true, color: true } } } },
+            },
+          },
+          _count: { select: { messages: { where: { delivered: false } } } },
         },
       }),
     ]);
 
+    // Flatten tags and add hasUndelivered flag
+    const enriched = data.map((c) => ({
+      ...c,
+      tags: (c.contact as any)?.tags?.map((ct: any) => ct.tag) || [],
+      hasUndelivered: ((c as any)._count?.messages || 0) > 0,
+    }));
+
     res.json({
-      data,
+      data: enriched,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/whatsapp-conversations/stats — Conversation counts by type
+router.get('/stats', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [total, withAI, withHuman, open, closed, withErrors] = await Promise.all([
+      prisma.whatsAppConversation.count(),
+      prisma.whatsAppConversation.count({ where: { needsHumanAttention: false, isActive: true } }),
+      prisma.whatsAppConversation.count({ where: { needsHumanAttention: true } }),
+      prisma.whatsAppConversation.count({ where: { status: 'open' } }),
+      prisma.whatsAppConversation.count({ where: { status: 'closed' } }),
+      prisma.whatsAppConversation.count({ where: { messages: { some: { delivered: false } } } }),
+    ]);
+
+    res.json({ data: { total, withAI, withHuman, open, closed, withErrors } });
   } catch (err) {
     next(err);
   }
@@ -147,11 +201,12 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     });
     if (!existing) return next(createError('Conversation not found', 404));
 
-    const { needsHumanAttention, meetingBooked, contactId } = req.body;
+    const { needsHumanAttention, meetingBooked, contactId, status } = req.body;
     const data: Record<string, unknown> = {};
     if (needsHumanAttention !== undefined) data.needsHumanAttention = needsHumanAttention;
     if (meetingBooked !== undefined) data.meetingBooked = meetingBooked;
     if (contactId !== undefined) data.contactId = contactId;
+    if (status !== undefined) data.status = status;
 
     const conversation = await prisma.whatsAppConversation.update({
       where: { id: req.params.id },
@@ -175,6 +230,49 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     res.json({ data: conversation });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/whatsapp-conversations/:id/tags — Add tag to conversation's contact
+router.post('/:id/tags', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const conversation = await prisma.whatsAppConversation.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!conversation) return next(createError('Conversation not found', 404));
+    if (!conversation.contactId) return next(createError('Conversation has no linked contact', 400));
+
+    const { tagId } = req.body;
+    if (!tagId) return next(createError('tagId is required', 400));
+
+    await prisma.contactTag.upsert({
+      where: { contactId_tagId: { contactId: conversation.contactId, tagId } },
+      create: { contactId: conversation.contactId, tagId },
+      update: {},
+    });
+
+    res.status(201).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/whatsapp-conversations/:id/tags/:tagId — Remove tag from conversation's contact
+router.delete('/:id/tags/:tagId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const conversation = await prisma.whatsAppConversation.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!conversation) return next(createError('Conversation not found', 404));
+    if (!conversation.contactId) return next(createError('Conversation has no linked contact', 400));
+
+    await prisma.contactTag.deleteMany({
+      where: { contactId: conversation.contactId, tagId: req.params.tagId },
+    });
+
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

@@ -44,6 +44,9 @@ export async function executeAction(
       case 'MOVE_PIPELINE_STAGE':
         return await movePipelineStage(enrollment.contactId, config);
 
+      case 'SEND_WHATSAPP':
+        return await sendWhatsApp(enrollment.contactId, config);
+
       case 'CONDITION':
         return await evaluateCondition(enrollment.contactId, config);
 
@@ -183,6 +186,60 @@ async function updateField(
   return {
     success: true,
     output: { field: config.field, value: config.value },
+  };
+}
+
+async function sendWhatsApp(
+  contactId: string,
+  config: { messageTemplateId?: string; customMessage?: string }
+): Promise<ActionResult> {
+  const contact = await prisma.contact.findUniqueOrThrow({
+    where: { id: contactId },
+  });
+
+  if (!contact.phone) {
+    return { success: false, output: 'Contact has no phone number' };
+  }
+
+  let messageText: string;
+
+  if (config.messageTemplateId) {
+    const template = await prisma.whatsAppMessageTemplate.findUnique({
+      where: { id: config.messageTemplateId },
+    });
+    if (!template) {
+      return { success: false, output: 'WhatsApp message template not found' };
+    }
+    // Replace placeholders
+    messageText = template.content
+      .replace(/\{\{nome\}\}/gi, contact.name || '')
+      .replace(/\{\{email\}\}/gi, contact.email || '')
+      .replace(/\{\{telefone\}\}/gi, contact.phone || '')
+      .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')
+      .replace(/\{\{estado\}\}/gi, (contact as any).state || '');
+  } else if (config.customMessage) {
+    messageText = config.customMessage
+      .replace(/\{\{nome\}\}/gi, contact.name || '')
+      .replace(/\{\{email\}\}/gi, contact.email || '')
+      .replace(/\{\{telefone\}\}/gi, contact.phone || '')
+      .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')
+      .replace(/\{\{estado\}\}/gi, (contact as any).state || '');
+  } else {
+    return { success: false, output: 'No message template or custom message provided' };
+  }
+
+  // Send via Evolution API
+  const { EvolutionApiClient } = await import('./evolutionApiClient');
+  const client = await EvolutionApiClient.fromConfig();
+  await client.sendText(contact.phone, messageText);
+
+  return {
+    success: true,
+    output: {
+      phone: contact.phone,
+      messageLength: messageText.length,
+      templateId: config.messageTemplateId || null,
+    },
   };
 }
 

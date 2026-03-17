@@ -140,7 +140,7 @@ export default function EmailCampaignsPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -158,7 +158,7 @@ export default function EmailCampaignsPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/marketing/emails/templates">
               <Button variant="secondary" size="sm">
                 Templates
@@ -174,16 +174,17 @@ export default function EmailCampaignsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Nome</TableHeader>
-              <TableHeader>Assunto</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Assunto</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader>Destinatários</TableHeader>
-              <TableHeader>Abertura</TableHeader>
-              <TableHeader>Cliques</TableHeader>
-              <TableHeader>Data</TableHeader>
+              <TableHeader className="hidden md:table-cell">Destinatários</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Abertura</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Cliques</TableHeader>
+              <TableHeader className="hidden md:table-cell">Data</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -219,22 +220,22 @@ export default function EmailCampaignsPage() {
                         {campaign.name}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-gray-600 max-w-xs truncate">
+                    <TableCell className="hidden sm:table-cell text-gray-600 max-w-xs truncate">
                       {campaign.subject}
                     </TableCell>
                     <TableCell>
                       <Badge variant={config.variant}>{config.label}</Badge>
                     </TableCell>
-                    <TableCell className="text-gray-700">
+                    <TableCell className="hidden md:table-cell text-gray-700">
                       {campaign.recipientCount ?? "\u2014"}
                     </TableCell>
-                    <TableCell className="text-gray-700">
+                    <TableCell className="hidden lg:table-cell text-gray-700">
                       {formatRate(campaign.openRate)}
                     </TableCell>
-                    <TableCell className="text-gray-700">
+                    <TableCell className="hidden lg:table-cell text-gray-700">
                       {formatRate(campaign.clickRate)}
                     </TableCell>
-                    <TableCell className="text-gray-500">
+                    <TableCell className="hidden md:table-cell text-gray-500">
                       {getDateDisplay(campaign)}
                     </TableCell>
                     <TableCell>
@@ -252,10 +253,11 @@ export default function EmailCampaignsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}&ndash;{end} de {meta.total} campanhas
             </span>

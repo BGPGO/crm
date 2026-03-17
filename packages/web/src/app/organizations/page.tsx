@@ -146,7 +146,7 @@ export default function OrganizationsPage() {
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Empresas" breadcrumb={["CRM", "Empresas"]} />
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="relative">
@@ -159,7 +159,7 @@ export default function OrganizationsPage() {
               placeholder="Buscar empresas..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <Button variant="primary" size="sm" onClick={openModal}>
@@ -169,14 +169,15 @@ export default function OrganizationsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Empresa</TableHeader>
-              <TableHeader>CNPJ</TableHeader>
-              <TableHeader>Segmento</TableHeader>
-              <TableHeader>Contatos</TableHeader>
-              <TableHeader>Negociações</TableHeader>
+              <TableHeader className="hidden md:table-cell">CNPJ</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Segmento</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Contatos</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Negociações</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -214,10 +215,10 @@ export default function OrganizationsPage() {
                       <span className="font-medium text-gray-900">{org.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-gray-500 font-mono text-xs">
+                  <TableCell className="hidden md:table-cell text-gray-500 font-mono text-xs">
                     {org.cnpj ? formatCNPJ(org.cnpj) : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {org.segment ? (
                       <Badge variant={segmentColors[org.segment] || "gray"}>
                         {org.segment}
@@ -226,8 +227,8 @@ export default function OrganizationsPage() {
                       <span className="text-gray-400 text-sm">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-gray-600">{org._count.contacts} contatos</TableCell>
-                  <TableCell className="text-gray-600">{org._count.deals} negociações</TableCell>
+                  <TableCell className="hidden lg:table-cell text-gray-600">{org._count.contacts} contatos</TableCell>
+                  <TableCell className="hidden lg:table-cell text-gray-600">{org._count.deals} negociações</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Link
                       href={`/organizations/${org.id}`}
@@ -241,10 +242,11 @@ export default function OrganizationsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}–{end} de {meta.total} empresas
             </span>

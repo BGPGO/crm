@@ -128,7 +128,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
     <Modal isOpen={isOpen} onClose={onClose} title="Filtros Avançados" size="lg">
       <div className="space-y-5">
         {/* Row 1: Source + Campaign */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Fonte</label>
             <select
@@ -158,7 +158,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         </div>
 
         {/* Row 2: Organization + Contact */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Empresa</label>
             <select
@@ -188,7 +188,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         </div>
 
         {/* Row 3: Lost reason + Classification */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Motivo de Perda</label>
             <select
@@ -217,7 +217,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         {/* Row 4: Value range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Valor da Negociação</label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="number"
               value={draft.valueMin ?? ""}
@@ -240,7 +240,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         {/* Row 5: Created date range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Data de Criação</label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="date"
               value={draft.createdAtFrom ?? ""}
@@ -261,7 +261,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         {/* Row 6: Updated date range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Última Alteração</label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="date"
               value={draft.updatedAtFrom ?? ""}
@@ -282,7 +282,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         {/* Row 7: Closed date range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Data de Fechamento</label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="date"
               value={draft.closedAtFrom ?? ""}
@@ -303,7 +303,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         {/* Row 8: Expected close date range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Previsão de Fechamento</label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input
               type="date"
               value={draft.expectedCloseDateFrom ?? ""}

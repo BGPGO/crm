@@ -320,6 +320,27 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
 
   console.log(`[Bot] Mensagem de ${phone} (${pushName}): "${text}"`);
 
+  // If conversation exists and is in human attention mode, don't respond with bot
+  const existingConv = await prisma.whatsAppConversation.findUnique({
+    where: { phone },
+  });
+  if (existingConv?.needsHumanAttention) {
+    // Still save the message but don't generate AI response
+    await prisma.whatsAppMessage.create({
+      data: {
+        conversationId: existingConv.id,
+        sender: MessageSender.CLIENT,
+        text: text,
+      },
+    });
+    await prisma.whatsAppConversation.update({
+      where: { id: existingConv.id },
+      data: { lastMessageAt: new Date() },
+    });
+    console.log(`[Bot] Conversation ${phone} is in human mode — not responding`);
+    return;
+  }
+
   // Get or create conversation
   let conversation = await prisma.whatsAppConversation.findUnique({
     where: { phone },
@@ -380,6 +401,27 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
 
   // Add current message to history
   history.push({ role: 'user', content: text });
+
+  // Check if Evolution API is actually connected before generating a response
+  try {
+    const connStatus = await client.getInstanceStatus();
+    const state = connStatus?.instance?.state;
+    if (state !== 'open' && state !== 'connected') {
+      console.warn(`[Bot] WhatsApp not connected (state: ${state}) — saving message but not responding`);
+      await prisma.whatsAppConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+      return;
+    }
+  } catch (connErr) {
+    console.warn(`[Bot] Cannot check connection status — skipping response`);
+    await prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: { lastMessageAt: new Date() },
+    });
+    return;
+  }
 
   try {
     const reply = await getAIResponse(history, pushName, config.meetingLink);
@@ -458,6 +500,24 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[Bot] Erro:`, errMsg);
 
+    // Check if it's an Evolution API send error vs AI error
+    const isEvolutionError = errMsg.includes('ECONNREFUSED') ||
+      errMsg.includes('evolution') ||
+      errMsg.includes('401') ||
+      errMsg.includes('404') ||
+      errMsg.includes('sendText');
+
+    if (isEvolutionError) {
+      // Connection/send issue — mark messages as not delivered, don't escalate to human
+      console.warn(`[Bot] Evolution API error — marking messages as undelivered`);
+      await prisma.whatsAppMessage.updateMany({
+        where: { conversationId: conversation.id, sender: 'BOT', delivered: true },
+        data: { delivered: false },
+      });
+      return;
+    }
+
+    // AI or other error — fallback to human
     const fallback = `Oi${pushName ? `, ${pushName}` : ''}! Obrigada pelo contato com a *Bertuzzi Patrimonial*! No momento estou com uma instabilidade, mas um consultor vai te atender em breve.`;
 
     await prisma.whatsAppMessage.create({
@@ -465,6 +525,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
         conversationId: conversation.id,
         sender: MessageSender.BOT,
         text: fallback,
+        delivered: false,
       },
     });
 
@@ -482,10 +543,9 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
           create: { contactId: conversation.contactId, tagId: humanTag.id },
           update: {},
         });
-        console.log(`[Bot] Auto-tagged contact ${conversation.contactId} with "Atendimento Humano"`);
       }
     }
 
-    await client.sendText(phone, fallback);
+    // Don't try to send fallback since Evolution is likely down anyway
   }
 }

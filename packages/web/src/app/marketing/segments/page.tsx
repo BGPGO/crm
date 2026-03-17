@@ -107,9 +107,9 @@ export default function SegmentsPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-sm text-gray-500">
             Crie segmentos para agrupar contatos com base em critérios dinâmicos.
           </p>
@@ -122,14 +122,15 @@ export default function SegmentsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
               <TableHeader>Nome</TableHeader>
-              <TableHeader>Descrição</TableHeader>
-              <TableHeader>Contatos</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Descrição</TableHeader>
+              <TableHeader className="hidden md:table-cell">Contatos</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader>Atualizado</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Atualizado</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -163,17 +164,17 @@ export default function SegmentsPage() {
                       {segment.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-gray-600 max-w-xs truncate">
+                  <TableCell className="hidden sm:table-cell text-gray-600 max-w-xs truncate">
                     {segment.description || "\u2014"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <div className="flex items-center gap-1.5 text-gray-700">
                       <Users size={14} className="text-gray-400" />
                       {segment.contactCount}
                     </div>
                   </TableCell>
                   <TableCell>{statusBadge(segment.status)}</TableCell>
-                  <TableCell className="text-gray-500">
+                  <TableCell className="hidden lg:table-cell text-gray-500">
                     {formatDate(segment.updatedAt)}
                   </TableCell>
                   <TableCell>
@@ -212,6 +213,7 @@ export default function SegmentsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
       </main>
     </div>
   );

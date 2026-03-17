@@ -26,6 +26,7 @@ interface CampaignDetail {
   contacts: CampaignContact[];
   createdAt: string;
   updatedAt: string;
+  stage?: { id: string; name: string } | null;
 }
 
 const statusConfig: Record<string, { label: string; classes: string }> = {
@@ -133,6 +134,11 @@ export default function CampaignDetailPage() {
                 )}>
                   {cfg.label}
                 </span>
+                {campaign.stage && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
+                    Etapa: {campaign.stage.name}
+                  </span>
+                )}
                 <span className="text-xs text-gray-500">
                   Criado em {formatDate(campaign.createdAt)}
                 </span>

@@ -83,9 +83,9 @@ export default function TemplatesPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-sm text-gray-500">
             Gerencie os templates de email para suas campanhas.
           </p>

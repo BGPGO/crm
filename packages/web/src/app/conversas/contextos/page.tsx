@@ -171,9 +171,9 @@ export default function ContextosPage() {
       <Header title="Contextos" breadcrumb={["Conversas", "Contextos"]} />
       <ConversasNav />
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col sm:flex-row min-h-0 overflow-hidden">
         {/* Left sidebar — only contexts that exist */}
-        <div className="w-72 border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto">
+        <div className="w-full sm:w-72 border-b sm:border-b-0 sm:border-r border-gray-200 bg-gray-50 flex flex-col overflow-y-auto max-h-48 sm:max-h-none">
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Contextos Configurados
@@ -251,7 +251,7 @@ export default function ContextosPage() {
               </p>
             </div>
           ) : (
-            <div className="p-6 max-w-3xl">
+            <div className="p-4 sm:p-6 max-w-3xl">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-lg font-semibold text-gray-900">
                   {selectedContext.campaign.name}

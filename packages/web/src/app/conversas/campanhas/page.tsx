@@ -16,6 +16,8 @@ interface Campaign {
   totalContacts: number;
   sentCount: number;
   createdAt: string;
+  stage?: { id: string; name: string } | null;
+  segment?: { id: string; name: string } | null;
 }
 
 const statusConfig: Record<string, { label: string; classes: string }> = {
@@ -76,8 +78,8 @@ export default function ConversasCampanhasPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
-        <div className="flex items-center justify-between">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-gray-900">Todas as Campanhas</h2>
           <Link
             href="/conversas/campanhas/nova"
@@ -94,9 +96,10 @@ export default function ConversasCampanhasPage() {
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">Origem</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Progresso</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Criado em</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden md:table-cell">Progresso</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Criado em</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Ações</th>
                 </tr>
               </thead>
@@ -104,7 +107,7 @@ export default function ConversasCampanhasPage() {
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 5 }).map((_, j) => (
+                      {Array.from({ length: 6 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-gray-100 rounded animate-pulse" />
                         </td>
@@ -113,7 +116,7 @@ export default function ConversasCampanhasPage() {
                   ))
                 ) : campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
                       Nenhuma campanha encontrada
                     </td>
                   </tr>
@@ -123,6 +126,19 @@ export default function ConversasCampanhasPage() {
                     return (
                       <tr key={campaign.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900">{campaign.name}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
+                          {campaign.stage ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">
+                              Etapa: {campaign.stage.name}
+                            </span>
+                          ) : campaign.segment ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">
+                              Segmento: {campaign.segment.name}
+                            </span>
+                          ) : (
+                            "Manual"
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={clsx(
                             "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
@@ -131,10 +147,10 @@ export default function ConversasCampanhasPage() {
                             {cfg.label}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
                           {campaign.sentCount}/{campaign.totalContacts}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">{formatDate(campaign.createdAt)}</td>
+                        <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">{formatDate(campaign.createdAt)}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {campaign.status === "DRAFT" && (

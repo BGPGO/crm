@@ -7,7 +7,7 @@ interface HeaderProps {
 
 export default function Header({ title, breadcrumb }: HeaderProps) {
   return (
-    <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center flex-shrink-0 z-10">
+    <header className="h-16 bg-white border-b border-gray-200 px-4 md:px-6 flex items-center flex-shrink-0 z-10">
       <div>
         {breadcrumb && breadcrumb.length > 0 ? (
           <nav className="flex items-center gap-2 text-sm text-gray-500 mb-0.5">

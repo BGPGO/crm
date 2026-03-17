@@ -179,7 +179,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-4 sm:p-6 space-y-4">
         {/* Toolbar */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
@@ -194,12 +194,12 @@ export default function LeadsPage() {
                 placeholder="Buscar leads..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             {/* Tag filter */}
-            <div className="w-64">
+            <div className="w-full sm:w-64">
               <TagSelector
                 selectedTagIds={filterTagIds}
                 onChange={setFilterTagIds}
@@ -240,6 +240,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Table */}
+        <div className="overflow-x-auto">
         <Table>
           <TableHead>
             <TableRow>
@@ -252,10 +253,10 @@ export default function LeadsPage() {
                 />
               </TableHeader>
               <TableHeader>Nome</TableHeader>
-              <TableHeader>Email</TableHeader>
-              <TableHeader>Tags</TableHeader>
-              <TableHeader>Score</TableHeader>
-              <TableHeader>Engajamento</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Email</TableHeader>
+              <TableHeader className="hidden md:table-cell">Tags</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Score</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Engajamento</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -299,10 +300,10 @@ export default function LeadsPage() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-gray-600">
+                  <TableCell className="hidden sm:table-cell text-gray-600">
                     {lead.email || "\u2014"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
                       {lead.tags?.map((tag) => (
                         <TagBadge
@@ -316,7 +317,7 @@ export default function LeadsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden lg:table-cell">
                     {lead.score !== null && lead.score !== undefined ? (
                       <span className="font-medium text-gray-900">
                         {lead.score}
@@ -325,7 +326,7 @@ export default function LeadsPage() {
                       <span className="text-gray-400">\u2014</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     {lead.engagementLevel ? (
                       <EngagementBadge level={lead.engagementLevel} />
                     ) : (
@@ -345,10 +346,11 @@ export default function LeadsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {/* Pagination */}
         {!loading && meta.total > 0 && (
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-gray-500">
             <span>
               Mostrando {start}\u2013{end} de {meta.total} leads
             </span>

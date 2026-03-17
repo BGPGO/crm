@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { MessageSquare, Send, UserCheck, AlertCircle } from "lucide-react";
+import { MessageSquare, Send, UserCheck, AlertCircle, Search, Tag, X, Plus, Wifi, WifiOff, ArrowLeft } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
@@ -16,6 +16,12 @@ interface ConversationMessage {
   createdAt: string;
 }
 
+interface ConvTag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
 interface Conversation {
   id: string;
   phone: string;
@@ -23,7 +29,12 @@ interface Conversation {
   lastMessageAt: string | null;
   isActive: boolean;
   needsHumanAttention: boolean;
+  status: string;
+  contactId?: string | null;
   messages?: ConversationMessage[];
+  tags?: ConvTag[];
+  hasUndelivered?: boolean;
+  contact?: { id: string; name: string; email: string } | null;
 }
 
 interface Message {
@@ -32,6 +43,7 @@ interface Message {
   sender: "CLIENT" | "BOT" | "HUMAN";
   text: string;
   createdAt: string;
+  delivered?: boolean;
 }
 
 export default function ConversasChatPage() {
@@ -43,28 +55,53 @@ export default function ConversasChatPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<Array<{id: string, name: string, content: string, category: string}>>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateFilter, setTemplateFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors'>('all');
+  const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0 });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [allTags, setAllTags] = useState<ConvTag[]>([]);
+  const [showTagPicker, setShowTagPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (query?: string) => {
     try {
-      const res = await api.get<{ data: Conversation[] }>("/whatsapp/conversations");
+      const params = new URLSearchParams();
+      if (activeFilter === 'ai') params.set('attendant', 'ai');
+      else if (activeFilter === 'human') params.set('attendant', 'human');
+      else if (activeFilter === 'open') params.set('status', 'open');
+      else if (activeFilter === 'closed') params.set('status', 'closed');
+      else if (activeFilter === 'errors') params.set('hasErrors', 'true');
+      const s = query !== undefined ? query : searchQuery;
+      if (s) params.set('search', s);
+
+      const res = await api.get<{ data: Conversation[] }>(`/whatsapp/conversations?${params.toString()}`);
       setConversations(res.data || []);
     } catch {
       setError("Erro ao carregar conversas.");
     } finally {
       setLoading(false);
     }
+  }, [activeFilter, searchQuery]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: {total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number} }>("/whatsapp/conversations/stats");
+      setStats(res.data);
+    } catch {}
   }, []);
 
-  const fetchMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true);
+  const fetchMessages = useCallback(async (conversationId: string, showLoading = false) => {
+    if (showLoading) setMessagesLoading(true);
     try {
       const res = await api.get<{ data: Message[] }>(`/whatsapp/conversations/${conversationId}/messages`);
       setMessages(res.data || []);
     } catch {
       setError("Erro ao carregar mensagens.");
     } finally {
-      setMessagesLoading(false);
+      if (showLoading) setMessagesLoading(false);
     }
   }, []);
 
@@ -72,21 +109,35 @@ export default function ConversasChatPage() {
     fetchConversations();
   }, [fetchConversations]);
 
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
+    api.get<{ data: Array<{id: string, name: string, content: string, category: string}> }>("/whatsapp/message-templates")
+      .then(res => setTemplates(res.data || []))
+      .catch(() => {});
+    api.get<{ data: ConvTag[] }>("/tags")
+      .then(res => setAllTags(Array.isArray(res) ? res : res.data ?? []))
+      .catch(() => {});
+  }, []);
+
   // Polling: refresh conversations and messages every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchConversations();
+      fetchStats();
       if (selectedId) {
         fetchMessages(selectedId);
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [fetchConversations, fetchMessages, selectedId]);
+  }, [fetchConversations, fetchStats, fetchMessages, selectedId]);
 
-  // Load messages when selecting a conversation
+  // Load messages when selecting a conversation (with loading skeleton)
   useEffect(() => {
     if (selectedId) {
-      fetchMessages(selectedId);
+      fetchMessages(selectedId, true);
     }
   }, [selectedId, fetchMessages]);
 
@@ -99,7 +150,7 @@ export default function ConversasChatPage() {
     if (!inputText.trim() || !selectedId || sending) return;
     setSending(true);
     try {
-      await api.post(`/whatsapp/conversations/${selectedId}/send`, { message: inputText.trim() });
+      await api.post(`/whatsapp/conversations/${selectedId}/send`, { content: inputText.trim() });
       setInputText("");
       await fetchMessages(selectedId);
     } catch {
@@ -121,6 +172,12 @@ export default function ConversasChatPage() {
     } catch {
       setError("Erro ao atualizar conversa.");
     }
+  };
+
+  const selectTemplate = (template: { name: string; content: string }) => {
+    setInputText(template.content);
+    setShowTemplates(false);
+    setTemplateFilter("");
   };
 
   // Auto-dismiss error after 5 seconds
@@ -148,6 +205,32 @@ export default function ConversasChatPage() {
       <Header title="Conversas" breadcrumb={["Conversas", "Chat"]} />
       <ConversasNav />
 
+      {/* Attendance indicators */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-4 md:gap-6 overflow-x-auto">
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+          <span className="text-xs text-gray-600">Em atendimento: <strong className="text-gray-900">{stats.open}</strong></span>
+        </div>
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+          <span className="text-xs text-gray-600">Com IA: <strong className="text-gray-900">{stats.withAI}</strong></span>
+        </div>
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="w-2 h-2 rounded-full bg-yellow-500 flex-shrink-0" />
+          <span className="text-xs text-gray-600">Com humano: <strong className="text-gray-900">{stats.withHuman}</strong></span>
+        </div>
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
+          <span className="text-xs text-gray-600">Fechadas: <strong className="text-gray-900">{stats.closed}</strong></span>
+        </div>
+        {stats.withErrors > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            <span className="text-xs text-red-600">Erros: <strong className="text-red-700">{stats.withErrors}</strong></span>
+          </div>
+        )}
+      </div>
+
       {error && (
         <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
           <span className="text-sm text-red-700">{error}</span>
@@ -157,9 +240,55 @@ export default function ConversasChatPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* Left panel: contact list */}
-        <div className="w-80 border-r border-gray-200 flex flex-col bg-white">
-          <div className="p-3 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700">Contatos</h3>
+        <div className={clsx(
+          "border-r border-gray-200 flex flex-col bg-white",
+          "w-full md:w-80",
+          selectedId ? "hidden md:flex" : "flex"
+        )}>
+          <div className="p-3 border-b border-gray-100 space-y-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setSearchQuery(v);
+                  if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  searchTimeoutRef.current = setTimeout(() => fetchConversations(v), 300);
+                }}
+                placeholder="Buscar nome, email, telefone..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              {searchQuery && (
+                <button onClick={() => { setSearchQuery(""); fetchConversations(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {([
+                { key: 'all' as const, label: 'Todas', count: stats.total, color: '' },
+                { key: 'ai' as const, label: 'Com IA', count: stats.withAI, color: '' },
+                { key: 'human' as const, label: 'Humano', count: stats.withHuman, color: '' },
+                { key: 'open' as const, label: 'Abertas', count: stats.open, color: '' },
+                { key: 'closed' as const, label: 'Fechadas', count: stats.closed, color: '' },
+                { key: 'errors' as const, label: 'Erros', count: stats.withErrors, color: 'error' },
+              ]).map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setActiveFilter(f.key)}
+                  className={clsx(
+                    "px-2 py-1 rounded text-[11px] font-medium transition-colors",
+                    activeFilter === f.key
+                      ? f.color === 'error' ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
+                      : f.color === 'error' && f.count > 0 ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                  )}
+                >
+                  {f.label} <span className="text-[10px] opacity-70">({f.count})</span>
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -187,8 +316,12 @@ export default function ConversasChatPage() {
                       <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
                         <MessageSquare size={16} />
                       </div>
-                      {conv.isActive && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                      {conv.hasUndelivered ? (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" title="Mensagens com erro" />
+                      ) : conv.isActive && conv.status !== 'closed' ? (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" title="Ativo no WhatsApp" />
+                      ) : (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-gray-400 rounded-full border-2 border-white" title="Offline / Fechada" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -207,7 +340,24 @@ export default function ConversasChatPage() {
                         {conv.needsHumanAttention && (
                           <AlertCircle size={12} className="text-yellow-500 flex-shrink-0" />
                         )}
+                        {!conv.needsHumanAttention && conv.isActive && conv.status !== 'closed' && (
+                          <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium flex-shrink-0">IA</span>
+                        )}
+                        {conv.needsHumanAttention && (
+                          <span className="text-[10px] px-1 py-0.5 bg-yellow-50 text-yellow-600 rounded font-medium flex-shrink-0 ml-0.5">Humano</span>
+                        )}
+                        {conv.status === 'closed' && (
+                          <span className="text-[10px] px-1 py-0.5 bg-gray-100 text-gray-500 rounded font-medium flex-shrink-0 ml-0.5">Fechada</span>
+                        )}
                       </div>
+                      {conv.tags && conv.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 mt-0.5">
+                          {conv.tags.slice(0, 3).map(tag => (
+                            <span key={tag.id} className="text-[9px] px-1 py-0 rounded bg-purple-50 text-purple-600 truncate max-w-[80px]">{tag.name}</span>
+                          ))}
+                          {conv.tags.length > 3 && <span className="text-[9px] text-gray-400">+{conv.tags.length - 3}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -217,7 +367,10 @@ export default function ConversasChatPage() {
         </div>
 
         {/* Right panel: messages */}
-        <div className="flex-1 flex flex-col bg-gray-50">
+        <div className={clsx(
+          "flex-1 flex flex-col bg-gray-50",
+          !selectedId ? "hidden md:flex" : "flex"
+        )}>
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
               Selecione uma conversa para visualizar
@@ -225,25 +378,98 @@ export default function ConversasChatPage() {
           ) : (
             <>
               {/* Chat header */}
-              <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {selectedConv?.pushName || selectedConv?.phone || ""}
-                  </p>
-                  <p className="text-xs text-gray-500">{selectedConv?.phone}</p>
+              <div className="bg-white border-b border-gray-200 px-4 py-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedId(null)}
+                      className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 mr-1"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                    {selectedConv?.hasUndelivered ? (
+                      <span title="Mensagens com erro de envio"><WifiOff size={14} className="text-red-500" /></span>
+                    ) : (
+                      <span title="WhatsApp ativo"><Wifi size={14} className="text-green-500" /></span>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {selectedConv?.pushName || selectedConv?.phone || ""}
+                      </p>
+                      <p className="text-xs text-gray-500">{selectedConv?.phone} {selectedConv?.contact?.email ? `· ${selectedConv.contact.email}` : ''}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={toggleHumanAttention}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      selectedConv?.needsHumanAttention
+                        ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    <UserCheck size={14} />
+                    {selectedConv?.needsHumanAttention ? "Atendimento Humano ON" : "Atendimento Humano OFF"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!selectedId || !selectedConv) return;
+                      const newStatus = selectedConv.status === 'closed' ? 'open' : 'closed';
+                      await api.put(`/whatsapp/conversations/${selectedId}`, { status: newStatus });
+                      await fetchConversations();
+                      fetchStats();
+                    }}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
+                      selectedConv?.status === 'closed'
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    )}
+                  >
+                    {selectedConv?.status === 'closed' ? 'Reabrir' : 'Fechar'}
+                  </button>
                 </div>
-                <button
-                  onClick={toggleHumanAttention}
-                  className={clsx(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors",
-                    selectedConv?.needsHumanAttention
-                      ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                </div>
+                {/* Tags bar */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <Tag size={12} className="text-gray-400" />
+                  {selectedConv?.tags?.map(tag => (
+                    <span key={tag.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">
+                      {tag.name}
+                      <button onClick={async () => {
+                        await api.delete(`/whatsapp/conversations/${selectedId}/tags/${tag.id}`);
+                        fetchConversations();
+                      }} className="hover:text-red-500"><X size={10} /></button>
+                    </span>
+                  ))}
+                  <div className="relative">
+                    <button onClick={() => setShowTagPicker(!showTagPicker)} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 font-medium">
+                      <Plus size={10} /> Tag
+                    </button>
+                    {showTagPicker && (
+                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 w-48 max-h-48 overflow-y-auto">
+                        {allTags
+                          .filter(t => !selectedConv?.tags?.some(ct => ct.id === t.id))
+                          .map(tag => (
+                            <button key={tag.id} onClick={async () => {
+                              await api.post(`/whatsapp/conversations/${selectedId}/tags`, { tagId: tag.id });
+                              fetchConversations();
+                              setShowTagPicker(false);
+                            }} className="w-full text-left px-3 py-1.5 text-xs hover:bg-purple-50 transition-colors">
+                              {tag.name}
+                            </button>
+                          ))}
+                        {allTags.filter(t => !selectedConv?.tags?.some(ct => ct.id === t.id)).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-gray-400 text-center">Todas as tags aplicadas</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {!selectedConv?.contactId && (
+                    <span className="text-[10px] text-gray-400 italic">Sem contato vinculado</span>
                   )}
-                >
-                  <UserCheck size={14} />
-                  {selectedConv?.needsHumanAttention ? "Atendimento Humano ON" : "Atendimento Humano OFF"}
-                </button>
+                </div>
               </div>
 
               {/* Messages */}
@@ -270,7 +496,9 @@ export default function ConversasChatPage() {
                         <div
                           className={clsx(
                             "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
-                            isClient
+                            msg.delivered === false && !isClient
+                              ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
+                              : isClient
                               ? "bg-gray-200 text-gray-900"
                               : isBot
                               ? "bg-green-50 border border-green-200 text-gray-900"
@@ -289,9 +517,17 @@ export default function ConversasChatPage() {
                             className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
                             dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
                           />
-                          <p className="text-[10px] text-gray-400 mt-1 text-right">
-                            {formatTime(msg.createdAt)}
-                          </p>
+                          <div className="flex items-center justify-between mt-1 gap-2">
+                            {msg.delivered === false && !isClient && (
+                              <p className="text-[10px] text-red-500 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                                Nao enviada
+                              </p>
+                            )}
+                            <p className="text-[10px] text-gray-400 text-right flex-1">
+                              {formatTime(msg.createdAt)}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     );
@@ -301,20 +537,59 @@ export default function ConversasChatPage() {
               </div>
 
               {/* Input */}
-              <div className="bg-white border-t border-gray-200 p-3">
+              <div className="bg-white border-t border-gray-200 p-3 relative">
+                {/* Template dropdown */}
+                {showTemplates && (
+                  <div className="absolute bottom-full left-0 right-0 mx-3 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto z-10">
+                    <div className="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-500">
+                      Modelos de mensagem
+                    </div>
+                    {templates
+                      .filter(t => !templateFilter || t.name.toLowerCase().includes(templateFilter) || t.category.toLowerCase().includes(templateFilter))
+                      .map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => selectTemplate(t)}
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900">/{t.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{t.category}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{t.content.slice(0, 80)}...</p>
+                        </button>
+                      ))
+                    }
+                    {templates.filter(t => !templateFilter || t.name.toLowerCase().includes(templateFilter) || t.category.toLowerCase().includes(templateFilter)).length === 0 && (
+                      <div className="px-3 py-4 text-sm text-gray-400 text-center">Nenhum modelo encontrado</div>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="Digite sua mensagem..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInputText(val);
+                      if (val.startsWith("/")) {
+                        setShowTemplates(true);
+                        setTemplateFilter(val.slice(1).toLowerCase());
+                      } else {
+                        setShowTemplates(false);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") { setShowTemplates(false); return; }
+                      if (e.key === "Enter" && !e.shiftKey && !showTemplates) { e.preventDefault(); handleSend(); }
+                    }}
+                    placeholder="Digite / para usar um modelo..."
                     className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     disabled={sending}
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!inputText.trim() || sending}
+                    disabled={!inputText.trim() || sending || showTemplates}
                     className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send size={18} />

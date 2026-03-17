@@ -24,6 +24,8 @@ import {
   Calendar,
   MapPin,
   MoreHorizontal,
+  Menu,
+  X,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +40,7 @@ const navItems = [
   { href: "/reports", label: "Análises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
   { href: "/conversas", label: "Conversas", icon: MessageSquare },
+  { href: "/reunioes", label: "Reuniões", icon: Calendar },
 ];
 
 interface NotifTask {
@@ -74,6 +77,7 @@ export default function TopNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifTasks, setNotifTasks] = useState<NotifTask[]>([]);
@@ -146,7 +150,16 @@ export default function TopNavbar() {
   const displayName = user?.name || "Usuário";
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-6 flex-shrink-0 z-30">
+    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-4 md:gap-6 flex-shrink-0 z-30">
+      {/* Hamburger button - mobile only */}
+      <button
+        onClick={() => setMobileMenuOpen(true)}
+        className="md:hidden p-1.5 -ml-1 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+        aria-label="Abrir menu"
+      >
+        <Menu size={22} />
+      </button>
+
       {/* Logo */}
       <Link href="/" className="flex items-center gap-1.5 flex-shrink-0 mr-2">
         <span className="font-bold text-base text-gray-900 tracking-tight">
@@ -154,8 +167,8 @@ export default function TopNavbar() {
         </span>
       </Link>
 
-      {/* Navigation links */}
-      <nav className="flex items-center gap-0.5 flex-1">
+      {/* Navigation links - hidden on mobile */}
+      <nav className="hidden md:flex items-center gap-0.5 flex-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive =
             href === "/"
@@ -178,6 +191,9 @@ export default function TopNavbar() {
           );
         })}
       </nav>
+
+      {/* Spacer for mobile to push right-side items */}
+      <div className="flex-1 md:hidden" />
 
       {/* Right side: search, notifications, avatar */}
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -356,6 +372,68 @@ export default function TopNavbar() {
           )}
         </div>
       </div>
+
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          {/* Slide-in panel */}
+          <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl flex flex-col animate-slide-in-left">
+            {/* Panel header */}
+            <div className="h-14 flex items-center justify-between px-4 border-b border-gray-200">
+              <span className="text-lg font-bold text-blue-600">BGPGO CRM</span>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                aria-label="Fechar menu"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {/* Nav links */}
+            <nav className="flex-1 overflow-y-auto py-2">
+              {navItems.map(({ href, label, icon: Icon }) => {
+                const isActive =
+                  href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={clsx(
+                      "flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                        : "text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <Icon size={18} className="flex-shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+            {/* User info at bottom */}
+            <div className="border-t border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email || ""}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

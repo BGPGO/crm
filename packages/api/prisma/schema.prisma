@@ -137,6 +137,7 @@ enum AutomationActionType {
   ADD_TAG
   REMOVE_TAG
   SEND_EMAIL
+  SEND_WHATSAPP
   WAIT
   UPDATE_FIELD
   MOVE_PIPELINE_STAGE
@@ -265,6 +266,7 @@ model PipelineStage {
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
   deals Deal[]
+  whatsappCampaigns WhatsAppCampaign[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -599,7 +601,8 @@ model Segment {
   isActive     Boolean @default(true)
   contactCount Int     @default(0)
 
-  emailCampaigns EmailCampaign[]
+  emailCampaigns    EmailCampaign[]
+  whatsappCampaigns WhatsAppCampaign[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -882,6 +885,19 @@ enum FollowUpTone {
   ENCERRAMENTO
 }
 
+model MeetingReminderStep {
+  id            String  @id @default(cuid())
+  minutesBefore Int     // 240, 120, 60, 30, 15
+  enabled       Boolean @default(true)
+  message       String  @db.Text  // template with {{nome}}, {{data}}, {{hora}}, {{falta}}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([minutesBefore])
+  @@index([minutesBefore])
+}
+
 model WhatsAppConfig {
   id                 String                    @id @default(cuid())
   evolutionApiUrl    String                    @default("http://localhost:8080")
@@ -899,6 +915,7 @@ model WhatsAppConfig {
   followUpEnabled              Boolean                   @default(false)
   leadQualificationEnabled     Boolean                   @default(true)
   sdrAutoMessageEnabled        Boolean                   @default(true)
+  meetingReminderEnabled       Boolean                   @default(true)
 
   followUpSteps WhatsAppFollowUpStep[]
 
@@ -929,6 +946,7 @@ model WhatsAppConversation {
   isActive            Boolean   @default(true)
   meetingBooked       Boolean   @default(false)
   needsHumanAttention Boolean   @default(false)
+  status              String    @default("open") // open, closed
   lastMessageAt       DateTime?
 
   contactId String?
@@ -945,6 +963,7 @@ model WhatsAppConversation {
   @@index([contactId])
   @@index([lastMessageAt])
   @@index([isActive])
+  @@index([status])
 }
 
 model WhatsAppMessage {
@@ -955,6 +974,7 @@ model WhatsAppMessage {
   isFollowUp   Boolean       @default(false)
   followUpStep Int?
   metadata     Json?
+  delivered    Boolean       @default(true)
 
   conversationId String
   conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -1005,12 +1025,35 @@ model WhatsAppCampaign {
   startedAt   DateTime?
   completedAt DateTime?
 
+  stageId String?
+  stage   PipelineStage? @relation(fields: [stageId], references: [id])
+
+  segmentId String?
+  segment   Segment? @relation(fields: [segmentId], references: [id])
+
   contacts WhatsAppCampaignContact[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([stageId])
+  @@index([segmentId])
+}
+
+// ─── WhatsApp Message Templates ─────────────────────────────────────────────
+
+model WhatsAppMessageTemplate {
+  id        String  @id @default(cuid())
+  name      String  @unique   // shortcut name like "boas-vindas", "reuniao"
+  category  String  @default("geral")  // categorization
+  content   String  @db.Text  // the message text with placeholders like {{nome}}, {{empresa}}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([category])
 }
 
 // ─── Calendly Integration ──────────────────────────────────────────────────

@@ -151,7 +151,7 @@ export default function AutomationDetailPage() {
       />
       <MarketingNav />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 px-4 sm:px-6 py-6 space-y-6">
         {/* Back link */}
         <Link
           href="/marketing/automations"
@@ -163,7 +163,7 @@ export default function AutomationDetailPage() {
 
         {/* Header card */}
         <Card padding="md">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-gray-900">
@@ -185,7 +185,7 @@ export default function AutomationDetailPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Link href={`/marketing/automations/${id}/enrollments`}>
                 <Button variant="secondary" size="sm">
                   <Users size={14} />
@@ -216,7 +216,7 @@ export default function AutomationDetailPage() {
         </Card>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card padding="md">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-50 text-blue-600">
