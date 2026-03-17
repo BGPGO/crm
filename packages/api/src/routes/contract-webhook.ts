@@ -18,11 +18,20 @@ async function getNotificationConfig(): Promise<{ enabled: boolean; emails: stri
   };
 }
 
+const AUTENTIQUE_WEBHOOK_SECRET = process.env.AUTENTIQUE_WEBHOOK_SECRET || '01KKYKTQ4MPFQ2FFXV72555DBN';
+
 // POST /api/contracts/webhook/autentique — Autentique signature webhook (PUBLIC)
 router.post('/autentique', async (req: Request, res: Response) => {
   try {
     const body = req.body;
     console.log('[contract-webhook] Received:', JSON.stringify(body).slice(0, 500));
+
+    // Verify webhook secret if provided in headers or query
+    const incomingSecret = req.headers['x-webhook-secret'] || req.headers['x-autentique-secret'] || req.query.secret;
+    if (incomingSecret && incomingSecret !== AUTENTIQUE_WEBHOOK_SECRET) {
+      console.warn('[contract-webhook] Invalid webhook secret');
+      return res.status(401).json({ error: 'Invalid secret' });
+    }
 
     // Autentique sends document.id when signatures are completed
     const documentId = body?.document?.id || body?.data?.document?.id || body?.id;
@@ -52,7 +61,7 @@ router.post('/autentique', async (req: Request, res: Response) => {
 
     // Check event type — Autentique sends events for each signature and when all sign
     const event = body?.event || body?.data?.event || '';
-    const allSigned = event === 'document.done' || event === 'document.completed' || event === 'done';
+    const allSigned = event === 'document.done' || event === 'document.completed' || event === 'document.finished' || event === 'done' || event === 'finished';
 
     // Update individual signer if info provided
     const signerEmail = body?.signature?.email || body?.data?.signature?.email;
