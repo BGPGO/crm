@@ -302,20 +302,35 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   let phone: string;
   const client = await EvolutionApiClient.fromDB();
 
-  if (remoteJid.includes('@lid')) {
-    const resolved = await resolveLidToPhone(client, remoteJid, pushName);
+  // Log raw payload for debugging phone resolution
+  console.log(`[Bot] Raw: remoteJid=${remoteJid} sender=${payload.sender || 'N/A'} pushName=${pushName}`);
 
-    if (!resolved && payload.sender && payload.sender.includes('@s.whatsapp.net')) {
-      phone = payload.sender.replace('@s.whatsapp.net', '');
+  // Priority: use sender field if available (most reliable in Evolution API v2)
+  const senderPhone = payload.sender?.replace('@s.whatsapp.net', '').replace('@lid', '');
+
+  if (remoteJid.includes('@lid')) {
+    // LID: try sender first, then resolve via contacts API
+    if (senderPhone && senderPhone.includes('@') === false && senderPhone.length >= 10) {
+      phone = senderPhone;
       console.log(`[Bot] LID resolvido via sender: ${phone}`);
-    } else if (!resolved) {
-      console.warn(`[Bot] LID não resolvido para ${pushName} — mensagem ignorada`);
-      return;
     } else {
+      const resolved = await resolveLidToPhone(client, remoteJid, pushName);
+      if (!resolved) {
+        console.warn(`[Bot] LID não resolvido para ${pushName} — mensagem ignorada`);
+        return;
+      }
       phone = resolved;
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
+
+    // Sanity check: if phone equals our own bot number, use sender instead
+    const config = await prisma.whatsAppConfig.findFirst({ select: { instanceName: true } });
+    const ownConv = await prisma.whatsAppConversation.findUnique({ where: { phone } });
+    if (!ownConv && senderPhone && senderPhone !== phone && senderPhone.length >= 10) {
+      console.log(`[Bot] remoteJid=${phone} parece ser o bot. Usando sender=${senderPhone}`);
+      phone = senderPhone;
+    }
   }
 
   console.log(`[Bot] Mensagem de ${phone} (${pushName}): "${text}"`);
