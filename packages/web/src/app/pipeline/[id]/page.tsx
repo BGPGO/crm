@@ -29,6 +29,7 @@ import DealTasks, { DealTask } from "@/components/deal/DealTasks";
 import CollapsibleSection from "@/components/deal/CollapsibleSection";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
+import ContractGenerator from "@/components/pipeline/ContractGenerator";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import clsx from "clsx";
@@ -115,7 +116,7 @@ interface ContactOption {
   email?: string;
 }
 
-type TabKey = "historico" | "tarefas" | "produtos" | "arquivos";
+type TabKey = "historico" | "tarefas" | "produtos" | "arquivos" | "contrato";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ const TASK_TYPES = [
   { value: "OTHER", label: "Outro" },
 ];
 
-const TABS: { key: TabKey; label: string }[] = [
+const BASE_TABS: { key: TabKey; label: string }[] = [
   { key: "historico", label: "Histórico" },
   { key: "tarefas", label: "Tarefas" },
   { key: "produtos", label: "Produtos e Serviços" },
@@ -458,7 +459,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // Auto-select tab from ?tab= query param
   useEffect(() => {
     const tab = searchParams.get("tab") as TabKey | null;
-    if (tab && TABS.some((t) => t.key === tab)) {
+    const allKeys: TabKey[] = ["historico", "tarefas", "produtos", "arquivos", "contrato"];
+    if (tab && allKeys.includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -536,6 +538,12 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   );
 
   const pendingTaskCount = (deal?.tasks ?? []).filter((t) => !t.done).length;
+
+  // ── Dynamic tabs (include "Contrato" when stage is "Aguardando Dados") ──
+  const isAguardandoDados = (deal?.stageName ?? "").toLowerCase().includes("aguardando dados");
+  const TABS: { key: TabKey; label: string }[] = isAguardandoDados
+    ? [...BASE_TABS, { key: "contrato", label: "Contrato" }]
+    : BASE_TABS;
 
   // ── Action handlers ───────────────────────────────────────────────────────
 
@@ -1388,6 +1396,41 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   Anexar arquivo
                 </button>
               </div>
+            )}
+
+            {/* ── Contrato ── */}
+            {activeTab === "contrato" && isAguardandoDados && (
+              <ContractGenerator
+                dealId={dealId}
+                deal={{
+                  title: deal.title,
+                  value: deal.value,
+                  contact: deal.contact
+                    ? {
+                        name: deal.contact.name,
+                        email: deal.contact.email ?? "",
+                        phone: deal.contact.phone ?? "",
+                      }
+                    : deal.dealContacts.length > 0
+                    ? {
+                        name: deal.dealContacts[0].contact.name,
+                        email: deal.dealContacts[0].contact.email ?? "",
+                        phone: deal.dealContacts[0].contact.phone ?? "",
+                      }
+                    : null,
+                  organization: deal.organization
+                    ? {
+                        name: deal.organization.name,
+                        cnpj: deal.organization.cnpj ?? "",
+                        address: "",
+                        email: "",
+                      }
+                    : null,
+                  products: deal.dealProducts.map((dp) => ({
+                    product: { name: dp.product.name },
+                  })),
+                }}
+              />
             )}
           </div>
         </main>

@@ -26,6 +26,8 @@ import {
   Plus,
   X,
   Loader2,
+  Bell,
+  Mail,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { api, ApiError } from "@/lib/api";
@@ -42,7 +44,8 @@ type TabKey =
   | "sources"
   | "tags"
   | "webhooks"
-  | "products";
+  | "products"
+  | "notifications";
 
 const tabs: { key: TabKey; label: string; icon: typeof User }[] = [
   { key: "profile",       label: "Perfil",                  icon: User },
@@ -54,6 +57,7 @@ const tabs: { key: TabKey; label: string; icon: typeof User }[] = [
   { key: "tags",          label: "Tags",                    icon: Tag },
   { key: "webhooks",      label: "Webhooks",                icon: Globe },
   { key: "products",      label: "Produtos",                icon: Package },
+  { key: "notifications", label: "Notificações",            icon: Bell },
 ];
 
 // ---------------------------------------------------------------------------
@@ -2072,6 +2076,291 @@ function ProductsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// NotificationsTab
+// ---------------------------------------------------------------------------
+function NotificationsTab() {
+  const [config, setConfig] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+
+  useEffect(() => {
+    api.get<{ data: Record<string, string> }>("/notification-config")
+      .then(res => setConfig(res.data || {}))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const emails = (config.deal_won_emails || "").split(",").map(e => e.trim()).filter(Boolean);
+  const enabled = config.deal_won_enabled !== "false";
+
+  const save = async (updates: Record<string, string>) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const merged = { ...config, ...updates };
+      const res = await api.put<{ data: Record<string, string> }>("/notification-config", merged);
+      setConfig(res.data || merged);
+      setMsg({ type: "success", text: "Salvo!" });
+      setTimeout(() => setMsg(null), 3000);
+    } catch {
+      setMsg({ type: "error", text: "Erro ao salvar." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addEmail = () => {
+    const email = newEmail.trim();
+    if (!email || !email.includes("@")) return;
+    if (emails.includes(email)) return;
+    save({ deal_won_emails: [...emails, email].join(",") });
+    setNewEmail("");
+  };
+
+  const removeEmail = (email: string) => {
+    save({ deal_won_emails: emails.filter(e => e !== email).join(",") });
+  };
+
+  if (loading) return <div className="p-6"><Spinner /></div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800 mb-1">Notificações de Venda</h2>
+        <p className="text-sm text-gray-500">Configure os emails que recebem notificação quando um contrato é assinado e uma venda é fechada.</p>
+      </div>
+
+      {/* Enable/Disable toggle */}
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-green-50" : "bg-gray-100")}>
+              <Mail size={20} className={enabled ? "text-green-600" : "text-gray-400"} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Email de venda fechada</p>
+              <p className="text-xs text-gray-500">Envia email automático quando todas as partes assinam o contrato</p>
+            </div>
+          </div>
+          <button
+            onClick={() => save({ deal_won_enabled: enabled ? "false" : "true" })}
+            className={clsx(
+              "relative w-11 h-6 rounded-full transition-colors",
+              enabled ? "bg-green-500" : "bg-gray-300"
+            )}
+          >
+            <span className={clsx(
+              "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
+              enabled ? "left-5.5 translate-x-0" : "left-0.5"
+            )} style={{ left: enabled ? '22px' : '2px' }} />
+          </button>
+        </div>
+      </Card>
+
+      {/* Email recipients */}
+      <Card>
+        <div className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Destinatários</h3>
+            <p className="text-xs text-gray-500">Quem recebe o email quando uma venda é fechada</p>
+          </div>
+
+          <div className="space-y-2">
+            {emails.map(email => (
+              <div key={email} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Mail size={14} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">{email}</span>
+                </div>
+                <button onClick={() => removeEmail(email)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            {emails.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-3">Nenhum email configurado</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
+              placeholder="novo@email.com"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={addEmail}
+              disabled={!newEmail.trim() || !newEmail.includes("@")}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Subject template */}
+      <Card>
+        <div className="p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Assunto do Email</h3>
+            <p className="text-xs text-gray-500">Use {"{{cliente}}"} para inserir o nome do cliente automaticamente</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={config.deal_won_subject || ""}
+              onChange={e => setConfig(prev => ({ ...prev, deal_won_subject: e.target.value }))}
+              placeholder="Contrato Assinado — {{cliente}}"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={() => save({ deal_won_subject: config.deal_won_subject || "" })}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Test email button */}
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Testar envio de email</p>
+            <p className="text-xs text-gray-500">Envia um email de teste para todos os destinatários configurados</p>
+          </div>
+          <button
+            onClick={async () => {
+              setMsg(null);
+              try {
+                await api.post("/notification-config/test-email", {});
+                setMsg({ type: "success", text: `Email de teste enviado para ${emails.join(", ")}` });
+              } catch {
+                setMsg({ type: "error", text: "Erro ao enviar email de teste" });
+              }
+              setTimeout(() => setMsg(null), 5000);
+            }}
+            className="px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors"
+          >
+            Enviar Teste
+          </button>
+        </div>
+      </Card>
+
+      {/* WhatsApp notification */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-800 mb-1">Notificação WhatsApp de Venda</h2>
+        <p className="text-sm text-gray-500 mb-4">Envia mensagem no WhatsApp quando uma venda é fechada.</p>
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", (config.deal_won_whatsapp_enabled ?? "true") === "true" ? "bg-green-50" : "bg-gray-100")}>
+              <Bell size={20} className={(config.deal_won_whatsapp_enabled ?? "true") === "true" ? "text-green-600" : "text-gray-400"} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">WhatsApp de venda fechada</p>
+              <p className="text-xs text-gray-500">Formato: VENDA! R$ [valor] ! [Produto] - [Cliente]</p>
+            </div>
+          </div>
+          <button
+            onClick={() => save({ deal_won_whatsapp_enabled: (config.deal_won_whatsapp_enabled ?? "true") === "true" ? "false" : "true" })}
+            className={clsx(
+              "relative w-11 h-6 rounded-full transition-colors",
+              (config.deal_won_whatsapp_enabled ?? "true") === "true" ? "bg-green-500" : "bg-gray-300"
+            )}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: (config.deal_won_whatsapp_enabled ?? "true") === "true" ? '22px' : '2px' }} />
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Número do WhatsApp</h3>
+            <p className="text-xs text-gray-500">Número que recebe a notificação (com código do país, sem +)</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={config.deal_won_whatsapp_phone || "5551937111140"}
+              onChange={e => setConfig(prev => ({ ...prev, deal_won_whatsapp_phone: e.target.value }))}
+              placeholder="5551937111140"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={() => save({ deal_won_whatsapp_phone: config.deal_won_whatsapp_phone || "5551937111140" })}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
+            </button>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Formato da Mensagem</h3>
+            <p className="text-xs text-gray-500 mb-2">Placeholders: {"{{valor}}"}, {"{{produto}}"}, {"{{cliente}}"}</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={config.deal_won_whatsapp_format || "🎉 *VENDA!* R$ {{valor}} ! {{produto}} - {{cliente}}"}
+                onChange={e => setConfig(prev => ({ ...prev, deal_won_whatsapp_format: e.target.value }))}
+                placeholder="🎉 *VENDA!* R$ {{valor}} ! {{produto}} - {{cliente}}"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                onClick={() => save({ deal_won_whatsapp_format: config.deal_won_whatsapp_format || "" })}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Test WhatsApp button */}
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Testar envio de WhatsApp</p>
+            <p className="text-xs text-gray-500">Envia uma mensagem de teste para o número configurado</p>
+          </div>
+          <button
+            onClick={async () => {
+              setMsg(null);
+              try {
+                await api.post("/notification-config/test-whatsapp", {});
+                setMsg({ type: "success", text: `WhatsApp de teste enviado para ${config.deal_won_whatsapp_phone || "5551937111140"}` });
+              } catch {
+                setMsg({ type: "error", text: "Erro ao enviar WhatsApp de teste. Verifique se o WhatsApp está conectado." });
+              }
+              setTimeout(() => setMsg(null), 5000);
+            }}
+            className="px-4 py-2 bg-green-500 text-white text-sm font-medium rounded-lg hover:bg-green-600 transition-colors"
+          >
+            Enviar Teste
+          </button>
+        </div>
+      </Card>
+
+      <FeedbackMsg msg={msg} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export default function SettingsPage() {
@@ -2133,6 +2422,7 @@ export default function SettingsPage() {
             {activeTab === "tags"          && <TagsTab />}
             {activeTab === "webhooks"      && <WebhooksTab />}
             {activeTab === "products"      && <ProductsTab />}
+            {activeTab === "notifications" && <NotificationsTab />}
           </div>
         </div>
       </main>

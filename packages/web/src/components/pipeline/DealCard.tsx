@@ -80,6 +80,7 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
           <div
             className="p-3"
             onClick={() => router.push(`/pipeline/${deal.id}`)}
+            onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); window.open(`/pipeline/${deal.id}`, '_blank'); } }}
           >
             {/* Top row: status badge */}
             <div className="flex items-start justify-between mb-1.5">

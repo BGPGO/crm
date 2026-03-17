@@ -818,6 +818,7 @@ export default function PipelinePage() {
                       key={deal.id}
                       className="cursor-pointer"
                       onClick={() => router.push(`/pipeline/${deal.id}`)}
+                      onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); window.open(`/pipeline/${deal.id}`, '_blank'); } }}
                     >
                       <TableCell className="font-medium text-gray-900">
                         {deal.title}

@@ -39,6 +39,10 @@ import whatsappTestChatRouter from './whatsapp-test-chat';
 import calendlyWebhookRouter from './calendly-webhook';
 import calendlyConfigRouter from './calendly-config';
 import meetingRemindersRouter from './meeting-reminders';
+import notificationConfigRouter from './notification-config';
+import contractsRouter from './contracts';
+import contractWitnessesRouter from './contract-witnesses';
+import contractWebhookRouter from './contract-webhook';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -50,6 +54,7 @@ router.use('/auth', authRouter);
 router.use('/email-tracking', emailTrackingRouter);
 router.use('/whatsapp/webhook', whatsappWebhookRouter);
 router.use('/calendly/webhook', calendlyWebhookRouter);
+router.use('/contracts/webhook', contractWebhookRouter);
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
@@ -91,5 +96,8 @@ router.use('/whatsapp/message-templates', whatsappMessageTemplatesRouter);
 router.use('/whatsapp/test-chat', whatsappTestChatRouter);
 router.use('/calendly/config', calendlyConfigRouter);
 router.use('/meeting-reminders', meetingRemindersRouter);
+router.use('/contracts', contractsRouter);
+router.use('/contract-witnesses', contractWitnessesRouter);
+router.use('/notification-config', notificationConfigRouter);
 
 export default router;

@@ -154,7 +154,7 @@ enum AutomationEnrollmentStatus {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model Team {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
 
@@ -223,18 +223,18 @@ model Contact {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
-  deals             Deal[]
-  tasks             Task[]
-  activities        Activity[]
-  customFieldValues CustomFieldValue[]
-  leadTrackings     LeadTracking[]
-  dealContacts      DealContact[]
-  tags              ContactTag[]
-  leadScore         LeadScore?
-  emailSends        EmailSend[]
+  deals                 Deal[]
+  tasks                 Task[]
+  activities            Activity[]
+  customFieldValues     CustomFieldValue[]
+  leadTrackings         LeadTracking[]
+  dealContacts          DealContact[]
+  tags                  ContactTag[]
+  leadScore             LeadScore?
+  emailSends            EmailSend[]
   automationEnrollments AutomationEnrollment[]
   whatsappConversations WhatsAppConversation[]
-  calendlyEvents    CalendlyEvent[]
+  calendlyEvents        CalendlyEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -265,7 +265,7 @@ model PipelineStage {
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
 
-  deals Deal[]
+  deals             Deal[]
   whatsappCampaigns WhatsAppCampaign[]
 
   createdAt DateTime @default(now())
@@ -303,23 +303,23 @@ model Campaign {
   endDate     DateTime?
 
   deals           Deal[]
-  campaignContext  CampaignContext?
+  campaignContext CampaignContext?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model CampaignContext {
-  id          String  @id @default(cuid())
-  context     String  @db.Text
-  isDefault   Boolean @default(false)
-  triggers    Json    @default("[]")
+  id        String  @id @default(cuid())
+  context   String  @db.Text
+  isDefault Boolean @default(false)
+  triggers  Json    @default("[]")
 
-  campaignId  String  @unique
-  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String   @unique
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([campaignId])
 }
@@ -364,6 +364,7 @@ model Deal {
   tasks        Task[]
   activities   Activity[]
   dealContacts DealContact[]
+  contracts    Contract[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -611,9 +612,9 @@ model Segment {
 // ─── Marketing: Lead Scoring ────────────────────────────────────────────────
 
 model LeadScore {
-  id               String          @id @default(cuid())
-  score            Int             @default(0)
-  engagementLevel  EngagementLevel @default(ENGAGED)
+  id                 String          @id @default(cuid())
+  score              Int             @default(0)
+  engagementLevel    EngagementLevel @default(ENGAGED)
   lastEmailOpenedAt  DateTime?
   lastEmailClickedAt DateTime?
 
@@ -627,13 +628,13 @@ model LeadScore {
 }
 
 model LeadScoreRule {
-  id       String  @id @default(cuid())
+  id       String                @id @default(cuid())
   name     String
   field    String
   operator SegmentFilterOperator
   value    String
   points   Int
-  isActive Boolean @default(true)
+  isActive Boolean               @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -743,7 +744,7 @@ model EmailLink {
 }
 
 model EmailEvent {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
   type     String
   metadata Json?
 
@@ -770,10 +771,10 @@ model UnsubscribeList {
 // ─── Automações de Marketing ────────────────────────────────────────────────
 
 model Automation {
-  id            String              @id @default(cuid())
+  id            String                @id @default(cuid())
   name          String
   description   String?
-  status        AutomationStatus    @default(DRAFT)
+  status        AutomationStatus      @default(DRAFT)
   triggerType   AutomationTriggerType
   triggerConfig Json
 
@@ -787,7 +788,7 @@ model Automation {
 }
 
 model AutomationStep {
-  id         String              @id @default(cuid())
+  id         String               @id @default(cuid())
   order      Int
   actionType AutomationActionType
   config     Json
@@ -836,7 +837,7 @@ model AutomationEnrollment {
 }
 
 model AutomationLog {
-  id         String  @id @default(cuid())
+  id         String @id @default(cuid())
   actionType String
   result     Json?
 
@@ -850,6 +851,120 @@ model AutomationLog {
 
   @@index([enrollmentId])
   @@index([stepId])
+}
+
+// ─── Notification Config ────────────────────────────────────────────────────
+
+model NotificationConfig {
+  id        String  @id @default(cuid())
+  key       String  @unique   // e.g. "deal_won_emails", "deal_won_enabled"
+  value     String  @db.Text  // JSON or plain text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ─── Contracts ──────────────────────────────────────────────────────────────
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  COMPLETED
+  CANCELLED
+}
+
+model Contract {
+  id     String         @id @default(cuid())
+  status ContractStatus @default(DRAFT)
+
+  // Link to deal
+  dealId String
+  deal   Deal   @relation(fields: [dealId], references: [id])
+
+  // Client data (snapshot — copied from deal/contact/org at creation)
+  razaoSocial        String
+  nomeFantasia       String?
+  cnpj               String
+  endereco           String
+  representante      String
+  cpfRepresentante   String
+  emailRepresentante String
+  emailFinanceiro    String?
+
+  // Product
+  produto                  String // bgp-go-i, bgp-go-ii, bgp-go-iii, bgp-bi, bi-personalizado, bgp-strategy, bgp-valuation, brand-growth
+  strategyModules          Json? // { crescimento: bool, redesenho: bool, recuperacao: bool }
+  biOrigemDados            String?
+  biQtdLicencas            String?
+  biQtdTelasPersonalizadas String?
+
+  // Financial
+  valorMensal           Decimal  @db.Decimal(15, 2)
+  diaVencimento         Int
+  dataInicio            DateTime
+  formaPagamento        String   @default("boleto")
+  valorImplementacao    Decimal? @db.Decimal(15, 2)
+  implementacaoParcelas Int?
+  descontoMeses         Int?
+  descontoPercentual    Decimal? @db.Decimal(5, 2)
+
+  // Additional
+  observacao String? @db.Text
+  linkReadAi String?
+
+  // Witnesses
+  testemunha1Nome  String?
+  testemunha1Cpf   String?
+  testemunha1Email String?
+  testemunha2Nome  String?
+  testemunha2Cpf   String?
+  testemunha2Email String?
+
+  // Autentique
+  autentiqueDocumentId String?
+  autentiqueSentAt     DateTime?
+  autentiqueSignedAt   DateTime?
+
+  // Generated HTML (cached for re-viewing)
+  htmlContent String? @db.Text
+
+  signatures ContractSignatureRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dealId])
+  @@index([status])
+}
+
+model ContractSignatureRecord {
+  id          String    @id @default(cuid())
+  contractId  String
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  signerName  String
+  signerEmail String
+  signerRole  String // contratada, contratante, testemunha1, testemunha2
+  status      String    @default("pending") // pending, signed
+  signedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([contractId])
+}
+
+model ContractWitness {
+  id    String @id @default(cuid())
+  name  String
+  cpf   String
+  email String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
 }
 
 // ─── WhatsApp / Conversas ───────────────────────────────────────────────────
@@ -887,9 +1002,9 @@ enum FollowUpTone {
 
 model MeetingReminderStep {
   id            String  @id @default(cuid())
-  minutesBefore Int     // 240, 120, 60, 30, 15
+  minutesBefore Int // 240, 120, 60, 30, 15
   enabled       Boolean @default(true)
-  message       String  @db.Text  // template with {{nome}}, {{data}}, {{hora}}, {{falta}}
+  message       String  @db.Text // template with {{nome}}, {{data}}, {{hora}}, {{falta}}
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -899,23 +1014,23 @@ model MeetingReminderStep {
 }
 
 model WhatsAppConfig {
-  id                 String                    @id @default(cuid())
-  evolutionApiUrl    String                    @default("http://localhost:8080")
-  evolutionApiKey    String                    @default("")
-  instanceName       String                    @default("bgpgo-bot")
-  baseUrl            String                    @default("http://localhost:3001")
-  companyName        String                    @default("")
-  companyPhone       String                    @default("")
-  meetingLink        String                    @default("")
-  openaiApiKey       String                    @default("")
-  botEnabled         Boolean                   @default(true)
-  botSystemPrompt    String?                   @db.Text
-  welcomeMessage     String?                   @db.Text
-  connectionStatus   WhatsAppConnectionStatus  @default(DISCONNECTED)
-  followUpEnabled              Boolean                   @default(false)
-  leadQualificationEnabled     Boolean                   @default(true)
-  sdrAutoMessageEnabled        Boolean                   @default(true)
-  meetingReminderEnabled       Boolean                   @default(true)
+  id                       String                   @id @default(cuid())
+  evolutionApiUrl          String                   @default("http://localhost:8080")
+  evolutionApiKey          String                   @default("")
+  instanceName             String                   @default("bgpgo-bot")
+  baseUrl                  String                   @default("http://localhost:3001")
+  companyName              String                   @default("")
+  companyPhone             String                   @default("")
+  meetingLink              String                   @default("")
+  openaiApiKey             String                   @default("")
+  botEnabled               Boolean                  @default(true)
+  botSystemPrompt          String?                  @db.Text
+  welcomeMessage           String?                  @db.Text
+  connectionStatus         WhatsAppConnectionStatus @default(DISCONNECTED)
+  followUpEnabled          Boolean                  @default(false)
+  leadQualificationEnabled Boolean                  @default(true)
+  sdrAutoMessageEnabled    Boolean                  @default(true)
+  meetingReminderEnabled   Boolean                  @default(true)
 
   followUpSteps WhatsAppFollowUpStep[]
 
@@ -952,8 +1067,8 @@ model WhatsAppConversation {
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
 
-  messages     WhatsAppMessage[]
-  aiHistory    WhatsAppAIHistory[]
+  messages      WhatsAppMessage[]
+  aiHistory     WhatsAppAIHistory[]
   followUpState WhatsAppFollowUpState?
 
   createdAt DateTime @default(now())
@@ -1044,10 +1159,10 @@ model WhatsAppCampaign {
 // ─── WhatsApp Message Templates ─────────────────────────────────────────────
 
 model WhatsAppMessageTemplate {
-  id        String  @id @default(cuid())
-  name      String  @unique   // shortcut name like "boas-vindas", "reuniao"
-  category  String  @default("geral")  // categorization
-  content   String  @db.Text  // the message text with placeholders like {{nome}}, {{empresa}}
+  id       String @id @default(cuid())
+  name     String @unique // shortcut name like "boas-vindas", "reuniao"
+  category String @default("geral") // categorization
+  content  String @db.Text // the message text with placeholders like {{nome}}, {{empresa}}
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1081,12 +1196,12 @@ model CalendlyEvent {
   endTime         DateTime
   status          String   @default("active")
 
-  contactId       String?
-  contact         Contact? @relation(fields: [contactId], references: [id])
-  dealId          String?
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  dealId    String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([inviteeEmail])
   @@index([calendlyEventId])

@@ -43,6 +43,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const { hasErrors } = req.query;
     if (hasErrors === 'true') {
       where.messages = { some: { delivered: false } };
+    } else {
+      // Exclude error conversations from normal views
+      where.messages = { none: { delivered: false } };
     }
 
     const [total, data] = await Promise.all([
