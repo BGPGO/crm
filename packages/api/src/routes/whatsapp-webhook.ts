@@ -33,7 +33,7 @@ router.post('/:instance', async (req: Request, res: Response) => {
     const body = req.body;
     const event = body.event;
 
-    // Debug: save raw webhook payload to DB for remote inspection
+    // Debug: save raw webhook payload to DB for remote inspection (temporary)
     if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
       const debugPayload = JSON.stringify({
         event,
@@ -43,8 +43,11 @@ router.post('/:instance', async (req: Request, res: Response) => {
         data_participant: body.data?.participant,
         top_level_keys: Object.keys(body),
       });
-      prisma.activity.create({
-        data: { type: 'NOTE', content: `[WA-RAW] ${debugPayload}` },
+      prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).then(admin => {
+        if (!admin) return;
+        return prisma.activity.create({
+          data: { type: 'NOTE', content: `[WA-RAW] ${debugPayload}`, userId: admin.id },
+        });
       }).catch(() => {});
     }
 
@@ -76,25 +79,6 @@ router.post('/:instance', async (req: Request, res: Response) => {
       if (messageId && isDuplicate(messageId)) {
         return res.status(200).json({ received: true, deduplicated: true });
       }
-
-      // Log raw payload for debugging phone resolution
-      const debugInfo = {
-        remoteJid,
-        sender: body.sender || null,
-        pushName: message.pushName || null,
-        fromMe: message.key?.fromMe,
-        participant: message.key?.participant || null,
-      };
-      console.log(`[whatsapp-webhook] MSG_DEBUG: ${JSON.stringify(debugInfo)}`);
-
-      // Save debug info as activity for remote inspection
-      prisma.activity.create({
-        data: {
-          type: 'NOTE',
-          content: `[WA Debug] ${JSON.stringify(debugInfo)}`,
-          metadata: debugInfo as Record<string, unknown>,
-        },
-      }).catch(() => {});
 
       // Process message in background — don't await to keep response fast
       const payload = { data: message, sender: body.sender };
