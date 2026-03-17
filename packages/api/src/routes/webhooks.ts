@@ -4,6 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onLeadCreated } from '../services/leadQualificationEngine';
+import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 
 const router = Router();
 
@@ -43,6 +44,13 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       delete raw['token'];
       delete raw['api_key'];
       delete raw['secret'];
+    }
+
+    // 2b. Check if this is an Autentique contract webhook
+    const events = Array.isArray(webhookConfig.events) ? webhookConfig.events as string[] : [];
+    if (events.some(e => String(e).includes('document.'))) {
+      console.log(`[webhooks] Routing to Autentique handler for webhook ${webhookConfig.name}`);
+      return handleAutentiqueWebhook(req, res);
     }
 
     // 3. Extract contact data — support flexible field mapping
