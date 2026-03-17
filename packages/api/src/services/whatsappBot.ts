@@ -302,15 +302,21 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   let phone: string;
   const client = await EvolutionApiClient.fromDB();
 
-  // Log raw payload for debugging phone resolution
+  // Log raw payload for debugging
   console.log(`[Bot] Raw: remoteJid=${remoteJid} sender=${payload.sender || 'N/A'} pushName=${pushName}`);
 
-  // Priority: use sender field if available (most reliable in Evolution API v2)
-  const senderPhone = payload.sender?.replace('@s.whatsapp.net', '').replace('@lid', '');
+  // Get our own bot phone to avoid self-replies
+  const botConfig = await prisma.whatsAppConfig.findFirst({ select: { botPhoneNumber: true } });
+  const botPhone = botConfig?.botPhoneNumber || null;
+
+  // Extract sender phone (most reliable in Evolution API v2)
+  const senderPhone = payload.sender
+    ?.replace('@s.whatsapp.net', '')
+    .replace(/@.*$/, ''); // strip any @domain
 
   if (remoteJid.includes('@lid')) {
-    // LID: try sender first, then resolve via contacts API
-    if (senderPhone && senderPhone.includes('@') === false && senderPhone.length >= 10) {
+    // LID format: prefer sender, fallback to contacts API resolution
+    if (senderPhone && !senderPhone.includes('@') && senderPhone.length >= 10) {
       phone = senderPhone;
       console.log(`[Bot] LID resolvido via sender: ${phone}`);
     } else {
@@ -323,14 +329,18 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
+  }
 
-    // Sanity check: if phone equals our own bot number, use sender instead
-    const config = await prisma.whatsAppConfig.findFirst({ select: { instanceName: true } });
-    const ownConv = await prisma.whatsAppConversation.findUnique({ where: { phone } });
-    if (!ownConv && senderPhone && senderPhone !== phone && senderPhone.length >= 10) {
-      console.log(`[Bot] remoteJid=${phone} parece ser o bot. Usando sender=${senderPhone}`);
-      phone = senderPhone;
-    }
+  // If resolved phone is our own bot number, use sender instead
+  if (botPhone && phone === botPhone && senderPhone && senderPhone !== phone) {
+    console.log(`[Bot] remoteJid era nosso próprio número (${phone}). Usando sender: ${senderPhone}`);
+    phone = senderPhone;
+  }
+
+  // Final guard: never reply to ourselves
+  if (botPhone && phone === botPhone) {
+    console.log(`[Bot] Ignorando mensagem do próprio número do bot (${phone})`);
+    return;
   }
 
   console.log(`[Bot] Mensagem de ${phone} (${pushName}): "${text}"`);

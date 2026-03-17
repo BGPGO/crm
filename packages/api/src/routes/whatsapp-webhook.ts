@@ -62,6 +62,25 @@ router.post('/:instance', async (req: Request, res: Response) => {
         return res.status(200).json({ received: true, deduplicated: true });
       }
 
+      // Log raw payload for debugging phone resolution
+      const debugInfo = {
+        remoteJid,
+        sender: body.sender || null,
+        pushName: message.pushName || null,
+        fromMe: message.key?.fromMe,
+        participant: message.key?.participant || null,
+      };
+      console.log(`[whatsapp-webhook] MSG_DEBUG: ${JSON.stringify(debugInfo)}`);
+
+      // Save debug info as activity for remote inspection
+      prisma.activity.create({
+        data: {
+          type: 'NOTE',
+          content: `[WA Debug] ${JSON.stringify(debugInfo)}`,
+          metadata: debugInfo as Record<string, unknown>,
+        },
+      }).catch(() => {});
+
       // Process message in background — don't await to keep response fast
       const payload = { data: message, sender: body.sender };
       handleMessage(payload, instance).catch((err) => {

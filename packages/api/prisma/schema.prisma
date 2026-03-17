@@ -1034,6 +1034,7 @@ model WhatsAppConfig {
   leadQualificationEnabled Boolean                  @default(true)
   sdrAutoMessageEnabled    Boolean                  @default(true)
   meetingReminderEnabled   Boolean                  @default(true)
+  botPhoneNumber           String?
 
   followUpSteps WhatsAppFollowUpStep[]
 
