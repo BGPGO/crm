@@ -1,20 +1,24 @@
 /**
  * Importação dos dados extraídos do RD Station CRM → Supabase (via Prisma)
  *
- * Usa createMany em lotes para velocidade máxima.
- * Limpa o banco antes de importar (idempotente).
+ * REGRA DE OURO:
+ *   - Tabelas de CONFIGURAÇÃO (User, Team, Pipeline, Stage, Source, LostReason,
+ *     Campaign, Product, CustomField) → UPSERT (adiciona novos, não apaga existentes)
+ *   - Tabelas de DADOS (Organization, Contact, Deal e filhas) → TRUNCATE + reimporta
+ *   - Tabelas de FEATURES da plataforma (WhatsApp, Email, Automação, Tag, Segment,
+ *     Webhook, Calendly, LeadScore, etc.) → NUNCA TOCA
  *
  * Uso:
  *   node rd-import.mjs          → importa tudo
- *   node rd-import.mjs 200      → importa até 200 por entidade
+ *   node rd-import.mjs 200      → importa até 200 por entidade (teste)
  */
 
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'fs';
 
 const prisma = new PrismaClient();
-const LIMIT = parseInt(process.argv[2]) || 0; // 0 = sem limite
-const BATCH = 500; // registros por createMany
+const LIMIT = parseInt(process.argv[2]) || 0;
+const BATCH = 500;
 
 const load = (name) => {
   const data = JSON.parse(readFileSync(`./rd-data/${name}.json`, 'utf-8'));
@@ -34,6 +38,36 @@ async function batchCreate(model, records) {
   }
 }
 
+async function batchUpsert(model, records, idField = 'id') {
+  for (const record of records) {
+    const id = record[idField];
+    await model.upsert({
+      where: { [idField]: id },
+      create: record,
+      update: {}, // não sobrescreve — mantém dados da plataforma
+    });
+  }
+}
+
+/** Parseia uma URL e extrai UTMs + landing page */
+function parseUrlTracking(rawUrl) {
+  if (!rawUrl) return null;
+  try {
+    const url = new URL(rawUrl);
+    const utmSource = url.searchParams.get('utm_source');
+    const utmMedium = url.searchParams.get('utm_medium');
+    const utmCampaign = url.searchParams.get('utm_campaign');
+    const utmTerm = url.searchParams.get('utm_term');
+    const utmContent = url.searchParams.get('utm_content');
+    const landingPage = url.origin + url.pathname;
+    // Só retorna se tem algo útil
+    if (!utmSource && !landingPage) return null;
+    return { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, landingPage };
+  } catch {
+    return null;
+  }
+}
+
 let stats = {};
 const track = (name, n) => { stats[name] = n; };
 
@@ -43,41 +77,40 @@ async function main() {
   const label = LIMIT ? `LIMIT=${LIMIT}` : 'COMPLETA';
   console.log(`\n═══ RD Station → Supabase (${label}) ═══\n`);
 
-  // ── Limpar banco ──
-  console.log('Limpando banco...');
-  // Limpa apenas tabelas de dados do RD — NÃO limpa configs e features do CRM
-  await prisma.$executeRawUnsafe(`
-    TRUNCATE TABLE
-      "Activity", "CustomFieldValue", "DealProduct", "DealContact",
-      "Task", "Deal", "Contact", "Organization", "LeadTracking",
-      "CustomField", "Product", "Campaign", "LostReason", "Source",
-      "PipelineStage", "Pipeline", "User", "Team"
-    CASCADE
-  `);
-  console.log('  OK\n');
+  // ════════════════════════════════════════════════════════════════════════════
+  // FASE 1: UPSERT — Tabelas de configuração (adiciona novos, não apaga)
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('── FASE 1: Configuração (upsert) ──\n');
 
-  // ── 1. Users (todos, são poucos) ──
+  // ── 1. Users ──
   const users = load('users');
-  await batchCreate(prisma.user, users.map(u => ({
-    id: u._id,
-    email: u.email,
-    name: u.name,
-    password: 'rd-import-placeholder',
-    role: 'SELLER',
-    isActive: u.active !== false,
-    createdAt: safeDate(u.created_at) || new Date(),
-    updatedAt: safeDate(u.updated_at) || new Date(),
-  })));
-  track('users', users.length);
-  console.log(`[1/12] Users: ${users.length}`);
+  const existingUsers = await prisma.user.findMany({ select: { id: true } });
+  const existingUserIds = new Set(existingUsers.map(u => u.id));
+  const newUsers = users.filter(u => !existingUserIds.has(u._id));
+  if (newUsers.length > 0) {
+    await batchCreate(prisma.user, newUsers.map(u => ({
+      id: u._id,
+      email: u.email,
+      name: u.name,
+      password: 'rd-import-placeholder',
+      role: 'SELLER',
+      isActive: u.active !== false,
+      createdAt: safeDate(u.created_at) || new Date(),
+      updatedAt: safeDate(u.updated_at) || new Date(),
+    })));
+  }
+  track('users', `${newUsers.length} novos / ${existingUserIds.size} existentes`);
+  console.log(`[1/14] Users: +${newUsers.length} novos (${existingUserIds.size} já existiam)`);
 
   // ── 2. Pipelines + Stages ──
   const pipelines = load('pipelines');
-  await batchCreate(prisma.pipeline, pipelines.map(p => ({
-    id: p.id,
-    name: p.name,
-    isDefault: p.order === 1,
-  })));
+  for (const p of pipelines) {
+    await prisma.pipeline.upsert({
+      where: { id: p.id },
+      create: { id: p.id, name: p.name, isDefault: p.order === 1 },
+      update: {}, // não sobrescreve
+    });
+  }
 
   const stages = pipelines.flatMap(p =>
     (p.deal_stages || []).map(s => ({
@@ -87,10 +120,16 @@ async function main() {
       pipelineId: p.id,
     }))
   );
-  await batchCreate(prisma.pipelineStage, stages);
+  for (const s of stages) {
+    await prisma.pipelineStage.upsert({
+      where: { id: s.id },
+      create: s,
+      update: {},
+    });
+  }
   track('pipelines', pipelines.length);
   track('stages', stages.length);
-  console.log(`[2/12] Pipelines: ${pipelines.length}, Stages: ${stages.length}`);
+  console.log(`[2/14] Pipelines: ${pipelines.length}, Stages: ${stages.length} (upsert)`);
 
   // ── 3. Sources (dedup por nome) ──
   const sources = load('sources');
@@ -100,9 +139,17 @@ async function main() {
     seenSrc.add(s.name);
     return true;
   }).map(s => ({ id: s._id, name: s.name }));
-  await batchCreate(prisma.source, srcData);
+  // Source tem unique no name, precisa checar ambos
+  for (const s of srcData) {
+    const exists = await prisma.source.findFirst({
+      where: { OR: [{ id: s.id }, { name: s.name }] },
+    });
+    if (!exists) {
+      await prisma.source.create({ data: s });
+    }
+  }
   track('sources', srcData.length);
-  console.log(`[3/12] Sources: ${srcData.length}`);
+  console.log(`[3/14] Sources: ${srcData.length} (upsert)`);
 
   // ── 4. Lost Reasons (dedup por nome) ──
   const reasons = load('lost_reasons');
@@ -112,48 +159,91 @@ async function main() {
     seenLR.add(r.name);
     return true;
   }).map(r => ({ id: r._id, name: r.name }));
-  await batchCreate(prisma.lostReason, lrData);
+  for (const r of lrData) {
+    const exists = await prisma.lostReason.findFirst({
+      where: { OR: [{ id: r.id }, { name: r.name }] },
+    });
+    if (!exists) {
+      await prisma.lostReason.create({ data: r });
+    }
+  }
   track('lostReasons', lrData.length);
-  console.log(`[4/12] Lost Reasons: ${lrData.length}`);
+  console.log(`[4/14] Lost Reasons: ${lrData.length} (upsert)`);
 
   // ── 5. Campaigns ──
   const campaigns = load('campaigns');
-  await batchCreate(prisma.campaign, campaigns.map(c => ({
-    id: c._id,
-    name: c.name,
-    description: safe(c.description),
-  })));
+  for (const c of campaigns) {
+    await prisma.campaign.upsert({
+      where: { id: c._id },
+      create: { id: c._id, name: c.name, description: safe(c.description) },
+      update: {},
+    });
+  }
   track('campaigns', campaigns.length);
-  console.log(`[5/12] Campaigns: ${campaigns.length}`);
+  console.log(`[5/14] Campaigns: ${campaigns.length} (upsert)`);
 
   // ── 6. Products ──
   const products = load('products');
-  await batchCreate(prisma.product, products.map(p => ({
-    id: p._id,
-    name: p.name,
-    description: safe(p.description),
-    price: safeDec(p.base_price),
-    isActive: p.visible !== false,
-  })));
+  for (const p of products) {
+    await prisma.product.upsert({
+      where: { id: p._id },
+      create: {
+        id: p._id,
+        name: p.name,
+        description: safe(p.description),
+        price: safeDec(p.base_price),
+        isActive: p.visible !== false,
+      },
+      update: {},
+    });
+  }
   track('products', products.length);
-  console.log(`[6/12] Products: ${products.length}`);
+  console.log(`[6/14] Products: ${products.length} (upsert)`);
 
   // ── 7. Custom Fields ──
   const cf = JSON.parse(readFileSync('./rd-data/custom_fields.json', 'utf-8'));
-  const typeMap = { text: 'TEXT', number: 'NUMBER', date: 'DATE', select: 'SELECT', multiselect: 'MULTISELECT' };
+  const typeMap = { text: 'TEXT', number: 'NUMBER', date: 'DATE', option: 'SELECT', multiple_choice: 'MULTISELECT' };
   const entityMap = { deal: 'DEAL', contact: 'CONTACT', organization: 'ORGANIZATION' };
-  const cfData = Object.entries(cf).flatMap(([entity, fields]) =>
-    fields.map(f => ({
-      id: f._id,
-      name: f.label,
-      fieldType: typeMap[f.type] || 'TEXT',
-      entity: entityMap[entity] || 'DEAL',
-      isRequired: f.required || false,
-    }))
-  );
-  await batchCreate(prisma.customField, cfData);
+
+  // Dedup por ID (o JSON do RD repete campos entre seções deal/contact/organization)
+  const cfSeen = new Set();
+  const cfData = [];
+  for (const [entity, fields] of Object.entries(cf)) {
+    for (const f of fields) {
+      if (cfSeen.has(f._id)) continue;
+      cfSeen.add(f._id);
+      cfData.push({
+        id: f._id,
+        name: f.label,
+        fieldType: typeMap[f.type] || 'TEXT',
+        entity: entityMap[f.for] || entityMap[entity] || 'DEAL',
+        isRequired: f.required || false,
+      });
+    }
+  }
+  for (const field of cfData) {
+    await prisma.customField.upsert({
+      where: { id: field.id },
+      create: field,
+      update: {},
+    });
+  }
   track('customFields', cfData.length);
-  console.log(`[7/12] Custom Fields: ${cfData.length}`);
+  console.log(`[7/14] Custom Fields: ${cfData.length} (upsert)`);
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // FASE 2: TRUNCATE + REIMPORTA — Apenas tabelas de dados operacionais
+  // ════════════════════════════════════════════════════════════════════════════
+  console.log('\n── FASE 2: Dados operacionais (limpa e reimporta) ──\n');
+
+  console.log('Limpando tabelas de dados...');
+  await prisma.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      "Activity", "CustomFieldValue", "DealProduct", "DealContact",
+      "Task", "Deal", "LeadTracking", "Contact", "Organization"
+    CASCADE
+  `);
+  console.log('  OK\n');
 
   // ── 8. Organizations ──
   const orgs = load('organizations');
@@ -168,7 +258,7 @@ async function main() {
     updatedAt: safeDate(o.updated_at) || new Date(),
   })));
   track('organizations', orgs.length);
-  console.log(`[8/12] Organizations: ${orgs.length}`);
+  console.log(`[8/14] Organizations: ${orgs.length}`);
 
   // ── 9. Contacts ──
   const orgSet = new Set(orgs.map(o => o._id));
@@ -186,12 +276,12 @@ async function main() {
     updatedAt: safeDate(c.updated_at) || new Date(),
   })));
   track('contacts', contacts.length);
-  console.log(`[9/12] Contacts: ${contacts.length}`);
+  console.log(`[9/14] Contacts: ${contacts.length}`);
 
   // ── 10. Deals ──
   const deals = load('deals');
 
-  // Mapa deal → contatos (via contacts.json com lista completa)
+  // Mapa deal → contatos (via contacts.json)
   const allContacts = JSON.parse(readFileSync('./rd-data/contacts.json', 'utf-8'));
   const contactSet = new Set(contacts.map(c => c._id));
   const dealContactMap = new Map();
@@ -204,21 +294,44 @@ async function main() {
     }
   }
 
-  const userSet = new Set(users.map(u => u._id));
-  const stageSet = new Set(stages.map(s => s.id));
-  const stageToPipeline = new Map(stages.map(s => [s.id, s.pipelineId]));
-  const sourceSet = new Set(srcData.map(s => s.id));
-  const reasonSet = new Set(lrData.map(r => r.id));
-  const campaignSet = new Set(campaigns.map(c => c._id));
-  const fallbackUser = users[0]?._id;
-  const fallbackStage = stages[0]?.id;
-  const fallbackPipeline = pipelines[0]?.id;
+  // Buscar IDs existentes nas tabelas de config para validar FKs
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  const userSet = new Set(allUsers.map(u => u.id));
+  const allStages = await prisma.pipelineStage.findMany({ select: { id: true, pipelineId: true } });
+  const stageSet = new Set(allStages.map(s => s.id));
+  const stageToPipeline = new Map(allStages.map(s => [s.id, s.pipelineId]));
+  const allSources = await prisma.source.findMany({ select: { id: true } });
+  const sourceSet = new Set(allSources.map(s => s.id));
+  const allReasons = await prisma.lostReason.findMany({ select: { id: true } });
+  const reasonSet = new Set(allReasons.map(r => r.id));
+  const allCampaigns = await prisma.campaign.findMany({ select: { id: true } });
+  const campaignSet = new Set(allCampaigns.map(c => c.id));
+  const allProducts = await prisma.product.findMany({ select: { id: true } });
+  const productSet = new Set(allProducts.map(p => p.id));
+  const allPipelines = await prisma.pipeline.findMany({ select: { id: true } });
+
+  const fallbackUser = allUsers[0]?.id;
+  const fallbackStage = allStages[0]?.id;
+  const fallbackPipeline = allPipelines[0]?.id;
+
+  if (!fallbackUser || !fallbackStage || !fallbackPipeline) {
+    throw new Error('Faltam dados de config (User/Stage/Pipeline). Rode o import ao menos uma vez com as tabelas de config.');
+  }
 
   const dealRows = deals.map(d => {
     const userId = d.user?._id && userSet.has(d.user._id) ? d.user._id : fallbackUser;
     const stageId = d.deal_stage?._id && stageSet.has(d.deal_stage._id) ? d.deal_stage._id : fallbackStage;
     const pipelineId = stageToPipeline.get(stageId) || fallbackPipeline;
     const dContacts = dealContactMap.get(d._id) || [];
+
+    // Extrair contaAzulCode dos custom fields
+    let contaAzulCode = null;
+    if (d.deal_custom_fields) {
+      const caField = d.deal_custom_fields.find(f =>
+        f.custom_field?.label === 'Código Conta Azul' && f.value
+      );
+      if (caField) contaAzulCode = String(caField.value);
+    }
 
     return {
       id: d._id,
@@ -227,6 +340,7 @@ async function main() {
       expectedCloseDate: safeDate(d.prediction_date),
       closedAt: safeDate(d.closed_at),
       status: d.win === true ? 'WON' : d.win === false ? 'LOST' : 'OPEN',
+      contaAzulCode,
       pipelineId,
       stageId,
       userId,
@@ -241,7 +355,7 @@ async function main() {
   });
   await batchCreate(prisma.deal, dealRows);
   track('deals', deals.length);
-  console.log(`[10/12] Deals: ${deals.length}`);
+  console.log(`[10/14] Deals: ${deals.length}`);
 
   // DealContacts
   const dealSet = new Set(deals.map(d => d._id));
@@ -256,7 +370,6 @@ async function main() {
   track('dealContacts', dcRows.length);
 
   // DealProducts
-  const productSet = new Set(products.map(p => p._id));
   const dpRows = deals.flatMap(d =>
     (d.deal_products || [])
       .filter(dp => productSet.has(dp.product_id))
@@ -287,7 +400,141 @@ async function main() {
   track('dealCustomFields', cfvRows.length);
   console.log(`  DealContacts: ${dcRows.length}, DealProducts: ${dpRows.length}, CustomFields: ${cfvRows.length}`);
 
-  // ── 11. Tasks ──
+  // ── 11. LeadTracking — Parseia UTMs das URLs + custom fields de tráfego ──
+  const URL_FIELD_ID = '65dcf5d05e25cc000ff48df5'; // custom field "URL" (deal)
+  const CF_SOURCE = '65cf61ff025af9000d1beeee';     // Source Tráfego
+  const CF_SOURCE1 = '65d90d9104c3c80012ec16c4';    // Source tráfego1
+  const CF_CAMPAIGN = '65cf621d56b1e40014b44121';    // Campanha Tráfego
+  const CF_MEDIUM = '65cf622f938d93000de637be';      // Medium Tráfego
+  const CF_GCLID = '66266134156ef9000e4d9f65';       // gclid
+  const CF_FORM_GCLID = '66266156ad3a03001212650e';  // form_gclid
+  const CF_FONTE_ADS = '65085690b9ad242c06eed80b';   // Fonte: Ads
+
+  function getCfVal(cfs, id) {
+    const f = (cfs || []).find(x => x.custom_field_id === id);
+    return f?.value || null;
+  }
+
+  const leadTrackingRows = [];
+  const contactsTracked = new Set(); // evita duplicar por contato
+
+  for (const d of deals) {
+    const dContacts = dealContactMap.get(d._id) || [];
+    const contactId = dContacts[0];
+    if (!contactId || contactsTracked.has(contactId)) continue;
+
+    const cfs = d.deal_custom_fields || [];
+
+    // 1. Tentar URL primeiro
+    const urlField = cfs.find(f => f.custom_field_id === URL_FIELD_ID && f.value);
+    const fromUrl = urlField ? parseUrlTracking(urlField.value) : null;
+
+    // 2. Custom fields de tráfego como fallback
+    const sourceTrafego = getCfVal(cfs, CF_SOURCE) || getCfVal(cfs, CF_SOURCE1);
+    const campanhaTrafego = getCfVal(cfs, CF_CAMPAIGN);
+    const mediumTrafego = getCfVal(cfs, CF_MEDIUM);
+    const gclid = getCfVal(cfs, CF_GCLID) || getCfVal(cfs, CF_FORM_GCLID);
+    const fonteAds = getCfVal(cfs, CF_FONTE_ADS);
+    const dealSource = d.deal_source?.name !== 'Desconhecido' ? d.deal_source?.name : null;
+    const dealCampaign = d.campaign?.name || null;
+
+    // 3. Merge: URL tem prioridade, depois CFs, depois deal nativo
+    const row = {
+      contactId,
+      utmSource: fromUrl?.utmSource || sourceTrafego || fonteAds || dealSource || null,
+      utmMedium: fromUrl?.utmMedium || mediumTrafego || null,
+      utmCampaign: fromUrl?.utmCampaign || campanhaTrafego || dealCampaign || null,
+      utmTerm: fromUrl?.utmTerm || null,
+      utmContent: fromUrl?.utmContent || null,
+      landingPage: fromUrl?.landingPage || (urlField?.value || null),
+      referrer: gclid ? `gclid:${gclid}` : null,
+      ip: null,
+      userAgent: null,
+      createdAt: safeDate(d.created_at) || new Date(),
+    };
+
+    // Só cria se tem algum dado útil
+    if (!row.utmSource && !row.utmMedium && !row.utmCampaign && !row.landingPage) continue;
+
+    contactsTracked.add(contactId);
+    leadTrackingRows.push(row);
+  }
+
+  // Também parseia URLs das organizations (muitas têm a LP como "url")
+  for (const o of orgs) {
+    if (!o.url) continue;
+    const tracking = parseUrlTracking(o.url);
+    if (!tracking) continue;
+
+    // Buscar contatos vinculados a esta org
+    const orgContacts = contacts.filter(c => c.organization_id === o._id);
+    for (const c of orgContacts) {
+      if (contactsTracked.has(c._id)) continue;
+      contactsTracked.add(c._id);
+
+      leadTrackingRows.push({
+        contactId: c._id,
+        landingPage: tracking.landingPage,
+        utmSource: tracking.utmSource,
+        utmMedium: tracking.utmMedium,
+        utmCampaign: tracking.utmCampaign,
+        utmTerm: tracking.utmTerm,
+        utmContent: tracking.utmContent,
+        referrer: null,
+        ip: null,
+        userAgent: null,
+        createdAt: safeDate(o.created_at) || new Date(),
+      });
+    }
+  }
+
+  await batchCreate(prisma.leadTracking, leadTrackingRows);
+  track('leadTracking', leadTrackingRows.length);
+  console.log(`[11/14] LeadTracking: ${leadTrackingRows.length} (UTMs parseados de URLs)`);
+
+  // ── 12. CustomFieldValues (contacts) — Source/Campanha/Medium Tráfego ──
+  // Extrai custom fields de contato que vêm dentro dos deals no RD
+  const CONTACT_CF_IDS = {
+    '65cf61ff025af9000d1beeee': true, // Source Tráfego
+    '65cf621d56b1e40014b44121': true, // Campanha Tráfego
+    '65cf622f938d93000de637be': true, // Medium Tráfego
+    '65d90d9104c3c80012ec16c4': true, // Source tráfego1
+    '65dcbb02ed2a80001652eb8a': true, // URL (contact)
+    '68642cd9659d410014a71311': true, // Faturamento mensal
+    '68658fe90de0ec0021eedb26': true, // Nome da empresa
+  };
+
+  const contactCfvRows = [];
+  const contactCfSeen = new Set(); // evita duplicar entityId+customFieldId
+
+  for (const d of deals) {
+    if (!d.deal_custom_fields) continue;
+    const dContacts = dealContactMap.get(d._id) || [];
+    const contactId = dContacts[0];
+    if (!contactId) continue;
+
+    for (const f of d.deal_custom_fields) {
+      if (!f.value || !CONTACT_CF_IDS[f.custom_field_id]) continue;
+      if (!cfSet.has(f.custom_field_id)) continue;
+      const key = `${contactId}:${f.custom_field_id}`;
+      if (contactCfSeen.has(key)) continue;
+      contactCfSeen.add(key);
+
+      contactCfvRows.push({
+        entityId: contactId,
+        entityType: 'CONTACT',
+        value: String(f.value).slice(0, 2000),
+        customFieldId: f.custom_field_id,
+        contactId,
+      });
+    }
+  }
+
+  await batchCreate(prisma.customFieldValue, contactCfvRows);
+  track('contactCustomFields', contactCfvRows.length);
+  console.log(`[12/14] Contact CustomFields: ${contactCfvRows.length}`);
+
+  // ── 13. Tasks ──
   const tasks = load('tasks');
   const taskTypeMap = { call: 'CALL', email: 'EMAIL', meeting: 'MEETING', visit: 'VISIT' };
   const taskRows = tasks.map(t => ({
@@ -305,9 +552,9 @@ async function main() {
   }));
   await batchCreate(prisma.task, taskRows);
   track('tasks', taskRows.length);
-  console.log(`[11/12] Tasks: ${taskRows.length}`);
+  console.log(`[13/14] Tasks: ${taskRows.length}`);
 
-  // ── 12. Activities ──
+  // ── 14. Activities ──
   const actRows = deals
     .filter(d => d.win !== null || d.closed_at)
     .map(d => {
@@ -318,19 +565,28 @@ async function main() {
     });
   await batchCreate(prisma.activity, actRows);
   track('activities', actRows.length);
-  console.log(`[12/12] Activities: ${actRows.length}`);
+  console.log(`[14/14] Activities: ${actRows.length}`);
 
   // ── Resumo ──
   console.log(`\n═══ IMPORTAÇÃO ${label} CONCLUÍDA ═══\n`);
-  for (const [k, v] of Object.entries(stats)) {
-    console.log(`  ${k}: ${v}`);
+  console.log('  CONFIGURAÇÃO (upsert — preservou dados da plataforma):');
+  for (const k of ['users', 'pipelines', 'stages', 'sources', 'lostReasons', 'campaigns', 'products', 'customFields']) {
+    if (stats[k] != null) console.log(`    ${k}: ${stats[k]}`);
   }
+  console.log('\n  DADOS (truncate + reimportação):');
+  for (const k of ['organizations', 'contacts', 'deals', 'dealContacts', 'dealProducts', 'dealCustomFields', 'contactCustomFields', 'leadTracking', 'tasks', 'activities']) {
+    if (stats[k] != null) console.log(`    ${k}: ${stats[k]}`);
+  }
+  console.log('\n  INTOCADO: WhatsApp, Email Marketing, Automações, Tags, Segmentos,');
+  console.log('           Webhooks, Calendly, LeadScore, Templates, Unsubscribes');
 
   await prisma.$disconnect();
 }
 
 main().catch(async (err) => {
   console.error('\n❌ ERRO:', err.message);
+  if (err.code) console.error('  Código:', err.code);
+  if (err.meta) console.error('  Meta:', JSON.stringify(err.meta));
   await prisma.$disconnect();
   process.exit(1);
 });
