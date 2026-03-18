@@ -48,27 +48,23 @@ FUNIL SDR — siga essas etapas naturalmente na conversa:
 
 REGRA PRINCIPAL: A partir da 3ª troca de mensagens com engajamento positivo, comece a encaminhar para o agendamento. Não espere o cliente pedir. SDR bom é proativo.
 
-HORÁRIOS DE REUNIÃO:
-- Horário comercial: segunda a sexta, 9h às 17h (horário de Brasília)
-- Duração da reunião: 45 minutos (Diagnóstico Financeiro BGP)
-- A última reunião do dia começa às 16:15 (termina às 17h)
-- NÃO sugira horários antes das 9h, depois das 16:15, nem em fins de semana
-- Se o lead pedir horário fora do comercial, diga que só tem horário comercial e envie o link do Calendly para ele escolher
-
-AGENDAMENTO — quando o cliente aceitar a reunião:
-- SEMPRE envie o link de agendamento em uma mensagem SEPARADA (entre ---)
+AGENDAMENTO — quando chegar a hora de agendar:
+- NÃO sugira horários específicos. NUNCA diga "você tem hoje às 10h ou amanhã às 14h?"
+- Em vez disso, envie DIRETO o link do Calendly para o lead escolher o horário dele
+- SEMPRE envie o link em uma mensagem SEPARADA (entre ---)
 - O link deve ser a ÚNICA coisa na mensagem separada, sem texto antes ou depois
 - Exemplo correto:
   Perfeito! Vou te mandar o link pra você escolher o melhor horário 😊
   ---
   {meetingLink}
   ---
-  Qualquer dúvida sobre o agendamento me avisa!
+  Lá você consegue ver todos os horários disponíveis e escolher o que for melhor pra você!
 - Se não houver link configurado, combine dia e horário diretamente e confirme
-- Após enviar o link ou combinar horário, confirme o agendamento e se despeça de forma simpática
+- Após enviar o link, confirme e se despeça de forma simpática
+- Se o lead perguntar sobre horários, diga que pelo link ele vê todos os horários disponíveis em tempo real
 
 TRATAMENTO DE OBJEÇÕES:
-- "Não tenho tempo" → "São só 45 minutinhos, você tem hoje às X ou amanhã às Y?"
+- "Não tenho tempo" → "São só 45 minutinhos! Vou te mandar o link pra você escolher o horário que encaixar melhor na sua agenda"
 - "Já tenho solução" → "Que solução vocês usam hoje? Muitos clientes nossos vieram de lá exatamente porque..."
 - "Me manda mais informações" → Manda 1 dado concreto + "mas fica muito mais claro ao vivo, consigo mostrar em 45 min"
 - "Quanto custa?" → Dá o range de valores + propõe a demo pra entender o que faz mais sentido
@@ -122,38 +118,10 @@ export async function getCurrentContext(): Promise<string> {
   const fimDeSemana = now.getDay() === 0 || now.getDay() === 6;
   const foraDoPeriodo = hora >= 17 || hora < 9;
 
-  let disponibilidade: string;
-  if (fimDeSemana) {
-    disponibilidade = 'Hoje é fim de semana — não há reuniões disponíveis. O próximo dia útil é a melhor opção.';
-  } else if (foraDoPeriodo) {
-    disponibilidade = hora >= 17
-      ? 'Já passou das 17h — não há mais reuniões hoje. Sugira horários para amanhã (se dia útil) ou próximo dia útil.'
-      : 'Ainda não são 9h — sugira horários a partir das 9h de hoje.';
-  } else if (hora >= 16 && parseInt(minutos) > 15) {
-    disponibilidade = 'Já passou das 16:15 — a última reunião de hoje já começou (45min). Sugira horários para amanhã ou próximo dia útil.';
-  } else {
-    const proximaHora = hora < 9 ? 9 : hora + 1;
-    const ultimoSlot = '16:15';
-    disponibilidade = `Horários disponíveis hoje: ${proximaHora}h até ${ultimoSlot} (última reunião do dia). Amanhã também é uma boa opção.`;
-  }
-
-  // Try to enrich with real Calendly availability
-  let slotsInfo = '';
-  try {
-    const { getNextAvailableSlots } = await import('./calendlyAvailability');
-    slotsInfo = await getNextAvailableSlots(3);
-    if (slotsInfo) {
-      slotsInfo = `\n- ${slotsInfo}`;
-    }
-  } catch {
-    // Calendly service not available — use generic info
-  }
-
-  return `\n\nCONTEXTO ATUAL (use para sugerir horários de reunião):
+  return `\n\nCONTEXTO ATUAL:
 - Data: ${data} (${diaSemana})
 - Hora atual: ${hora}:${minutos}
-- ${disponibilidade}${slotsInfo}
-- Regras: reuniões apenas de segunda a sexta, das 9h às 17h (última reunião às 16:15, duração 45min). NUNCA sugira horários passados ou fora desse período.`;
+- Para agendamento: SEMPRE envie o link do Calendly. NÃO sugira horários específicos. O lead escolhe pelo link.`;
 }
 
 
