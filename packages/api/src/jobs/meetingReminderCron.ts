@@ -57,7 +57,7 @@ async function checkMeetingReminders() {
 
     if (meetings.length === 0) return;
 
-    // Check Evolution API connection before processing
+    // Check Z-API connection before processing
     let client: InstanceType<typeof EvolutionApiClient> | null = null;
     try {
       client = await EvolutionApiClient.fromConfig();
@@ -68,7 +68,7 @@ async function checkMeetingReminders() {
         return;
       }
     } catch {
-      // Can't reach Evolution API — skip silently
+      // Can't reach Z-API — skip silently
       return;
     }
 

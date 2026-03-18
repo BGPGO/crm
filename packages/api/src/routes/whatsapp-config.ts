@@ -41,7 +41,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const allowedFields = [
       'zapiInstanceId', 'zapiToken', 'zapiClientToken', 'baseUrl',
-      'companyName', 'companyPhone', 'meetingLink', 'openaiApiKey',
+      'companyName', 'companyPhone', 'botPhoneNumber', 'meetingLink', 'openaiApiKey',
       'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
       'leadQualificationEnabled', 'sdrAutoMessageEnabled', 'meetingReminderEnabled',
     ];

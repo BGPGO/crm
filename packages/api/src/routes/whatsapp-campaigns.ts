@@ -3,6 +3,13 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  // If 10-11 digits (BR without country code), prepend 55
+  if (digits.length === 10 || digits.length === 11) return '55' + digits;
+  return digits;
+}
+
 const router = Router();
 
 // GET /api/whatsapp-campaigns/stages — List pipeline stages with contact counts
@@ -117,7 +124,7 @@ router.post(
         });
 
         phoneNumbers = segmentContacts
-          .map(c => c.phone!)
+          .map(c => normalizePhone(c.phone!))
           .filter(p => p.trim() !== '');
         phoneNumbers = [...new Set(phoneNumbers)];
 
@@ -132,7 +139,8 @@ router.post(
         });
         phoneNumbers = deals
           .map(d => d.contact?.phone)
-          .filter((p): p is string => !!p && p.trim() !== '');
+          .filter((p): p is string => !!p && p.trim() !== '')
+          .map(p => normalizePhone(p));
 
         // Remove duplicates
         phoneNumbers = [...new Set(phoneNumbers)];
@@ -141,7 +149,7 @@ router.post(
           return next(createError('No contacts with phone numbers found in this stage', 422));
         }
       } else if (Array.isArray(contacts) && contacts.length > 0) {
-        phoneNumbers = contacts;
+        phoneNumbers = contacts.map((p: string) => normalizePhone(p));
       } else {
         return next(createError('Either contacts array, stageId, or segmentId is required', 422));
       }

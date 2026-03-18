@@ -86,7 +86,9 @@ export class ZApiClient {
   async connectInstance(): Promise<{ base64?: string }> {
     const res = await this.client.get('/qr-code/image');
     const data = res.data as { value?: string };
-    return { base64: data.value };
+    const raw = data.value || '';
+    const base64 = raw.startsWith('data:') ? raw : raw ? `data:image/png;base64,${raw}` : undefined;
+    return { base64 };
   }
 
   async getInstanceStatus(): Promise<ConnectionStateResponse> {

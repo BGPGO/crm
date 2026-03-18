@@ -9,7 +9,7 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 
 interface InstanceStatus {
-  state: "open" | "connecting" | "close" | string;
+  instance: { instanceName: string; state: string };
 }
 
 interface BotConfig {
@@ -19,6 +19,7 @@ interface BotConfig {
   baseUrl: string;
   companyName: string;
   companyPhone: string;
+  botPhoneNumber: string;
   meetingLink: string;
   openaiApiKey: string;
   welcomeMessage: string;
@@ -37,6 +38,7 @@ const defaultConfig: BotConfig = {
   baseUrl: "",
   companyName: "",
   companyPhone: "",
+  botPhoneNumber: "",
   meetingLink: "",
   openaiApiKey: "",
   welcomeMessage: "",
@@ -147,15 +149,15 @@ export default function ConversasConfiguracaoPage() {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
-  const statusColor = status?.state === "open"
+  const statusColor = status?.instance?.state === "open"
     ? "bg-green-500"
-    : status?.state === "connecting"
+    : status?.instance?.state === "connecting"
     ? "bg-yellow-500"
     : "bg-red-500";
 
-  const statusLabel = status?.state === "open"
+  const statusLabel = status?.instance?.state === "open"
     ? "Conectado"
-    : status?.state === "connecting"
+    : status?.instance?.state === "connecting"
     ? "Conectando..."
     : "Desconectado";
 
@@ -405,6 +407,16 @@ export default function ConversasConfiguracaoPage() {
                     type="text"
                     value={config.companyPhone}
                     onChange={(e) => updateField("companyPhone", e.target.value)}
+                    placeholder="5511999999999"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Número do Bot</label>
+                  <input
+                    type="text"
+                    value={config.botPhoneNumber}
+                    onChange={(e) => updateField("botPhoneNumber", e.target.value)}
                     placeholder="5511999999999"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

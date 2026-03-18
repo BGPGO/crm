@@ -278,10 +278,10 @@ ${campaignContext.context}
     }
 
     await sendBotMessages(client, normalizedPhone, aiReply);
-    console.log(`[LeadQualification] Mensagem enviada via Evolution API para ${normalizedPhone}`);
+    console.log(`[LeadQualification] Mensagem enviada via Z-API para ${normalizedPhone}`);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.error(`[LeadQualification] Erro ao enviar via Evolution API:`, errMsg);
+    console.error(`[LeadQualification] Erro ao enviar via Z-API:`, errMsg);
 
     // Mark messages as not delivered
     await prisma.whatsAppMessage.updateMany({

@@ -23,6 +23,15 @@ async function webhookHandler(req: Request, res: Response) {
     const body = req.body;
     const eventType = body.type;
 
+    // Validate Z-API Client-Token if configured
+    const config = await prisma.whatsAppConfig.findFirst({ select: { zapiClientToken: true } });
+    if (config?.zapiClientToken) {
+      const headerToken = req.headers['client-token'] || req.headers['x-client-token'];
+      if (headerToken !== config.zapiClientToken) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
     if (eventType === 'ReceivedCallback') {
       // Skip group messages
       if (body.isGroup === true) {
@@ -49,7 +58,7 @@ async function webhookHandler(req: Request, res: Response) {
       const remoteJid = body.phone + '@s.whatsapp.net';
 
       const message: any = {
-        conversation: body.text?.message || undefined,
+        conversation: body.text?.message || (typeof body.text === 'string' ? body.text : undefined) || body.body || undefined,
       };
 
       // Map audio if present
@@ -107,8 +116,9 @@ async function webhookHandler(req: Request, res: Response) {
       console.log(`[whatsapp-webhook] Connected: instanceId=${body.instanceId}, phone=${body.phone}`);
 
       try {
+        const instanceId = body.instanceId || '';
         await prisma.whatsAppConfig.updateMany({
-          where: {},
+          where: instanceId ? { zapiInstanceId: instanceId } : {},
           data: { connectionStatus: 'CONNECTED' },
         });
       } catch (dbErr) {
@@ -118,8 +128,9 @@ async function webhookHandler(req: Request, res: Response) {
       console.log(`[whatsapp-webhook] Disconnected: instanceId=${body.instanceId}, error=${body.error}`);
 
       try {
+        const instanceId = body.instanceId || '';
         await prisma.whatsAppConfig.updateMany({
-          where: {},
+          where: instanceId ? { zapiInstanceId: instanceId } : {},
           data: { connectionStatus: 'DISCONNECTED' },
         });
       } catch (dbErr) {

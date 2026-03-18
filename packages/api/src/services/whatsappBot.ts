@@ -474,7 +474,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     // Update conversation timestamp
     await prisma.whatsAppConversation.update({
       where: { id: conversation.id },
-      data: { updatedAt: new Date() },
+      data: { updatedAt: new Date(), lastMessageAt: new Date() },
     });
 
     // Send messages via WhatsApp API

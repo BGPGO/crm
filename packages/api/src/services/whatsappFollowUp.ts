@@ -158,7 +158,7 @@ export async function sendFollowUp(
       data: { updatedAt: new Date() },
     });
 
-    // Send via Evolution API
+    // Send via Z-API
     const client = await EvolutionApiClient.fromDB();
     await sendBotMessages(client, conversation.phone, reply);
 
