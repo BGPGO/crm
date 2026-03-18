@@ -53,6 +53,7 @@ interface FormState {
   organizationId: string;
   userId: string;
   sourceId: string;
+  campaignId: string;
   stageId: string;
 }
 
@@ -63,6 +64,7 @@ const emptyForm = (defaultStageId: string): FormState => ({
   organizationId: "",
   userId: "",
   sourceId: "",
+  campaignId: "",
   stageId: defaultStageId,
 });
 
@@ -84,6 +86,7 @@ export default function NewDealModal({
   const [organizations, setOrganizations] = useState<ApiListItem[]>([]);
   const [users, setUsers] = useState<ApiListItem[]>([]);
   const [sources, setSources] = useState<ApiListItem[]>([]);
+  const [campaigns, setCampaigns] = useState<ApiListItem[]>([]);
   const [stages, setStages] = useState<ApiStage[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
@@ -107,12 +110,13 @@ export default function NewDealModal({
     if (!isOpen || loadingOptions) return;
     setLoadingOptions(true);
     try {
-      const [contactsRes, orgsRes, usersRes, sourcesRes, stagesRes] =
+      const [contactsRes, orgsRes, usersRes, sourcesRes, campaignsRes, stagesRes] =
         await Promise.all([
           api.get<ApiListResponse>("/contacts?limit=200"),
           api.get<ApiListResponse>("/organizations?limit=20"),
           api.get<ApiListResponse>("/users?limit=200"),
           api.get<ApiListResponse>("/sources?limit=200"),
+          api.get<ApiListResponse>("/campaigns?limit=200"),
           api.get<ApiStagesResponse>(
             `/pipeline-stages?pipelineId=${pipelineId}`
           ),
@@ -122,6 +126,7 @@ export default function NewDealModal({
       setOrganizations(orgsRes.data ?? []);
       setUsers(usersRes.data ?? []);
       setSources(sourcesRes.data ?? []);
+      setCampaigns(campaignsRes.data ?? []);
       setStages(
         (stagesRes.data ?? []).slice().sort((a, b) => a.order - b.order)
       );
@@ -198,6 +203,7 @@ export default function NewDealModal({
       if (form.organizationId) body.organizationId = form.organizationId;
       if (form.userId) body.userId = form.userId;
       if (form.sourceId) body.sourceId = form.sourceId;
+      if (form.campaignId) body.campaignId = form.campaignId;
 
       const res = await api.post<ApiDealResponse>("/deals", body);
       onDealCreated(res.data);
@@ -300,10 +306,20 @@ export default function NewDealModal({
         <Select
           label="Fonte"
           options={toOptions(sources)}
-          placeholder={loadingOptions ? "Carregando…" : "Selecionar fonte"}
+          placeholder={loadingOptions ? "Carregando…" : "Nenhuma"}
           value={form.sourceId}
           onChange={(e) => setField("sourceId", e.target.value)}
           disabled={loadingOptions || sources.length === 0}
+        />
+
+        {/* Campanha */}
+        <Select
+          label="Campanha"
+          options={toOptions(campaigns)}
+          placeholder={loadingOptions ? "Carregando…" : "Nenhuma"}
+          value={form.campaignId}
+          onChange={(e) => setField("campaignId", e.target.value)}
+          disabled={loadingOptions || campaigns.length === 0}
         />
 
         {/* Submit error */}

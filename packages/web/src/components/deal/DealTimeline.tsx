@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, CheckCircle2, Circle, Pencil, Calendar, Clock } from "lucide-react";
-import { formatDateTime } from "@/lib/formatters";
+import { formatDateTime, formatWhatsAppText } from "@/lib/formatters";
 import clsx from "clsx";
 
 export type TimelineEventType =
@@ -71,7 +71,7 @@ function eventLabel(type: TimelineEventType, content: string, user?: string): Re
           {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
           {userName && " adicionou uma anotação: "}
           {!userName && "Anotação: "}
-          <span className="text-gray-600 whitespace-pre-wrap">{content}</span>
+          <span className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWhatsAppText(content) }} />
         </span>
       );
     case "TASK_COMPLETED":
