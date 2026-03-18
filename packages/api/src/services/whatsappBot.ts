@@ -52,7 +52,8 @@ FUNIL:
 3. Envie o link do Calendly
 
 AGENDAMENTO:
-- Envie o link do Calendly em mensagem SEPARADA (entre ---), sozinho, sem texto
+- Envie o link do Calendly em mensagem SEPARADA (entre ---), SOZINHO, sem texto antes ou depois, SEM markdown
+- NUNCA use formato [texto](url). Mande APENAS a URL pura.
 - Exemplo:
   Vou te mandar o link pra agendar 😊
   ---
@@ -137,17 +138,29 @@ export async function sendBotMessages(
 
   // No further splitting — sending one long message is better than splitting mid-sentence
 
-  // Detect URLs (Calendly or any meeting link) to send as button
-  const urlRegex = /^(https?:\/\/[^\s]+)$/;
+  // Extract URL from various formats the AI might produce
+  function extractUrl(text: string): string | null {
+    const t = text.trim();
+    // Pure URL: https://calendly.com/...
+    if (/^https?:\/\/[^\s]+$/.test(t)) return t;
+    // Markdown link: [text](url)
+    const mdMatch = t.match(/\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+    if (mdMatch) return mdMatch[1];
+    // URL somewhere in the text (only if the text is mostly a link)
+    const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
+    if (urlMatch && t.length < urlMatch[1].length + 30) return urlMatch[1];
+    return null;
+  }
 
   for (const part of parts) {
-    if (urlRegex.test(part.trim())) {
-      // This part is a standalone URL — send as interactive button
+    const url = extractUrl(part);
+    if (url) {
+      // This part contains a link — send as interactive button
       try {
-        await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', part.trim());
+        await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', url);
       } catch {
-        // Fallback to plain text if button fails (WhatsApp sometimes blocks buttons)
-        await client.sendText(phone, part);
+        // Fallback to plain text if button fails
+        await client.sendText(phone, url);
       }
     } else {
       await client.sendText(phone, part);
