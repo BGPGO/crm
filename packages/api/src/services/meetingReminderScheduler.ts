@@ -9,8 +9,8 @@ const scheduledReminders = new Map<string, NodeJS.Timeout[]>();
  * Called when a CalendlyEvent is created (from calendly webhook or manual meeting).
  */
 export async function scheduleMeetingReminders(meetingId: string): Promise<void> {
-  // Cancel any existing reminders for this meeting
-  await cancelMeetingReminders(meetingId);
+  // Delete any existing PENDING reminders (re-scheduling, not cancellation)
+  await cancelMeetingReminders(meetingId, false);
 
   const meeting = await prisma.calendlyEvent.findUnique({
     where: { id: meetingId },
@@ -138,18 +138,25 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
 /**
  * Cancel all scheduled reminders for a meeting (e.g., when cancelled).
  */
-export async function cancelMeetingReminders(meetingId: string): Promise<void> {
+export async function cancelMeetingReminders(meetingId: string, markCancelled = true): Promise<void> {
   const existing = scheduledReminders.get(meetingId);
   if (existing) {
     existing.forEach(t => clearTimeout(t));
     scheduledReminders.delete(meetingId);
     console.log(`[meeting-reminder] Cancelled reminders for meeting ${meetingId}`);
   }
-  // Cancel all pending DB records
-  await prisma.scheduledFollowUp.updateMany({
-    where: { meetingId, status: 'PENDING' },
-    data: { status: 'CANCELLED', cancelledAt: new Date() },
-  }).catch(() => {});
+  if (markCancelled) {
+    // Real cancellation (meeting cancelled): mark as CANCELLED for audit trail
+    await prisma.scheduledFollowUp.updateMany({
+      where: { meetingId, status: 'PENDING' },
+      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    }).catch(() => {});
+  } else {
+    // Re-scheduling: delete old PENDING so we don't leave duplicates
+    await prisma.scheduledFollowUp.deleteMany({
+      where: { meetingId, status: 'PENDING' },
+    }).catch(() => {});
+  }
 }
 
 /**
