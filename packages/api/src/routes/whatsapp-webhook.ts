@@ -23,14 +23,9 @@ async function webhookHandler(req: Request, res: Response) {
     const body = req.body;
     const eventType = body.type;
 
-    // Validate Z-API Client-Token if configured
-    const config = await prisma.whatsAppConfig.findFirst({ select: { zapiClientToken: true } });
-    if (config?.zapiClientToken) {
-      const headerToken = req.headers['client-token'] || req.headers['x-client-token'];
-      if (headerToken !== config.zapiClientToken) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
+    // Note: Z-API does NOT send Client-Token in webhook requests.
+    // Authentication is done via the webhook URL being secret (HTTPS only).
+    // The Client-Token header is only used when WE call the Z-API endpoints.
 
     if (eventType === 'ReceivedCallback') {
       // Skip group messages
