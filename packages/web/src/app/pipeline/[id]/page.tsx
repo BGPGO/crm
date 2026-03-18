@@ -530,6 +530,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   // ── Users list (for responsible dropdown) ──────────────────────────────────
   const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [allCampaigns, setAllCampaigns] = useState<Array<{ id: string; name: string }>>([]);
 
   // ── WhatsApp sidebar state ────────────────────────────────────────────────
   const [whatsappConv, setWhatsappConv] = useState<{
@@ -590,6 +591,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     loadWhatsAppConversation();
     api.get<{ data: Array<{ id: string; name: string }> }>("/users")
       .then((res) => setAllUsers((res as { data: Array<{ id: string; name: string }> }).data || []))
+      .catch(() => {});
+    api.get<{ data: Array<{ id: string; name: string }> }>("/campaigns?limit=200")
+      .then((res) => setAllCampaigns((res as { data: Array<{ id: string; name: string }> }).data || []))
       .catch(() => {});
   }, [loadDeal, loadTimeline, loadWhatsAppConversation]);
 
@@ -1203,12 +1207,22 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   <p className="text-sm text-gray-700 mt-0.5">{deal.source.name}</p>
                 </div>
               )}
-              {deal.campaign && (
-                <div className="py-2">
-                  <span className="text-xs text-gray-400">Campanha</span>
-                  <p className="text-sm text-gray-700 mt-0.5">{deal.campaign.name}</p>
-                </div>
-              )}
+              <div className="py-2">
+                <span className="text-xs text-gray-400">Campanha</span>
+                <select
+                  value={deal.campaign?.id || ""}
+                  onChange={async (e) => {
+                    const campaignId = e.target.value || null;
+                    const selected = allCampaigns.find(c => c.id === campaignId);
+                    setDeal((d) => d ? { ...d, campaign: selected ? { id: selected.id, name: selected.name } : undefined } : d);
+                    try { await api.put(`/deals/${dealId}`, { campaignId }); } catch { /* silent */ }
+                  }}
+                  className="w-full mt-0.5 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                >
+                  <option value="">Nenhuma</option>
+                  {allCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
               {deal.leadTracking?.landingPage && (
                 <div className="py-2">
                   <span className="text-xs text-gray-400">Landing Page</span>
