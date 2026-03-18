@@ -70,16 +70,19 @@ router.post('/:instance', async (req: Request, res: Response) => {
         return res.status(200).json({ received: true, deduplicated: true });
       }
 
-      // Debug: log key fields for remote inspection (temporary)
+      // Debug: log ALL fields for remote inspection (temporary)
+      const msgCtx = message.message?.messageContextInfo;
       const debugPayload = JSON.stringify({
         originalJid,
         resolvedJid: remoteJid,
+        all_key_fields: message.key ? Object.keys(message.key) : [],
         remoteJidAlt: message.key?.remoteJidAlt || null,
-        addressingMode: message.key?.addressingMode || null,
         sender: body.sender,
         pushName: message.pushName,
-        participant: message.key?.participant || null,
-        participantAlt: message.key?.participantAlt || null,
+        messageContextInfo: msgCtx ? Object.keys(msgCtx) : null,
+        messageContextInfo_full: msgCtx || null,
+        all_data_fields: Object.keys(message),
+        all_message_fields: message.message ? Object.keys(message.message) : [],
       });
       console.log(`[whatsapp-webhook] MSG: ${debugPayload}`);
       // Save to DB for remote inspection

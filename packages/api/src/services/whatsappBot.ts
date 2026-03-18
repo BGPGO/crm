@@ -275,24 +275,10 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   const botPhone = botConfig?.botPhoneNumber || null;
 
   if (remoteJid.includes('@lid')) {
-    // remoteJidAlt was not available — last resort: CRM contact lookup by pushName
-    console.log(`[Bot] LID still unresolved after webhook: ${remoteJid}. Trying CRM fallback for "${pushName}"...`);
-    if (pushName) {
-      const crmContact = await prisma.contact.findFirst({
-        where: { name: { contains: pushName, mode: 'insensitive' } },
-        select: { phone: true },
-      });
-      if (crmContact?.phone) {
-        phone = crmContact.phone.replace(/\D/g, '');
-        console.log(`[Bot] LID resolvido via CRM: ${phone} (${pushName})`);
-      } else {
-        console.warn(`[Bot] LID ${remoteJid} não resolvido — contato "${pushName}" não encontrado no CRM`);
-        return;
-      }
-    } else {
-      console.warn(`[Bot] LID ${remoteJid} sem pushName — impossível resolver`);
-      return;
-    }
+    // remoteJidAlt was not available — Evolution API too old or field missing
+    // Store the message but can't resolve phone yet — log for debugging
+    console.warn(`[Bot] LID ${remoteJid} sem remoteJidAlt — Evolution API não suporta. pushName="${pushName}". Mensagem não processada.`);
+    return;
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
   }
