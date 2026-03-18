@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, Users, Send, Zap, FileText, Bot, Settings, LayoutTemplate } from "lucide-react";
+import { MessageSquare, Users, Send, Zap, Settings, LayoutTemplate } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -11,8 +11,6 @@ const tabs = [
   { label: "Campanhas", href: "/conversas/campanhas", icon: Send },
   { label: "Automações", href: "/conversas/automacoes", icon: Zap },
   { label: "Modelos", href: "/conversas/modelos", icon: LayoutTemplate },
-  { label: "Contextos", href: "/conversas/contextos", icon: FileText },
-  { label: "Testar IA", href: "/conversas/testar-ia", icon: Bot },
   { label: "Configuração", href: "/conversas/configuracao", icon: Settings },
 ] as const;
 
