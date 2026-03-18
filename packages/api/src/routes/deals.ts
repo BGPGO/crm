@@ -383,6 +383,76 @@ router.post('/:id/start-conversation', async (req, res, next) => {
   }
 });
 
+// POST /api/deals/:id/manual-meeting — create a manual meeting for a deal
+router.post('/:id/manual-meeting', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: {
+        contact: { select: { id: true, name: true, email: true, phone: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+    if (!deal) return next(createError('Deal not found', 404));
+
+    const { startTime, duration, eventType, notes } = req.body;
+    if (!startTime) return next(createError('startTime is required', 400));
+
+    const start = new Date(startTime);
+    const durationMin = parseInt(duration) || 30;
+    const end = new Date(start.getTime() + durationMin * 60 * 1000);
+
+    // Create CalendlyEvent with synthetic ID for manual meetings
+    const meeting = await prisma.calendlyEvent.create({
+      data: {
+        calendlyEventId: `manual-${deal.id}-${Date.now()}`,
+        eventType: eventType || 'Reunião Manual',
+        inviteeEmail: deal.contact?.email || '',
+        inviteeName: deal.contact?.name || null,
+        hostEmail: deal.user?.email || null,
+        hostName: deal.user?.name || null,
+        startTime: start,
+        endTime: end,
+        status: 'active',
+        contactId: deal.contact?.id || null,
+        dealId: deal.id,
+      },
+    });
+
+    // Mark conversation as meetingBooked if exists
+    if (deal.contact?.id) {
+      await prisma.whatsAppConversation.updateMany({
+        where: { contactId: deal.contact.id },
+        data: { meetingBooked: true },
+      });
+    }
+
+    // Create Activity
+    await prisma.activity.create({
+      data: {
+        type: 'MEETING',
+        content: `Reunião manual agendada para ${start.toLocaleDateString('pt-BR')} às ${start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })} (${durationMin}min)${notes ? ` — ${notes}` : ''}`,
+        userId: deal.userId,
+        dealId: deal.id,
+        contactId: deal.contact?.id || null,
+        metadata: {
+          source: 'manual',
+          meetingId: meeting.id,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          duration: durationMin,
+          eventType: meeting.eventType,
+          notes: notes || null,
+        },
+      },
+    });
+
+    res.status(201).json({ data: meeting });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/deals/:id/timeline — all activities for a deal, newest first
 router.get('/:id/timeline', async (req: Request, res: Response, next: NextFunction) => {
   try {

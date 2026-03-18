@@ -10,6 +10,7 @@ import AdvancedFiltersModal, {
   type AdvancedFilters,
   countAdvancedFilters,
 } from "@/components/pipeline/AdvancedFiltersModal";
+import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import {
   Table,
   TableHead,
@@ -211,6 +212,13 @@ export default function PipelinePage() {
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({});
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedCount = countAdvancedFilters(advancedFilters);
+  const [pendingMeeting, setPendingMeeting] = useState<{
+    dealId: string;
+    dealTitle: string;
+    contactName: string;
+    sourceStageId: string;
+    destStageId: string;
+  } | null>(null);
 
   // ── Search debounce ──────────────────────────────────────────────────────
 
@@ -526,6 +534,25 @@ export default function PipelinePage() {
       );
     }
 
+    // Check if moving to "Reunião agendada" — show meeting dialog
+    const destStageName = stageSummaries.find(s => s.id === destination.droppableId)?.name;
+    if (
+      source.droppableId !== destination.droppableId &&
+      destStageName?.toLowerCase().includes('reunião agendada')
+    ) {
+      // Find deal info for the dialog
+      const movedDeal = stageDealsRef.current[source.droppableId]?.find(d => d.id === draggableId) || moved;
+      setPendingMeeting({
+        dealId: draggableId,
+        dealTitle: movedDeal?.title || moved?.title || '',
+        contactName: movedDeal?.contact?.name || moved?.contact?.name || '',
+        sourceStageId: source.droppableId,
+        destStageId: destination.droppableId,
+      });
+      // Don't call the API yet — dialog will handle it
+      return;
+    }
+
     // Persist to API — only refresh summary (counters), not all deals
     try {
       await api.patch(`/deals/${draggableId}/stage`, {
@@ -543,6 +570,40 @@ export default function PipelinePage() {
         fetchBatchDeals(pipelineId, allFilterOpts);
       }
     }
+  };
+
+  // ── Meeting dialog handlers ──────────────────────────────────────────────
+
+  const handleMeetingConfirm = async (data: { startTime: string; duration: number; eventType: string; notes: string }) => {
+    if (!pendingMeeting || !pipelineId) return;
+    try {
+      // 1. Move the deal stage
+      await api.patch(`/deals/${pendingMeeting.dealId}/stage`, {
+        stageId: pendingMeeting.destStageId,
+      });
+      // 2. Create manual meeting
+      await api.post(`/deals/${pendingMeeting.dealId}/manual-meeting`, data);
+      // 3. Refresh
+      fetchSummary(pipelineId, allFilterOpts);
+      fetchBatchDeals(pipelineId, allFilterOpts);
+    } catch {
+      // Revert on error
+      fetchSummary(pipelineId, allFilterOpts);
+      fetchBatchDeals(pipelineId, allFilterOpts);
+    } finally {
+      setPendingMeeting(null);
+      setInjectedDeals({});
+    }
+  };
+
+  const handleMeetingCancel = () => {
+    // Revert optimistic UI
+    if (pipelineId) {
+      fetchSummary(pipelineId, allFilterOpts);
+      fetchBatchDeals(pipelineId, allFilterOpts);
+    }
+    setPendingMeeting(null);
+    setInjectedDeals({});
   };
 
   // ── Track deals loaded by each StageColumn ──────────────────────────────
@@ -906,6 +967,15 @@ export default function PipelinePage() {
         current={advancedFilters}
         onApply={setAdvancedFilters}
       />
+
+      {pendingMeeting && (
+        <ManualMeetingDialog
+          dealTitle={pendingMeeting.dealTitle}
+          contactName={pendingMeeting.contactName}
+          onConfirm={handleMeetingConfirm}
+          onCancel={handleMeetingCancel}
+        />
+      )}
     </div>
   );
 }
