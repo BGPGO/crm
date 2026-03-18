@@ -292,6 +292,92 @@ async function evaluateCondition(
     where: { id: contactId },
   });
 
+  // ── Special fields that need real lookups ───────────────────────────────
+  if (config.field === 'meeting_scheduled') {
+    // Check WhatsAppConversation.meetingBooked OR CalendlyEvent existence
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: { contactId },
+    });
+    const hasMeetingInConv = conversation?.meetingBooked === true;
+
+    const calendlyEvent = await prisma.calendlyEvent.findFirst({
+      where: { contactId, status: 'active' },
+    });
+    const hasMeeting = hasMeetingInConv || !!calendlyEvent;
+    const conditionResult = config.operator === 'is_true' ? hasMeeting : !hasMeeting;
+
+    return {
+      success: true,
+      conditionResult,
+      output: {
+        field: 'meeting_scheduled',
+        operator: config.operator,
+        actual: hasMeeting ? 'Sim' : 'Não',
+        meetingBookedInConv: hasMeetingInConv,
+        hasCalendlyEvent: !!calendlyEvent,
+        result: conditionResult,
+      },
+    };
+  }
+
+  if (config.field === 'lead_responded') {
+    // Check if there are CLIENT messages in the WhatsApp conversation
+    const conversation = await prisma.whatsAppConversation.findFirst({
+      where: { contactId },
+    });
+    let hasResponded = false;
+    if (conversation) {
+      const clientMsgCount = await prisma.whatsAppMessage.count({
+        where: { conversationId: conversation.id, sender: 'CLIENT' },
+      });
+      hasResponded = clientMsgCount > 0;
+    }
+    const conditionResult = config.operator === 'is_true' ? hasResponded : !hasResponded;
+
+    return {
+      success: true,
+      conditionResult,
+      output: {
+        field: 'lead_responded',
+        operator: config.operator,
+        actual: hasResponded ? 'Sim' : 'Não',
+        result: conditionResult,
+      },
+    };
+  }
+
+  if (config.field === 'has_tag') {
+    // Check if contact has a specific tag (by name or ID)
+    const contactTags = await prisma.contactTag.findMany({
+      where: { contactId },
+      include: { tag: { select: { id: true, name: true } } },
+    });
+    const tagNames = contactTags.map(ct => ct.tag.name.toLowerCase());
+    const tagIds = contactTags.map(ct => ct.tag.id);
+    const searchValue = (config.value || '').toLowerCase();
+
+    const hasTag = tagIds.includes(config.value) || tagNames.includes(searchValue);
+
+    let conditionResult: boolean;
+    if (config.operator === 'is_true') conditionResult = hasTag;
+    else if (config.operator === 'is_false') conditionResult = !hasTag;
+    else if (config.operator === 'equals') conditionResult = hasTag;
+    else conditionResult = hasTag;
+
+    return {
+      success: true,
+      conditionResult,
+      output: {
+        field: 'has_tag',
+        operator: config.operator,
+        expected: config.value,
+        actual: tagNames.join(', ') || 'Nenhuma tag',
+        result: conditionResult,
+      },
+    };
+  }
+
+  // ── Generic contact field comparison ────────────────────────────────────
   const fieldValue = String((contact as any)[config.field] ?? '');
   const targetValue = config.value;
   let conditionResult = false;
@@ -311,29 +397,17 @@ async function evaluateCondition(
     case 'not_contains':
       conditionResult = !fieldValue.includes(targetValue);
       break;
-    case 'starts_with':
-      conditionResult = fieldValue.startsWith(targetValue);
-      break;
-    case 'ends_with':
-      conditionResult = fieldValue.endsWith(targetValue);
-      break;
     case 'is_empty':
       conditionResult = fieldValue === '' || fieldValue === 'null' || fieldValue === 'undefined';
       break;
     case 'is_not_empty':
       conditionResult = fieldValue !== '' && fieldValue !== 'null' && fieldValue !== 'undefined';
       break;
-    case 'gt':
-      conditionResult = Number(fieldValue) > Number(targetValue);
+    case 'is_true':
+      conditionResult = fieldValue === 'true' || fieldValue === '1';
       break;
-    case 'gte':
-      conditionResult = Number(fieldValue) >= Number(targetValue);
-      break;
-    case 'lt':
-      conditionResult = Number(fieldValue) < Number(targetValue);
-      break;
-    case 'lte':
-      conditionResult = Number(fieldValue) <= Number(targetValue);
+    case 'is_false':
+      conditionResult = fieldValue === 'false' || fieldValue === '0' || fieldValue === '';
       break;
     default:
       conditionResult = false;
