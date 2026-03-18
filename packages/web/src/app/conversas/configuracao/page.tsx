@@ -901,6 +901,18 @@ function TabContextos() {
 // Tab: Follow-up
 // ─────────────────────────────────────────────
 
+interface FollowUpStep {
+  order: number;
+  delayMinutes: number;
+  tone: string;
+}
+
+const TONE_OPTIONS = [
+  { value: "CASUAL", label: "Casual", desc: "Leve, checando se viu a mensagem" },
+  { value: "REFORCO", label: "Reforço", desc: "Reforça valor, propõe demo" },
+  { value: "ENCERRAMENTO", label: "Encerramento", desc: "Agradece e encerra" },
+];
+
 function TabFollowup({
   config,
   configLoading,
@@ -914,79 +926,179 @@ function TabFollowup({
   updateField: (field: keyof BotConfig, value: string | boolean) => void;
   saveConfig: () => void;
 }) {
+  const [steps, setSteps] = useState<FollowUpStep[]>([]);
+  const [stepsLoading, setStepsLoading] = useState(true);
+  const [stepsSaving, setStepsSaving] = useState(false);
+  const [stepsMsg, setStepsMsg] = useState("");
+
+  useEffect(() => {
+    api.get<{ data: FollowUpStep[] }>("/whatsapp-config/follow-up-steps")
+      .then((res) => {
+        const loaded = (res as { data: FollowUpStep[] }).data || [];
+        setSteps(loaded.length > 0 ? loaded : [
+          { order: 1, delayMinutes: 30, tone: "CASUAL" },
+          { order: 2, delayMinutes: 60, tone: "REFORCO" },
+          { order: 3, delayMinutes: 120, tone: "ENCERRAMENTO" },
+        ]);
+      })
+      .catch(() => {
+        setSteps([
+          { order: 1, delayMinutes: 30, tone: "CASUAL" },
+          { order: 2, delayMinutes: 60, tone: "REFORCO" },
+          { order: 3, delayMinutes: 120, tone: "ENCERRAMENTO" },
+        ]);
+      })
+      .finally(() => setStepsLoading(false));
+  }, []);
+
+  const updateStep = (index: number, field: keyof FollowUpStep, value: string | number) => {
+    setSteps((prev) => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
+  };
+
+  const addStep = () => {
+    const nextOrder = steps.length + 1;
+    setSteps((prev) => [...prev, { order: nextOrder, delayMinutes: 60, tone: "CASUAL" }]);
+  };
+
+  const removeStep = (index: number) => {
+    setSteps((prev) => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i + 1 })));
+  };
+
+  const saveSteps = async () => {
+    setStepsSaving(true);
+    setStepsMsg("");
+    try {
+      await api.put("/whatsapp-config/follow-up-steps", { steps });
+      setStepsMsg("Steps salvos!");
+      setTimeout(() => setStepsMsg(""), 3000);
+    } catch {
+      setStepsMsg("Erro ao salvar steps");
+    } finally {
+      setStepsSaving(false);
+    }
+  };
+
   const toggles: Array<{ field: keyof BotConfig; label: string; description: string }> = [
-    {
-      field: "botEnabled",
-      label: "Bot SDR IA",
-      description: "Ativa/desativa o bot que responde mensagens no WhatsApp",
-    },
-    {
-      field: "followUpEnabled",
-      label: "Follow-up Automático",
-      description: "Envia follow-ups automáticos para leads que não responderam",
-    },
-    {
-      field: "leadQualificationEnabled",
-      label: "Qualificação de Leads",
-      description: "Verifica Calendly e ativa SDR IA quando lead entra pela LP",
-    },
-    {
-      field: "sdrAutoMessageEnabled",
-      label: "Mensagem Automatica SDR",
-      description: "Envia primeira mensagem automatica via WhatsApp para novos leads",
-    },
-    {
-      field: "meetingReminderEnabled",
-      label: "Lembretes de Reuniao",
-      description:
-        "Envia lembretes automaticos via WhatsApp antes das reunioes (4h, 2h, 1h, 30min, 15min)",
-    },
+    { field: "botEnabled", label: "Bot SDR IA", description: "Ativa/desativa o bot que responde mensagens no WhatsApp" },
+    { field: "followUpEnabled", label: "Follow-up Automático", description: "Envia follow-ups automáticos para leads que não responderam" },
+    { field: "leadQualificationEnabled", label: "Qualificação de Leads", description: "Verifica Calendly e ativa SDR IA quando lead entra pela LP" },
+    { field: "sdrAutoMessageEnabled", label: "Mensagem Automática SDR", description: "Envia primeira mensagem automática via WhatsApp para novos leads" },
+    { field: "meetingReminderEnabled", label: "Lembretes de Reunião", description: "Envia lembretes automáticos via WhatsApp antes das reuniões" },
   ];
 
   return (
-    <Card padding="lg">
-      <h2 className="text-sm font-semibold text-gray-900 mb-4">Funcionalidades de Follow-up</h2>
-      {configLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {toggles.map(({ field, label, description }) => (
-            <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
-              <div className="flex-1 mr-4">
-                <p className="text-sm font-medium text-gray-800">{label}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{description}</p>
-              </div>
-              <button
-                onClick={() => updateField(field, !config[field])}
-                className={clsx(
-                  "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
-                  config[field] ? "bg-blue-600" : "bg-gray-300"
-                )}
-              >
-                <span
+    <div className="space-y-6">
+      {/* Toggles */}
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">Funcionalidades</h2>
+        {configLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {toggles.map(({ field, label, description }) => (
+              <div key={field} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                <div className="flex-1 mr-4">
+                  <p className="text-sm font-medium text-gray-800">{label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+                </div>
+                <button
+                  onClick={() => updateField(field, !config[field])}
                   className={clsx(
-                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                    config[field] ? "translate-x-6" : "translate-x-1"
+                    "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
+                    config[field] ? "bg-blue-600" : "bg-gray-300"
                   )}
-                />
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={saveConfig}
-            disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <Save size={16} />
-            {saving ? "Salvando..." : "Salvar Configurações"}
+                >
+                  <span className={clsx("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", config[field] ? "translate-x-6" : "translate-x-1")} />
+                </button>
+              </div>
+            ))}
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar Toggles"}
+            </button>
+          </div>
+        )}
+      </Card>
+
+      {/* Follow-up Steps */}
+      <Card padding="lg">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Etapas de Follow-up</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Quando o lead não responde, o bot envia follow-ups automáticos nesta sequência</p>
+          </div>
+          <button onClick={addStep} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+            <Plus size={12} />
+            Adicionar
           </button>
         </div>
-      )}
-    </Card>
+
+        {stepsLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
+            ))}
+          </div>
+        ) : steps.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">Nenhuma etapa configurada. O follow-up automático não será enviado.</p>
+        ) : (
+          <div className="space-y-3">
+            {steps.map((step, idx) => (
+              <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                  {step.order}
+                </span>
+                <div className="flex-1 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 uppercase">Delay (minutos)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={step.delayMinutes}
+                      onChange={(e) => updateStep(idx, "delayMinutes", parseInt(e.target.value) || 1)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-gray-500 uppercase">Tom</label>
+                    <select
+                      value={step.tone}
+                      onChange={(e) => updateStep(idx, "tone", e.target.value)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {TONE_OPTIONS.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button onClick={() => removeStep(idx)} className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Remover">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 mt-4">
+          <button onClick={saveSteps} disabled={stepsSaving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <Save size={16} />
+            {stepsSaving ? "Salvando..." : "Salvar Steps"}
+          </button>
+          {stepsMsg && <span className={clsx("text-xs font-medium", stepsMsg.includes("Erro") ? "text-red-600" : "text-green-600")}>{stepsMsg}</span>}
+        </div>
+
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs text-amber-700">
+            <strong>Como funciona:</strong> Se o lead não responder após a última mensagem do bot, o sistema espera o delay configurado e envia o follow-up com o tom escolhido. O ciclo para se o lead responder em qualquer momento.
+          </p>
+        </div>
+      </Card>
+    </div>
   );
 }
 
