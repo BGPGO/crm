@@ -503,6 +503,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // Submission loading flags
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Users list (for responsible dropdown) ──────────────────────────────────
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string }>>([]);
+
   // ── WhatsApp sidebar state ────────────────────────────────────────────────
   const [whatsappConv, setWhatsappConv] = useState<{
     conversationId: string;
@@ -560,6 +563,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     loadDeal();
     loadTimeline();
     loadWhatsAppConversation();
+    api.get<{ data: Array<{ id: string; name: string }> }>("/users")
+      .then((res) => setAllUsers((res as { data: Array<{ id: string; name: string }> }).data || []))
+      .catch(() => {});
   }, [loadDeal, loadTimeline, loadWhatsAppConversation]);
 
   // ── Derived values ────────────────────────────────────────────────────────
@@ -1325,16 +1331,33 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           )}
 
           {/* Seção: Responsável */}
-          {deal.user && (
-            <CollapsibleSection title="Responsável" defaultOpen>
-              <div className="flex items-center gap-2 py-2">
-                <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
-                  <User size={14} />
-                </div>
-                <span className="text-sm text-gray-700">{deal.user.name}</span>
+          <CollapsibleSection title="Responsável" defaultOpen>
+            <div className="flex items-center gap-2 py-2">
+              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <User size={14} />
               </div>
-            </CollapsibleSection>
-          )}
+              <select
+                value={deal?.user?.id || ""}
+                onChange={async (e) => {
+                  const newUserId = e.target.value;
+                  if (!newUserId || !deal) return;
+                  try {
+                    await api.put(`/deals/${dealId}`, { userId: newUserId });
+                    const selectedUser = allUsers.find(u => u.id === newUserId);
+                    setDeal({ ...deal, user: selectedUser ? { id: selectedUser.id, name: selectedUser.name } : deal.user });
+                  } catch {
+                    alert("Erro ao alterar responsável");
+                  }
+                }}
+                className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              >
+                {!deal?.user && <option value="">Sem responsável</option>}
+                {allUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          </CollapsibleSection>
         </aside>
 
         {/* ── Right main content (~65%) ── */}
