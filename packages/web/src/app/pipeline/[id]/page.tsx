@@ -30,6 +30,7 @@ import CollapsibleSection from "@/components/deal/CollapsibleSection";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
 import ContractGenerator from "@/components/pipeline/ContractGenerator";
+import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
@@ -503,6 +504,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [showAddContact, setShowAddContact] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [pendingStageMove, setPendingStageMove] = useState<{ stageId: string; stageName: string } | null>(null);
 
   // Add-contact picker
   const [contactSearch, setContactSearch] = useState("");
@@ -610,9 +612,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   const pendingTaskCount = (deal?.tasks ?? []).filter((t) => !t.done).length;
 
-  // ── Dynamic tabs (include "Contrato" when stage is "Aguardando Dados") ──
-  const isAguardandoDados = (deal?.stageName ?? "").toLowerCase().includes("aguardando dados");
-  const TABS: { key: TabKey; label: string }[] = isAguardandoDados
+  // ── Dynamic tabs (include "Contrato" from "Aguardando Dados" onwards) ──
+  const stageLower = (deal?.stageName ?? "").toLowerCase();
+  const showContractTab = stageLower.includes("aguardando") || stageLower.includes("ganho") || stageLower.includes("assinatura");
+  const TABS: { key: TabKey; label: string }[] = showContractTab
     ? [...BASE_TABS, { key: "contrato", label: "Contrato" }]
     : BASE_TABS;
 
@@ -667,7 +670,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   const handleStageClick = async (stageId: string) => {
     if (!deal || deal.status !== "active") return;
-    // Optimistic update
+
+    // Check if moving to "Reunião agendada" — show meeting dialog
+    const targetStage = stages.find((s) => s.id === stageId);
+    if (targetStage && targetStage.name.toLowerCase().includes("reunião agendada")) {
+      setPendingStageMove({ stageId, stageName: targetStage.name });
+      return;
+    }
+
+    // Normal stage move with optimistic update
     setDeal((d) => d ? { ...d, stageId } : d);
     try {
       await api.patch(`/deals/${dealId}/stage`, { stageId });
@@ -677,6 +688,21 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       // Revert optimistic update
       setDeal((d) => d ? { ...d, stageId: deal.stageId } : d);
       alert(`Erro ao mover etapa: ${e?.message ?? "Tente novamente."}`);
+    }
+  };
+
+  const handleMeetingConfirmDetail = async (data: { startTime: string; duration: number; eventType: string; notes: string }) => {
+    if (!pendingStageMove || !deal) return;
+    try {
+      await api.patch(`/deals/${dealId}/stage`, { stageId: pendingStageMove.stageId });
+      await api.post(`/deals/${dealId}/manual-meeting`, data);
+      setDeal((d) => d ? { ...d, stageId: pendingStageMove.stageId, stageName: pendingStageMove.stageName } : d);
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setPendingStageMove(null);
     }
   };
 
@@ -1581,7 +1607,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             )}
 
             {/* ── Contrato ── */}
-            {activeTab === "contrato" && isAguardandoDados && (
+            {activeTab === "contrato" && showContractTab && (
               <ContractGenerator
                 dealId={dealId}
                 deal={{
@@ -1926,6 +1952,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           contactPhone={whatsappConv.phone}
           dealId={dealId}
           onClose={() => setShowWhatsappSidebar(false)}
+        />
+      )}
+
+      {pendingStageMove && (
+        <ManualMeetingDialog
+          dealTitle={deal?.title || ""}
+          contactName={deal?.contact?.name || ""}
+          onConfirm={handleMeetingConfirmDetail}
+          onCancel={() => setPendingStageMove(null)}
         />
       )}
     </div>

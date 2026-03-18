@@ -200,10 +200,11 @@ router.patch(
       });
 
       // Log activity and dispatch outgoing webhook
+      const actingUserId = (req as any).user?.id ?? existing.userId;
       await logActivity({
         type: 'STAGE_CHANGE',
         content: `Etapa alterada de "${fromStage}" para "${toStage}"`,
-        userId: existing.userId,
+        userId: actingUserId,
         dealId: existing.id,
         contactId: existing.contactId ?? undefined,
         metadata: { fromStage, toStage },
@@ -284,10 +285,11 @@ router.patch(
       });
 
       // Log activity
+      const actingUserId = (req as any).user?.id ?? existing.userId;
       await logActivity({
         type: 'STATUS_CHANGE',
         content: `Status alterado para ${status}`,
-        userId: existing.userId,
+        userId: actingUserId,
         dealId: existing.id,
         contactId: existing.contactId ?? undefined,
         metadata: { fromStatus: existing.status, toStatus: status },

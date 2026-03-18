@@ -121,13 +121,72 @@ const INITIAL_FORM: ContractFormData = {
   descontoPercentual: "",
   observacao: "",
   linkReadAi: "",
-  testemunha1Nome: "",
-  testemunha1Cpf: "",
-  testemunha1Email: "",
-  testemunha2Nome: "",
-  testemunha2Cpf: "",
-  testemunha2Email: "",
+  testemunha1Nome: "Fernanda Brunisaki Bertuzzi",
+  testemunha1Cpf: "85677558087",
+  testemunha1Email: "fernanda@bertuzzipatrimonial.com.br",
+  testemunha2Nome: "Maria Vitória Dias Neves",
+  testemunha2Cpf: "86449168072",
+  testemunha2Email: "mariavitoria@bertuzzipatrimonial.com.br",
 };
+
+const DEFAULT_WITNESSES = [
+  { name: "Fernanda Brunisaki Bertuzzi", cpf: "85677558087", email: "fernanda@bertuzzipatrimonial.com.br" },
+  { name: "Maria Vitória Dias Neves", cpf: "86449168072", email: "mariavitoria@bertuzzipatrimonial.com.br" },
+];
+
+function validateContractForm(form: ContractFormData): string[] {
+  const errors: string[] = [];
+
+  // CNPJ validation (14 digits)
+  if (form.cnpj) {
+    const cnpjDigits = form.cnpj.replace(/\D/g, '');
+    if (cnpjDigits.length !== 14) {
+      errors.push('CNPJ deve ter 14 dígitos');
+    }
+  }
+
+  // CPF validation (11 digits)
+  if (form.cpfRepresentante) {
+    const cpfDigits = form.cpfRepresentante.replace(/\D/g, '');
+    if (cpfDigits.length !== 11) {
+      errors.push('CPF do representante deve ter 11 dígitos');
+    }
+  }
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (form.emailRepresentante && !emailRegex.test(form.emailRepresentante)) {
+    errors.push('Email do representante inválido');
+  }
+  if (form.emailFinanceiro && !emailRegex.test(form.emailFinanceiro)) {
+    errors.push('Email financeiro inválido');
+  }
+
+  // Witness CPF validation
+  if (form.testemunha1Cpf) {
+    const cpf1 = form.testemunha1Cpf.replace(/\D/g, '');
+    if (cpf1.length !== 11) errors.push('CPF da testemunha 1 deve ter 11 dígitos');
+  }
+  if (form.testemunha2Cpf) {
+    const cpf2 = form.testemunha2Cpf.replace(/\D/g, '');
+    if (cpf2.length !== 11) errors.push('CPF da testemunha 2 deve ter 11 dígitos');
+  }
+  if (form.testemunha1Email && !emailRegex.test(form.testemunha1Email)) {
+    errors.push('Email da testemunha 1 inválido');
+  }
+  if (form.testemunha2Email && !emailRegex.test(form.testemunha2Email)) {
+    errors.push('Email da testemunha 2 inválido');
+  }
+
+  // Required fields
+  if (!form.razaoSocial?.trim()) errors.push('Razão Social é obrigatória');
+  if (!form.cnpj?.trim()) errors.push('CNPJ é obrigatório');
+  if (!form.representante?.trim()) errors.push('Nome do representante é obrigatório');
+  if (!form.cpfRepresentante?.trim()) errors.push('CPF do representante é obrigatório');
+  if (!form.emailRepresentante?.trim()) errors.push('Email do representante é obrigatório');
+
+  return errors;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1075,6 +1134,12 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
 
   // ── Send to Autentique ──
   const handleSendAutentique = async () => {
+    const validationErrors = validateContractForm(form);
+    if (validationErrors.length > 0) {
+      alert('Corrija os seguintes erros:\n\n' + validationErrors.join('\n'));
+      return;
+    }
+
     setSendingAutentique(true);
     try {
       // Ensure contract exists
@@ -1573,6 +1638,29 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                 </button>
               )}
             </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Selecionar testemunha</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const witness = DEFAULT_WITNESSES[parseInt(e.target.value)];
+                  if (witness) {
+                    setForm(prev => ({
+                      ...prev,
+                      testemunha1Nome: witness.name,
+                      testemunha1Cpf: witness.cpf,
+                      testemunha1Email: witness.email,
+                    }));
+                  }
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Preencher manualmente...</option>
+                {DEFAULT_WITNESSES.map((w, i) => (
+                  <option key={i} value={i}>{w.name}</option>
+                ))}
+              </select>
+            </div>
             {showWitnessPicker === 1 && (
               <div className="mb-3 border border-blue-100 rounded-md bg-blue-50 p-2 space-y-1">
                 {savedWitnesses.map((w) => (
@@ -1628,6 +1716,29 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                   Carregar salva
                 </button>
               )}
+            </div>
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Selecionar testemunha</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  const witness = DEFAULT_WITNESSES[parseInt(e.target.value)];
+                  if (witness) {
+                    setForm(prev => ({
+                      ...prev,
+                      testemunha2Nome: witness.name,
+                      testemunha2Cpf: witness.cpf,
+                      testemunha2Email: witness.email,
+                    }));
+                  }
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Preencher manualmente...</option>
+                {DEFAULT_WITNESSES.map((w, i) => (
+                  <option key={i} value={i}>{w.name}</option>
+                ))}
+              </select>
             </div>
             {showWitnessPicker === 2 && (
               <div className="mb-3 border border-blue-100 rounded-md bg-blue-50 p-2 space-y-1">
