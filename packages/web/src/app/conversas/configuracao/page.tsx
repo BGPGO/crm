@@ -1581,13 +1581,19 @@ function TabLembretes({
   useEffect(() => {
     api
       .get<{ data: typeof reminderSteps }>("/meeting-reminders")
-      .then((res) => setReminderSteps(res.data || []))
+      .then((res) => {
+        const loaded = (res as any).data || (Array.isArray(res) ? res : []);
+        setReminderSteps(loaded);
+      })
       .catch(() => {})
       .finally(() => setReminderLoading(false));
 
     api
       .get<{ data: typeof followUpSteps }>("/whatsapp-config/follow-up-steps")
-      .then((res) => setFollowUpSteps(res.data || []))
+      .then((res) => {
+        const loaded = (res as any).data || (Array.isArray(res) ? res : []);
+        setFollowUpSteps(loaded);
+      })
       .catch(() => {})
       .finally(() => setFollowUpLoading(false));
   }, []);
