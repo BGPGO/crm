@@ -56,20 +56,30 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
     else if (minutesBefore >= 60) label = `${Math.floor(minutesBefore / 60)} hora(s) antes`;
     else label = `${minutesBefore} min antes`;
 
-    await prisma.scheduledFollowUp.create({
-      data: {
-        type: 'MEETING_REMINDER',
-        conversationId,
-        dealId,
-        meetingId: meeting.id,
-        stepNumber: step.minutesBefore,
-        label: `Lembrete ${label}`,
-        tone: null,
-        delayMinutes: step.minutesBefore,
-        scheduledAt: new Date(sendAt),
-        status: 'PENDING',
-      },
+    // Skip if a PENDING reminder already exists for this meeting + step
+    const existing = await prisma.scheduledFollowUp.findFirst({
+      where: { meetingId: meeting.id, stepNumber: step.minutesBefore, type: 'MEETING_REMINDER', status: 'PENDING' },
     });
+    if (!existing) {
+      try {
+        await prisma.scheduledFollowUp.create({
+          data: {
+            type: 'MEETING_REMINDER',
+            conversationId,
+            dealId,
+            meetingId: meeting.id,
+            stepNumber: step.minutesBefore,
+            label: `Lembrete ${label}`,
+            tone: null,
+            delayMinutes: step.minutesBefore,
+            scheduledAt: new Date(sendAt),
+            status: 'PENDING',
+          },
+        });
+      } catch (e: any) {
+        if (e.code !== 'P2002') throw e; // Ignore unique constraint, rethrow others
+      }
+    }
   }
 
   for (const step of steps) {
