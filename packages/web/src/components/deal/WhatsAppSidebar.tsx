@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Send, MessageCircle, Bot, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Message {
   id: string;
@@ -11,6 +12,7 @@ interface Message {
   text: string;
   createdAt: string;
   delivered?: boolean;
+  senderUser?: { id: string; name: string } | null;
 }
 
 interface WhatsAppSidebarProps {
@@ -28,6 +30,7 @@ export default function WhatsAppSidebar({
   dealId,
   onClose,
 }: WhatsAppSidebarProps) {
+  const { user: authUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
@@ -81,6 +84,7 @@ export default function WhatsAppSidebar({
     try {
       await api.post(`/whatsapp/conversations/${conversationId}/send`, {
         content: inputText.trim(),
+        userId: authUser?.id,
       });
       setInputText("");
       await fetchMessages(false);
@@ -177,7 +181,7 @@ export default function WhatsAppSidebar({
                           isBot ? "text-green-700" : "text-blue-700"
                         }`}
                       >
-                        {isBot ? "Bot" : "Você"}
+                        {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
                       </p>
                     )}
                     <p

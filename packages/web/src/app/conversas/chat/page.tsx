@@ -7,6 +7,7 @@ import { MessageSquare, Send, UserCheck, AlertCircle, Search, Tag, X, Plus, Wifi
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ConversationMessage {
   id: string;
@@ -36,6 +37,7 @@ interface Conversation {
   hasUndelivered?: boolean;
   unreadCount?: number;
   contact?: { id: string; name: string; email: string } | null;
+  assignedUser?: { id: string; name: string } | null;
 }
 
 interface Message {
@@ -45,9 +47,11 @@ interface Message {
   text: string;
   createdAt: string;
   delivered?: boolean;
+  senderUser?: { id: string; name: string } | null;
 }
 
 export default function ConversasChatPage() {
+  const { user: authUser } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,6 +64,8 @@ export default function ConversasChatPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateFilter, setTemplateFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors'>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
+  const [allUsers, setAllUsers] = useState<Array<{id: string, name: string}>>([]);
   const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
@@ -75,6 +81,7 @@ export default function ConversasChatPage() {
       else if (activeFilter === 'open') params.set('status', 'open');
       else if (activeFilter === 'closed') params.set('status', 'closed');
       else if (activeFilter === 'errors') params.set('hasErrors', 'true');
+      if (userFilter && userFilter !== 'all') params.set('assignedUserId', userFilter);
       const s = query !== undefined ? query : searchQuery;
       if (s) params.set('search', s);
 
@@ -85,7 +92,7 @@ export default function ConversasChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, searchQuery]);
+  }, [activeFilter, userFilter, searchQuery]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -121,6 +128,9 @@ export default function ConversasChatPage() {
     api.get<{ data: ConvTag[] }>("/tags")
       .then(res => setAllTags(Array.isArray(res) ? res : res.data ?? []))
       .catch(() => {});
+    api.get<{ data: Array<{id: string, name: string}> }>("/users")
+      .then(res => setAllUsers(res.data ?? []))
+      .catch(() => {});
   }, []);
 
   // Polling: refresh conversations and messages every 5 seconds
@@ -152,7 +162,7 @@ export default function ConversasChatPage() {
     if (!inputText.trim() || !selectedId || sending) return;
     setSending(true);
     try {
-      await api.post(`/whatsapp/conversations/${selectedId}/send`, { content: inputText.trim() });
+      await api.post(`/whatsapp/conversations/${selectedId}/send`, { content: inputText.trim(), userId: authUser?.id });
       setInputText("");
       await fetchMessages(selectedId);
     } catch {
@@ -330,6 +340,18 @@ export default function ConversasChatPage() {
                 </button>
               ))}
             </div>
+            {allUsers.length > 0 && (
+              <select
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="all">Todos os responsáveis</option>
+                {allUsers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -565,7 +587,7 @@ export default function ConversasChatPage() {
                                 "text-[10px] font-semibold mb-0.5",
                                 isBot ? "text-green-600" : "text-blue-600"
                               )}>
-                                {isBot ? "Bot" : "Você"}
+                                {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
                               </p>
                             )}
                             <p

@@ -181,6 +181,9 @@ model User {
   tasks      Task[]
   activities Activity[]
 
+  assignedConversations WhatsAppConversation[] @relation("WhatsAppConversationAssignee")
+  sentWhatsAppMessages  WhatsAppMessage[]      @relation("WhatsAppMessageSender")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1072,6 +1075,9 @@ model WhatsAppConversation {
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
 
+  assignedUserId String?
+  assignedUser   User?    @relation("WhatsAppConversationAssignee", fields: [assignedUserId], references: [id])
+
   messages      WhatsAppMessage[]
   aiHistory     WhatsAppAIHistory[]
   followUpState WhatsAppFollowUpState?
@@ -1081,6 +1087,7 @@ model WhatsAppConversation {
 
   @@index([phone])
   @@index([contactId])
+  @@index([assignedUserId])
   @@index([lastMessageAt])
   @@index([isActive])
   @@index([status])
@@ -1098,6 +1105,9 @@ model WhatsAppMessage {
 
   conversationId String
   conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderUserId String?
+  senderUser   User?   @relation("WhatsAppMessageSender", fields: [senderUserId], references: [id])
 
   createdAt DateTime @default(now())
 

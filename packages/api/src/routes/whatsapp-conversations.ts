@@ -12,8 +12,13 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { search, attendant, status } = req.query;
+    const { search, attendant, status, assignedUserId } = req.query;
     const where: Record<string, unknown> = {};
+
+    // Filter by assigned user
+    if (assignedUserId) {
+      where.assignedUserId = assignedUserId as string;
+    }
 
     if (search) {
       where.OR = [
@@ -63,6 +68,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
               tags: { include: { tag: { select: { id: true, name: true, color: true } } } },
             },
           },
+          assignedUser: { select: { id: true, name: true } },
           _count: { select: { messages: { where: { delivered: false } } } },
         },
       }),
@@ -130,8 +136,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         messages: {
           orderBy: { createdAt: 'asc' },
           take: 50,
+          include: { senderUser: { select: { id: true, name: true } } },
         },
         contact: { select: { id: true, name: true, email: true, phone: true } },
+        assignedUser: { select: { id: true, name: true } },
       },
     });
 
@@ -164,6 +172,7 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
         skip,
         take: limit,
         orderBy: { createdAt: 'asc' },
+        include: { senderUser: { select: { id: true, name: true } } },
       }),
     ]);
 
@@ -197,26 +206,32 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
     });
     if (!conversation) return next(createError('Conversation not found', 404));
 
-    const { content } = req.body;
+    const { content, userId } = req.body;
     if (!content) return next(createError('content is required', 400));
 
     // Send via Evolution API
     const client = await EvolutionApiClient.fromConfig();
     await client.sendText(conversation.phone, content);
 
-    // Save message as HUMAN sender
+    // Save message as HUMAN sender with userId
     const message = await prisma.whatsAppMessage.create({
       data: {
         conversationId: conversation.id,
         text: content,
         sender: 'HUMAN',
+        senderUserId: userId || null,
       },
+      include: { senderUser: { select: { id: true, name: true } } },
     });
 
-    // Update conversation lastMessageAt
+    // Update conversation lastMessageAt + assign user as responsible
+    const updateData: Record<string, unknown> = { lastMessageAt: new Date() };
+    if (userId && !conversation.assignedUserId) {
+      updateData.assignedUserId = userId;
+    }
     await prisma.whatsAppConversation.update({
       where: { id: conversation.id },
-      data: { lastMessageAt: new Date() },
+      data: updateData,
     });
 
     res.status(201).json({ data: message });
