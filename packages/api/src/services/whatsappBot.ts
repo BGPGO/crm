@@ -162,25 +162,14 @@ export async function sendBotMessages(
   for (const part of parts) {
     const url = extractMeetingUrl(part);
     if (url) {
-      // Part contains a URL — send clean text (if any) + button
+      // Part contains a URL — send clean text (if any) + link
       const cleanText = stripUrl(part);
-      // Only send clean text if it has real content (not just punctuation)
       if (cleanText && cleanText.length > 2) {
         await client.sendText(phone, cleanText);
         await new Promise((r) => setTimeout(r, 1500));
       }
-      // Send button, with multiple fallback layers
-      try {
-        await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', url);
-        console.log(`[Bot] Botão de agendamento enviado para ${phone}`);
-      } catch (btnErr) {
-        console.warn(`[Bot] Falha ao enviar botão, tentando texto plano:`, btnErr instanceof Error ? btnErr.message : btnErr);
-        try {
-          await client.sendText(phone, url);
-        } catch (txtErr) {
-          console.error(`[Bot] Falha ao enviar URL como texto:`, txtErr instanceof Error ? txtErr.message : txtErr);
-        }
-      }
+      // Send the link as plain text (buttons are unreliable on WhatsApp)
+      await client.sendText(phone, url);
     } else {
       await client.sendText(phone, part);
     }
