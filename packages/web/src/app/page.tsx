@@ -290,15 +290,15 @@ export default function DashboardPage() {
         time: a.createdAt,
       }));
 
-      // Top deals — highest value OPEN deals
+      // Top deals — highest value OPEN deals (value comes as string from Decimal)
       const topDeals: TopDeal[] = [...(topDealsRes.data ?? [])]
-        .filter((d) => (d.value ?? 0) > 0)
-        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+        .filter((d) => Number(d.value ?? 0) > 0)
+        .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0))
         .slice(0, 5)
         .map((d) => ({
           id: d.id,
           name: d.organization?.name ?? d.contact?.name ?? d.title,
-          value: d.value ?? 0,
+          value: Number(d.value ?? 0),
           stage: d.stage?.name ?? "",
           owner: d.user?.name ?? "—",
         }));
