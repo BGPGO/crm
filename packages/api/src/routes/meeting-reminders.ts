@@ -32,6 +32,24 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/meeting-reminders/by-meetings?ids=id1,id2,id3
+router.get('/by-meetings', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const ids = (req.query.ids as string || '').split(',').filter(Boolean);
+    if (ids.length === 0) return res.json({ data: [] });
+
+    const reminders = await prisma.scheduledFollowUp.findMany({
+      where: { meetingId: { in: ids }, type: 'MEETING_REMINDER' },
+      orderBy: { scheduledAt: 'asc' },
+      select: { id: true, meetingId: true, stepNumber: true, label: true, status: true, scheduledAt: true, sentAt: true },
+    });
+
+    res.json({ data: reminders });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/meeting-reminders/:id — Update a step
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
