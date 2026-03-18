@@ -53,11 +53,6 @@ export class EvolutionApiClient {
     });
   }
 
-  /**
-   * Creates an EvolutionApiClient from the first WhatsAppConfig record in the DB.
-   * If no record exists, creates a default one using environment variables.
-   */
-  /** Alias for fromDB — used by routes */
   static async fromConfig(): Promise<EvolutionApiClient> {
     return EvolutionApiClient.fromDB();
   }
@@ -127,10 +122,12 @@ export class EvolutionApiClient {
   // ─── Webhook ────────────────────────────────────────────────────────────
 
   async setWebhook(webhookUrl: string): Promise<WebhookSetResponse> {
+    // v2 format: camelCase fields + enabled flag
     const res = await this.client.post(`/webhook/set/${this.instance}`, {
+      enabled: true,
       url: webhookUrl,
-      webhook_by_events: false,
-      webhook_base64: true,
+      webhookByEvents: false,
+      webhookBase64: true,
       events: [
         'MESSAGES_UPSERT',
         'CONNECTION_UPDATE',
@@ -142,12 +139,10 @@ export class EvolutionApiClient {
   // ─── Messaging ──────────────────────────────────────────────────────────
 
   async sendText(number: string, text: string): Promise<SendTextResponse> {
-    // Evolution API v2 accepts both formats; v2 prefers { number, text }
-    // but we send both for backwards compatibility with v1 (textMessage: { text })
+    // v2 format: flat { number, text }
     const res = await this.client.post(`/message/sendText/${this.instance}`, {
       number,
       text,
-      textMessage: { text },
     });
     return res.data;
   }
@@ -159,18 +154,6 @@ export class EvolutionApiClient {
     return res.data;
   }
 
-  async findContactById(contactId: string): Promise<Contact | null> {
-    try {
-      const res = await this.client.post(`/chat/findContacts/${this.instance}`, {
-        where: { id: contactId },
-      });
-      const contacts: Contact[] = res.data || [];
-      return contacts[0] || null;
-    } catch {
-      return null;
-    }
-  }
-
   async findContactByName(pushName: string): Promise<string | null> {
     const res = await this.client.post(`/chat/findContacts/${this.instance}`, {
       where: { pushName },
@@ -178,54 +161,6 @@ export class EvolutionApiClient {
     const contacts: Contact[] = res.data || [];
     const match = contacts.find((c) => c.id && c.id.includes('@s.whatsapp.net'));
     return match ? match.id.replace('@s.whatsapp.net', '') : null;
-  }
-
-  /**
-   * Resolve a LID to a phone number using Evolution API's chat/findContacts.
-   * Returns the phone number (digits only) or null.
-   */
-  async resolveLid(lid: string): Promise<string | null> {
-    try {
-      // Method 1: Query the LID directly — Evolution API may return the linked number
-      const lidContact = await this.findContactById(lid);
-      if (lidContact) {
-        // Check if the contact object has a 'number' or 'wuid' field with the real phone
-        const raw = lidContact as unknown as Record<string, unknown>;
-        const number = raw.number || raw.wuid || raw.phone;
-        if (number && typeof number === 'string' && number.length >= 10) {
-          return number.replace(/\D/g, '');
-        }
-      }
-
-      // Method 2: Fetch all contacts and cross-reference LID with @s.whatsapp.net entries
-      const allContacts = await this.findContacts();
-      const lidEntry = allContacts.find(c => c.id === lid);
-      if (!lidEntry) return null;
-
-      // Match by profilePictureUrl (most reliable) then by pushName
-      for (const c of allContacts) {
-        if (!c.id.includes('@s.whatsapp.net')) continue;
-        if (lidEntry.profilePictureUrl && c.profilePictureUrl === lidEntry.profilePictureUrl) {
-          return c.id.replace('@s.whatsapp.net', '');
-        }
-      }
-
-      // pushName match as last resort (can be ambiguous)
-      if (lidEntry.pushName) {
-        const nameMatches = allContacts.filter(c =>
-          c.id.includes('@s.whatsapp.net') &&
-          c.pushName === lidEntry.pushName
-        );
-        // Only use if exactly ONE match (avoid ambiguity)
-        if (nameMatches.length === 1) {
-          return nameMatches[0].id.replace('@s.whatsapp.net', '');
-        }
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
   }
 }
 
