@@ -238,7 +238,7 @@ function mapApiTimeline(items: unknown[]): TimelineEvent[] {
   });
 }
 
-function StarRating({ value }: { value: number }) {
+function StarRating({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
   return (
     <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
@@ -250,6 +250,8 @@ function StarRating({ value }: { value: number }) {
           fill={n <= value ? "#FBBF24" : "none"}
           stroke={n <= value ? "#FBBF24" : "#D1D5DB"}
           strokeWidth="1.2"
+          className={onChange ? "cursor-pointer" : ""}
+          onClick={onChange ? () => onChange(n === value ? 0 : n) : undefined}
         >
           <path d="M7 1l1.545 3.13L12 4.635l-2.5 2.435.59 3.44L7 8.885l-3.09 1.625L4.5 7.07 2 4.635l3.455-.505L7 1z" />
         </svg>
@@ -273,7 +275,30 @@ function StatusBadge({ status }: { status: DealStatus }) {
 }
 
 function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).catch(() => {});
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text: string) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+  } catch {
+    // ignore
+  }
+  document.body.removeChild(textarea);
 }
 
 // ─── Sidebar Contact Item ─────────────────────────────────────────────────────
@@ -762,7 +787,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     setEditingTask(task);
     setTaskTitle(task.title);
     setTaskType(task.type);
-    setTaskDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : "");
+    setTaskDueDate(task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : "");
     setShowAddTask(true);
   };
 
@@ -1140,14 +1165,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   handleUpdateDeal("title", v);
                 }}
               />
-              {(deal.classification ?? 0) > 0 && (
-                <div className="py-2">
-                  <span className="text-xs text-gray-400">Qualificação</span>
-                  <div className="mt-1">
-                    <StarRating value={deal.classification!} />
-                  </div>
+              <div className="py-2">
+                <span className="text-xs text-gray-400">Qualificação</span>
+                <div className="mt-1">
+                  <StarRating
+                    value={deal.classification ?? 0}
+                    onChange={(v) => {
+                      setDeal((d) => d ? { ...d, classification: v } : d);
+                      handleUpdateDeal("classification", String(v));
+                    }}
+                  />
                 </div>
-              )}
+              </div>
               <div className="py-2">
                 <span className="text-xs text-gray-400">Valor total</span>
                 <button
@@ -1397,6 +1426,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               <DealTimeline
                 events={timeline}
                 onAddNote={handleAddNote}
+                pendingTasks={deal.tasks.filter((t: any) => !t.done)}
               />
             )}
 
@@ -1449,9 +1479,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                         </select>
                       </div>
                       <div className="flex-1">
-                        <label className="text-xs text-gray-500 mb-1 block">Prazo</label>
+                        <label className="text-xs text-gray-500 mb-1 block">Data e Hora</label>
                         <input
-                          type="date"
+                          type="datetime-local"
                           value={taskDueDate}
                           onChange={(e) => setTaskDueDate(e.target.value)}
                           className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"

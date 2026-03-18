@@ -246,24 +246,43 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
 
     const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
 
+    const sortBy = req.query.sortBy as string | undefined;
+    let orderBy: Record<string, unknown> = { createdAt: 'desc' };
+    if (sortBy === 'value_desc') orderBy = { value: 'desc' };
+    else if (sortBy === 'value_asc') orderBy = { value: 'asc' };
+
     const [total, data] = await Promise.all([
       prisma.deal.count({ where }),
       prisma.deal.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           stage: { select: { id: true, name: true } },
           contact: { select: { id: true, name: true } },
           organization: { select: { id: true, name: true } },
           user: { select: { id: true, name: true } },
+          tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
         },
       }),
     ]);
 
+    // Sort by nearest pending task dueDate if requested
+    let sortedData = data as any[];
+    if (sortBy === 'task') {
+      sortedData = [...data].sort((a: any, b: any) => {
+        const aDate = a.tasks?.[0]?.dueDate;
+        const bDate = b.tasks?.[0]?.dueDate;
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return new Date(aDate).getTime() - new Date(bDate).getTime();
+      });
+    }
+
     res.json({
-      data,
+      data: sortedData.map((deal) => ({ ...deal, nextTask: deal.tasks?.[0] ?? null })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -287,12 +306,18 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
 
     const baseWhere = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
 
+    const sortBy = req.query.sortBy as string | undefined;
+    let orderBy: Record<string, unknown> = { createdAt: 'desc' };
+    if (sortBy === 'value_desc') orderBy = { value: 'desc' };
+    else if (sortBy === 'value_asc') orderBy = { value: 'asc' };
+
     const dealInclude = {
       stage: { select: { id: true, name: true } },
       contact: { select: { id: true, name: true } },
       organization: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
       dealContacts: { include: { contact: { select: { id: true, name: true } } } },
+      tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
     };
 
     // Query each stage in parallel — guarantees `limit` deals per stage
@@ -303,12 +328,26 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
           prisma.deal.findMany({
             where,
             take: limit,
-            orderBy: { createdAt: 'desc' },
-            include: dealInclude,
+            orderBy,
+            include: dealInclude as any,
           }),
           prisma.deal.count({ where }),
         ]);
-        return { stageId: stage.id, deals, total: count };
+
+        // Sort by nearest pending task dueDate if requested
+        let sortedDeals = deals as any[];
+        if (sortBy === 'task') {
+          sortedDeals = [...deals].sort((a: any, b: any) => {
+            const aDate = a.tasks?.[0]?.dueDate;
+            const bDate = b.tasks?.[0]?.dueDate;
+            if (!aDate && !bDate) return 0;
+            if (!aDate) return 1;
+            if (!bDate) return -1;
+            return new Date(aDate).getTime() - new Date(bDate).getTime();
+          });
+        }
+
+        return { stageId: stage.id, deals: sortedDeals, total: count };
       })
     );
 
@@ -335,6 +374,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
         deals: result.deals.map((deal) => ({
           ...deal,
           hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
+          nextTask: (deal as any).tasks?.[0] ?? null,
         })),
         total: result.total,
       };

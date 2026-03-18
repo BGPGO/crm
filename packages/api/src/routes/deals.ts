@@ -140,7 +140,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (organizationId !== undefined) data.organizationId = organizationId;
     if (sourceId !== undefined) data.sourceId = sourceId;
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate;
-    if (classification !== undefined) data.classification = classification;
+    if (classification !== undefined) data.classification = typeof classification === 'string' ? parseInt(classification) : classification;
     if (contaAzulCode !== undefined) data.contaAzulCode = contaAzulCode;
     if (recurrence !== undefined) data.recurrence = recurrence;
     if (campaignId !== undefined) data.campaignId = campaignId;

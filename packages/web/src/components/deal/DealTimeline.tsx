@@ -26,6 +26,7 @@ export interface TimelineEvent {
 interface DealTimelineProps {
   events: TimelineEvent[];
   onAddNote?: (note: string) => void;
+  pendingTasks?: Array<{ id: string; title: string; dueDate?: string | Date; type: string }>;
 }
 
 function eventLabel(type: TimelineEventType, content: string, user?: string): React.ReactNode {
@@ -60,7 +61,7 @@ function eventLabel(type: TimelineEventType, content: string, user?: string): Re
           {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
           {userName && " adicionou uma anotação: "}
           {!userName && "Anotação: "}
-          <span className="text-gray-600">{content}</span>
+          <span className="text-gray-600 whitespace-pre-wrap">{content}</span>
         </span>
       );
     case "TASK_COMPLETED":
@@ -110,7 +111,51 @@ const FILTER_OPTIONS = [
   { value: "TASK_COMPLETED", label: "Tarefas" },
 ];
 
-export default function DealTimeline({ events, onAddNote }: DealTimelineProps) {
+const TASK_TYPE_LABELS: Record<string, string> = {
+  CALL: "Ligação",
+  MEETING: "Reunião",
+  PROPOSAL: "Proposta",
+  EMAIL: "Email",
+  VISIT: "Visita",
+  OTHER: "Outro",
+};
+
+const TASK_TYPE_COLORS: Record<string, string> = {
+  CALL: "bg-orange-100 text-orange-700",
+  MEETING: "bg-blue-100 text-blue-700",
+  PROPOSAL: "bg-purple-100 text-purple-700",
+  EMAIL: "bg-cyan-100 text-cyan-700",
+  VISIT: "bg-green-100 text-green-700",
+  OTHER: "bg-gray-100 text-gray-600",
+};
+
+function taskUrgencyBadge(dueDate?: string | Date) {
+  if (!dueDate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const due = new Date(dueDate);
+  due.setHours(0, 0, 0, 0);
+
+  let badgeBg = "bg-gray-100 text-gray-600";
+  let badgeText = `${String(due.getDate()).padStart(2, "0")}/${String(due.getMonth() + 1).padStart(2, "0")}`;
+
+  if (due.getTime() < today.getTime()) {
+    badgeBg = "bg-red-100 text-red-700";
+    badgeText = "Atrasada";
+  } else if (due.getTime() === today.getTime()) {
+    badgeBg = "bg-orange-100 text-orange-700";
+    badgeText = "Hoje";
+  } else if (due.getTime() === tomorrow.getTime()) {
+    badgeBg = "bg-green-100 text-green-700";
+    badgeText = "Amanhã";
+  }
+
+  return { badgeBg, badgeText };
+}
+
+export default function DealTimeline({ events, onAddNote, pendingTasks }: DealTimelineProps) {
   const [note, setNote] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
 
@@ -163,6 +208,31 @@ export default function DealTimeline({ events, onAddNote }: DealTimelineProps) {
           + Criar anotação
         </button>
       </div>
+
+      {/* Pending tasks */}
+      {pendingTasks && pendingTasks.length > 0 && (
+        <div className="mb-4 border border-amber-200 rounded-lg bg-amber-50 p-3">
+          <p className="text-xs font-semibold text-amber-800 mb-2">Tarefas pendentes</p>
+          <div className="space-y-1.5">
+            {pendingTasks.map((task) => {
+              const urgency = taskUrgencyBadge(task.dueDate);
+              return (
+                <div key={task.id} className="flex items-center gap-2 text-xs">
+                  <span className="text-gray-700 truncate flex-1">{task.title}</span>
+                  <span className={clsx("px-1.5 py-0.5 rounded font-medium flex-shrink-0", TASK_TYPE_COLORS[task.type] || TASK_TYPE_COLORS.OTHER)}>
+                    {TASK_TYPE_LABELS[task.type] || task.type}
+                  </span>
+                  {urgency && (
+                    <span className={clsx("px-1.5 py-0.5 rounded font-medium flex-shrink-0", urgency.badgeBg)}>
+                      {urgency.badgeText}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Add note area */}
       <div className="border border-gray-200 rounded-lg overflow-hidden mb-5 bg-white shadow-sm">

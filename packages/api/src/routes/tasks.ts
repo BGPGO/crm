@@ -107,7 +107,12 @@ router.patch('/batch', async (req: Request, res: Response, next: NextFunction) =
 
     // Convert dueDate string to Date if present
     if (typeof updateData.dueDate === 'string') {
-      updateData.dueDate = new Date(updateData.dueDate);
+      const dateStr = updateData.dueDate as string;
+      if (dateStr.length === 10) {
+        updateData.dueDate = new Date(dateStr + 'T12:00:00Z');
+      } else {
+        updateData.dueDate = new Date(dateStr);
+      }
     }
 
     const result = await prisma.task.updateMany({
@@ -167,8 +172,17 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { title, type, dueDate, userId, dealId, contactId, description } = req.body;
+      let parsedDueDate = dueDate;
+      if (typeof dueDate === 'string' && dueDate.length > 0) {
+        // If date-only (no time component), set to noon UTC to avoid timezone shift
+        if (dueDate.length === 10) { // "YYYY-MM-DD"
+          parsedDueDate = new Date(dueDate + 'T12:00:00Z');
+        } else {
+          parsedDueDate = new Date(dueDate);
+        }
+      }
       const task = await prisma.task.create({
-        data: { title, type, dueDate, userId, dealId, contactId, description },
+        data: { title, type, dueDate: parsedDueDate, userId, dealId, contactId, description },
         include: {
           user: { select: { id: true, name: true } },
           deal: { select: { id: true, title: true } },
@@ -192,7 +206,17 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (type !== undefined) data.type = type;
-    if (dueDate !== undefined) data.dueDate = dueDate;
+    if (dueDate !== undefined) {
+      if (typeof dueDate === 'string' && dueDate.length > 0) {
+        if (dueDate.length === 10) {
+          data.dueDate = new Date(dueDate + 'T12:00:00Z');
+        } else {
+          data.dueDate = new Date(dueDate);
+        }
+      } else {
+        data.dueDate = dueDate;
+      }
+    }
     if (userId !== undefined) data.userId = userId;
     if (description !== undefined) data.description = description;
     if (status !== undefined) data.status = status;

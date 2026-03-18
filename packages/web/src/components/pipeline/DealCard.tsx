@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Star, User, Plus, MessageCircle } from "lucide-react";
+import { Star, User, Plus, MessageCircle, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
@@ -18,8 +18,10 @@ export interface Deal {
   user?: { id: string; name: string } | null;
   stage: { id: string; name: string };
   dealContacts?: Array<{ contact: { id: string; name: string } }>;
+  classification?: number;
   createdAt?: string;
   hasWhatsAppConversation?: boolean;
+  nextTask?: { id: string; title: string; dueDate?: string; type: string } | null;
 }
 
 interface DealCardProps {
@@ -111,11 +113,51 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
               </p>
             )}
 
+            {/* Next task row */}
+            {deal.nextTask && (() => {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const tomorrow = new Date(today);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              const dueDate = deal.nextTask.dueDate ? new Date(deal.nextTask.dueDate) : null;
+              if (dueDate) dueDate.setHours(0, 0, 0, 0);
+
+              let badgeBg = "bg-gray-100 text-gray-600";
+              let badgeText = dueDate
+                ? `${String(dueDate.getDate()).padStart(2, "0")}/${String(dueDate.getMonth() + 1).padStart(2, "0")}`
+                : "";
+
+              if (dueDate) {
+                if (dueDate.getTime() < today.getTime()) {
+                  badgeBg = "bg-red-100 text-red-700";
+                  badgeText = "Atrasada";
+                } else if (dueDate.getTime() === today.getTime()) {
+                  badgeBg = "bg-orange-100 text-orange-700";
+                  badgeText = "Hoje";
+                } else if (dueDate.getTime() === tomorrow.getTime()) {
+                  badgeBg = "bg-green-100 text-green-700";
+                  badgeText = "Amanhã";
+                }
+              }
+
+              return (
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
+                  <Calendar size={11} className="text-gray-400 flex-shrink-0" />
+                  <span className="truncate flex-1">{deal.nextTask.title}</span>
+                  {badgeText && (
+                    <span className={clsx("px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0", badgeBg)}>
+                      {badgeText}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Metrics row: contact count + value */}
             <div className="flex items-center gap-3 text-xs text-gray-500">
               <span className="flex items-center gap-0.5">
-                <Star size={11} className="text-gray-400" />
-                0
+                <Star size={11} className={(deal.classification ?? 0) > 0 ? "text-yellow-400" : "text-gray-400"} />
+                {deal.classification ?? 0}
               </span>
               <span className="flex items-center gap-0.5">
                 <User size={11} className="text-gray-400" />
@@ -127,19 +169,21 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             </div>
           </div>
 
-          {/* Create task row */}
-          <div className="border-t border-gray-100 px-3 py-1.5">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/pipeline/${deal.id}?tab=tarefas`);
-              }}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
-            >
-              <Plus size={11} />
-              Criar Tarefa
-            </button>
-          </div>
+          {/* Create task row — only if no pending task */}
+          {!deal.nextTask && (
+            <div className="border-t border-gray-100 px-3 py-1.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/pipeline/${deal.id}?tab=tarefas`);
+                }}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
+              >
+                <Plus size={11} />
+                Criar Tarefa
+              </button>
+            </div>
+          )}
         </div>
       )}
     </Draggable>

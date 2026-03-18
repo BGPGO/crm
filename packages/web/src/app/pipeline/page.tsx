@@ -204,6 +204,8 @@ export default function PipelinePage() {
   const setUserFilter = (v: string) => { setUserFilterRaw(v); writeSession("userFilter", v); };
   const [periodFilter, setPeriodFilterRaw] = useState<PeriodFilter>(() => readSession("periodFilter", "all") as PeriodFilter);
   const setPeriodFilter = (v: PeriodFilter) => { setPeriodFilterRaw(v); writeSession("periodFilter", v); };
+  const [sortBy, setSortByRaw] = useState<string>(() => readSession("sortBy", "recent"));
+  const setSortBy = (v: string) => { setSortByRaw(v); writeSession("sortBy", v); };
   const [searchInput, setSearchInput] = useState(() => readSession("search", ""));
   const [searchQuery, setSearchQuery] = useState(() => readSession("search", ""));
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -251,6 +253,8 @@ export default function PipelinePage() {
       if (!val || val === "all") continue;
       if (key === "status") {
         params.set("status", statusMap[val] || val);
+      } else if (key === "sortBy") {
+        params.set("sortBy", val);
       } else {
         params.set(key, val);
       }
@@ -320,8 +324,9 @@ export default function PipelinePage() {
     userId: userFilter,
     period: periodFilter,
     search: searchQuery || undefined,
+    sortBy,
     ...advancedFilters,
-  }), [filter, userFilter, periodFilter, searchQuery, advancedFilters]);
+  }), [filter, userFilter, periodFilter, searchQuery, sortBy, advancedFilters]);
 
   // Re-fetch summary + batch deals when filters change
   useEffect(() => {
@@ -713,6 +718,21 @@ export default function PipelinePage() {
             <option value="last_3">Últimos 3 meses</option>
             <option value="last_6">Últimos 6 meses</option>
             <option value="this_year">Este ano</option>
+          </select>
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+        </div>
+
+        {/* Sort dropdown */}
+        <div className="relative">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className={`${SELECT_CLASS} text-gray-600`}
+          >
+            <option value="recent">Mais recentes</option>
+            <option value="task">Próximas tarefas</option>
+            <option value="value_desc">Maior valor</option>
+            <option value="value_asc">Menor valor</option>
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
         </div>
