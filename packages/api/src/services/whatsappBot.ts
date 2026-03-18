@@ -294,7 +294,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     });
     await prisma.whatsAppConversation.update({
       where: { id: existingConv.id },
-      data: { lastMessageAt: new Date() },
+      data: { lastMessageAt: new Date(), updatedAt: new Date() },
     });
     console.log(`[Bot] Conversation ${phone} is in human mode — not responding`);
     return;
