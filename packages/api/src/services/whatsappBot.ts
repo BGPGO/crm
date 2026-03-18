@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { EvolutionApiClient } from './evolutionApiClient';
 import { transcribeAudio } from './audioTranscriber';
 import { MessageSender } from '@prisma/client';
+import { scheduleNextFollowUp, cancelFollowUp } from './followUpScheduler';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -341,6 +342,8 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
       where: { id: conversation.followUpState.id },
       data: { respondedSinceLastBot: true },
     });
+    // Cancel any scheduled follow-up since lead responded
+    cancelFollowUp(conversation.id);
   }
 
   // Move deal: Contato feito → Marcar reunião (first response)
@@ -490,6 +493,9 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
     } else {
       await prisma.whatsAppFollowUpState.create({ data: { conversationId, ...followUpData } });
     }
+
+    // Schedule event-driven follow-up
+    scheduleNextFollowUp(conversationId).catch(console.error);
 
     // Update conversation
     await prisma.whatsAppConversation.update({

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
+import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 
 const router = Router();
 
@@ -147,6 +148,9 @@ router.post('/', async (req: Request, res: Response) => {
       });
 
       console.log(`[calendly-webhook] Saved CalendlyEvent: ${calendlyEvent.id}`);
+
+      // Schedule event-driven meeting reminders
+      scheduleMeetingReminders(calendlyEvent.id).catch(console.error);
 
       // 2. Find Contact by email (case-insensitive)
       let contact = inviteeEmail
@@ -476,6 +480,12 @@ router.post('/', async (req: Request, res: Response) => {
           data: { status: 'canceled' },
         });
         console.log(`[calendly-webhook] Canceled event: ${calendlyEventId} (${updated.count} records updated)`);
+
+        // Cancel any scheduled reminders for this event
+        const canceledEvents = await prisma.calendlyEvent.findMany({ where: { calendlyEventId }, select: { id: true } });
+        for (const ev of canceledEvents) {
+          cancelMeetingReminders(ev.id);
+        }
 
         // If we have a linked deal, create an activity noting the cancellation
         if (updated.count > 0) {

@@ -7,6 +7,7 @@ import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onStageChanged } from '../services/automationTriggerListener';
 import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
 import { sendSaleNotifications } from '../services/saleNotificationService';
+import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
 
 const router = Router();
 
@@ -469,6 +470,9 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
         dealId: deal.id,
       },
     });
+
+    // Schedule event-driven meeting reminders
+    scheduleMeetingReminders(meeting.id).catch(console.error);
 
     // Mark conversation as meetingBooked if exists
     if (deal.contact?.id) {

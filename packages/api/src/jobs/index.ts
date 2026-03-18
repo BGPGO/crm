@@ -3,8 +3,8 @@ import { startEngagementCron } from './engagementCron';
 import { startSegmentCountCron } from './segmentCountCron';
 import { startLeadQualificationCron } from './leadQualificationCron';
 import { startConversationAutoCloseCron } from './conversationAutoClose';
-import { startMeetingReminderCron } from './meetingReminderCron';
-import { startFollowUpCron } from '../services/whatsappFollowUp';
+import { initMeetingReminders } from '../services/meetingReminderScheduler';
+import { initFollowUpScheduler } from '../services/followUpScheduler';
 
 export function startAllJobs() {
   startAutomationCron();
@@ -12,7 +12,10 @@ export function startAllJobs() {
   startSegmentCountCron();
   startLeadQualificationCron();
   startConversationAutoCloseCron();
-  startMeetingReminderCron();
-  startFollowUpCron();
+
+  // Event-driven schedulers (replace old polling crons)
+  initMeetingReminders().catch(console.error);
+  initFollowUpScheduler().catch(console.error);
+
   console.log('[jobs] All cron jobs started');
 }
