@@ -30,6 +30,7 @@ import CollapsibleSection from "@/components/deal/CollapsibleSection";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
 import ContractGenerator from "@/components/pipeline/ContractGenerator";
+import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import clsx from "clsx";
@@ -502,6 +503,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // Submission loading flags
   const [submitting, setSubmitting] = useState(false);
 
+  // ── WhatsApp sidebar state ────────────────────────────────────────────────
+  const [whatsappConv, setWhatsappConv] = useState<{
+    conversationId: string;
+    phone: string;
+    messageCount: number;
+  } | null>(null);
+  const [showWhatsappSidebar, setShowWhatsappSidebar] = useState(false);
+  const [startingConversation, setStartingConversation] = useState(false);
+
   // ── Load deal on mount ────────────────────────────────────────────────────
   const loadDeal = useCallback(async () => {
     setLoading(true);
@@ -537,10 +547,20 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   }, [dealId]);
 
+  const loadWhatsAppConversation = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: typeof whatsappConv }>(`/deals/${dealId}/whatsapp-conversation`);
+      setWhatsappConv((res as { data: typeof whatsappConv }).data);
+    } catch {
+      // Non-critical
+    }
+  }, [dealId]);
+
   useEffect(() => {
     loadDeal();
     loadTimeline();
-  }, [loadDeal, loadTimeline]);
+    loadWhatsAppConversation();
+  }, [loadDeal, loadTimeline, loadWhatsAppConversation]);
 
   // ── Derived values ────────────────────────────────────────────────────────
   const totalRecurrence = (deal?.dealProducts ?? []).reduce(
@@ -939,6 +959,19 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleStartConversation = async () => {
+    setStartingConversation(true);
+    try {
+      await api.post(`/deals/${dealId}/start-conversation`, {});
+      await loadWhatsAppConversation();
+      setShowWhatsappSidebar(true);
+    } catch {
+      alert("Erro ao iniciar conversa. Verifique se o contato tem telefone.");
+    } finally {
+      setStartingConversation(false);
+    }
+  };
+
   const handleOpenLossModal = async () => {
     if (lostReasons.length === 0) {
       try {
@@ -1019,6 +1052,26 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
           {/* Action buttons */}
           <div className="flex gap-2 flex-shrink-0 flex-wrap">
+            {deal?.contact?.phone && (
+              whatsappConv ? (
+                <button
+                  onClick={() => setShowWhatsappSidebar(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+                >
+                  <MessageCircle size={14} />
+                  Conversa ({whatsappConv.messageCount})
+                </button>
+              ) : (
+                <button
+                  onClick={handleStartConversation}
+                  disabled={startingConversation}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  <MessageCircle size={14} />
+                  {startingConversation ? "Iniciando..." : "Iniciar Conversa"}
+                </button>
+              )
+            )}
             {deal.status === "active" && (
               <>
                 <Button
@@ -1793,6 +1846,15 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </Modal>
+
+      {showWhatsappSidebar && whatsappConv && (
+        <WhatsAppSidebar
+          conversationId={whatsappConv.conversationId}
+          contactName={deal?.contact?.name ?? ""}
+          contactPhone={whatsappConv.phone}
+          onClose={() => setShowWhatsappSidebar(false)}
+        />
+      )}
     </div>
   );
 }

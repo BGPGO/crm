@@ -50,7 +50,7 @@ async function checkCalendlyForContact(email: string): Promise<boolean> {
 
 // ─── Activate SDR IA ─────────────────────────────────────────────────────────
 
-async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
+export async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
   console.log(`[LeadQualification] Ativando SDR IA para contact=${contactId} deal=${dealId}`);
 
   // 1. Load contact

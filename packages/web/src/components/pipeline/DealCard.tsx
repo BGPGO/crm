@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Star, User, Plus } from "lucide-react";
+import { Star, User, Plus, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
@@ -19,6 +19,7 @@ export interface Deal {
   stage: { id: string; name: string };
   dealContacts?: Array<{ contact: { id: string; name: string } }>;
   createdAt?: string;
+  hasWhatsAppConversation?: boolean;
 }
 
 interface DealCardProps {
@@ -88,8 +89,13 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             </div>
 
             {/* Deal title */}
-            <h4 className="text-sm font-semibold text-gray-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors">
+            <h4 className="text-sm font-semibold text-gray-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors flex items-center gap-1">
               {deal.title}
+              {deal.hasWhatsAppConversation && (
+                <span className="text-green-500" title="Conversa WhatsApp ativa">
+                  <MessageCircle size={12} />
+                </span>
+              )}
             </h4>
 
             {/* Company name */}

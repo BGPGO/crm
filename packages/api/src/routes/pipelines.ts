@@ -312,9 +312,32 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
       })
     );
 
-    const stages: Record<string, { deals: (typeof stageResults)[0]['deals']; total: number }> = {};
+    // Collect all unique contactIds across every stage
+    const allContactIds = [
+      ...new Set(
+        stageResults.flatMap((r) => r.deals.map((d) => d.contactId).filter((id): id is string => !!id))
+      ),
+    ];
+
+    // Single batch query: which contacts have a WhatsApp conversation?
+    const contactsWithConversation = new Set<string>();
+    if (allContactIds.length > 0) {
+      const convs = await prisma.whatsAppConversation.findMany({
+        where: { contactId: { in: allContactIds } },
+        select: { contactId: true },
+      });
+      convs.forEach((c) => { if (c.contactId) contactsWithConversation.add(c.contactId); });
+    }
+
+    const stages: Record<string, { deals: unknown[]; total: number }> = {};
     for (const result of stageResults) {
-      stages[result.stageId] = { deals: result.deals, total: result.total };
+      stages[result.stageId] = {
+        deals: result.deals.map((deal) => ({
+          ...deal,
+          hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
+        })),
+        total: result.total,
+      };
     }
 
     res.json({ data: { stages } });

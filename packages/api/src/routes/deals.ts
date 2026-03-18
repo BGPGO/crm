@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onStageChanged } from '../services/automationTriggerListener';
+import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
 
 const router = Router();
 
@@ -311,6 +312,76 @@ router.patch(
     }
   }
 );
+
+// GET /deals/:id/whatsapp-conversation — Check if deal has a linked WhatsApp conversation
+router.get('/:id/whatsapp-conversation', async (req, res, next) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: { contact: { select: { id: true, phone: true } } },
+    });
+    if (!deal) return res.status(404).json({ error: 'Deal not found' });
+    if (!deal.contactId || !deal.contact?.phone) {
+      return res.json({ data: null });
+    }
+
+    // Try by contactId first
+    let conversation = await prisma.whatsAppConversation.findFirst({
+      where: { contactId: deal.contactId },
+      include: { _count: { select: { messages: true } } },
+    });
+
+    // Fallback: try by normalized phone
+    if (!conversation) {
+      const normalized = normalizePhone(deal.contact.phone);
+      conversation = await prisma.whatsAppConversation.findUnique({
+        where: { phone: normalized },
+        include: { _count: { select: { messages: true } } },
+      });
+    }
+
+    if (!conversation) return res.json({ data: null });
+
+    res.json({
+      data: {
+        conversationId: conversation.id,
+        phone: conversation.phone,
+        status: conversation.status,
+        isActive: conversation.isActive,
+        lastMessageAt: conversation.lastMessageAt,
+        messageCount: conversation._count.messages,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /deals/:id/start-conversation — Start SDR IA conversation for this deal
+router.post('/:id/start-conversation', async (req, res, next) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: { contact: { select: { id: true, phone: true } } },
+    });
+    if (!deal) return res.status(404).json({ error: 'Deal not found' });
+    if (!deal.contactId) return res.status(400).json({ error: 'Deal has no contact' });
+    if (!deal.contact?.phone) return res.status(400).json({ error: 'Contact has no phone number' });
+
+    // Activate SDR IA (creates conversation and sends first message)
+    await activateSdrIa(deal.contactId, deal.id);
+
+    // Find the created conversation
+    const normalized = normalizePhone(deal.contact.phone);
+    const conversation = await prisma.whatsAppConversation.findUnique({
+      where: { phone: normalized },
+    });
+
+    res.status(201).json({ data: { conversationId: conversation?.id ?? null } });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/deals/:id/timeline — all activities for a deal, newest first
 router.get('/:id/timeline', async (req: Request, res: Response, next: NextFunction) => {
