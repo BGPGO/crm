@@ -932,7 +932,7 @@ function TabFollowup({
   const [stepsMsg, setStepsMsg] = useState("");
 
   useEffect(() => {
-    api.get<{ data: FollowUpStep[] }>("/whatsapp-config/follow-up-steps")
+    api.get<{ data: FollowUpStep[] }>("/whatsapp/config/follow-up-steps")
       .then((res) => {
         const loaded = (res as { data: FollowUpStep[] }).data || [];
         setSteps(loaded.length > 0 ? loaded : [
@@ -968,7 +968,7 @@ function TabFollowup({
     setStepsSaving(true);
     setStepsMsg("");
     try {
-      await api.put("/whatsapp-config/follow-up-steps", { steps });
+      await api.put("/whatsapp/config/follow-up-steps", { steps });
       setStepsMsg("Steps salvos!");
       setTimeout(() => setStepsMsg(""), 3000);
     } catch {
@@ -1589,7 +1589,7 @@ function TabLembretes({
       .finally(() => setReminderLoading(false));
 
     api
-      .get<{ data: typeof followUpSteps }>("/whatsapp-config/follow-up-steps")
+      .get<{ data: typeof followUpSteps }>("/whatsapp/config/follow-up-steps")
       .then((res) => {
         const loaded = (res as any).data || (Array.isArray(res) ? res : []);
         setFollowUpSteps(loaded);
@@ -1614,7 +1614,7 @@ function TabLembretes({
   const saveFollowUpSteps = async () => {
     setFollowUpSaving(true);
     try {
-      await api.put("/whatsapp-config/follow-up-steps", { steps: followUpSteps });
+      await api.put("/whatsapp/config/follow-up-steps", { steps: followUpSteps });
     } catch {
       /* silent */
     } finally {
