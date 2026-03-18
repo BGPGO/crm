@@ -154,6 +154,7 @@ export async function sendBotMessages(
     return text
       .replace(/\[.*?\]\(https?:\/\/[^\s)]+\)/g, '')  // Remove markdown links
       .replace(/https?:\/\/[^\s),]+/g, '')              // Remove raw URLs
+      .replace(/[.\s]+$/g, '')                           // Remove trailing dots/spaces
       .replace(/\s{2,}/g, ' ')
       .trim();
   }
@@ -161,18 +162,24 @@ export async function sendBotMessages(
   for (const part of parts) {
     const url = extractMeetingUrl(part);
     if (url) {
-      // Part contains a URL — send text without URL + button separately
+      // Part contains a URL — send clean text (if any) + button
       const cleanText = stripUrl(part);
-      if (cleanText) {
+      // Only send clean text if it has real content (not just punctuation)
+      if (cleanText && cleanText.length > 2) {
         await client.sendText(phone, cleanText);
-        if (parts.length > 1) {
-          await new Promise((r) => setTimeout(r, 1500));
-        }
+        await new Promise((r) => setTimeout(r, 1500));
       }
+      // Send button, with multiple fallback layers
       try {
         await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', url);
-      } catch {
-        await client.sendText(phone, url);
+        console.log(`[Bot] Botão de agendamento enviado para ${phone}`);
+      } catch (btnErr) {
+        console.warn(`[Bot] Falha ao enviar botão, tentando texto plano:`, btnErr instanceof Error ? btnErr.message : btnErr);
+        try {
+          await client.sendText(phone, url);
+        } catch (txtErr) {
+          console.error(`[Bot] Falha ao enviar URL como texto:`, txtErr instanceof Error ? txtErr.message : txtErr);
+        }
       }
     } else {
       await client.sendText(phone, part);
