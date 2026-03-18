@@ -1083,6 +1083,7 @@ model WhatsAppConversation {
   messages      WhatsAppMessage[]
   aiHistory     WhatsAppAIHistory[]
   followUpState WhatsAppFollowUpState?
+  scheduledFollowUps ScheduledFollowUp[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1147,6 +1148,24 @@ model WhatsAppFollowUpState {
   updatedAt DateTime @updatedAt
 
   @@index([conversationId])
+}
+
+model ScheduledFollowUp {
+  id              String   @id @default(cuid())
+  conversationId  String
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  stepNumber      Int      // 1, 2, 3...
+  tone            String   // CASUAL, REFORCO, ENCERRAMENTO
+  delayMinutes    Int
+  scheduledAt     DateTime // When this follow-up will fire
+  status          String   @default("PENDING") // PENDING, SENT, CANCELLED
+  sentAt          DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([conversationId, status])
+  @@index([scheduledAt])
 }
 
 model WhatsAppCampaign {

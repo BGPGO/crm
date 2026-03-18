@@ -6,10 +6,12 @@ const scheduledFollowUps = new Map<string, NodeJS.Timeout>();
 /**
  * Schedule the next follow-up for a conversation.
  * Called when: bot sends a message, or a follow-up is sent (to schedule the next one).
+ * Creates DB records for ALL remaining steps (for UI visibility), but only
+ * sets a setTimeout for the immediate next step.
  */
 export async function scheduleNextFollowUp(conversationId: string): Promise<void> {
   // Cancel any existing scheduled follow-up
-  cancelFollowUp(conversationId);
+  await cancelFollowUp(conversationId);
 
   const config = await prisma.whatsAppConfig.findFirst();
   if (!config?.followUpEnabled || !config?.botEnabled) return;
@@ -36,10 +38,36 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   if (currentStep >= steps.length) return; // All steps completed
 
   const step = steps[currentStep];
-  const delayMs = step.delayMinutes * 60 * 1000;
-
-  // Calculate when to send: delay from last bot message
   const lastMsg = state.lastBotMessageAt || state.lastFollowUpAt || new Date();
+
+  // Create DB records for ALL remaining steps (for visibility)
+  const remainingSteps = steps.slice(currentStep);
+  let cumulativeDelay = 0;
+  for (let i = 0; i < remainingSteps.length; i++) {
+    const s = remainingSteps[i];
+    cumulativeDelay += s.delayMinutes;
+    const stepSendAt = new Date(new Date(lastMsg).getTime() + cumulativeDelay * 60 * 1000);
+
+    // Only create if not already exists
+    const existing = await prisma.scheduledFollowUp.findFirst({
+      where: { conversationId, stepNumber: currentStep + i + 1, status: 'PENDING' },
+    });
+    if (!existing) {
+      await prisma.scheduledFollowUp.create({
+        data: {
+          conversationId,
+          stepNumber: currentStep + i + 1,
+          tone: s.tone,
+          delayMinutes: s.delayMinutes,
+          scheduledAt: stepSendAt,
+          status: 'PENDING',
+        },
+      });
+    }
+  }
+
+  // Now set the actual timeout for only the NEXT step
+  const delayMs = step.delayMinutes * 60 * 1000;
   const sendAt = new Date(lastMsg).getTime() + delayMs;
   const delay = sendAt - Date.now();
 
@@ -90,6 +118,12 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     );
     console.log(`[follow-up] Sent step ${stepIndex + 1} (${step.tone}) to ${conversationId}`);
 
+    // Mark as SENT in the DB
+    await prisma.scheduledFollowUp.updateMany({
+      where: { conversationId, stepNumber: stepIndex + 1, status: 'PENDING' },
+      data: { status: 'SENT', sentAt: new Date() },
+    });
+
     // Schedule the NEXT step
     scheduleNextFollowUp(conversationId);
   } catch (err) {
@@ -101,12 +135,17 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
  * Cancel scheduled follow-up for a conversation.
  * Called when: lead responds, conversation paused, meeting booked, etc.
  */
-export function cancelFollowUp(conversationId: string): void {
+export async function cancelFollowUp(conversationId: string): Promise<void> {
   const existing = scheduledFollowUps.get(conversationId);
   if (existing) {
     clearTimeout(existing);
     scheduledFollowUps.delete(conversationId);
   }
+  // Cancel all pending DB records
+  await prisma.scheduledFollowUp.updateMany({
+    where: { conversationId, status: 'PENDING' },
+    data: { status: 'CANCELLED', cancelledAt: new Date() },
+  }).catch(() => {}); // Don't fail if DB error
 }
 
 /**

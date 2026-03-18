@@ -325,4 +325,17 @@ router.delete('/:id/tags/:tagId', async (req: Request, res: Response, next: Next
   }
 });
 
+// GET /api/whatsapp-conversations/:id/scheduled-followups
+router.get('/:id/scheduled-followups', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tasks = await prisma.scheduledFollowUp.findMany({
+      where: { conversationId: req.params.id },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    res.json({ data: tasks });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

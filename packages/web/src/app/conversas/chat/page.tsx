@@ -9,6 +9,17 @@ import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 
+interface ScheduledTask {
+  id: string;
+  stepNumber: number;
+  tone: string;
+  delayMinutes: number;
+  scheduledAt: string;
+  status: "PENDING" | "SENT" | "CANCELLED";
+  sentAt?: string;
+  cancelledAt?: string;
+}
+
 interface ConversationMessage {
   id: string;
   conversationId: string;
@@ -70,6 +81,7 @@ export default function ConversasChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -150,6 +162,9 @@ export default function ConversasChatPage() {
     if (selectedId) {
       fetchMessages(selectedId, true);
       api.post(`/whatsapp/conversations/${selectedId}/read`, {}).catch(() => {});
+      api.get<{ data: ScheduledTask[] }>(`/whatsapp/conversations/${selectedId}/scheduled-followups`)
+        .then(res => setScheduledTasks(res.data || []))
+        .catch(() => setScheduledTasks([]));
     }
   }, [selectedId, fetchMessages]);
 
@@ -613,6 +628,55 @@ export default function ConversasChatPage() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
+
+              {/* Scheduled follow-ups */}
+              {scheduledTasks.filter(t => t.status === 'PENDING').length > 0 && (
+                <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex-shrink-0">
+                  <p className="text-[10px] font-semibold text-amber-700 mb-1.5">Follow-ups agendados</p>
+                  <div className="space-y-1">
+                    {scheduledTasks.filter(t => t.status === 'PENDING').map(task => {
+                      const scheduledDate = new Date(task.scheduledAt);
+                      const now = new Date();
+                      const diffMs = scheduledDate.getTime() - now.getTime();
+                      const diffMin = Math.max(0, Math.round(diffMs / 60000));
+                      let timeLabel: string;
+                      if (diffMin < 60) timeLabel = `em ${diffMin}min`;
+                      else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
+                      else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
+
+                      const toneLabel = task.tone === 'CASUAL' ? 'Casual' : task.tone === 'REFORCO' ? 'Reforço' : 'Encerramento';
+                      const toneColor = task.tone === 'CASUAL' ? 'bg-blue-100 text-blue-700' : task.tone === 'REFORCO' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700';
+
+                      return (
+                        <div key={task.id} className="flex items-center gap-2 text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                          <span className="text-gray-600">Follow-up #{task.stepNumber}</span>
+                          <span className={`px-1.5 py-0.5 rounded font-medium ${toneColor}`}>{toneLabel}</span>
+                          <span className="text-gray-400 ml-auto">{timeLabel}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {scheduledTasks.filter(t => t.status !== 'PENDING').length > 0 && (
+                <div className="px-4 py-1 bg-gray-50 border-t border-gray-100 flex-shrink-0">
+                  <div className="space-y-0.5">
+                    {scheduledTasks.filter(t => t.status !== 'PENDING').slice(-5).map(task => (
+                      <div key={task.id} className="flex items-center gap-2 text-[10px]">
+                        {task.status === 'SENT' ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                        )}
+                        <span className={task.status === 'CANCELLED' ? 'text-gray-400 line-through' : 'text-gray-500'}>
+                          Follow-up #{task.stepNumber} — {task.status === 'SENT' ? 'Enviado' : 'Cancelado (lead respondeu)'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Input */}
               <div className="bg-white border-t border-gray-200 p-3 relative">
