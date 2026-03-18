@@ -138,10 +138,12 @@ enum AutomationActionType {
   REMOVE_TAG
   SEND_EMAIL
   SEND_WHATSAPP
+  SEND_WHATSAPP_AI
   WAIT
   UPDATE_FIELD
   MOVE_PIPELINE_STAGE
   CONDITION
+  MARK_LOST
 }
 
 enum AutomationEnrollmentStatus {

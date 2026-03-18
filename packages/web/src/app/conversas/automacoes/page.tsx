@@ -1,143 +1,84 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import Card from "@/components/ui/Card";
-import { Plus, Trash2, Save, Pause, Play } from "lucide-react";
-import clsx from "clsx";
+import AutomationCard from "@/components/automations/AutomationCard";
+import AutomationCreateModal from "@/components/automations/AutomationCreateModal";
+import Button from "@/components/ui/Button";
+import { Plus, Zap } from "lucide-react";
 import { api } from "@/lib/api";
 
-interface FollowUpStep {
-  order: number;
-  delayMinutes: number;
-  tone: "Casual" | "Reforço" | "Encerramento";
-}
-
-interface FollowUpStatus {
+interface Automation {
   id: string;
-  name: string | null;
-  phone: string;
-  currentStep: number;
-  lastFollowUpAt: string | null;
-  state: string;
-}
-
-interface BotConfig {
-  followUpEnabled: boolean;
-  followUpSteps: FollowUpStep[];
+  name: string;
+  status: "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED";
+  triggerType: string;
+  triggerConfig?: any;
+  _count?: { steps: number; enrollments: number };
+  createdAt: string;
 }
 
 export default function ConversasAutomacoesPage() {
-  const [config, setConfig] = useState<BotConfig>({
-    followUpEnabled: false,
-    followUpSteps: [],
-  });
-  const [statuses, setStatuses] = useState<FollowUpStatus[]>([]);
+  const router = useRouter();
+  const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusLoading, setStatusLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const fetchConfig = useCallback(async () => {
+  const fetchAutomations = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get<{ data: BotConfig }>("/whatsapp/config");
-      setConfig({
-        followUpEnabled: res.data?.followUpEnabled ?? false,
-        followUpSteps: res.data?.followUpSteps ?? [],
-      });
+      const res = await api.get<{ data: Automation[] }>("/automations");
+      setAutomations(res.data || []);
     } catch {
-      // Config might not exist yet
+      setError("Erro ao carregar automações.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const fetchStatuses = useCallback(async () => {
-    setStatusLoading(true);
-    try {
-      const res = await api.get<{ data: FollowUpStatus[] }>("/whatsapp/followup/status");
-      setStatuses(res.data || []);
-    } catch {
-      // Endpoint might not exist yet
-    } finally {
-      setStatusLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchConfig();
-    fetchStatuses();
-  }, [fetchConfig, fetchStatuses]);
+    fetchAutomations();
+  }, [fetchAutomations]);
 
-  const toggleEnabled = async () => {
+  const handleActivate = async (id: string) => {
     try {
-      await api.put("/whatsapp/config", { followUpEnabled: !config.followUpEnabled });
-      setConfig((prev) => ({ ...prev, followUpEnabled: !prev.followUpEnabled }));
+      await api.post(`/automations/${id}/activate`, {});
+      await fetchAutomations();
     } catch {
-      setError("Erro ao atualizar configuração.");
+      setError("Erro ao ativar automação.");
     }
   };
 
-  const addStep = () => {
-    setConfig((prev) => ({
-      ...prev,
-      followUpSteps: [
-        ...prev.followUpSteps,
-        { order: prev.followUpSteps.length + 1, delayMinutes: 60, tone: "Casual" },
-      ],
-    }));
-  };
-
-  const removeStep = (index: number) => {
-    setConfig((prev) => ({
-      ...prev,
-      followUpSteps: prev.followUpSteps
-        .filter((_, i) => i !== index)
-        .map((s, i) => ({ ...s, order: i + 1 })),
-    }));
-  };
-
-  const updateStep = (index: number, field: keyof FollowUpStep, value: string | number) => {
-    setConfig((prev) => ({
-      ...prev,
-      followUpSteps: prev.followUpSteps.map((s, i) =>
-        i === index ? { ...s, [field]: value } : s
-      ),
-    }));
-  };
-
-  const saveSteps = async () => {
-    setSaving(true);
-    setError(null);
+  const handlePause = async (id: string) => {
     try {
-      await api.put("/whatsapp/config/follow-up-steps", { steps: config.followUpSteps });
+      await api.post(`/automations/${id}/pause`, {});
+      await fetchAutomations();
     } catch {
-      setError("Erro ao salvar etapas.");
-    } finally {
-      setSaving(false);
+      setError("Erro ao pausar automação.");
     }
   };
 
-  const toggleFollowUp = async (id: string, currentState: string) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta automação?")) return;
     try {
-      const action = currentState === "paused" ? "resume" : "pause";
-      await api.post(`/whatsapp/followup/${id}/${action}`, {});
-      await fetchStatuses();
+      await api.delete(`/automations/${id}`);
+      await fetchAutomations();
     } catch {
-      setError("Erro ao atualizar follow-up.");
+      setError("Erro ao excluir automação.");
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const handleCreated = (automation: any) => {
+    setShowCreateModal(false);
+    if (automation?.id) {
+      router.push(`/conversas/automacoes/${automation.id}`);
+    } else {
+      fetchAutomations();
+    }
   };
 
   return (
@@ -148,174 +89,94 @@ export default function ConversasAutomacoesPage() {
       {error && (
         <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
           <span className="text-sm text-red-700">{error}</span>
-          <button onClick={() => setError(null)} className="text-sm text-red-600 font-medium hover:underline">Fechar</button>
+          <button
+            onClick={() => setError(null)}
+            className="text-sm text-red-600 font-medium hover:underline"
+          >
+            Fechar
+          </button>
         </div>
       )}
 
       <main className="flex-1 p-4 sm:p-6 space-y-6">
-        {/* Follow-up configuration */}
-        <Card padding="lg">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Follow-up Automático</h2>
-            {loading ? (
-              <div className="h-6 w-20 bg-gray-100 rounded animate-pulse" />
-            ) : (
-              <button
-                onClick={toggleEnabled}
-                className={clsx(
-                  "relative inline-flex h-6 w-11 items-center rounded-full transition-colors",
-                  config.followUpEnabled ? "bg-blue-600" : "bg-gray-300"
-                )}
-              >
-                <span
-                  className={clsx(
-                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                    config.followUpEnabled ? "translate-x-6" : "translate-x-1"
-                  )}
-                />
-              </button>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold text-gray-900">Automações WhatsApp</h2>
+            {!loading && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                {automations.length}
+              </span>
             )}
           </div>
+          <Button variant="primary" size="sm" onClick={() => setShowCreateModal(true)}>
+            <Plus size={16} />
+            Nova Automação
+          </Button>
+        </div>
 
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-14 bg-gray-100 rounded animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {config.followUpSteps.map((step, index) => (
-                  <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-gray-50 rounded-lg p-3">
-                    <span className="text-xs font-semibold text-gray-500 w-6">#{step.order}</span>
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-500 block mb-1">Delay (minutos)</label>
-                      <input
-                        type="number"
-                        value={step.delayMinutes}
-                        onChange={(e) => updateStep(index, "delayMinutes", parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        min={1}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-xs text-gray-500 block mb-1">Tom</label>
-                      <select
-                        value={step.tone}
-                        onChange={(e) => updateStep(index, "tone", e.target.value)}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      >
-                        <option value="Casual">Casual</option>
-                        <option value="Reforço">Reforço</option>
-                        <option value="Encerramento">Encerramento</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => removeStep(index)}
-                      className="sm:mt-5 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors self-end sm:self-auto"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+        {/* Content */}
+        {loading ? (
+          /* Loading skeleton */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+              >
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+                    <div className="h-5 w-20 bg-gray-100 rounded-full animate-pulse" />
                   </div>
-                ))}
+                  <div className="h-3 w-32 bg-gray-100 rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+                </div>
+                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+                  <div className="h-7 w-full bg-gray-100 rounded animate-pulse" />
+                </div>
               </div>
-
-              <div className="flex items-center gap-3 mt-4 flex-wrap">
-                <button
-                  onClick={addStep}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <Plus size={14} />
-                  Adicionar Etapa
-                </button>
-                <button
-                  onClick={saveSteps}
-                  disabled={saving}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Save size={14} />
-                  {saving ? "Salvando..." : "Salvar Etapas"}
-                </button>
-              </div>
-            </>
-          )}
-        </Card>
-
-        {/* Follow-up status table */}
-        <Card padding="none">
-          <div className="px-4 py-3 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-900">Status de Follow-ups</h3>
+            ))}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Telefone</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Step Atual</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Último Follow-up</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Estado</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statusLoading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <tr key={i} className="border-b border-gray-50">
-                      {Array.from({ length: 6 }).map((_, j) => (
-                        <td key={j} className="px-4 py-3">
-                          <div className="h-4 bg-gray-100 rounded animate-pulse" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : statuses.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                      Nenhum follow-up ativo
-                    </td>
-                  </tr>
-                ) : (
-                  statuses.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900">{item.name || "-"}</td>
-                      <td className="px-4 py-3 text-gray-600">{item.phone}</td>
-                      <td className="px-4 py-3 text-gray-600">{item.currentStep}</td>
-                      <td className="px-4 py-3 text-gray-500">{formatDate(item.lastFollowUpAt)}</td>
-                      <td className="px-4 py-3">
-                        <span className={clsx(
-                          "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                          item.state === "active" ? "bg-green-100 text-green-700" :
-                          item.state === "paused" ? "bg-yellow-100 text-yellow-700" :
-                          "bg-gray-100 text-gray-600"
-                        )}>
-                          {item.state === "active" ? "Ativo" : item.state === "paused" ? "Pausado" : item.state}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleFollowUp(item.id, item.state)}
-                          className={clsx(
-                            "inline-flex items-center gap-1 text-xs font-medium hover:underline",
-                            item.state === "paused" ? "text-green-600" : "text-yellow-600"
-                          )}
-                        >
-                          {item.state === "paused" ? (
-                            <><Play size={12} /> Retomar</>
-                          ) : (
-                            <><Pause size={12} /> Pausar</>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        ) : automations.length === 0 ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+              <Zap size={32} className="text-blue-400" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">
+              Nenhuma automação criada
+            </h3>
+            <p className="text-sm text-gray-500 max-w-sm mb-6">
+              Crie automações para enviar mensagens automáticas quando leads mudam de etapa, recebem tags ou são criados.
+            </p>
+            <Button variant="primary" onClick={() => setShowCreateModal(true)}>
+              <Plus size={16} />
+              Criar primeira automação
+            </Button>
           </div>
-        </Card>
+        ) : (
+          /* Automation grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {automations.map((automation) => (
+              <AutomationCard
+                key={automation.id}
+                automation={automation}
+                onActivate={handleActivate}
+                onPause={handlePause}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
       </main>
+
+      {/* Create modal */}
+      <AutomationCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={handleCreated}
+      />
     </div>
   );
 }

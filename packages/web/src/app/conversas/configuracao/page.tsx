@@ -105,7 +105,6 @@ const TABS = [
   { key: "conexao", label: "Conexão" },
   { key: "sdr", label: "SDR IA" },
   { key: "contextos", label: "Contextos" },
-  { key: "followup", label: "Follow-up" },
   { key: "testar", label: "Testar IA" },
   { key: "credenciais", label: "Credenciais" },
 ] as const;
@@ -299,16 +298,6 @@ export default function ConversasConfiguracaoPage() {
         )}
 
         {activeTab === "contextos" && <TabContextos />}
-
-        {activeTab === "followup" && (
-          <TabFollowup
-            config={config}
-            configLoading={configLoading}
-            saving={saving}
-            updateField={updateField}
-            saveConfig={saveConfig}
-          />
-        )}
 
         {activeTab === "testar" && <TabTestarIA />}
 

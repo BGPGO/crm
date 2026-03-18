@@ -1,6 +1,8 @@
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 import { isUnsubscribed } from './unsubscribeManager';
+import { ZApiClient } from '../services/zapiClient';
+import OpenAI from 'openai';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -49,6 +51,12 @@ export async function executeAction(
 
       case 'CONDITION':
         return await evaluateCondition(enrollment.contactId, config);
+
+      case 'SEND_WHATSAPP_AI':
+        return await sendWhatsAppAI(enrollment, config);
+
+      case 'MARK_LOST':
+        return await markLost(enrollment.contactId, config);
 
       default:
         return { success: false, output: `Unknown action type: ${step.actionType}` };
@@ -340,6 +348,146 @@ async function evaluateCondition(
       expected: targetValue,
       actual: fieldValue,
       result: conditionResult,
+    },
+  };
+}
+
+async function sendWhatsAppAI(
+  enrollment: any,
+  config: { prompt: string; objective: string }
+): Promise<ActionResult> {
+  // 1. Find the contact's phone
+  const contact = await prisma.contact.findUniqueOrThrow({
+    where: { id: enrollment.contactId },
+  });
+
+  if (!contact.phone) {
+    return { success: false, output: 'Contact has no phone number' };
+  }
+
+  // 2. Find or create WhatsAppConversation for this phone
+  let conversation = await prisma.whatsAppConversation.findUnique({
+    where: { phone: contact.phone },
+  });
+
+  if (!conversation) {
+    conversation = await prisma.whatsAppConversation.create({
+      data: {
+        phone: contact.phone,
+        contactId: contact.id,
+        isActive: true,
+        status: 'open',
+      },
+    });
+  }
+
+  // 3. Get OpenAI API key from WhatsApp config
+  const waConfig = await prisma.whatsAppConfig.findFirst();
+  const openaiKey = waConfig?.openaiApiKey || process.env.OPENAI_API_KEY;
+
+  if (!openaiKey) {
+    return { success: false, output: 'OpenAI API key not configured' };
+  }
+
+  const openai = new OpenAI({ apiKey: openaiKey });
+
+  // 4. Generate AI message using the prompt and objective
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `Você é um assistente de vendas da BGPGO. Seu objetivo: ${config.objective}\n\nInstruções: ${config.prompt}\n\nNome do contato: ${contact.name}\nEmail: ${contact.email || 'N/A'}\nTelefone: ${contact.phone}`,
+      },
+      {
+        role: 'user',
+        content: 'Gere a mensagem de WhatsApp para este contato. Responda APENAS com o texto da mensagem, sem aspas ou formatação extra.',
+      },
+    ],
+    temperature: 0.7,
+    max_tokens: 500,
+  });
+
+  const messageText = completion.choices[0]?.message?.content?.trim();
+  if (!messageText) {
+    return { success: false, output: 'AI failed to generate message' };
+  }
+
+  // 5. Send via ZApiClient
+  const zapiClient = await ZApiClient.fromConfig();
+  const sendResult = await zapiClient.sendText(contact.phone, messageText);
+
+  // 6. Save the message as a WhatsAppMessage with sender: 'BOT'
+  await prisma.whatsAppMessage.create({
+    data: {
+      conversationId: conversation.id,
+      sender: 'BOT',
+      text: messageText,
+      externalId: sendResult.key?.id || null,
+      metadata: {
+        automationEnrollmentId: enrollment.id,
+        aiGenerated: true,
+        prompt: config.prompt,
+        objective: config.objective,
+      },
+    },
+  });
+
+  // Update conversation's lastMessageAt
+  await prisma.whatsAppConversation.update({
+    where: { id: conversation.id },
+    data: { lastMessageAt: new Date() },
+  });
+
+  return {
+    success: true,
+    output: {
+      phone: contact.phone,
+      conversationId: conversation.id,
+      messageLength: messageText.length,
+      aiModel: 'gpt-4o-mini',
+    },
+  };
+}
+
+async function markLost(
+  contactId: string,
+  config: { lostReasonId?: string }
+): Promise<ActionResult> {
+  // Find all OPEN deals for this contact
+  const deals = await prisma.deal.findMany({
+    where: {
+      contactId,
+      status: 'OPEN',
+    },
+  });
+
+  if (deals.length === 0) {
+    return { success: false, output: 'No open deals found for contact' };
+  }
+
+  const updateData: Record<string, unknown> = {
+    status: 'LOST',
+    closedAt: new Date(),
+  };
+
+  if (config.lostReasonId) {
+    updateData.lostReasonId = config.lostReasonId;
+  }
+
+  for (const deal of deals) {
+    await prisma.deal.update({
+      where: { id: deal.id },
+      data: updateData,
+    });
+  }
+
+  return {
+    success: true,
+    output: {
+      dealsMarkedLost: deals.length,
+      dealIds: deals.map((d) => d.id),
+      lostReasonId: config.lostReasonId || null,
     },
   };
 }
