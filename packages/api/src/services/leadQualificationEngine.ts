@@ -76,6 +76,16 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
     return;
   }
 
+  // Atomic idempotency guard — only one process can activate SDR per deal
+  const claimResult = await prisma.deal.updateMany({
+    where: { id: dealId, sdrActivatedAt: null },
+    data: { sdrActivatedAt: new Date() },
+  });
+  if (claimResult.count === 0) {
+    console.log(`[LeadQualification] Deal ${dealId} já teve SDR ativada (sdrActivatedAt exists) — pulando`);
+    return;
+  }
+
   // 3. Load lead tracking (most recent)
   const tracking = await prisma.leadTracking.findFirst({
     where: { contactId },

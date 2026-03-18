@@ -335,6 +335,7 @@ model Deal {
   value             Decimal?   @db.Decimal(15, 2)
   expectedCloseDate DateTime?
   closedAt          DateTime?
+  sdrActivatedAt    DateTime?
   status            DealStatus @default(OPEN)
   classification    String?
   contaAzulCode     String?
@@ -1173,6 +1174,7 @@ model ScheduledFollowUp {
   @@index([dealId])
   @@index([meetingId])
   @@index([conversationId, status])
+  @@unique([conversationId, stepNumber, type])
   @@index([scheduledAt])
 }
 

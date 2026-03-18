@@ -8,8 +8,23 @@ const router = Router();
 const processedMessages = new Set<string>();
 const MESSAGE_TTL_MS = 5 * 60 * 1000;
 
-function isDuplicate(messageId: string): boolean {
+async function isDuplicate(messageId: string): Promise<boolean> {
+  // Fast path: in-memory check
   if (processedMessages.has(messageId)) return true;
+
+  // Slow path: DB check (survives restarts)
+  if (messageId) {
+    const existing = await prisma.whatsAppMessage.findFirst({
+      where: { externalId: messageId },
+      select: { id: true },
+    });
+    if (existing) {
+      processedMessages.add(messageId); // Cache for future fast checks
+      return true;
+    }
+  }
+
+  // Not a duplicate — add to in-memory cache
   processedMessages.add(messageId);
   setTimeout(() => processedMessages.delete(messageId), MESSAGE_TTL_MS);
   return false;
@@ -45,7 +60,7 @@ async function webhookHandler(req: Request, res: Response) {
 
       // Dedup check
       const messageId = body.messageId;
-      if (messageId && isDuplicate(messageId)) {
+      if (messageId && await isDuplicate(messageId)) {
         return res.status(200).json({ received: true, deduplicated: true });
       }
 

@@ -243,21 +243,35 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       },
     });
 
-    // 12. Create Deal
-    const deal = await prisma.deal.create({
-      data: {
-        title: dealTitle ?? `Lead - ${contactName}`,
-        value: dealValue ? parseFloat(dealValue) : null,
-        status: 'OPEN',
-        pipelineId: defaultPipeline.id,
-        stageId: firstStage.id,
+    // 12. Create Deal (with dedup: skip if an open deal for this contact was created in the last 5 minutes)
+    const recentDeal = await prisma.deal.findFirst({
+      where: {
         contactId: contact.id,
-        organizationId,
-        userId: defaultUser.id,
-        sourceId,
-        campaignId,
+        status: 'OPEN',
+        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
       },
     });
+
+    let deal;
+    if (recentDeal) {
+      console.log(`[webhook] Duplicate deal prevented for contact ${contact.id} — recent deal ${recentDeal.id} exists`);
+      deal = recentDeal;
+    } else {
+      deal = await prisma.deal.create({
+        data: {
+          title: dealTitle ?? `Lead - ${contactName}`,
+          value: dealValue ? parseFloat(dealValue) : null,
+          status: 'OPEN',
+          pipelineId: defaultPipeline.id,
+          stageId: firstStage.id,
+          contactId: contact.id,
+          organizationId,
+          userId: defaultUser.id,
+          sourceId,
+          campaignId,
+        },
+      });
+    }
 
     // 13. Log activities
     await Promise.all([

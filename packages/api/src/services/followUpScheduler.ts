@@ -56,11 +56,8 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
     const stepSendAt = new Date(new Date(lastMsg).getTime() + cumulativeDelay * 60 * 1000);
     const toneLabel = toneLabels[s.tone] || s.tone || '';
 
-    // Only create if not already exists
-    const existing = await prisma.scheduledFollowUp.findFirst({
-      where: { conversationId, stepNumber: currentStep + i + 1, status: 'PENDING' },
-    });
-    if (!existing) {
+    // Create — if unique constraint fires, skip (already exists)
+    try {
       await prisma.scheduledFollowUp.create({
         data: {
           conversationId,
@@ -73,6 +70,9 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
           status: 'PENDING',
         },
       });
+    } catch (e: any) {
+      if (e.code === 'P2002') continue; // Unique constraint — already exists, skip
+      throw e;
     }
   }
 
