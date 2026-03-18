@@ -314,4 +314,112 @@ router.get('/:id/stats', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
+// POST /api/automations/:id/test — Run automation in test mode with accelerated timers
+router.post('/:id/test', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const automation = await prisma.automation.findUnique({
+      where: { id: req.params.id },
+      include: { steps: { orderBy: { order: 'asc' } } },
+    });
+    if (!automation) return next(createError('Automation not found', 404));
+
+    const { phone } = req.body;
+    if (!phone) return next(createError('phone is required', 400));
+
+    // Find or create contact for this phone
+    let contact = await prisma.contact.findFirst({ where: { phone } });
+    if (!contact) {
+      contact = await prisma.contact.create({
+        data: { name: `Teste ${phone}`, phone, email: '' },
+      });
+    }
+
+    // Import executeAction
+    const { executeAction } = await import('../services/automationActions');
+
+    // Execute steps sequentially with compressed timers
+    const log: Array<{ stepId: string; order: number; actionType: string; success: boolean; output: any; durationMs: number }> = [];
+
+    // Create a fake enrollment object for the executor
+    const fakeEnrollment = {
+      id: `test-${Date.now()}`,
+      contactId: contact.id,
+      automationId: automation.id,
+      status: 'ACTIVE',
+    };
+
+    // Traverse the linear chain: start from step order 1
+    const sortedSteps = [...automation.steps].sort((a, b) => a.order - b.order);
+
+    for (const step of sortedSteps) {
+      const start = Date.now();
+
+      if (step.actionType === 'WAIT') {
+        // In test mode, skip waits (just log them)
+        log.push({
+          stepId: step.id,
+          order: step.order,
+          actionType: 'WAIT',
+          success: true,
+          output: { skipped: true, originalDuration: (step.config as any)?.duration, originalUnit: (step.config as any)?.unit, testMode: 'Timer pulado no teste' },
+          durationMs: 0,
+        });
+        continue;
+      }
+
+      try {
+        const result = await executeAction(fakeEnrollment, step);
+        log.push({
+          stepId: step.id,
+          order: step.order,
+          actionType: step.actionType,
+          success: result.success,
+          output: result.output,
+          durationMs: Date.now() - start,
+        });
+
+        // For CONDITION: log the branch taken
+        if (step.actionType === 'CONDITION') {
+          log[log.length - 1].output = {
+            ...result.output,
+            branchTaken: result.conditionResult ? 'Sim (true)' : 'Não (false)',
+          };
+        }
+
+        // If a step fails, stop the test
+        if (!result.success) {
+          break;
+        }
+      } catch (err: any) {
+        log.push({
+          stepId: step.id,
+          order: step.order,
+          actionType: step.actionType,
+          success: false,
+          output: err?.message || 'Erro desconhecido',
+          durationMs: Date.now() - start,
+        });
+        break;
+      }
+    }
+
+    // Find conversation for the test phone to return its ID
+    const conversation = await prisma.whatsAppConversation.findUnique({ where: { phone } });
+
+    res.json({
+      data: {
+        automationId: automation.id,
+        contactId: contact.id,
+        conversationId: conversation?.id || null,
+        phone,
+        stepsExecuted: log.length,
+        totalSteps: sortedSteps.length,
+        log,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
