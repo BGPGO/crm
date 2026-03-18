@@ -21,11 +21,17 @@ class ApiError extends Error {
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-// Invalidate cache on sign-out
-supabase.auth.onAuthStateChange((event) => {
+// Invalidate/refresh cache on auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
   if (event === "SIGNED_OUT") {
     cachedToken = null;
     tokenExpiresAt = 0;
+  } else if (event === "TOKEN_REFRESHED" && session?.access_token) {
+    // Update cache with the fresh token immediately
+    cachedToken = session.access_token;
+    tokenExpiresAt = session.expires_at
+      ? session.expires_at * 1000 - 60_000
+      : Date.now() + 4 * 60 * 1000;
   }
 });
 
@@ -74,7 +80,36 @@ async function request<T>(
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, config);
+  let response = await fetch(`${BASE_URL}${path}`, config);
+
+  // On 401: clear cached token, refresh from Supabase, retry once
+  if (response.status === 401 && cachedToken) {
+    cachedToken = null;
+    tokenExpiresAt = 0;
+
+    // Try to refresh the session
+    const { data: refreshData } = await supabase.auth.refreshSession();
+    if (refreshData.session?.access_token) {
+      cachedToken = refreshData.session.access_token;
+      tokenExpiresAt = refreshData.session.expires_at
+        ? refreshData.session.expires_at * 1000 - 60_000
+        : Date.now() + 4 * 60 * 1000;
+
+      // Retry the request with the new token
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${cachedToken}`,
+      };
+      response = await fetch(`${BASE_URL}${path}`, config);
+    } else {
+      // Session is truly expired — sign out
+      await supabase.auth.signOut();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      throw new ApiError('Sessão expirada', 401);
+    }
+  }
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;

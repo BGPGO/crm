@@ -97,9 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
           setError(null);
         } catch {
-          // If fetching user fails on token refresh, keep existing user
-          if (event !== "SIGNED_IN") return;
+          // If fetching user fails, sign out — token is invalid
           setUser(null);
+          if (event === "TOKEN_REFRESHED") {
+            // Token refreshed but API still rejects — force sign out
+            await supabase.auth.signOut();
+          }
         } finally {
           setLoading(false);
         }
