@@ -66,6 +66,16 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
     return;
   }
 
+  // 2b. Check if already has a conversation with bot messages (idempotency guard)
+  const existingConv = await prisma.whatsAppConversation.findFirst({
+    where: { contactId },
+    include: { _count: { select: { messages: { where: { sender: 'BOT' } } } } },
+  });
+  if (existingConv && existingConv._count.messages > 0) {
+    console.log(`[LeadQualification] Contato ${contactId} já tem conversa com mensagens do bot — SDR IA não reativada`);
+    return;
+  }
+
   // 3. Load lead tracking (most recent)
   const tracking = await prisma.leadTracking.findFirst({
     where: { contactId },
