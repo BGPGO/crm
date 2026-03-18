@@ -34,6 +34,7 @@ import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import clsx from "clsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -472,6 +473,7 @@ function ErrorState({ message, onBack }: { message: string; onBack: () => void }
 export default function DealDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: authUser } = useAuth();
   const dealId = params.id;
 
   // ── Data state ────────────────────────────────────────────────────────────
@@ -727,16 +729,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   const handleAddNote = async (note: string) => {
     try {
-      // Get admin user id if not known
-      let userId = deal?.user?.id;
-      if (!userId) {
-        try {
-          const usersRes = await api.get<{ data: Array<{ id: string }> }>("/users");
-          userId = usersRes.data?.[0]?.id;
-        } catch {
-          // ignore
-        }
-      }
+      const userId = authUser?.id || deal?.user?.id;
       if (!userId) {
         alert("Erro: nenhum usuário encontrado para associar a anotação.");
         return;
