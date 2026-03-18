@@ -236,7 +236,7 @@ export default function DashboardPage() {
 
     try {
       // Build query strings
-      const topDealsQs = buildDealsQs(filterOpts, { limit: "100" });
+      const topDealsQs = buildDealsQs({ ...filterOpts, status: "active" }, { limit: "5" });
       const summaryQs = buildSummaryQs(filterOpts);
 
       let activeCount = 0;
@@ -503,7 +503,7 @@ export default function DashboardPage() {
           {/* Maiores Negociações */}
           <Card padding="md">
             <CardHeader>
-              <CardTitle>Top 5 Negociações</CardTitle>
+              <CardTitle>Top 5 Em Andamento</CardTitle>
             </CardHeader>
             {loading ? (
               <div className="space-y-3 mt-1">
@@ -514,7 +514,7 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {(data?.topDeals ?? []).map((deal, i) => (
-                  <div key={deal.id} className="flex items-center justify-between gap-2">
+                  <Link key={deal.id} href={`/pipeline/${deal.id}`} className="flex items-center justify-between gap-2 hover:bg-gray-50 rounded-lg p-1.5 -mx-1.5 transition-colors">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-xs font-bold text-gray-300 w-4 flex-shrink-0">
                         {i + 1}
@@ -534,7 +534,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-bold text-blue-600 flex-shrink-0">
                       {formatCurrency(deal.value)}
                     </p>
-                  </div>
+                  </Link>
                 ))}
                 {(data?.topDeals ?? []).length === 0 && (
                   <p className="text-sm text-gray-400 text-center py-4">

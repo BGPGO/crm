@@ -198,7 +198,7 @@ export default function PipelinePage() {
     if (typeof window !== "undefined") sessionStorage.setItem(`pipeline_${key}`, value);
   };
 
-  const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "all") as FilterType);
+  const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "active") as FilterType);
   const setFilter = (v: FilterType) => { setFilterRaw(v); writeSession("filter", v); };
   const [userFilter, setUserFilterRaw] = useState<string>(() => readSession("userFilter", "all"));
   const setUserFilter = (v: string) => { setUserFilterRaw(v); writeSession("userFilter", v); };
