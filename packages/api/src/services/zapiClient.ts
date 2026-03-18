@@ -133,7 +133,23 @@ export class ZApiClient {
       message: text,
     });
     const data = res.data as { zaapId?: string; messageId?: string };
-    // Map Z-API response to match the old interface
+    return {
+      key: { remoteJid: `${number}@s.whatsapp.net`, fromMe: true, id: data.messageId || data.zaapId || '' },
+      message: data as Record<string, unknown>,
+      messageTimestamp: String(Date.now()),
+      status: 'PENDING',
+    };
+  }
+
+  async sendButtonUrl(number: string, message: string, buttonLabel: string, url: string): Promise<SendTextResponse> {
+    const res = await this.client.post('/send-button-actions', {
+      phone: number,
+      message,
+      buttonActions: [
+        { id: '1', type: 'URL', url, label: buttonLabel },
+      ],
+    });
+    const data = res.data as { zaapId?: string; messageId?: string };
     return {
       key: { remoteJid: `${number}@s.whatsapp.net`, fromMe: true, id: data.messageId || data.zaapId || '' },
       message: data as Record<string, unknown>,

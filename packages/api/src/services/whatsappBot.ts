@@ -137,10 +137,22 @@ export async function sendBotMessages(
 
   // No further splitting — sending one long message is better than splitting mid-sentence
 
+  // Detect URLs (Calendly or any meeting link) to send as button
+  const urlRegex = /^(https?:\/\/[^\s]+)$/;
+
   for (const part of parts) {
-    await client.sendText(phone, part);
+    if (urlRegex.test(part.trim())) {
+      // This part is a standalone URL — send as interactive button
+      try {
+        await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', part.trim());
+      } catch {
+        // Fallback to plain text if button fails (WhatsApp sometimes blocks buttons)
+        await client.sendText(phone, part);
+      }
+    } else {
+      await client.sendText(phone, part);
+    }
     if (parts.length > 1) {
-      // Simulate typing delay: ~1.5s base + ~50ms per character, capped at 5s
       const delay = Math.min(1500 + part.length * 50, 5000);
       await new Promise((r) => setTimeout(r, delay));
     }
