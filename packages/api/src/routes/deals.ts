@@ -508,6 +508,19 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
   }
 });
 
+// GET /api/deals/:id/scheduled-tasks — Get scheduled follow-ups and reminders for a deal
+router.get('/:id/scheduled-tasks', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tasks = await prisma.scheduledFollowUp.findMany({
+      where: { dealId: req.params.id },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    res.json({ data: tasks });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/deals/:id/timeline — all activities for a deal, newest first
 router.get('/:id/timeline', async (req: Request, res: Response, next: NextFunction) => {
   try {

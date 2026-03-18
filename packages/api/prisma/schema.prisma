@@ -365,11 +365,12 @@ model Deal {
   campaignId String?
   campaign   Campaign? @relation(fields: [campaignId], references: [id])
 
-  products     DealProduct[]
-  tasks        Task[]
-  activities   Activity[]
-  dealContacts DealContact[]
-  contracts    Contract[]
+  products           DealProduct[]
+  tasks              Task[]
+  activities         Activity[]
+  dealContacts       DealContact[]
+  contracts          Contract[]
+  scheduledFollowUps ScheduledFollowUp[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1152,18 +1153,25 @@ model WhatsAppFollowUpState {
 
 model ScheduledFollowUp {
   id              String   @id @default(cuid())
-  conversationId  String
-  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  type            String   @default("FOLLOW_UP") // FOLLOW_UP, MEETING_REMINDER
+  conversationId  String?
+  conversation    WhatsAppConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  dealId          String?
+  deal            Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  meetingId       String?  // CalendlyEvent ID for meeting reminders
   stepNumber      Int      // 1, 2, 3...
-  tone            String   // CASUAL, REFORCO, ENCERRAMENTO
+  label           String?  // "4 horas antes", "Follow-up #1 Casual", etc.
+  tone            String?  // CASUAL, REFORCO, ENCERRAMENTO (for follow-ups)
   delayMinutes    Int
-  scheduledAt     DateTime // When this follow-up will fire
+  scheduledAt     DateTime // When this will fire
   status          String   @default("PENDING") // PENDING, SENT, CANCELLED
   sentAt          DateTime?
   cancelledAt     DateTime?
   createdAt       DateTime @default(now())
 
   @@index([conversationId])
+  @@index([dealId])
+  @@index([meetingId])
   @@index([conversationId, status])
   @@index([scheduledAt])
 }

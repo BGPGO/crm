@@ -40,13 +40,21 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   const step = steps[currentStep];
   const lastMsg = state.lastBotMessageAt || state.lastFollowUpAt || new Date();
 
+  // Look up dealId from contact's open deals
+  const deal = conversation.contactId ? await prisma.deal.findFirst({
+    where: { contactId: conversation.contactId, status: 'OPEN' },
+    select: { id: true },
+  }) : null;
+
   // Create DB records for ALL remaining steps (for visibility)
   const remainingSteps = steps.slice(currentStep);
   let cumulativeDelay = 0;
+  const toneLabels: Record<string, string> = { CASUAL: 'Casual', REFORCO: 'Reforço', ENCERRAMENTO: 'Encerramento' };
   for (let i = 0; i < remainingSteps.length; i++) {
     const s = remainingSteps[i];
     cumulativeDelay += s.delayMinutes;
     const stepSendAt = new Date(new Date(lastMsg).getTime() + cumulativeDelay * 60 * 1000);
+    const toneLabel = toneLabels[s.tone] || s.tone || '';
 
     // Only create if not already exists
     const existing = await prisma.scheduledFollowUp.findFirst({
@@ -56,7 +64,9 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
       await prisma.scheduledFollowUp.create({
         data: {
           conversationId,
+          dealId: deal?.id || null,
           stepNumber: currentStep + i + 1,
+          label: `Follow-up #${currentStep + i + 1} ${toneLabel}`.trim(),
           tone: s.tone,
           delayMinutes: s.delayMinutes,
           scheduledAt: stepSendAt,

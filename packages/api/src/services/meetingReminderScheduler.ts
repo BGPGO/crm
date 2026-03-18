@@ -10,11 +10,11 @@ const scheduledReminders = new Map<string, NodeJS.Timeout[]>();
  */
 export async function scheduleMeetingReminders(meetingId: string): Promise<void> {
   // Cancel any existing reminders for this meeting
-  cancelMeetingReminders(meetingId);
+  await cancelMeetingReminders(meetingId);
 
   const meeting = await prisma.calendlyEvent.findUnique({
     where: { id: meetingId },
-    include: { contact: { select: { phone: true, name: true } } },
+    include: { contact: { select: { id: true, phone: true, name: true } } },
   });
 
   if (!meeting || meeting.status !== 'active' || !meeting.contact?.phone) {
@@ -36,6 +36,41 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
   const now = Date.now();
   const meetingTime = new Date(meeting.startTime).getTime();
   const timeouts: NodeJS.Timeout[] = [];
+
+  const dealId = meeting.dealId || null;
+
+  // Try to find conversationId from the contact's phone
+  const conversation = await prisma.whatsAppConversation.findFirst({
+    where: { contactId: meeting.contact.id },
+  });
+  const conversationId = conversation?.id || null;
+
+  // Create DB records for ALL reminder steps (for visibility)
+  for (const step of steps) {
+    const sendAt = meetingTime - step.minutesBefore * 60 * 1000;
+    if (sendAt <= now) continue;
+
+    const minutesBefore = step.minutesBefore;
+    let label: string;
+    if (minutesBefore >= 1440) label = `${Math.floor(minutesBefore / 1440)} dia(s) antes`;
+    else if (minutesBefore >= 60) label = `${Math.floor(minutesBefore / 60)} hora(s) antes`;
+    else label = `${minutesBefore} min antes`;
+
+    await prisma.scheduledFollowUp.create({
+      data: {
+        type: 'MEETING_REMINDER',
+        conversationId,
+        dealId,
+        meetingId: meeting.id,
+        stepNumber: step.minutesBefore,
+        label: `Lembrete ${label}`,
+        tone: null,
+        delayMinutes: step.minutesBefore,
+        scheduledAt: new Date(sendAt),
+        status: 'PENDING',
+      },
+    });
+  }
 
   for (const step of steps) {
     const sendAt = meetingTime - step.minutesBefore * 60 * 1000;
@@ -69,6 +104,12 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
 
         await client.sendText(meeting.contact!.phone!, message);
         console.log(`[meeting-reminder] Sent ${faltaStr} reminder to ${meeting.contact!.phone} for meeting ${meetingId}`);
+
+        // Mark DB record as SENT
+        await prisma.scheduledFollowUp.updateMany({
+          where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
+          data: { status: 'SENT', sentAt: new Date() },
+        });
       } catch (err) {
         console.error(`[meeting-reminder] Error sending reminder for meeting ${meetingId}:`, err);
       }
@@ -87,13 +128,18 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
 /**
  * Cancel all scheduled reminders for a meeting (e.g., when cancelled).
  */
-export function cancelMeetingReminders(meetingId: string): void {
+export async function cancelMeetingReminders(meetingId: string): Promise<void> {
   const existing = scheduledReminders.get(meetingId);
   if (existing) {
     existing.forEach(t => clearTimeout(t));
     scheduledReminders.delete(meetingId);
     console.log(`[meeting-reminder] Cancelled reminders for meeting ${meetingId}`);
   }
+  // Cancel all pending DB records
+  await prisma.scheduledFollowUp.updateMany({
+    where: { meetingId, status: 'PENDING' },
+    data: { status: 'CANCELLED', cancelledAt: new Date() },
+  }).catch(() => {});
 }
 
 /**

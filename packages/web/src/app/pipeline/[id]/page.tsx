@@ -123,6 +123,19 @@ interface ContactOption {
   email?: string;
 }
 
+interface ScheduledTask {
+  id: string;
+  type: string;
+  stepNumber: number;
+  label?: string;
+  tone?: string;
+  delayMinutes: number;
+  scheduledAt: string;
+  status: "PENDING" | "SENT" | "CANCELLED";
+  sentAt?: string;
+  cancelledAt?: string;
+}
+
 type TabKey = "historico" | "tarefas" | "produtos" | "arquivos" | "contrato";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -544,6 +557,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   } | null>(null);
   const [showWhatsappSidebar, setShowWhatsappSidebar] = useState(false);
   const [startingConversation, setStartingConversation] = useState(false);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
 
   // ── Load deal on mount ────────────────────────────────────────────────────
   const loadDeal = useCallback(async () => {
@@ -593,6 +607,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     loadDeal();
     loadTimeline();
     loadWhatsAppConversation();
+    api.get<{ data: ScheduledTask[] }>(`/deals/${dealId}/scheduled-tasks`)
+      .then(res => setScheduledTasks(res.data || []))
+      .catch(() => {});
     api.get<{ data: Array<{ id: string; name: string }> }>("/users")
       .then((res) => setAllUsers((res as { data: Array<{ id: string; name: string }> }).data || []))
       .catch(() => {});
@@ -1455,7 +1472,55 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           <div className="flex-1 p-4 sm:p-6">
 
             {/* ── Histórico ── */}
-            {activeTab === "historico" && (
+            {activeTab === "historico" && (<>
+              {/* Scheduled tasks (reminders + follow-ups) */}
+              {scheduledTasks.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {scheduledTasks.map(task => {
+                    const isPending = task.status === 'PENDING';
+                    const isSent = task.status === 'SENT';
+                    const scheduledDate = new Date(task.scheduledAt);
+                    const now = new Date();
+                    const diffMs = scheduledDate.getTime() - now.getTime();
+                    const diffMin = Math.max(0, Math.round(diffMs / 60000));
+
+                    let timeLabel: string;
+                    if (!isPending) {
+                      timeLabel = isSent ? (task.sentAt ? new Date(task.sentAt).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : 'Enviado') : 'Cancelado';
+                    } else if (diffMin < 60) {
+                      timeLabel = `em ${diffMin}min`;
+                    } else if (diffMin < 1440) {
+                      timeLabel = `em ${Math.round(diffMin / 60)}h`;
+                    } else {
+                      timeLabel = `em ${Math.round(diffMin / 1440)}d`;
+                    }
+
+                    const isMeeting = task.type === 'MEETING_REMINDER';
+                    const bgColor = isPending ? (isMeeting ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50') : isSent ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50';
+                    const dotColor = isPending ? (isMeeting ? 'bg-blue-400' : 'bg-amber-400') : isSent ? 'bg-green-400' : 'bg-gray-300';
+
+                    return (
+                      <div key={task.id} className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-xs ${bgColor} ${task.status === 'CANCELLED' ? 'opacity-50' : ''}`}>
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                        <span className={`font-medium ${task.status === 'CANCELLED' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                          {task.label || (isMeeting ? `Lembrete reunião` : `Follow-up #${task.stepNumber}`)}
+                        </span>
+                        {task.tone && (
+                          <span className={`px-1.5 py-0.5 rounded font-medium text-[10px] ${
+                            task.tone === 'CASUAL' ? 'bg-blue-100 text-blue-700' :
+                            task.tone === 'REFORCO' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {task.tone === 'CASUAL' ? 'Casual' : task.tone === 'REFORCO' ? 'Reforço' : 'Encerramento'}
+                          </span>
+                        )}
+                        <span className="text-gray-400 ml-auto text-[10px]">
+                          {isPending ? timeLabel : isSent ? `✓ ${timeLabel}` : '✗ Cancelado'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <DealTimeline
                 events={timeline}
                 onAddNote={handleAddNote}
@@ -1466,7 +1531,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   setActiveTab("tarefas");
                 }}
               />
-            )}
+            </>)}
 
             {/* ── Tarefas ── */}
             {activeTab === "tarefas" && (
