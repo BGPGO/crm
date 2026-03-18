@@ -293,7 +293,29 @@ ${campaignContext.context}
     console.warn(`[LeadQualification] Mensagens marcadas como não enviadas para conversa ${conversation.id}`);
   }
 
-  // 14. Create Activity on deal
+  // 14. Move deal from LEAD → Contato feito (bot made first contact)
+  const STAGE_LEAD = '64fb7516ea4eb400219457df';
+  const STAGE_CONTATO_FEITO = '65bd0418294535000d1f57cd';
+
+  if (deal.stageId === STAGE_LEAD) {
+    await prisma.deal.update({
+      where: { id: deal.id },
+      data: { stageId: STAGE_CONTATO_FEITO, updatedAt: new Date() },
+    });
+    console.log(`[LeadQualification] Deal ${deal.id} movida: LEAD → Contato feito`);
+
+    await prisma.activity.create({
+      data: {
+        type: 'STAGE_CHANGE',
+        content: `Negociação movida de LEAD para Contato feito — primeiro contato realizado via SDR IA.`,
+        userId: deal.userId,
+        dealId: deal.id,
+        contactId: contact.id,
+      },
+    });
+  }
+
+  // 15. Create Activity on deal
   await prisma.activity.create({
     data: {
       type: 'NOTE',

@@ -346,6 +346,36 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     });
   }
 
+  // Move deal: Contato feito → Marcar reunião (lead responded for the first time)
+  const STAGE_CONTATO_FEITO = '65bd0418294535000d1f57cd';
+  const STAGE_MARCAR_REUNIAO = '64fb7516ea4eb400219457e0';
+
+  if (conversation.contactId) {
+    try {
+      const deal = await prisma.deal.findFirst({
+        where: { contactId: conversation.contactId, status: 'OPEN', stageId: STAGE_CONTATO_FEITO },
+      });
+      if (deal) {
+        await prisma.deal.update({
+          where: { id: deal.id },
+          data: { stageId: STAGE_MARCAR_REUNIAO, updatedAt: new Date() },
+        });
+        await prisma.activity.create({
+          data: {
+            type: 'STAGE_CHANGE',
+            content: `Negociação movida de Contato feito para Marcar reunião — lead respondeu no WhatsApp.`,
+            userId: deal.userId,
+            dealId: deal.id,
+            contactId: conversation.contactId,
+          },
+        });
+        console.log(`[Bot] Deal ${deal.id} movida: Contato feito → Marcar reunião (lead respondeu)`);
+      }
+    } catch (stageErr) {
+      console.error('[Bot] Erro ao mover deal de etapa:', stageErr);
+    }
+  }
+
   // Build AI history from DB (capped at 20)
   const aiHistory = await prisma.whatsAppAIHistory.findMany({
     where: { conversationId: conversation.id },
