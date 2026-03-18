@@ -5,6 +5,17 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
+// Helper: recalculate and sync deal.value from its products
+async function syncDealValue(dealId: string) {
+  const products = await prisma.dealProduct.findMany({ where: { dealId } });
+  const total = products.reduce((sum, p) => {
+    const recurrence = (Number(p.recurrenceValue) || Number(p.unitPrice)) * (p.quantity || 1);
+    const setup = Number(p.setupPrice) || 0;
+    return sum + recurrence + setup;
+  }, 0);
+  await prisma.deal.update({ where: { id: dealId }, data: { value: total } });
+}
+
 // GET /api/deal-products?dealId=xxx
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -91,6 +102,7 @@ router.post(
           deal: { select: { id: true, title: true } },
         },
       });
+      await syncDealValue(dealId);
       res.status(201).json({ data: dealProduct });
     } catch (err) {
       next(err);
@@ -121,6 +133,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         deal: { select: { id: true, title: true } },
       },
     });
+    await syncDealValue(existing.dealId);
     res.json({ data: dealProduct });
   } catch (err) {
     next(err);
@@ -134,6 +147,7 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     if (!existing) return next(createError('Deal product not found', 404));
 
     await prisma.dealProduct.delete({ where: { id: req.params.id } });
+    await syncDealValue(existing.dealId);
     res.status(204).send();
   } catch (err) {
     next(err);
