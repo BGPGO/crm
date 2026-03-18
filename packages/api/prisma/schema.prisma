@@ -1018,9 +1018,9 @@ model MeetingReminderStep {
 
 model WhatsAppConfig {
   id                       String                   @id @default(cuid())
-  evolutionApiUrl          String                   @default("http://localhost:8080")
-  evolutionApiKey          String                   @default("")
-  instanceName             String                   @default("bgpgo-bot")
+  zapiInstanceId           String                   @default("")
+  zapiToken                String                   @default("")
+  zapiClientToken          String                   @default("")
   baseUrl                  String                   @default("http://localhost:3001")
   companyName              String                   @default("")
   companyPhone             String                   @default("")

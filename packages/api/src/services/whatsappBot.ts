@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import axios from 'axios';
 import prisma from '../lib/prisma';
 import { EvolutionApiClient } from './evolutionApiClient';
 import { transcribeAudio } from './audioTranscriber';
@@ -10,12 +11,9 @@ interface WhatsAppPayload {
   data: {
     key: {
       remoteJid: string;
-      remoteJidAlt?: string;
       fromMe: boolean;
       id: string;
-      addressingMode?: string;
       participant?: string;
-      participantAlt?: string;
     };
     pushName?: string;
     message?: {
@@ -23,7 +21,8 @@ interface WhatsAppPayload {
       extendedTextMessage?: { text?: string };
       buttonsResponseMessage?: { selectedDisplayText?: string };
       listResponseMessage?: { title?: string };
-      audioMessage?: Record<string, unknown>;
+      audioMessage?: Record<string, unknown> & { audioUrl?: string };
+      audioUrl?: string;
       base64?: string;
     };
   };
@@ -94,11 +93,12 @@ Sobre a empresa:
 
 Seu KPI é reunião agendada. Cada conversa deve caminhar para isso.`;
 
-// ─── LID Cache ──────────────────────────────────────────────────────────────
-
-// LID resolution now happens in the webhook handler via remoteJidAlt
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function downloadAudioAsBase64(url: string): Promise<string> {
+  const response = await axios.get(url, { responseType: 'arraybuffer' });
+  return Buffer.from(response.data).toString('base64');
+}
 
 async function getOpenAIClient(): Promise<OpenAI> {
   const config = await prisma.whatsAppConfig.findFirst();
@@ -243,11 +243,28 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   ).trim();
 
   if (!text && message.audioMessage) {
+    // Z-API sends audio as a URL; Evolution sent base64 inline
+    const audioUrl = message.audioMessage?.audioUrl || message.audioUrl;
     const base64 = (data.message as Record<string, unknown>).base64 as string | undefined
       || message.base64 as string | undefined;
-    if (base64) {
+
+    let audioBase64: string | undefined;
+    if (audioUrl) {
       try {
-        const transcribed = await transcribeAudio(base64);
+        audioBase64 = await downloadAudioAsBase64(audioUrl);
+        console.log(`[Bot] Áudio baixado de URL para transcrição (${remoteJid})`);
+      } catch (dlErr: unknown) {
+        const dlMsg = dlErr instanceof Error ? dlErr.message : String(dlErr);
+        console.error('[Bot] Falha ao baixar áudio da URL:', dlMsg);
+      }
+    }
+    if (!audioBase64 && base64) {
+      audioBase64 = base64;
+    }
+
+    if (audioBase64) {
+      try {
+        const transcribed = await transcribeAudio(audioBase64);
         if (transcribed) {
           text = transcribed;
           console.log(`[Bot] Áudio transcrito de ${remoteJid}: "${text}"`);
@@ -264,21 +281,16 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
 
   const pushName = data.pushName || '';
 
-  // Resolve phone number
-  // Note: LID→phone resolution via remoteJidAlt happens in the webhook handler BEFORE this function.
-  // By the time we get here, remoteJid should already be a @s.whatsapp.net JID.
-  // If it's still a LID, it means remoteJidAlt was not available — try CRM fallback.
+  // Resolve phone number from remoteJid
   let phone: string;
   const client = await EvolutionApiClient.fromDB();
 
   const botConfig = await prisma.whatsAppConfig.findFirst({ select: { botPhoneNumber: true } });
   const botPhone = botConfig?.botPhoneNumber || null;
 
+  // Z-API handles LID addresses natively — just extract the identifier
   if (remoteJid.includes('@lid')) {
-    // remoteJidAlt was not available — Evolution API too old or field missing
-    // Store the message but can't resolve phone yet — log for debugging
-    console.warn(`[Bot] LID ${remoteJid} sem remoteJidAlt — Evolution API não suporta. pushName="${pushName}". Mensagem não processada.`);
-    return;
+    phone = remoteJid.replace('@lid', '');
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
   }
@@ -465,22 +477,23 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
       data: { updatedAt: new Date() },
     });
 
-    // Send messages via Evolution API
+    // Send messages via WhatsApp API
     await sendBotMessages(client, phone, reply);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[Bot] Erro:`, errMsg);
 
-    // Check if it's an Evolution API send error vs AI error
-    const isEvolutionError = errMsg.includes('ECONNREFUSED') ||
+    // Check if it's a WhatsApp API send error vs AI error
+    const isApiError = errMsg.includes('ECONNREFUSED') ||
+      errMsg.includes('z-api') ||
       errMsg.includes('evolution') ||
       errMsg.includes('401') ||
       errMsg.includes('404') ||
       errMsg.includes('sendText');
 
-    if (isEvolutionError) {
+    if (isApiError) {
       // Connection/send issue — mark messages as not delivered, don't escalate to human
-      console.warn(`[Bot] Evolution API error — marking messages as undelivered`);
+      console.warn(`[Bot] WhatsApp API error — marking messages as undelivered`);
       await prisma.whatsAppMessage.updateMany({
         where: { conversationId: conversation.id, sender: 'BOT', delivered: true },
         data: { delivered: false },
@@ -517,6 +530,6 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
       }
     }
 
-    // Don't try to send fallback since Evolution is likely down anyway
+    // Don't try to send fallback since WhatsApp API is likely down anyway
   }
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
 import Card from "@/components/ui/Card";
-import { Wifi, WifiOff, QrCode, Trash2, Link2, Unplug, Save } from "lucide-react";
+import { QrCode, Link2, Unplug, Save, ExternalLink } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 
@@ -13,9 +13,9 @@ interface InstanceStatus {
 }
 
 interface BotConfig {
-  evolutionApiUrl: string;
-  evolutionApiKey: string;
-  instanceName: string;
+  zapiInstanceId: string;
+  zapiToken: string;
+  zapiClientToken: string;
   baseUrl: string;
   companyName: string;
   companyPhone: string;
@@ -31,9 +31,9 @@ interface BotConfig {
 }
 
 const defaultConfig: BotConfig = {
-  evolutionApiUrl: "",
-  evolutionApiKey: "",
-  instanceName: "",
+  zapiInstanceId: "",
+  zapiToken: "",
+  zapiClientToken: "",
   baseUrl: "",
   companyName: "",
   companyPhone: "",
@@ -95,22 +95,6 @@ export default function ConversasConfiguracaoPage() {
     fetchConfig();
   }, [fetchStatus, fetchConfig]);
 
-  const handleCreateInstance = async () => {
-    setError(null);
-    try {
-      await api.post("/whatsapp/instance/create", {});
-      setSuccessMsg("Instância criada com sucesso.");
-      await fetchStatus();
-    } catch (err: unknown) {
-      const status = (err as { status?: number })?.status;
-      if (status === 403) {
-        setSuccessMsg("Instância já existe. Use Conectar (QR Code).");
-      } else {
-        setError("Erro ao criar instância.");
-      }
-    }
-  };
-
   const handleConnect = async () => {
     setError(null);
     setQrCode(null);
@@ -132,18 +116,6 @@ export default function ConversasConfiguracaoPage() {
       await fetchStatus();
     } catch {
       setError("Erro ao desconectar.");
-    }
-  };
-
-  const handleDelete = async () => {
-    setError(null);
-    try {
-      await api.delete("/whatsapp/instance/delete");
-      setSuccessMsg("Instância deletada.");
-      setQrCode(null);
-      await fetchStatus();
-    } catch {
-      setError("Erro ao deletar instância.");
     }
   };
 
@@ -225,13 +197,15 @@ export default function ConversasConfiguracaoPage() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
-            <button
-              onClick={handleCreateInstance}
+            <a
+              href="https://app.z-api.io"
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Wifi size={16} />
-              Criar Instância
-            </button>
+              <ExternalLink size={16} />
+              Painel Z-API
+            </a>
             <button
               onClick={handleConnect}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -245,13 +219,6 @@ export default function ConversasConfiguracaoPage() {
             >
               <Unplug size={16} />
               Desconectar
-            </button>
-            <button
-              onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <Trash2 size={16} />
-              Deletar Instância
             </button>
             <button
               onClick={handleConfigureWebhook}
@@ -383,32 +350,32 @@ export default function ConversasConfiguracaoPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Evolution API URL</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Instance ID Z-API</label>
                   <input
                     type="text"
-                    value={config.evolutionApiUrl}
-                    onChange={(e) => updateField("evolutionApiUrl", e.target.value)}
-                    placeholder="https://evolution.example.com"
+                    value={config.zapiInstanceId}
+                    onChange={(e) => updateField("zapiInstanceId", e.target.value)}
+                    placeholder="ID da instância Z-API"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Evolution API Key</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Token Z-API</label>
                   <input
                     type="password"
-                    value={config.evolutionApiKey}
-                    onChange={(e) => updateField("evolutionApiKey", e.target.value)}
-                    placeholder="Sua API key"
+                    value={config.zapiToken}
+                    onChange={(e) => updateField("zapiToken", e.target.value)}
+                    placeholder="Token da instância"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Instância</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Client Token Z-API</label>
                   <input
-                    type="text"
-                    value={config.instanceName}
-                    onChange={(e) => updateField("instanceName", e.target.value)}
-                    placeholder="bgpgo-whatsapp"
+                    type="password"
+                    value={config.zapiClientToken}
+                    onChange={(e) => updateField("zapiClientToken", e.target.value)}
+                    placeholder="Token de segurança (opcional)"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

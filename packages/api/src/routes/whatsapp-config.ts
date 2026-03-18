@@ -13,12 +13,15 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       config = await prisma.whatsAppConfig.create({ data: {} });
     }
 
-    // Mask openaiApiKey
+    // Mask sensitive fields
+    const maskSecret = (val: string | null) =>
+      val ? `${val.slice(0, 8)}...${val.slice(-4)}` : null;
+
     const data = {
       ...config,
-      openaiApiKey: config.openaiApiKey
-        ? `${config.openaiApiKey.slice(0, 8)}...${config.openaiApiKey.slice(-4)}`
-        : null,
+      openaiApiKey: maskSecret(config.openaiApiKey),
+      zapiToken: maskSecret(config.zapiToken),
+      zapiClientToken: maskSecret(config.zapiClientToken),
     };
 
     res.json({ data });
@@ -37,7 +40,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const allowedFields = [
-      'evolutionApiUrl', 'evolutionApiKey', 'instanceName', 'baseUrl',
+      'zapiInstanceId', 'zapiToken', 'zapiClientToken', 'baseUrl',
       'companyName', 'companyPhone', 'meetingLink', 'openaiApiKey',
       'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
       'leadQualificationEnabled', 'sdrAutoMessageEnabled', 'meetingReminderEnabled',
@@ -51,7 +54,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     // Don't overwrite secrets with masked values
-    const sensitiveFields = ['openaiApiKey', 'evolutionApiKey'];
+    const sensitiveFields = ['openaiApiKey', 'zapiToken', 'zapiClientToken'];
     for (const field of sensitiveFields) {
       const val = updateData[field];
       if (typeof val === 'string' && val.includes('...')) {
@@ -64,12 +67,15 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       data: updateData,
     });
 
-    // Mask openaiApiKey in response
+    // Mask sensitive fields in response
+    const maskSecret = (val: string | null) =>
+      val ? `${val.slice(0, 8)}...${val.slice(-4)}` : null;
+
     const data = {
       ...updated,
-      openaiApiKey: updated.openaiApiKey
-        ? `${updated.openaiApiKey.slice(0, 8)}...${updated.openaiApiKey.slice(-4)}`
-        : null,
+      openaiApiKey: maskSecret(updated.openaiApiKey),
+      zapiToken: maskSecret(updated.zapiToken),
+      zapiClientToken: maskSecret(updated.zapiClientToken),
     };
 
     res.json({ data });

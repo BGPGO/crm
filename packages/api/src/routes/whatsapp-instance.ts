@@ -89,8 +89,7 @@ router.post('/webhook/setup', async (req: Request, res: Response, next: NextFunc
   try {
     const config = await prisma.whatsAppConfig.findFirst();
     const baseUrl = config?.baseUrl || process.env.BASE_URL || 'http://localhost:3001';
-    const instanceName = config?.instanceName || 'bgpgo-bot';
-    const webhookUrl = req.body.webhookUrl || `${baseUrl}/api/whatsapp/webhook/${instanceName}`;
+    const webhookUrl = req.body.webhookUrl || `${baseUrl}/api/whatsapp/webhook`;
 
     const client = await EvolutionApiClient.fromConfig();
     const result = await client.setWebhook(webhookUrl);

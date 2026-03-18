@@ -15,105 +15,116 @@ function isDuplicate(messageId: string): boolean {
   return false;
 }
 
-/**
- * Map Evolution API connection state strings to our enum.
- */
-function mapConnectionStatus(state: string): 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' {
-  const s = state.toLowerCase();
-  if (s === 'open' || s === 'connected') return 'CONNECTED';
-  if (s === 'connecting' || s === 'pairing') return 'CONNECTING';
-  return 'DISCONNECTED';
-}
-
-// POST /api/whatsapp/webhook/:instance — Webhook receiver from Evolution API (PUBLIC)
-router.post('/:instance', async (req: Request, res: Response) => {
-  // Always return 200 to Evolution API — never error
+// Z-API webhook handler — all events arrive at the same URL with `type` in body
+async function webhookHandler(req: Request, res: Response) {
+  // Always return 200 to Z-API — never error
   try {
-    const { instance } = req.params;
+    const instance = req.params.instance || undefined;
     const body = req.body;
-    const event = body.event;
+    const eventType = body.type;
 
-    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
-      const message = body.data;
-
-      if (!message) {
+    if (eventType === 'ReceivedCallback') {
+      // Skip group messages
+      if (body.isGroup === true) {
         return res.status(200).json({ received: true });
       }
 
-      // Ignore messages sent by us
-      if (message.key?.fromMe) {
+      // Skip broadcast messages
+      if (body.broadcast === true) {
         return res.status(200).json({ received: true });
       }
 
-      // ── LID Resolution: use remoteJidAlt if remoteJid is a LID ──
-      const originalJid = message.key?.remoteJid || '';
-      if (originalJid.includes('@lid') && message.key?.remoteJidAlt) {
-        console.log(`[whatsapp-webhook] LID detected. remoteJid=${originalJid} → remoteJidAlt=${message.key.remoteJidAlt}`);
-        message.key.remoteJid = message.key.remoteJidAlt;
-      }
-
-      const remoteJid = message.key?.remoteJid || '';
-
-      // Ignore group messages
-      if (remoteJid.endsWith('@g.us')) {
-        return res.status(200).json({ received: true });
-      }
-
-      // Ignore status broadcasts
-      if (remoteJid === 'status@broadcast') {
+      // Skip messages sent by us
+      if (body.fromMe === true) {
         return res.status(200).json({ received: true });
       }
 
       // Dedup check
-      const messageId = message.key?.id;
+      const messageId = body.messageId;
       if (messageId && isDuplicate(messageId)) {
         return res.status(200).json({ received: true, deduplicated: true });
       }
 
-      // Debug: log ALL fields for remote inspection (temporary)
-      const msgCtx = message.message?.messageContextInfo;
-      const debugPayload = JSON.stringify({
-        originalJid,
-        resolvedJid: remoteJid,
-        all_key_fields: message.key ? Object.keys(message.key) : [],
-        remoteJidAlt: message.key?.remoteJidAlt || null,
-        sender: body.sender,
-        pushName: message.pushName,
-        messageContextInfo: msgCtx ? Object.keys(msgCtx) : null,
-        messageContextInfo_full: msgCtx || null,
-        all_data_fields: Object.keys(message),
-        all_message_fields: message.message ? Object.keys(message.message) : [],
-      });
-      console.log(`[whatsapp-webhook] MSG: ${debugPayload}`);
-      // Save to DB for remote inspection
-      prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).then(admin => {
-        if (!admin) return;
-        return prisma.activity.create({
-          data: { type: 'NOTE', content: `[WA-DBG] ${debugPayload}`, userId: admin.id },
-        });
-      }).catch(() => {});
+      // Map Z-API payload to the shape handleMessage expects
+      const remoteJid = body.phone + '@s.whatsapp.net';
+
+      const message: any = {
+        conversation: body.text?.message || undefined,
+      };
+
+      // Map audio if present
+      if (body.audio) {
+        message.audioMessage = {
+          url: body.audio.audioUrl,
+          ptt: body.audio.ptt,
+          seconds: body.audio.seconds,
+        };
+      }
+
+      // Map image if present
+      if (body.image) {
+        message.imageMessage = {
+          url: body.image.imageUrl,
+          caption: body.image.caption,
+        };
+      }
+
+      // Map video if present
+      if (body.video) {
+        message.videoMessage = {
+          url: body.video.videoUrl,
+          caption: body.video.caption,
+        };
+      }
+
+      // Map document if present
+      if (body.document) {
+        message.documentMessage = {
+          url: body.document.documentUrl,
+          fileName: body.document.fileName,
+        };
+      }
+
+      const payload = {
+        data: {
+          key: {
+            remoteJid,
+            fromMe: body.fromMe,
+            id: body.messageId,
+          },
+          pushName: body.senderName || body.chatName || '',
+          message,
+        },
+        sender: body.phone,
+      };
 
       // Process message in background — don't await to keep response fast
-      const payload = { data: message, sender: body.sender };
-      handleMessage(payload, instance).catch((err) => {
+      const instanceName = instance || body.instanceId || '';
+      handleMessage(payload, instanceName).catch((err) => {
         console.error('[whatsapp-webhook] Error handling message:', err);
       });
-    } else if (event === 'connection.update' || event === 'CONNECTION_UPDATE') {
-      const state = body.data?.state || body.data?.status || 'unknown';
-      console.log(`[whatsapp-webhook] Connection update for ${instance}: ${state}`);
+    } else if (eventType === 'ConnectedCallback') {
+      console.log(`[whatsapp-webhook] Connected: instanceId=${body.instanceId}, phone=${body.phone}`);
 
-      // Persist connection status in the DB
       try {
-        const mappedStatus = mapConnectionStatus(state);
         await prisma.whatsAppConfig.updateMany({
-          where: { instanceName: instance },
-          data: { connectionStatus: mappedStatus },
+          where: {},
+          data: { connectionStatus: 'CONNECTED' },
         });
       } catch (dbErr) {
         console.error('[whatsapp-webhook] Failed to update connection status:', dbErr);
       }
-    } else if (event === 'qrcode.updated' || event === 'QRCODE_UPDATED') {
-      console.log(`[whatsapp-webhook] QR code updated for ${instance}`);
+    } else if (eventType === 'DisconnectedCallback') {
+      console.log(`[whatsapp-webhook] Disconnected: instanceId=${body.instanceId}, error=${body.error}`);
+
+      try {
+        await prisma.whatsAppConfig.updateMany({
+          where: {},
+          data: { connectionStatus: 'DISCONNECTED' },
+        });
+      } catch (dbErr) {
+        console.error('[whatsapp-webhook] Failed to update connection status:', dbErr);
+      }
     }
 
     res.status(200).json({ received: true });
@@ -121,6 +132,11 @@ router.post('/:instance', async (req: Request, res: Response) => {
     console.error('[whatsapp-webhook] Unexpected error:', err);
     res.status(200).json({ received: true, error: 'internal' });
   }
-});
+}
+
+// POST /api/whatsapp/webhook — Z-API sends all events here
+router.post('/', webhookHandler);
+// POST /api/whatsapp/webhook/:instance — backward compat
+router.post('/:instance', webhookHandler);
 
 export default router;
