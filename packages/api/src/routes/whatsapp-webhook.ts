@@ -33,29 +33,6 @@ router.post('/:instance', async (req: Request, res: Response) => {
     const body = req.body;
     const event = body.event;
 
-    // Debug: save raw webhook payload to DB for remote inspection (temporary)
-    if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
-      const debugPayload = JSON.stringify({
-        event,
-        sender: body.sender,
-        destination: body.destination,
-        instance: body.instance,
-        data_key: body.data?.key,
-        data_pushName: body.data?.pushName,
-        data_participant: body.data?.participant,
-        data_messageKeys: body.data?.message ? Object.keys(body.data.message) : [],
-        data_number: body.data?.number,
-        data_source: body.data?.source,
-        top_level_keys: Object.keys(body),
-      });
-      prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).then(admin => {
-        if (!admin) return;
-        return prisma.activity.create({
-          data: { type: 'NOTE', content: `[WA-RAW] ${debugPayload}`, userId: admin.id },
-        });
-      }).catch(() => {});
-    }
-
     if (event === 'messages.upsert' || event === 'MESSAGES_UPSERT') {
       const message = body.data;
 
@@ -68,8 +45,16 @@ router.post('/:instance', async (req: Request, res: Response) => {
         return res.status(200).json({ received: true });
       }
 
-      // Ignore group messages
+      // ── LID Resolution: use remoteJidAlt if remoteJid is a LID ──
+      const originalJid = message.key?.remoteJid || '';
+      if (originalJid.includes('@lid') && message.key?.remoteJidAlt) {
+        console.log(`[whatsapp-webhook] LID detected. remoteJid=${originalJid} → remoteJidAlt=${message.key.remoteJidAlt}`);
+        message.key.remoteJid = message.key.remoteJidAlt;
+      }
+
       const remoteJid = message.key?.remoteJid || '';
+
+      // Ignore group messages
       if (remoteJid.endsWith('@g.us')) {
         return res.status(200).json({ received: true });
       }
@@ -84,6 +69,26 @@ router.post('/:instance', async (req: Request, res: Response) => {
       if (messageId && isDuplicate(messageId)) {
         return res.status(200).json({ received: true, deduplicated: true });
       }
+
+      // Debug: log key fields for remote inspection (temporary)
+      const debugPayload = JSON.stringify({
+        originalJid,
+        resolvedJid: remoteJid,
+        remoteJidAlt: message.key?.remoteJidAlt || null,
+        addressingMode: message.key?.addressingMode || null,
+        sender: body.sender,
+        pushName: message.pushName,
+        participant: message.key?.participant || null,
+        participantAlt: message.key?.participantAlt || null,
+      });
+      console.log(`[whatsapp-webhook] MSG: ${debugPayload}`);
+      // Save to DB for remote inspection
+      prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).then(admin => {
+        if (!admin) return;
+        return prisma.activity.create({
+          data: { type: 'NOTE', content: `[WA-DBG] ${debugPayload}`, userId: admin.id },
+        });
+      }).catch(() => {});
 
       // Process message in background — don't await to keep response fast
       const payload = { data: message, sender: body.sender };
@@ -106,13 +111,11 @@ router.post('/:instance', async (req: Request, res: Response) => {
       }
     } else if (event === 'qrcode.updated' || event === 'QRCODE_UPDATED') {
       console.log(`[whatsapp-webhook] QR code updated for ${instance}`);
-      // QR code events are handled by the /connect endpoint polling; log only
     }
 
     res.status(200).json({ received: true });
   } catch (err) {
     console.error('[whatsapp-webhook] Unexpected error:', err);
-    // Always return 200
     res.status(200).json({ received: true, error: 'internal' });
   }
 });

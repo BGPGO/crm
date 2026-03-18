@@ -10,8 +10,12 @@ interface WhatsAppPayload {
   data: {
     key: {
       remoteJid: string;
+      remoteJidAlt?: string;
       fromMe: boolean;
       id: string;
+      addressingMode?: string;
+      participant?: string;
+      participantAlt?: string;
     };
     pushName?: string;
     message?: {
@@ -92,7 +96,7 @@ Seu KPI é reunião agendada. Cada conversa deve caminhar para isso.`;
 
 // ─── LID Cache ──────────────────────────────────────────────────────────────
 
-const lidCache: Record<string, string> = {};
+// LID resolution now happens in the webhook handler via remoteJidAlt
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -152,48 +156,6 @@ export async function getCurrentContext(): Promise<string> {
 - Regras: reuniões apenas de segunda a sexta, das 9h às 17h (última reunião às 16:15, duração 45min). NUNCA sugira horários passados ou fora desse período.`;
 }
 
-// ─── LID Resolution ─────────────────────────────────────────────────────────
-
-export async function resolveLidToPhone(
-  client: EvolutionApiClient,
-  lid: string,
-  pushName: string,
-): Promise<string | null> {
-  if (lidCache[lid]) return lidCache[lid];
-
-  try {
-    // Use the improved resolver from EvolutionApiClient
-    const resolved = await client.resolveLid(lid);
-    if (resolved) {
-      lidCache[lid] = resolved;
-      console.log(`[Bot] LID ${lid} resolvido para ${resolved} via Evolution API`);
-      return resolved;
-    }
-
-    // Fallback: search CRM contacts by pushName
-    if (pushName) {
-      const crmContact = await prisma.contact.findFirst({
-        where: { name: { contains: pushName, mode: 'insensitive' } },
-        select: { phone: true },
-      });
-      if (crmContact?.phone) {
-        const phone = crmContact.phone.replace(/\D/g, '');
-        if (phone.length >= 10) {
-          lidCache[lid] = phone;
-          console.log(`[Bot] LID ${lid} resolvido para ${phone} via CRM (${pushName})`);
-          return phone;
-        }
-      }
-    }
-
-    console.warn(`[Bot] Não conseguiu resolver LID ${lid} (${pushName})`);
-    return null;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[Bot] Erro ao resolver LID:`, message);
-    return null;
-  }
-}
 
 // ─── Send Bot Messages ──────────────────────────────────────────────────────
 
@@ -303,34 +265,41 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   const pushName = data.pushName || '';
 
   // Resolve phone number
+  // Note: LID→phone resolution via remoteJidAlt happens in the webhook handler BEFORE this function.
+  // By the time we get here, remoteJid should already be a @s.whatsapp.net JID.
+  // If it's still a LID, it means remoteJidAlt was not available — try CRM fallback.
   let phone: string;
   const client = await EvolutionApiClient.fromDB();
 
-  // Log raw payload for debugging
-  console.log(`[Bot] Raw: remoteJid=${remoteJid} sender=${payload.sender || 'N/A'} pushName=${pushName}`);
-
-  // Get our own bot phone to avoid self-replies
   const botConfig = await prisma.whatsAppConfig.findFirst({ select: { botPhoneNumber: true } });
   const botPhone = botConfig?.botPhoneNumber || null;
 
   if (remoteJid.includes('@lid')) {
-    // WhatsApp Business LID format — resolve via Evolution API + CRM fallback
-    console.log(`[Bot] LID detectado: ${remoteJid}. Resolvendo...`);
-    const resolved = await resolveLidToPhone(client, remoteJid, pushName);
-
-    if (resolved && resolved !== botPhone) {
-      phone = resolved;
+    // remoteJidAlt was not available — last resort: CRM contact lookup by pushName
+    console.log(`[Bot] LID still unresolved after webhook: ${remoteJid}. Trying CRM fallback for "${pushName}"...`);
+    if (pushName) {
+      const crmContact = await prisma.contact.findFirst({
+        where: { name: { contains: pushName, mode: 'insensitive' } },
+        select: { phone: true },
+      });
+      if (crmContact?.phone) {
+        phone = crmContact.phone.replace(/\D/g, '');
+        console.log(`[Bot] LID resolvido via CRM: ${phone} (${pushName})`);
+      } else {
+        console.warn(`[Bot] LID ${remoteJid} não resolvido — contato "${pushName}" não encontrado no CRM`);
+        return;
+      }
     } else {
-      console.warn(`[Bot] LID ${remoteJid} não resolvido ou é o próprio bot — mensagem ignorada`);
+      console.warn(`[Bot] LID ${remoteJid} sem pushName — impossível resolver`);
       return;
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
   }
 
-  // Final guard: never reply to ourselves
+  // Never reply to ourselves
   if (botPhone && phone === botPhone) {
-    console.log(`[Bot] Ignorando mensagem do próprio número do bot (${phone})`);
+    console.log(`[Bot] Ignorando mensagem do próprio bot (${phone})`);
     return;
   }
 
