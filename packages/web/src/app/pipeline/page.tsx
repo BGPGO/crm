@@ -352,16 +352,20 @@ export default function PipelinePage() {
         );
 
         // Build initial stage list from pipeline structure;
-        // the useEffect that watches pipelineId will call fetchSummary with filters
-        setStageSummaries(
-          sorted.map((s, idx) => ({
-            id: s.id,
-            name: s.name,
-            color: stageColor(s.color, idx),
-            dealCount: 0,
-            totalValue: 0,
-          }))
-        );
+        // Preserve existing counts if available (avoid overwriting summary data with zeros)
+        setStageSummaries((prev) => {
+          const prevMap = new Map(prev.map((s) => [s.id, s]));
+          return sorted.map((s, idx) => {
+            const existing = prevMap.get(s.id);
+            return {
+              id: s.id,
+              name: s.name,
+              color: stageColor(s.color, idx),
+              dealCount: existing?.dealCount ?? 0,
+              totalValue: existing?.totalValue ?? 0,
+            };
+          });
+        });
 
         if (sorted.length > 0) setDefaultStageId(sorted[0].id);
       } catch (err) {
