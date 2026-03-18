@@ -49,8 +49,15 @@ export default function AutomationCreateModal({ isOpen, onClose, onCreated }: Au
 
   const fetchStages = useCallback(async () => {
     try {
-      const res = await api.get<{ data: Stage[] }>("/pipeline-stages");
-      setStages(res.data || []);
+      // Load the first pipeline (Vendas) and use its stages
+      const pipRes = await api.get<{ data: Array<{ id: string; stages: Stage[] }> }>("/pipelines");
+      const firstPipeline = (pipRes.data || [])[0];
+      if (firstPipeline?.stages) {
+        setStages(firstPipeline.stages);
+      } else if (firstPipeline?.id) {
+        const stagesRes = await api.get<{ data: Stage[] }>(`/pipeline-stages?pipelineId=${firstPipeline.id}`);
+        setStages(stagesRes.data || []);
+      }
     } catch {
       // stages might not be available
     }

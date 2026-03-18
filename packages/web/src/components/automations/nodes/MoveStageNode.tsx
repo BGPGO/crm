@@ -20,8 +20,14 @@ export default function MoveStageNode({ config, onChange }: NodeConfigProps) {
   useEffect(() => {
     async function loadStages() {
       try {
-        const res = await api.get<{ data: Stage[] }>("/pipeline-stages");
-        setStages(res.data || []);
+        const pipRes = await api.get<{ data: Array<{ id: string; stages: Stage[] }> }>("/pipelines");
+        const firstPipeline = (pipRes.data || [])[0];
+        if (firstPipeline?.stages) {
+          setStages(firstPipeline.stages);
+        } else if (firstPipeline?.id) {
+          const res = await api.get<{ data: Stage[] }>(`/pipeline-stages?pipelineId=${firstPipeline.id}`);
+          setStages(res.data || []);
+        }
       } catch {
         // API might not be ready
       } finally {
