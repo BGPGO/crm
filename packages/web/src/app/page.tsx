@@ -236,7 +236,7 @@ export default function DashboardPage() {
 
     try {
       // Build query strings
-      const topDealsQs = buildDealsQs({ ...filterOpts, status: "active" }, { limit: "5" });
+      const topDealsQs = buildDealsQs({ ...filterOpts, status: "active" }, { limit: "100" });
       const summaryQs = buildSummaryQs(filterOpts);
 
       let activeCount = 0;
@@ -290,8 +290,9 @@ export default function DashboardPage() {
         time: a.createdAt,
       }));
 
-      // Top deals
+      // Top deals — highest value OPEN deals
       const topDeals: TopDeal[] = [...(topDealsRes.data ?? [])]
+        .filter((d) => (d.value ?? 0) > 0)
         .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
         .slice(0, 5)
         .map((d) => ({

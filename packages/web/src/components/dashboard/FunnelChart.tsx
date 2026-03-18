@@ -16,90 +16,167 @@ interface FunnelChartProps {
 
 export default function FunnelChart({ stages }: FunnelChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  if (stages.length === 0) return <p className="text-sm text-gray-400 text-center py-8">Nenhuma etapa no funil</p>;
+
   const firstCount = stages[0]?.count || 1;
+  const totalStages = stages.length;
+
+  // SVG dimensions
+  const svgWidth = 500;
+  const stageHeight = 44;
+  const gap = 2;
+  const svgHeight = totalStages * stageHeight + (totalStages - 1) * gap;
+  const minWidthPct = 0.18; // minimum 18% width for last stage
 
   return (
-    <div className="space-y-0">
-      {stages.map((stage, i) => {
-        const prevCount = i === 0 ? firstCount : stages[i - 1].count;
-        const convFromPrev = prevCount > 0 ? ((stage.count / prevCount) * 100) : 0;
-        const convFromTotal = firstCount > 0 ? ((stage.count / firstCount) * 100) : 0;
+    <div className="flex gap-4 items-start mt-2">
+      {/* SVG Funnel */}
+      <div className="flex-1 min-w-0">
+        <svg
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full"
+          style={{ maxHeight: `${Math.max(svgHeight, 300)}px` }}
+        >
+          {stages.map((stage, i) => {
+            const prevCount = i === 0 ? firstCount : stages[i - 1].count;
+            const convFromPrev = prevCount > 0 ? (stage.count / prevCount) * 100 : 0;
+            const isHovered = hoveredIndex === i;
 
-        // Width narrows as funnel progresses: first stage = 100%, each subsequent gets proportionally smaller
-        const widthPct = firstCount > 0 ? Math.max((stage.count / firstCount) * 100, 15) : 100;
-        const isHovered = hoveredIndex === i;
-        const isFirst = i === 0;
-        const isLast = i === stages.length - 1;
+            // Calculate widths: each stage proportional to its count, min 18%
+            const topWidthPct = i === 0
+              ? 1
+              : Math.max((stages[i - 1].count / firstCount), minWidthPct);
+            const bottomWidthPct = Math.max((stage.count / firstCount), minWidthPct);
 
-        return (
-          <div key={stage.name}>
-            {/* Conversion arrow between stages */}
-            {i > 0 && (
-              <div className="flex items-center justify-center py-0.5">
-                <div className="flex items-center gap-2 text-[10px]">
-                  <span className="text-gray-400">↓</span>
-                  <span className={`font-semibold ${convFromPrev >= 50 ? 'text-green-600' : convFromPrev >= 25 ? 'text-yellow-600' : 'text-red-500'}`}>
-                    {convFromPrev.toFixed(0)}%
-                  </span>
-                </div>
-              </div>
-            )}
+            // If first stage, top = 100%
+            const topW = i === 0 ? svgWidth : topWidthPct * svgWidth;
+            const bottomW = bottomWidthPct * svgWidth;
 
-            {/* Funnel stage row */}
-            <div
-              className="flex items-center gap-3 group cursor-default"
-              onMouseEnter={() => setHoveredIndex(i)}
-              onMouseLeave={() => setHoveredIndex(null)}
-            >
-              {/* Stage name */}
-              <div className="w-32 flex-shrink-0 text-right">
-                <span className="text-xs text-gray-600 font-medium truncate block">{stage.name}</span>
-              </div>
+            const y = i * (stageHeight + gap);
+            const cx = svgWidth / 2;
 
-              {/* Trapezoid bar */}
-              <div className="flex-1 flex justify-center relative">
-                <div
-                  className="h-9 rounded-sm transition-all duration-300 flex items-center justify-center relative"
-                  style={{
-                    width: `${widthPct}%`,
-                    minWidth: '60px',
-                    backgroundColor: stage.color,
-                    opacity: isHovered ? 1 : 0.85,
-                    clipPath: isFirst
-                      ? `polygon(0 0, 100% 0, ${100 - 2}% 100%, 2% 100%)`
-                      : isLast
-                      ? `polygon(2% 0, ${100 - 2}% 0, ${100 - 4}% 100%, 4% 100%)`
-                      : `polygon(1% 0, ${100 - 1}% 0, ${100 - 3}% 100%, 3% 100%)`,
-                  }}
+            // Trapezoid points
+            const x1Top = cx - topW / 2;
+            const x2Top = cx + topW / 2;
+            const x1Bot = cx - bottomW / 2;
+            const x2Bot = cx + bottomW / 2;
+
+            const points = `${x1Top},${y} ${x2Top},${y} ${x2Bot},${y + stageHeight} ${x1Bot},${y + stageHeight}`;
+
+            return (
+              <g
+                key={stage.name}
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                className="cursor-pointer"
+              >
+                {/* Trapezoid shape */}
+                <polygon
+                  points={points}
+                  fill={stage.color}
+                  opacity={isHovered ? 1 : 0.88}
+                  className="transition-opacity duration-150"
+                />
+
+                {/* Stage name */}
+                <text
+                  x={cx}
+                  y={y + stageHeight / 2 - 6}
+                  textAnchor="middle"
+                  fill="white"
+                  fontSize="11"
+                  fontWeight="600"
+                  style={{ textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}
                 >
-                  <span className="text-white text-xs font-bold drop-shadow-sm">
-                    {stage.count}
-                  </span>
-                </div>
+                  {stage.name}
+                </text>
 
-                {/* Tooltip */}
-                {isHovered && (
-                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-10 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl whitespace-nowrap pointer-events-none">
-                    <p className="font-semibold mb-1">{stage.name}</p>
-                    <p>{stage.count} negociações — {formatCurrency(stage.value)}</p>
-                    {i > 0 && <p>Conversão da etapa anterior: <strong>{convFromPrev.toFixed(1)}%</strong></p>}
-                    <p>Conversão do funil: <strong>{convFromTotal.toFixed(1)}%</strong></p>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0" style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #111827' }} />
+                {/* Count + value */}
+                <text
+                  x={cx}
+                  y={y + stageHeight / 2 + 8}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.85)"
+                  fontSize="10"
+                  fontWeight="500"
+                >
+                  {stage.count} neg. — {formatCurrency(stage.value)}
+                </text>
+
+                {/* Conversion badge between stages (on the right side) */}
+                {i > 0 && (
+                  <>
+                    <rect
+                      x={x2Top + 8}
+                      y={y - gap / 2 - 8}
+                      width={38}
+                      height={16}
+                      rx={8}
+                      fill={convFromPrev >= 50 ? "#DCFCE7" : convFromPrev >= 25 ? "#FEF9C3" : "#FEE2E2"}
+                    />
+                    <text
+                      x={x2Top + 27}
+                      y={y - gap / 2 + 3}
+                      textAnchor="middle"
+                      fontSize="9"
+                      fontWeight="700"
+                      fill={convFromPrev >= 50 ? "#166534" : convFromPrev >= 25 ? "#854D0E" : "#991B1B"}
+                    >
+                      {convFromPrev.toFixed(0)}%
+                    </text>
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Side panel: details for hovered stage */}
+      <div className="w-44 flex-shrink-0 hidden sm:block">
+        {hoveredIndex !== null && stages[hoveredIndex] ? (() => {
+          const stage = stages[hoveredIndex];
+          const i = hoveredIndex;
+          const prevCount = i === 0 ? firstCount : stages[i - 1].count;
+          const convFromPrev = prevCount > 0 ? (stage.count / prevCount) * 100 : 0;
+          const convFromTotal = firstCount > 0 ? (stage.count / firstCount) * 100 : 0;
+
+          return (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: stage.color }} />
+                <span className="text-xs font-semibold text-gray-800">{stage.name}</span>
+              </div>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[10px] text-gray-400">Negociações</p>
+                  <p className="text-sm font-bold text-gray-900">{stage.count}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-400">Valor</p>
+                  <p className="text-sm font-bold text-blue-600">{formatCurrency(stage.value)}</p>
+                </div>
+                {i > 0 && (
+                  <div>
+                    <p className="text-[10px] text-gray-400">Conv. etapa anterior</p>
+                    <p className={`text-sm font-bold ${convFromPrev >= 50 ? 'text-green-600' : convFromPrev >= 25 ? 'text-yellow-600' : 'text-red-500'}`}>
+                      {convFromPrev.toFixed(1)}%
+                    </p>
                   </div>
                 )}
-              </div>
-
-              {/* Right side: value + conversion */}
-              <div className="w-36 flex-shrink-0 flex flex-col">
-                <span className="text-xs font-medium text-gray-700">{formatCurrency(stage.value)}</span>
-                <span className="text-[10px] text-gray-400">
-                  {convFromTotal.toFixed(0)}% do funil
-                </span>
+                <div>
+                  <p className="text-[10px] text-gray-400">Conv. do funil</p>
+                  <p className="text-sm font-bold text-purple-600">{convFromTotal.toFixed(1)}%</p>
+                </div>
               </div>
             </div>
+          );
+        })() : (
+          <div className="bg-gray-50 rounded-xl border border-gray-100 p-3 flex items-center justify-center h-40">
+            <p className="text-xs text-gray-400 text-center">Passe o mouse sobre o funil para ver detalhes</p>
           </div>
-        );
-      })}
+        )}
+      </div>
     </div>
   );
 }
