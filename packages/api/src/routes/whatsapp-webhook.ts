@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { handleMessage } from '../services/whatsappBot';
 import prisma from '../lib/prisma';
+import EvolutionApiClient from '../services/evolutionApiClient';
 
 const router = Router();
 
@@ -45,11 +46,45 @@ router.post('/:instance', async (req: Request, res: Response) => {
         return res.status(200).json({ received: true });
       }
 
-      // ── LID Resolution: use remoteJidAlt if remoteJid is a LID ──
+      // ── LID Resolution: use remoteJidAlt if available, else fallback to Evolution contacts API ──
       const originalJid = message.key?.remoteJid || '';
-      if (originalJid.includes('@lid') && message.key?.remoteJidAlt) {
-        console.log(`[whatsapp-webhook] LID detected. remoteJid=${originalJid} → remoteJidAlt=${message.key.remoteJidAlt}`);
-        message.key.remoteJid = message.key.remoteJidAlt;
+      if (originalJid.includes('@lid')) {
+        if (message.key?.remoteJidAlt) {
+          console.log(`[whatsapp-webhook] LID detected. remoteJid=${originalJid} → remoteJidAlt=${message.key.remoteJidAlt}`);
+          message.key.remoteJid = message.key.remoteJidAlt;
+        } else {
+          // Fallback: resolve LID via Evolution API contacts
+          try {
+            const evoClient = await EvolutionApiClient.fromDB();
+            const resolvedPhone = await evoClient.resolveLid(originalJid);
+            if (resolvedPhone) {
+              const resolvedJid = `${resolvedPhone}@s.whatsapp.net`;
+              console.log(`[whatsapp-webhook] LID resolved via contacts API. ${originalJid} → ${resolvedJid}`);
+              message.key.remoteJid = resolvedJid;
+            } else {
+              // Last resort: use pushName to find contact in CRM
+              const pushName = message.pushName;
+              if (pushName) {
+                const crmContact = await prisma.contact.findFirst({
+                  where: { name: { contains: pushName, mode: 'insensitive' } },
+                  select: { phone: true },
+                });
+                if (crmContact?.phone) {
+                  const phone = crmContact.phone.replace(/\D/g, '');
+                  const resolvedJid = `${phone}@s.whatsapp.net`;
+                  console.log(`[whatsapp-webhook] LID resolved via CRM contact. ${originalJid} → ${resolvedJid} (pushName=${pushName})`);
+                  message.key.remoteJid = resolvedJid;
+                } else {
+                  console.warn(`[whatsapp-webhook] LID ${originalJid} could not be resolved. pushName="${pushName}". Message will still be processed with LID.`);
+                }
+              } else {
+                console.warn(`[whatsapp-webhook] LID ${originalJid} could not be resolved (no remoteJidAlt, no pushName). Message will still be processed with LID.`);
+              }
+            }
+          } catch (resolveErr) {
+            console.error(`[whatsapp-webhook] LID resolution error for ${originalJid}:`, resolveErr);
+          }
+        }
       }
 
       const remoteJid = message.key?.remoteJid || '';

@@ -275,9 +275,8 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   const botPhone = botConfig?.botPhoneNumber || null;
 
   if (remoteJid.includes('@lid')) {
-    // remoteJidAlt was not available — Evolution API too old or field missing
-    // Store the message but can't resolve phone yet — log for debugging
-    console.warn(`[Bot] LID ${remoteJid} sem remoteJidAlt — Evolution API não suporta. pushName="${pushName}". Mensagem não processada.`);
+    // LID was not resolved by the webhook — cannot identify the phone number
+    console.warn(`[Bot] LID ${remoteJid} não foi resolvido pelo webhook. pushName="${pushName}". Mensagem não processada.`);
     return;
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
