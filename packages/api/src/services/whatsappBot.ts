@@ -138,28 +138,40 @@ export async function sendBotMessages(
 
   // No further splitting — sending one long message is better than splitting mid-sentence
 
-  // Extract URL from various formats the AI might produce
-  function extractUrl(text: string): string | null {
-    const t = text.trim();
-    // Pure URL: https://calendly.com/...
-    if (/^https?:\/\/[^\s]+$/.test(t)) return t;
+  // Extract meeting URL from any format the AI might produce
+  function extractMeetingUrl(text: string): string | null {
     // Markdown link: [text](url)
-    const mdMatch = t.match(/\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+    const mdMatch = text.match(/\[.*?\]\((https?:\/\/[^\s)]+)\)/);
     if (mdMatch) return mdMatch[1];
-    // URL somewhere in the text (only if the text is mostly a link)
-    const urlMatch = t.match(/(https?:\/\/[^\s]+)/);
-    if (urlMatch && t.length < urlMatch[1].length + 30) return urlMatch[1];
+    // Any URL in the text
+    const urlMatch = text.match(/(https?:\/\/[^\s),]+)/);
+    if (urlMatch) return urlMatch[1];
     return null;
   }
 
+  // Strip URL/markdown from text to get clean message
+  function stripUrl(text: string): string {
+    return text
+      .replace(/\[.*?\]\(https?:\/\/[^\s)]+\)/g, '')  // Remove markdown links
+      .replace(/https?:\/\/[^\s),]+/g, '')              // Remove raw URLs
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
   for (const part of parts) {
-    const url = extractUrl(part);
+    const url = extractMeetingUrl(part);
     if (url) {
-      // This part contains a link — send as interactive button
+      // Part contains a URL — send text without URL + button separately
+      const cleanText = stripUrl(part);
+      if (cleanText) {
+        await client.sendText(phone, cleanText);
+        if (parts.length > 1) {
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
       try {
         await client.sendButtonUrl(phone, 'Clique abaixo para escolher o melhor horário:', 'Agendar Reunião', url);
       } catch {
-        // Fallback to plain text if button fails
         await client.sendText(phone, url);
       }
     } else {
