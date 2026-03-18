@@ -267,7 +267,7 @@ const LOGO_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAB4AAAAFGCAYAAACLw4JVAACauElEQVR4nOz
 
 // Utility to get the logo src — uses base64 for PDF/Autentique compatibility
 function getLogoSrc(): string {
-  if (LOGO_BASE64 && LOGO_BASE64 !== "LOGO_PLACEHOLDER") {
+  if (LOGO_BASE64 && (LOGO_BASE64 as string) !== "LOGO_PLACEHOLDER") {
     return `data:image/png;base64,${LOGO_BASE64}`;
   }
   return "/lovable-uploads/logo-bgp-wide.png";
@@ -954,8 +954,8 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               (restored as any)[key] = String((existing as any)[key]);
             }
           }
-          if (existing.strategyModules) {
-            restored.strategyModules = existing.strategyModules as any;
+          if ((existing as any).strategyModules) {
+            restored.strategyModules = (existing as any).strategyModules as any;
           }
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
