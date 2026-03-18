@@ -139,7 +139,7 @@ export default function ConversasChatPage() {
   useEffect(() => {
     if (selectedId) {
       fetchMessages(selectedId, true);
-      api.post(`/whatsapp/conversations/${selectedId}/read`).catch(() => {});
+      api.post(`/whatsapp/conversations/${selectedId}/read`, {}).catch(() => {});
     }
   }, [selectedId, fetchMessages]);
 
