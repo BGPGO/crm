@@ -30,30 +30,39 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ─── Rate limiting ───────────────────────────────────────────────────────────
-// Global: 600 requests per minute per IP
+// Key by X-Forwarded-For (real client IP behind Traefik) instead of socket IP
+// Without this, all users behind the proxy share one bucket
+const keyGenerator = (req: express.Request) =>
+  (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+
+// Global: 2000 requests per minute per real IP
+// 3+ concurrent users × ~20 req/page load × frequent navigation = high volume
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 600,
+  max: 2000,
+  keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas requisições. Tente novamente em breve.' },
 });
 app.use('/api', globalLimiter);
 
-// Auth: 10 attempts per 15 minutes per IP
+// Auth: 20 attempts per 15 minutes per real IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
+  keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
 });
 app.use('/api/auth/login', authLimiter);
 
-// Webhooks: 120 per minute per IP
+// Webhooks: 300 per minute per real IP (Z-API, Calendly, GreatPages send bursts)
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: 300,
+  keyGenerator,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Rate limit exceeded.' },
