@@ -244,10 +244,10 @@ ${campaignContext.context}
     });
   }
 
-  // Update conversation updatedAt
+  // Update conversation timestamps
   await prisma.whatsAppConversation.update({
     where: { id: conversation.id },
-    data: { updatedAt: new Date() },
+    data: { lastMessageAt: new Date(), updatedAt: new Date() },
   });
 
   console.log(`[LeadQualification] Registros salvos no banco para conversa ${conversation.id}`);
