@@ -348,14 +348,31 @@ router.post('/:id/test', async (req: Request, res: Response, next: NextFunction)
       status: 'ACTIVE',
     };
 
-    // Traverse the linear chain: start from step order 1
-    const sortedSteps = [...automation.steps].sort((a, b) => a.order - b.order);
+    // Build step map for quick lookup
+    const stepMap = new Map(automation.steps.map(s => [s.id, s]));
 
-    for (const step of sortedSteps) {
+    // Find root step (not referenced by any other step)
+    const referencedIds = new Set<string>();
+    automation.steps.forEach(s => {
+      if (s.nextStepId) referencedIds.add(s.nextStepId);
+      if (s.trueStepId) referencedIds.add(s.trueStepId);
+      if (s.falseStepId) referencedIds.add(s.falseStepId);
+    });
+    const rootStep = automation.steps.find(s => !referencedIds.has(s.id));
+
+    // Traverse the flow tree
+    let currentStepId: string | null = rootStep?.id || null;
+    let safety = 0;
+    const MAX_STEPS = 50;
+
+    while (currentStepId && safety < MAX_STEPS) {
+      safety++;
+      const step = stepMap.get(currentStepId);
+      if (!step) break;
+
       const start = Date.now();
 
       if (step.actionType === 'WAIT') {
-        // In test mode, skip waits (just log them)
         log.push({
           stepId: step.id,
           order: step.order,
@@ -364,31 +381,29 @@ router.post('/:id/test', async (req: Request, res: Response, next: NextFunction)
           output: { skipped: true, originalDuration: (step.config as any)?.duration, originalUnit: (step.config as any)?.unit, testMode: 'Timer pulado no teste' },
           durationMs: 0,
         });
+        currentStepId = step.nextStepId;
         continue;
       }
 
       try {
         const result = await executeAction(fakeEnrollment, step);
+
         log.push({
           stepId: step.id,
           order: step.order,
           actionType: step.actionType,
           success: result.success,
-          output: result.output,
+          output: step.actionType === 'CONDITION' ? { ...result.output, branchTaken: result.conditionResult ? 'Sim (true)' : 'Não (false)' } : result.output,
           durationMs: Date.now() - start,
         });
 
-        // For CONDITION: log the branch taken
-        if (step.actionType === 'CONDITION') {
-          log[log.length - 1].output = {
-            ...result.output,
-            branchTaken: result.conditionResult ? 'Sim (true)' : 'Não (false)',
-          };
-        }
+        if (!result.success) break;
 
-        // If a step fails, stop the test
-        if (!result.success) {
-          break;
+        // Follow branches for CONDITIONS
+        if (step.actionType === 'CONDITION') {
+          currentStepId = result.conditionResult ? step.trueStepId : step.falseStepId;
+        } else {
+          currentStepId = step.nextStepId;
         }
       } catch (err: any) {
         log.push({
@@ -413,7 +428,7 @@ router.post('/:id/test', async (req: Request, res: Response, next: NextFunction)
         conversationId: conversation?.id || null,
         phone,
         stepsExecuted: log.length,
-        totalSteps: sortedSteps.length,
+        totalSteps: automation.steps.length,
         log,
       },
     });
