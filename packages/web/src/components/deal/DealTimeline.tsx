@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, CheckCircle2, Circle, Pencil, Calendar, Clock } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
 import clsx from "clsx";
 
@@ -23,10 +23,20 @@ export interface TimelineEvent {
   user?: string;
 }
 
+export interface PendingTask {
+  id: string;
+  title: string;
+  dueDate?: string | Date;
+  type: string;
+  done: boolean;
+}
+
 interface DealTimelineProps {
   events: TimelineEvent[];
   onAddNote?: (note: string) => void;
-  pendingTasks?: Array<{ id: string; title: string; dueDate?: string | Date; type: string }>;
+  pendingTasks?: PendingTask[];
+  onToggleTask?: (id: string) => void;
+  onEditTask?: (task: PendingTask) => void;
 }
 
 function eventLabel(type: TimelineEventType, content: string, user?: string): React.ReactNode {
@@ -155,7 +165,21 @@ function taskUrgencyBadge(dueDate?: string | Date) {
   return { badgeBg, badgeText };
 }
 
-export default function DealTimeline({ events, onAddNote, pendingTasks }: DealTimelineProps) {
+function formatTaskDateTime(dueDate: string | Date): string {
+  const d = typeof dueDate === "string" ? new Date(dueDate) : dueDate;
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+  if (hours === 12 && minutes === 0) {
+    // Noon UTC = date-only task (no time set)
+    return `${day}/${month}/${year}`;
+  }
+  return `${day}/${month}/${year} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export default function DealTimeline({ events, onAddNote, pendingTasks, onToggleTask, onEditTask }: DealTimelineProps) {
   const [note, setNote] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
 
@@ -213,20 +237,56 @@ export default function DealTimeline({ events, onAddNote, pendingTasks }: DealTi
       {pendingTasks && pendingTasks.length > 0 && (
         <div className="mb-4 border border-amber-200 rounded-lg bg-amber-50 p-3">
           <p className="text-xs font-semibold text-amber-800 mb-2">Tarefas pendentes</p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {pendingTasks.map((task) => {
               const urgency = taskUrgencyBadge(task.dueDate);
               return (
-                <div key={task.id} className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-700 truncate flex-1">{task.title}</span>
-                  <span className={clsx("px-1.5 py-0.5 rounded font-medium flex-shrink-0", TASK_TYPE_COLORS[task.type] || TASK_TYPE_COLORS.OTHER)}>
-                    {TASK_TYPE_LABELS[task.type] || task.type}
-                  </span>
-                  {urgency && (
-                    <span className={clsx("px-1.5 py-0.5 rounded font-medium flex-shrink-0", urgency.badgeBg)}>
-                      {urgency.badgeText}
-                    </span>
-                  )}
+                <div key={task.id} className="flex items-start gap-2 bg-white/60 rounded-md p-2 border border-amber-100">
+                  {/* Toggle button */}
+                  <button
+                    type="button"
+                    onClick={() => onToggleTask?.(task.id)}
+                    className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 transition-colors"
+                    title="Concluir tarefa"
+                  >
+                    <Circle size={16} />
+                  </button>
+
+                  {/* Task info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-gray-800 truncate">{task.title}</span>
+                      <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0", TASK_TYPE_COLORS[task.type] || TASK_TYPE_COLORS.OTHER)}>
+                        {TASK_TYPE_LABELS[task.type] || task.type}
+                      </span>
+                    </div>
+                    {task.dueDate && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                          <Calendar size={10} />
+                          {formatTaskDateTime(task.dueDate)}
+                        </span>
+                        {urgency && (
+                          <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded", urgency.badgeBg)}>
+                            {urgency.badgeText}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {!task.dueDate && (
+                      <span className="text-xs text-gray-400 mt-1 inline-block">Sem prazo definido</span>
+                    )}
+                  </div>
+
+                  {/* Edit button */}
+                  <button
+                    type="button"
+                    onClick={() => onEditTask?.(task)}
+                    className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors"
+                    title="Editar tarefa"
+                  >
+                    <Pencil size={13} />
+                  </button>
                 </div>
               );
             })}

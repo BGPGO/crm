@@ -1427,6 +1427,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 events={timeline}
                 onAddNote={handleAddNote}
                 pendingTasks={deal.tasks.filter((t: any) => !t.done)}
+                onToggleTask={handleToggleTask}
+                onEditTask={(task) => {
+                  handleEditTask(task);
+                  setActiveTab("tarefas");
+                }}
               />
             )}
 
