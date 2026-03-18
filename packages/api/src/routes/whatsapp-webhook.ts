@@ -38,9 +38,14 @@ router.post('/:instance', async (req: Request, res: Response) => {
       const debugPayload = JSON.stringify({
         event,
         sender: body.sender,
+        destination: body.destination,
+        instance: body.instance,
         data_key: body.data?.key,
         data_pushName: body.data?.pushName,
         data_participant: body.data?.participant,
+        data_messageKeys: body.data?.message ? Object.keys(body.data.message) : [],
+        data_number: body.data?.number,
+        data_source: body.data?.source,
         top_level_keys: Object.keys(body),
       });
       prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).then(admin => {

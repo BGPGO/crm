@@ -162,27 +162,31 @@ export async function resolveLidToPhone(
   if (lidCache[lid]) return lidCache[lid];
 
   try {
-    const contacts = await client.findContacts();
-    const lidContact = contacts.find((c) => c.id === lid);
-    if (!lidContact) return null;
-
-    const match = contacts.find((c) =>
-      c.id.includes('@s.whatsapp.net') &&
-      c.id !== lid &&
-      (
-        (lidContact.profilePictureUrl && c.profilePictureUrl === lidContact.profilePictureUrl) ||
-        (c.pushName && lidContact.pushName && c.pushName === lidContact.pushName)
-      ),
-    );
-
-    if (match) {
-      const phone = match.id.replace('@s.whatsapp.net', '');
-      lidCache[lid] = phone;
-      console.log(`[Bot] LID ${lid} resolvido para ${phone} (${match.pushName})`);
-      return phone;
+    // Use the improved resolver from EvolutionApiClient
+    const resolved = await client.resolveLid(lid);
+    if (resolved) {
+      lidCache[lid] = resolved;
+      console.log(`[Bot] LID ${lid} resolvido para ${resolved} via Evolution API`);
+      return resolved;
     }
 
-    console.warn(`[Bot] Não encontrou número real para LID ${lid} (${pushName})`);
+    // Fallback: search CRM contacts by pushName
+    if (pushName) {
+      const crmContact = await prisma.contact.findFirst({
+        where: { name: { contains: pushName, mode: 'insensitive' } },
+        select: { phone: true },
+      });
+      if (crmContact?.phone) {
+        const phone = crmContact.phone.replace(/\D/g, '');
+        if (phone.length >= 10) {
+          lidCache[lid] = phone;
+          console.log(`[Bot] LID ${lid} resolvido para ${phone} via CRM (${pushName})`);
+          return phone;
+        }
+      }
+    }
+
+    console.warn(`[Bot] Não conseguiu resolver LID ${lid} (${pushName})`);
     return null;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -310,30 +314,15 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   const botPhone = botConfig?.botPhoneNumber || null;
 
   if (remoteJid.includes('@lid')) {
-    // WhatsApp Business LID format — resolve via contacts API
-    console.log(`[Bot] LID detectado: ${remoteJid}. Resolvendo via contacts API...`);
+    // WhatsApp Business LID format — resolve via Evolution API + CRM fallback
+    console.log(`[Bot] LID detectado: ${remoteJid}. Resolvendo...`);
     const resolved = await resolveLidToPhone(client, remoteJid, pushName);
 
     if (resolved && resolved !== botPhone) {
       phone = resolved;
-      console.log(`[Bot] LID resolvido via contacts API: ${phone}`);
     } else {
-      // Contacts API failed or returned bot number — try to find by pushName
-      console.log(`[Bot] Contacts API retornou ${resolved || 'null'}. Buscando contato por nome: ${pushName}`);
-      const contactByName = pushName
-        ? await prisma.contact.findFirst({
-            where: { name: { contains: pushName, mode: 'insensitive' } },
-            select: { phone: true },
-          })
-        : null;
-
-      if (contactByName?.phone) {
-        phone = contactByName.phone.replace(/\D/g, '');
-        console.log(`[Bot] Resolvido via contato CRM: ${phone} (${pushName})`);
-      } else {
-        console.warn(`[Bot] LID não resolvido para ${pushName} — mensagem ignorada`);
-        return;
-      }
+      console.warn(`[Bot] LID ${remoteJid} não resolvido ou é o próprio bot — mensagem ignorada`);
+      return;
     }
   } else {
     phone = remoteJid.replace('@s.whatsapp.net', '');
