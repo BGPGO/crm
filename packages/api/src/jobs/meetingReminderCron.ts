@@ -25,8 +25,27 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 
 async function checkMeetingReminders() {
   try {
+    console.log('[meeting-reminder] Running check...');
+
+    // Seed defaults if empty
+    const stepCount = await prisma.meetingReminderStep.count();
+    if (stepCount === 0) {
+      const defaults = [
+        { minutesBefore: 240, message: 'Olá {{nome}}! Lembrete: sua reunião está marcada para {{data}} às {{hora}} (faltam {{falta}}). Até lá! 😊', enabled: true },
+        { minutesBefore: 60, message: 'Oi {{nome}}! Sua reunião é daqui a {{falta}}, às {{hora}}. Nos vemos em breve! 🙂', enabled: true },
+        { minutesBefore: 15, message: '{{nome}}, sua reunião começa em {{falta}}! Estamos te esperando. 🚀', enabled: true },
+      ];
+      for (const d of defaults) {
+        await prisma.meetingReminderStep.create({ data: d });
+      }
+      console.log('[meeting-reminder] Seeded 3 default reminder steps');
+    }
+
     const config = await prisma.whatsAppConfig.findFirst();
-    if (!config?.meetingReminderEnabled) return;
+    if (!config?.meetingReminderEnabled) {
+      console.log('[meeting-reminder] Disabled (meetingReminderEnabled=false)');
+      return;
+    }
 
     // Load enabled steps from DB
     const steps = await prisma.meetingReminderStep.findMany({
@@ -34,7 +53,10 @@ async function checkMeetingReminders() {
       orderBy: { minutesBefore: 'desc' },
     });
 
-    if (steps.length === 0) return;
+    if (steps.length === 0) {
+      console.log('[meeting-reminder] No enabled reminder steps configured');
+      return;
+    }
 
     const maxMinutes = Math.max(...steps.map((s) => s.minutesBefore));
     const now = Date.now();
@@ -54,6 +76,8 @@ async function checkMeetingReminders() {
         contact: { select: { id: true, name: true, phone: true } },
       },
     });
+
+    console.log(`[meeting-reminder] enabled=${config?.meetingReminderEnabled}, steps=${steps.length}, meetings found=${meetings.length}`);
 
     if (meetings.length === 0) return;
 

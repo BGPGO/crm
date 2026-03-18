@@ -6,6 +6,7 @@ import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onStageChanged } from '../services/automationTriggerListener';
 import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
+import { sendSaleNotifications } from '../services/saleNotificationService';
 
 const router = Router();
 
@@ -298,6 +299,22 @@ router.patch(
       // Dispatch outgoing webhook
       if (status === 'WON') {
         dispatchWebhook('deal.won', { dealId: deal.id, dealTitle: deal.title, closedAt: deal.closedAt });
+
+        // Send sale notifications (email + WhatsApp) — fire-and-forget
+        const products = await prisma.dealProduct.findMany({
+          where: { dealId: deal.id },
+          include: { product: { select: { name: true } } },
+        });
+        const productNames = products.map(p => p.product.name).join(', ');
+
+        sendSaleNotifications({
+          dealId: deal.id,
+          dealTitle: deal.title,
+          clientName: deal.contact?.name || deal.organization?.name || deal.title,
+          productName: productNames || undefined,
+          monthlyValue: deal.value ? Number(deal.value) : undefined,
+          closedAt: deal.closedAt ? new Date(deal.closedAt as unknown as string) : new Date(),
+        }).catch(err => console.error('[deals] Sale notification error:', err));
       } else if (status === 'LOST') {
         dispatchWebhook('deal.lost', {
           dealId: deal.id,

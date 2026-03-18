@@ -172,8 +172,13 @@ export async function sendFollowUp(
 // ─── Check Follow-Ups ──────────────────────────────────────────────────────
 
 export async function checkFollowUps(): Promise<void> {
+  console.log('[follow-up] Checking follow-ups...');
+
   const config = await prisma.whatsAppConfig.findFirst();
-  if (!config || !config.followUpEnabled || !config.botEnabled) return;
+  if (!config || !config.followUpEnabled || !config.botEnabled) {
+    console.log('[follow-up] Disabled (followUpEnabled=false or botEnabled=false)');
+    return;
+  }
 
   // Load follow-up steps from DB
   const steps = await prisma.whatsAppFollowUpStep.findMany({
@@ -181,7 +186,10 @@ export async function checkFollowUps(): Promise<void> {
     orderBy: { order: 'asc' },
   });
 
-  if (steps.length === 0) return;
+  if (steps.length === 0) {
+    console.log('[follow-up] No follow-up steps configured');
+    return;
+  }
 
   // Find all conversations with follow-up state
   const conversations = await prisma.whatsAppConversation.findMany({
@@ -194,22 +202,39 @@ export async function checkFollowUps(): Promise<void> {
     },
   });
 
+  console.log(`[follow-up] Steps=${steps.length}, eligible conversations=${conversations.length}`);
+
   const now = Date.now();
 
   for (const conversation of conversations) {
     try {
       const fu = conversation.followUpState;
-      if (!fu) continue;
+      if (!fu) {
+        console.log(`[follow-up] Skipping ${conversation.phone}: no follow-up state`);
+        continue;
+      }
 
       const currentStep = fu.followUpCount || 0;
 
       // Already completed all steps
-      if (currentStep >= steps.length) continue;
+      if (currentStep >= steps.length) {
+        console.log(`[follow-up] Skipping ${conversation.phone}: all ${steps.length} steps completed`);
+        continue;
+      }
 
       // Skip checks
-      if (!fu.lastBotMessageAt) continue;
-      if (fu.respondedSinceLastBot) continue;
-      if (fu.paused) continue;
+      if (!fu.lastBotMessageAt) {
+        console.log(`[follow-up] Skipping ${conversation.phone}: no lastBotMessageAt`);
+        continue;
+      }
+      if (fu.respondedSinceLastBot) {
+        console.log(`[follow-up] Skipping ${conversation.phone}: lead responded since last bot message`);
+        continue;
+      }
+      if (fu.paused) {
+        console.log(`[follow-up] Skipping ${conversation.phone}: paused`);
+        continue;
+      }
 
       // Calculate delay
       const lastTime = fu.lastFollowUpAt || fu.lastBotMessageAt;

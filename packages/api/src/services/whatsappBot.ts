@@ -484,7 +484,7 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
     }
 
     // Update follow-up state
-    const followUpData = { lastBotMessageAt: new Date(), respondedSinceLastBot: false, followUpCount: 0 };
+    const followUpData: Record<string, any> = { lastBotMessageAt: new Date(), respondedSinceLastBot: false };
     if (conversation.followUpState) {
       await prisma.whatsAppFollowUpState.update({ where: { id: conversation.followUpState.id }, data: followUpData });
     } else {
