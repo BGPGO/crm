@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Send, MessageCircle } from "lucide-react";
+import { X, Send, MessageCircle, Bot, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 
@@ -17,6 +17,7 @@ interface WhatsAppSidebarProps {
   conversationId: string;
   contactName: string;
   contactPhone: string;
+  dealId?: string;
   onClose: () => void;
 }
 
@@ -24,12 +25,14 @@ export default function WhatsAppSidebar({
   conversationId,
   contactName,
   contactPhone,
+  dealId,
   onClose,
 }: WhatsAppSidebarProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
+  const [activatingBot, setActivatingBot] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const formatTime = (dateStr: string) => {
@@ -88,6 +91,19 @@ export default function WhatsAppSidebar({
     }
   };
 
+  const handleActivateBot = async () => {
+    if (!dealId || activatingBot) return;
+    setActivatingBot(true);
+    try {
+      await api.post(`/deals/${dealId}/activate-bot`, {});
+      await fetchMessages(false);
+    } catch {
+      // Silent fail
+    } finally {
+      setActivatingBot(false);
+    }
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -122,8 +138,19 @@ export default function WhatsAppSidebar({
               <p className="text-sm text-gray-400">Carregando...</p>
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-sm text-gray-400">Nenhuma mensagem ainda</p>
+            <div className="flex flex-col items-center justify-center h-full gap-4 px-6">
+              <MessageCircle size={40} className="text-gray-300" />
+              <p className="text-sm text-gray-400 text-center">Nenhuma mensagem ainda. Envie uma mensagem manual ou acione o bot SDR.</p>
+              {dealId && (
+                <button
+                  onClick={handleActivateBot}
+                  disabled={activatingBot}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                >
+                  {activatingBot ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
+                  {activatingBot ? "Acionando..." : "Acionar Bot SDR"}
+                </button>
+              )}
             </div>
           ) : (
             messages.map((msg) => {
@@ -171,7 +198,17 @@ export default function WhatsAppSidebar({
         </div>
 
         {/* Input bar */}
-        <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0">
+        <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0 space-y-2">
+          {dealId && messages.length > 0 && (
+            <button
+              onClick={handleActivateBot}
+              disabled={activatingBot}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+            >
+              {activatingBot ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
+              {activatingBot ? "Acionando..." : "Acionar Bot SDR"}
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <input
               type="text"

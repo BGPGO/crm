@@ -357,8 +357,42 @@ router.get('/:id/whatsapp-conversation', async (req, res, next) => {
   }
 });
 
-// POST /deals/:id/start-conversation — Start SDR IA conversation for this deal
+// POST /deals/:id/start-conversation — Create conversation without sending any message
 router.post('/:id/start-conversation', async (req, res, next) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: { contact: { select: { id: true, name: true, phone: true } } },
+    });
+    if (!deal) return res.status(404).json({ error: 'Deal not found' });
+    if (!deal.contactId) return res.status(400).json({ error: 'Deal has no contact' });
+    if (!deal.contact?.phone) return res.status(400).json({ error: 'Contact has no phone number' });
+
+    const normalized = normalizePhone(deal.contact.phone);
+
+    // Find or create conversation (empty — no messages sent)
+    let conversation = await prisma.whatsAppConversation.findUnique({
+      where: { phone: normalized },
+    });
+
+    if (!conversation) {
+      conversation = await prisma.whatsAppConversation.create({
+        data: {
+          phone: normalized,
+          pushName: deal.contact.name || null,
+          contactId: deal.contactId,
+        },
+      });
+    }
+
+    res.status(201).json({ data: { conversationId: conversation.id, phone: conversation.phone } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /deals/:id/activate-bot — Trigger SDR IA bot for this deal
+router.post('/:id/activate-bot', async (req, res, next) => {
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: req.params.id },
@@ -368,16 +402,14 @@ router.post('/:id/start-conversation', async (req, res, next) => {
     if (!deal.contactId) return res.status(400).json({ error: 'Deal has no contact' });
     if (!deal.contact?.phone) return res.status(400).json({ error: 'Contact has no phone number' });
 
-    // Activate SDR IA (creates conversation and sends first message)
     await activateSdrIa(deal.contactId, deal.id);
 
-    // Find the created conversation
     const normalized = normalizePhone(deal.contact.phone);
     const conversation = await prisma.whatsAppConversation.findUnique({
       where: { phone: normalized },
     });
 
-    res.status(201).json({ data: { conversationId: conversation?.id ?? null } });
+    res.status(200).json({ data: { conversationId: conversation?.id ?? null } });
   } catch (err) {
     next(err);
   }

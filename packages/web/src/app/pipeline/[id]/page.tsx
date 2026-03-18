@@ -1852,6 +1852,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           conversationId={whatsappConv.conversationId}
           contactName={deal?.contact?.name ?? ""}
           contactPhone={whatsappConv.phone}
+          dealId={dealId}
           onClose={() => setShowWhatsappSidebar(false)}
         />
       )}
