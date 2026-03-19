@@ -44,7 +44,9 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
     ];
   }
 
-  // Period preset filter (always applies to createdAt)
+  // Period preset filter
+  // For WON deals, period applies to closedAt (when the sale happened)
+  // For all others, period applies to createdAt (when the lead entered)
   const period = str('period');
   if (period) {
     const now = new Date();
@@ -65,7 +67,8 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
       default:
         from = new Date(0);
     }
-    where.createdAt = { gte: from };
+    const dateField = where.status === 'WON' ? 'closedAt' : 'createdAt';
+    where[dateField] = { gte: from };
   }
 
   // Created date range
@@ -176,7 +179,21 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
 
     const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id);
 
-    const [grouped, totals, countsByStatusRaw] = await Promise.all([
+    // When status is not explicitly WON, we need a separate WON count using closedAt
+    // because the main where uses createdAt for period filtering
+    const status = req.query.status as string | undefined;
+    const period = req.query.period as string | undefined;
+    const needsSeparateWonCount = period && status !== 'WON';
+
+    let wonWhere: Record<string, unknown> | undefined;
+    if (needsSeparateWonCount) {
+      wonWhere = buildDealWhere(
+        { ...req.query as Record<string, unknown>, status: 'WON' },
+        req.params.id,
+      );
+    }
+
+    const [grouped, totals, countsByStatusRaw, wonCountResult] = await Promise.all([
       prisma.deal.groupBy({
         by: ['stageId'],
         where,
@@ -193,11 +210,18 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
         where,
         _count: { id: true },
       }),
+      wonWhere
+        ? prisma.deal.count({ where: wonWhere })
+        : Promise.resolve(null),
     ]);
 
     const countsByStatus: Record<string, number> = { OPEN: 0, WON: 0, LOST: 0 };
     for (const g of countsByStatusRaw) {
       countsByStatus[g.status] = g._count.id;
+    }
+    // Override WON count with closedAt-based count when applicable
+    if (wonCountResult !== null) {
+      countsByStatus.WON = wonCountResult;
     }
 
     const groupedMap = new Map(

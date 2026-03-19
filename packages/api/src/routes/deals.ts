@@ -57,7 +57,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         default:
           from = new Date(0);
       }
-      where.createdAt = { gte: from };
+      const dateField = status === 'WON' ? 'closedAt' : 'createdAt';
+      where[dateField] = { gte: from };
     }
 
     const [total, data] = await Promise.all([
