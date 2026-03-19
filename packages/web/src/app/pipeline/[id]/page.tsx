@@ -1112,7 +1112,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 className="text-xl font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
                 title="Clique para adicionar produto"
               >
-                {formatCurrency(totalValue || deal.value)}
+                {formatCurrency(totalRecurrence || deal.value)}
               </button>
               <StatusBadge status={deal.status} />
               {(deal.classification ?? 0) > 0 && (
@@ -1224,7 +1224,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   className="block text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline mt-0.5 cursor-pointer transition-colors"
                   title="Clique para adicionar produto"
                 >
-                  {formatCurrency(totalValue || deal.value)}
+                  {formatCurrency(totalRecurrence || deal.value)}
                 </button>
               </div>
               <InlineField
@@ -1755,7 +1755,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-green-800">{deal.title}</p>
-            <p className="text-xl font-bold text-green-700">{formatCurrency(totalValue || deal.value)}</p>
+            <p className="text-xl font-bold text-green-700">{formatCurrency(totalRecurrence || deal.value)}</p>
           </div>
 
           {deal.dealProducts.length > 0 && (

@@ -5,13 +5,12 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
-// Helper: recalculate and sync deal.value from its products
+// Helper: recalculate and sync deal.value from its products (monthly only, excludes setup)
 async function syncDealValue(dealId: string) {
   const products = await prisma.dealProduct.findMany({ where: { dealId } });
   const total = products.reduce((sum, p) => {
     const recurrence = (Number(p.recurrenceValue) || Number(p.unitPrice)) * (p.quantity || 1);
-    const setup = Number(p.setupPrice) || 0;
-    return sum + recurrence + setup;
+    return sum + recurrence;
   }, 0);
   await prisma.deal.update({ where: { id: dealId }, data: { value: total } });
 }
