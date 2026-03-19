@@ -436,6 +436,23 @@ router.post('/', async (req: Request, res: Response) => {
             },
           });
 
+          // 7. Create Task with meeting date/time
+          if (startTime) {
+            await prisma.task.create({
+              data: {
+                title: `Reunião: ${eventType || 'Diagnóstico Financeiro'}`,
+                description: `Agendado via Calendly. Participante: ${inviteeName || inviteeEmail}. Host: ${hostName || hostEmail || 'N/A'}`,
+                type: 'MEETING',
+                dueDate: new Date(startTime),
+                status: 'PENDING',
+                userId: activityUserId,
+                dealId: deal.id,
+                contactId: contact.id,
+              },
+            });
+            console.log(`[calendly-webhook] Task created for meeting at ${startTime}`);
+          }
+
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);
         } else {
           console.log(`[calendly-webhook] Contact found/created (${contact.id}) but could not find or create deal`);
@@ -485,6 +502,23 @@ router.post('/', async (req: Request, res: Response) => {
         const canceledEvents = await prisma.calendlyEvent.findMany({ where: { calendlyEventId }, select: { id: true } });
         for (const ev of canceledEvents) {
           cancelMeetingReminders(ev.id);
+        }
+
+        // Cancel the associated task
+        if (updated.count > 0) {
+          const canceledEvt = await prisma.calendlyEvent.findFirst({ where: { calendlyEventId } });
+          if (canceledEvt?.dealId && canceledEvt.startTime) {
+            await prisma.task.updateMany({
+              where: {
+                dealId: canceledEvt.dealId,
+                type: 'MEETING',
+                dueDate: canceledEvt.startTime,
+                status: 'PENDING',
+              },
+              data: { status: 'COMPLETED' },
+            });
+            console.log(`[calendly-webhook] Task marked COMPLETED (canceled meeting) for deal ${canceledEvt.dealId}`);
+          }
         }
 
         // If we have a linked deal, create an activity noting the cancellation
