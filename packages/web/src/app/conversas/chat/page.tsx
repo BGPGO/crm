@@ -202,7 +202,17 @@ export default function ConversasChatPage() {
   };
 
   const selectTemplate = (template: { name: string; content: string }) => {
-    setInputText(template.content);
+    const conv = conversations.find((c) => c.id === selectedId);
+    const nome = conv?.contact?.name || conv?.pushName || "";
+    const email = conv?.contact?.email || "";
+    const telefone = conv?.phone || "";
+
+    const interpolated = template.content
+      .replace(/\{\{nome\}\}/gi, nome)
+      .replace(/\{\{email\}\}/gi, email)
+      .replace(/\{\{telefone\}\}/gi, telefone);
+
+    setInputText(interpolated);
     setShowTemplates(false);
     setTemplateFilter("");
   };
