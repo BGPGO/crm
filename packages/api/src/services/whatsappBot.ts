@@ -182,6 +182,30 @@ export async function sendBotMessages(
   console.log(`[Bot] Enviou ${parts.length} mensagem(ns) para ${phone}`);
 }
 
+// ─── Meeting Link Guarantee ─────────────────────────────────────────────────
+// If the AI suggests a meeting but forgets the link, send it automatically
+
+const MEETING_INTENT_REGEX = /agend|reuni[aã]o|marcar\b|hor[aá]rio|diagn[oó]stico|vou te (mandar|enviar)|te (mando|envio)|link|bora combinar|vamos combinar/i;
+const URL_REGEX = /https?:\/\/[^\s),]+/;
+
+export async function ensureMeetingLink(
+  client: { sendText: (phone: string, text: string) => Promise<unknown> },
+  phone: string,
+  aiReply: string,
+): Promise<void> {
+  // Only act if AI has meeting intent but no URL in the reply
+  if (!MEETING_INTENT_REGEX.test(aiReply)) return;
+  if (URL_REGEX.test(aiReply)) return;
+
+  const config = await prisma.whatsAppConfig.findFirst();
+  const meetingLink = config?.meetingLink;
+  if (!meetingLink) return;
+
+  await new Promise(r => setTimeout(r, 2000));
+  await client.sendText(phone, meetingLink);
+  console.log(`[Bot] Link do Calendly enviado automaticamente (IA mencionou reunião sem link)`);
+}
+
 // ─── AI Response ────────────────────────────────────────────────────────────
 
 export async function getAIResponse(
@@ -505,6 +529,7 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
 
     // Send
     await sendBotMessages(client, phone, reply);
+    await ensureMeetingLink(client, phone, reply);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[Bot] Erro:`, errMsg);

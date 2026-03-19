@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import prisma from '../lib/prisma';
 import { EvolutionApiClient } from './evolutionApiClient';
-import { DEFAULT_SYSTEM_PROMPT, sendBotMessages } from './whatsappBot';
+import { DEFAULT_SYSTEM_PROMPT, sendBotMessages, ensureMeetingLink } from './whatsappBot';
 import { MessageSender, FollowUpTone } from '@prisma/client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -166,6 +166,7 @@ export async function sendFollowUp(
     // Send via Z-API
     const client = await EvolutionApiClient.fromDB();
     await sendBotMessages(client, conversation.phone, reply);
+    await ensureMeetingLink(client, conversation.phone, reply);
 
     console.log(`[FollowUp] Follow-up #${stepNumber} (${tone}) enviado para ${conversation.phone}`);
   } catch (err: unknown) {

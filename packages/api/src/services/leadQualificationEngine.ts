@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma';
-import { getAIResponse, sendBotMessages } from './whatsappBot';
+import { getAIResponse, sendBotMessages, ensureMeetingLink } from './whatsappBot';
 import { EvolutionApiClient } from './evolutionApiClient';
 import { MessageSender } from '@prisma/client';
 
@@ -298,6 +298,7 @@ ${campaignContext.context}
     }
 
     await sendBotMessages(client, normalizedPhone, aiReply);
+    await ensureMeetingLink(client, normalizedPhone, aiReply);
     console.log(`[LeadQualification] Mensagem enviada via Z-API para ${normalizedPhone}`);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
