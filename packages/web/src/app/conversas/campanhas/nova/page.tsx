@@ -56,6 +56,10 @@ export default function NovaCampanhaPage() {
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
 
+  // Preview count
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [loadingCount, setLoadingCount] = useState(false);
+
   // Calendly link
   const [calendlyLink, setCalendlyLink] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -101,6 +105,44 @@ export default function NovaCampanhaPage() {
     fetchSegments();
     fetchCalendly();
   }, []);
+
+  // Fetch preview count when filters change
+  useEffect(() => {
+    const fetchCount = async () => {
+      if (contactSource === "manual") {
+        setPreviewCount(contactList.length);
+        return;
+      }
+      if (contactSource === "segment") {
+        if (!selectedSegmentId) { setPreviewCount(0); return; }
+        setLoadingCount(true);
+        try {
+          const res = await api.get<{ count: number }>(`/whatsapp/campaigns/preview-count?segmentId=${selectedSegmentId}`);
+          setPreviewCount(res.count);
+        } catch { setPreviewCount(0); }
+        finally { setLoadingCount(false); }
+        return;
+      }
+      if (contactSource === "stage") {
+        if (!selectedStageId) { setPreviewCount(0); return; }
+        setLoadingCount(true);
+        const params = new URLSearchParams({ stageId: selectedStageId });
+        if (dealStatus) params.set("dealStatus", dealStatus);
+        if (valueMin) params.set("valueMin", valueMin);
+        if (valueMax) params.set("valueMax", valueMax);
+        if (createdFrom) params.set("createdFrom", createdFrom);
+        if (createdTo) params.set("createdTo", createdTo);
+        try {
+          const res = await api.get<{ count: number }>(`/whatsapp/campaigns/preview-count?${params}`);
+          setPreviewCount(res.count);
+        } catch { setPreviewCount(0); }
+        finally { setLoadingCount(false); }
+        return;
+      }
+    };
+    const debounce = setTimeout(fetchCount, 300);
+    return () => clearTimeout(debounce);
+  }, [contactSource, selectedStageId, selectedSegmentId, dealStatus, valueMin, valueMax, createdFrom, createdTo, contacts]);
 
   // Hardcoded fallback if no config — common BGP link
   const displayCalendlyLink = calendlyLink || "https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp";
@@ -399,6 +441,18 @@ export default function NovaCampanhaPage() {
                   </p>
                 </div>
               )}
+
+              {/* Preview count */}
+              <div className="flex items-center justify-center gap-2 py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <Users size={14} className="text-gray-500" />
+                {loadingCount ? (
+                  <span className="text-sm text-gray-400">Calculando...</span>
+                ) : (
+                  <span className="text-sm font-medium text-gray-700">
+                    {previewCount ?? 0} contato{(previewCount ?? 0) !== 1 ? "s" : ""} receberão esta campanha
+                  </span>
+                )}
+              </div>
 
               <button
                 type="submit"

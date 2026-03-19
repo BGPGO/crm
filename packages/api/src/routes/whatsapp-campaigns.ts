@@ -44,6 +44,60 @@ router.get('/segments', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
+// GET /api/whatsapp-campaigns/preview-count — Count contacts that match stage filters
+router.get('/preview-count', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { stageId, dealStatus, valueMin, valueMax, createdFrom, createdTo, segmentId } = req.query;
+
+    if (segmentId) {
+      const segment = await prisma.segment.findUnique({ where: { id: segmentId as string } });
+      if (!segment) return res.json({ count: 0 });
+      const { buildSegmentWhere } = await import('../services/segmentEngine');
+      const segmentWhere = buildSegmentWhere(segment.filters as any);
+      const count = await prisma.contact.count({
+        where: { ...segmentWhere, phone: { not: null } },
+      });
+      return res.json({ count });
+    }
+
+    if (!stageId) return res.json({ count: 0 });
+
+    const dealWhere: Record<string, unknown> = { stageId: stageId as string };
+
+    if (dealStatus) dealWhere.status = dealStatus as string;
+
+    if (valueMin || valueMax) {
+      const vf: Record<string, number> = {};
+      if (valueMin) vf.gte = parseFloat(valueMin as string);
+      if (valueMax) vf.lte = parseFloat(valueMax as string);
+      dealWhere.value = vf;
+    }
+
+    if (createdFrom || createdTo) {
+      const df: Record<string, Date> = {};
+      if (createdFrom) df.gte = new Date(createdFrom as string);
+      if (createdTo) df.lte = new Date((createdTo as string) + 'T23:59:59.999Z');
+      dealWhere.createdAt = df;
+    }
+
+    const deals = await prisma.deal.findMany({
+      where: dealWhere,
+      include: { contact: { select: { phone: true } } },
+    });
+
+    const phones = new Set(
+      deals
+        .map(d => d.contact?.phone)
+        .filter((p): p is string => !!p && p.trim() !== '')
+        .map(p => normalizePhone(p))
+    );
+
+    res.json({ count: phones.size });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/whatsapp-campaigns — List campaigns with contact counts
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
