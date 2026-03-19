@@ -104,7 +104,7 @@ router.post(
   '/',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, message, contacts, stageId, segmentId } = req.body;
+      const { name, message, contacts, stageId, segmentId, dealStatus, valueMin, valueMax, createdFrom, createdTo } = req.body;
 
       if (!name || !message) return next(createError('name and message are required', 400));
 
@@ -132,9 +132,29 @@ router.post(
           return next(createError('No contacts with phone numbers found in this segment', 422));
         }
       } else if (stageId) {
-        // Get all contacts from deals at this pipeline stage
+        // Build deal filter with optional status, value range, and date range
+        const dealWhere: Record<string, unknown> = { stageId };
+
+        if (dealStatus) {
+          dealWhere.status = dealStatus;
+        }
+
+        if (valueMin != null || valueMax != null) {
+          const valueFilter: Record<string, number> = {};
+          if (valueMin != null) valueFilter.gte = parseFloat(valueMin);
+          if (valueMax != null) valueFilter.lte = parseFloat(valueMax);
+          dealWhere.value = valueFilter;
+        }
+
+        if (createdFrom || createdTo) {
+          const dateFilter: Record<string, Date> = {};
+          if (createdFrom) dateFilter.gte = new Date(createdFrom);
+          if (createdTo) dateFilter.lte = new Date(createdTo + 'T23:59:59.999Z');
+          dealWhere.createdAt = dateFilter;
+        }
+
         const deals = await prisma.deal.findMany({
-          where: { stageId, status: 'OPEN' },
+          where: dealWhere,
           include: { contact: { select: { phone: true } } },
         });
         phoneNumbers = deals
@@ -146,7 +166,7 @@ router.post(
         phoneNumbers = [...new Set(phoneNumbers)];
 
         if (phoneNumbers.length === 0) {
-          return next(createError('No contacts with phone numbers found in this stage', 422));
+          return next(createError('No contacts with phone numbers found with these filters', 422));
         }
       } else if (Array.isArray(contacts) && contacts.length > 0) {
         phoneNumbers = contacts.map((p: string) => normalizePhone(p));
