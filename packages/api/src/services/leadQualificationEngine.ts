@@ -299,6 +299,14 @@ ${campaignContext.context}
 
     await sendBotMessages(client, normalizedPhone, aiReply);
     console.log(`[LeadQualification] Mensagem enviada via Z-API para ${normalizedPhone}`);
+
+    // Guarantee Calendly link is sent — if AI didn't include it, send separately
+    const meetingUrl = config.meetingLink || '';
+    if (meetingUrl && !aiReply.includes(meetingUrl) && !aiReply.includes('calendly.com')) {
+      await new Promise(r => setTimeout(r, 2000));
+      await client.sendText(normalizedPhone, meetingUrl);
+      console.log(`[LeadQualification] Link do Calendly enviado separadamente para ${normalizedPhone}`);
+    }
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[LeadQualification] Erro ao enviar via Z-API:`, errMsg);
