@@ -132,6 +132,19 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     return;
   }
 
+  // Verificar limite diário antes de enviar follow-up proativo
+  const { canSend, registerSent } = await import('./dailyLimitService');
+  if (!await canSend()) {
+    const msUntil = msUntilNextBusinessHour();
+    console.log(`[follow-up] Limite diário atingido — reagendando ${conversationId} para próxima janela`);
+    const timeout = setTimeout(() => {
+      scheduledFollowUps.delete(conversationId);
+      executeFollowUp(conversationId, step, stepIndex, totalSteps).catch(console.error);
+    }, msUntil + 60_000); // +1min após abertura da janela
+    scheduledFollowUps.set(conversationId, timeout);
+    return;
+  }
+
   // Import and send using the existing sendFollowUp from whatsappFollowUp
   const { sendFollowUp } = await import('./whatsappFollowUp');
   try {
@@ -149,6 +162,7 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
       totalSteps,
     );
     console.log(`[follow-up] Enviado step ${stepIndex + 1} (${step.tone}) para ${conversationId}`);
+    await registerSent('followUp').catch(() => {});
 
     // Mark as SENT in the DB
     await prisma.scheduledFollowUp.updateMany({

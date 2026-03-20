@@ -8,23 +8,23 @@ type ProactiveSource = 'campaign' | 'followUp' | 'reminder';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function startOfDay(date: Date = new Date()): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function getTodayBrasilia(): Date {
+  // Obtém YYYY-MM-DD no timezone de Brasília
+  const now = new Date();
+  const brasiliaDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(now); // retorna "2026-03-20"
+  // Retorna meia-noite UTC do dia correspondente em Brasília
+  return new Date(brasiliaDate + 'T00:00:00.000Z');
 }
 
 async function getOrCreateTodayVolume() {
-  const today = startOfDay();
-
-  const existing = await prisma.whatsAppDailyVolume.findUnique({
+  const today = getTodayBrasilia();
+  return prisma.whatsAppDailyVolume.upsert({
     where: { date: today },
-  });
-
-  if (existing) return existing;
-
-  return prisma.whatsAppDailyVolume.create({
-    data: { date: today },
+    create: { date: today },
+    update: {}, // não atualiza nada, só garante existência
   });
 }
 
@@ -86,7 +86,7 @@ export async function canSend(): Promise<boolean> {
  * Registra uma mensagem proativa enviada (campanha, follow-up ou lembrete).
  */
 export async function registerSent(source: ProactiveSource): Promise<void> {
-  const today = startOfDay();
+  const today = getTodayBrasilia();
 
   // Garante que o registro do dia existe
   await getOrCreateTodayVolume();

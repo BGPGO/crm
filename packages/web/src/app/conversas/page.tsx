@@ -5,7 +5,7 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { MessageSquare, Users, CalendarCheck, Clock, Send, Zap, Settings } from "lucide-react";
+import { MessageSquare, Users, CalendarCheck, Clock, Send, Zap, Settings, Activity } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface SummaryData {
@@ -122,6 +122,13 @@ export default function ConversasDashboardPage() {
       href: "/conversas/automacoes",
       icon: Zap,
       color: "bg-yellow-50 text-yellow-600",
+    },
+    {
+      label: "Status",
+      description: "Monitore limites, warmup e volume de mensagens",
+      href: "/conversas/status",
+      icon: Activity,
+      color: "bg-emerald-50 text-emerald-600",
     },
     {
       label: "Configuração",

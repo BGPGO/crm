@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 import { getDailyLimit } from '../services/dailyLimitService';
 
 export function startWarmupJob() {
-  // Roda todo dia às 00:05
+  // Roda todo dia às 00:05 horário de Brasília
   cron.schedule('5 0 * * *', async () => {
     try {
       const config = await prisma.whatsAppConfig.findFirst();
@@ -23,7 +23,7 @@ export function startWarmupJob() {
     } catch (error) {
       console.error('[warmup] Erro ao verificar warmup:', error);
     }
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   console.log('[warmupJob] Scheduled: daily at 00:05');
 }

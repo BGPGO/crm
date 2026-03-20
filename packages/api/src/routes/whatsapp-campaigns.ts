@@ -340,11 +340,17 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
       ));
     }
 
-    // Set status to RUNNING
-    const updated = await prisma.whatsAppCampaign.update({
-      where: { id: campaign.id },
+    // Lock otimista: só marca RUNNING se não estiver já RUNNING (evita dois processos paralelos)
+    const result = await prisma.whatsAppCampaign.updateMany({
+      where: { id: campaign.id, status: { not: 'RUNNING' } },
       data: { status: 'RUNNING', startedAt: new Date() },
     });
+
+    if (result.count === 0) {
+      return next(createError('Campaign already started by another process', 409));
+    }
+
+    const updated = await prisma.whatsAppCampaign.findUnique({ where: { id: campaign.id } });
 
     // Send messages in background with random delay and business hours respect
     (async () => {
