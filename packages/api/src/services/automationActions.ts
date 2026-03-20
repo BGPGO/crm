@@ -209,6 +209,15 @@ async function sendWhatsApp(
     return { success: false, output: 'Contact has no phone number' };
   }
 
+  // Verificar opt-out antes de enviar WhatsApp
+  const optOutCheck = await prisma.whatsAppConversation.findUnique({
+    where: { phone: contact.phone },
+    select: { optedOut: true },
+  });
+  if (optOutCheck?.optedOut) {
+    return { success: false, output: 'Contact opted out of WhatsApp messages' };
+  }
+
   let messageText: string;
 
   if (config.messageTemplateId) {
@@ -437,6 +446,15 @@ async function sendWhatsAppAI(
 
   if (!contact.phone) {
     return { success: false, output: 'Contact has no phone number' };
+  }
+
+  // Verificar opt-out antes de enviar WhatsApp IA
+  const optOutCheckAI = await prisma.whatsAppConversation.findUnique({
+    where: { phone: contact.phone },
+    select: { optedOut: true },
+  });
+  if (optOutCheckAI?.optedOut) {
+    return { success: false, output: 'Contact opted out of WhatsApp messages' };
   }
 
   // 2. Find or create WhatsAppConversation for this phone

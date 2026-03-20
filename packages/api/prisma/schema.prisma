@@ -1044,10 +1044,26 @@ model WhatsAppConfig {
   meetingReminderEnabled   Boolean                  @default(true)
   botPhoneNumber           String?
 
+  dailyMessageLimit   Int      @default(200)
+  warmupEnabled       Boolean  @default(false)
+  warmupStartDate     DateTime?
+
   followUpSteps WhatsAppFollowUpStep[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model WhatsAppDailyVolume {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  campaign   Int      @default(0)
+  followUp   Int      @default(0)
+  reminder   Int      @default(0)
+  total      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([date])
 }
 
 model WhatsAppFollowUpStep {

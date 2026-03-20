@@ -11,18 +11,23 @@ function normalizePhone(phone: string): string {
   return digits;
 }
 
-/** Delay aleatório entre 15s e 45s — quebra fingerprint de bot */
+/** Delay não-uniforme (log-normal aproximado) — simula comportamento humano */
 function randomDelay(): Promise<void> {
-  const minMs = parseInt(process.env.MESSAGE_DELAY_MIN_MS || '15000', 10);
-  const maxMs = parseInt(process.env.MESSAGE_DELAY_MAX_MS || '45000', 10);
-  const delay = minMs + Math.floor(Math.random() * (maxMs - minMs));
-  console.log(`[campaign] Aguardando ${Math.round(delay / 1000)}s até próximo envio...`);
-  return new Promise(resolve => setTimeout(resolve, delay));
+  const roll = Math.random();
+  let delayMs: number;
+  if (roll < 0.6) {
+    delayMs = 25000 + Math.random() * 20000; // 25-45s (~60%)
+  } else if (roll < 0.9) {
+    delayMs = 45000 + Math.random() * 30000; // 45-75s (~30%)
+  } else {
+    delayMs = 75000 + Math.random() * 45000; // 75-120s (~10% pausa natural)
+  }
+  console.log(`[campaign] Aguardando ${Math.round(delayMs / 1000)}s até próximo envio...`);
+  return new Promise(resolve => setTimeout(resolve, delayMs));
 }
 
-/** Pausa longa a cada N mensagens — simula comportamento humano */
-const HUMAN_PAUSE_EVERY = 20;
-const HUMAN_PAUSE_MS = 5 * 60 * 1000; // 5 minutos
+/** Circuit breaker — pausa campanha após erros consecutivos */
+const MAX_CONSECUTIVE_ERRORS = 5;
 
 const router = Router();
 
@@ -346,9 +351,35 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
       try {
         const client = await EvolutionApiClient.fromConfig();
         let sentCount = 0;
+        let consecutiveErrors = 0;
+
+        // Lote variável — tamanho aleatório regenerado a cada ciclo
+        let currentBatchSize = 12 + Math.floor(Math.random() * 14); // 12-25
+        let batchCount = 0;
+
+        // Import dinâmico do dailyLimitService (criado pelo Squad C)
+        let dailyLimit: { canSend: () => Promise<boolean>; registerSent: (source: 'campaign' | 'followUp' | 'reminder') => Promise<void>; getRemainingToday: () => Promise<number> } | null = null;
+        try {
+          dailyLimit = await import('../services/dailyLimitService');
+        } catch {
+          console.log('[campaign] dailyLimitService não disponível — prosseguindo sem limite diário');
+        }
 
         for (const contact of campaign.contacts) {
           if (contact.status !== 'PENDING') continue;
+
+          // Verificar limite diário antes de cada mensagem
+          if (dailyLimit) {
+            if (!await dailyLimit.canSend()) {
+              const remaining = await dailyLimit.getRemainingToday();
+              console.log(`[campaign] Limite diário atingido (${remaining} restantes). Pausando campanha.`);
+              await prisma.whatsAppCampaign.update({
+                where: { id: campaign.id },
+                data: { status: 'PAUSED' },
+              });
+              break;
+            }
+          }
 
           // Buscar contatos opt-out em tempo real (pode ter saído durante o envio)
           const conv = await prisma.whatsAppConversation.findUnique({
@@ -378,34 +409,62 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               data: { status: 'SENT', sentAt: new Date() },
             });
             sentCount++;
+            batchCount++;
+            consecutiveErrors = 0;
+
+            // Registrar envio no limite diário
+            if (dailyLimit) {
+              await dailyLimit.registerSent('campaign');
+            }
           } catch (err) {
             console.error(`[campaign] Falha ao enviar para ${contact.phone}:`, err);
             await prisma.whatsAppCampaignContact.update({
               where: { id: contact.id },
               data: { status: 'ERROR' },
             });
+            consecutiveErrors++;
+
+            // Circuit breaker — pausa campanha após erros consecutivos
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              console.log(`[campaign] Circuit breaker ativado após ${MAX_CONSECUTIVE_ERRORS} erros consecutivos. Campanha pausada.`);
+              await prisma.whatsAppCampaign.update({
+                where: { id: campaign.id },
+                data: { status: 'PAUSED' },
+              });
+              break;
+            }
           }
 
-          // Pausa longa a cada N mensagens (comportamento humano)
-          if (sentCount > 0 && sentCount % HUMAN_PAUSE_EVERY === 0) {
-            console.log(`[campaign] Pausa de ${HUMAN_PAUSE_MS / 60000}min após ${sentCount} mensagens...`);
-            await new Promise(resolve => setTimeout(resolve, HUMAN_PAUSE_MS));
+          // Pausa longa variável a cada lote (comportamento humano)
+          if (sentCount > 0 && batchCount >= currentBatchSize) {
+            const pauseMs = (3 + Math.random() * 7) * 60 * 1000; // 3-10 min
+            console.log(`[campaign] Pausa de ${Math.round(pauseMs / 60000)}min após ${batchCount} mensagens...`);
+            await new Promise(resolve => setTimeout(resolve, pauseMs));
+            batchCount = 0;
+            currentBatchSize = 12 + Math.floor(Math.random() * 14); // novo tamanho
           } else {
             // Delay aleatório entre mensagens
             await randomDelay();
           }
         }
 
-        await prisma.whatsAppCampaign.update({
+        // Só marca COMPLETED se não foi pausado pelo circuit breaker ou limite diário
+        const current = await prisma.whatsAppCampaign.findUnique({
           where: { id: campaign.id },
-          data: { status: 'COMPLETED', completedAt: new Date() },
+          select: { status: true },
         });
+        if (current?.status === 'RUNNING') {
+          await prisma.whatsAppCampaign.update({
+            where: { id: campaign.id },
+            data: { status: 'COMPLETED', completedAt: new Date() },
+          });
+        }
         console.log(`[campaign] Concluída: ${campaign.id} — ${sentCount} enviadas`);
       } catch (err) {
         console.error(`[campaign] Campanha ${campaign.id} falhou:`, err);
         await prisma.whatsAppCampaign.update({
           where: { id: campaign.id },
-          data: { status: 'COMPLETED' },
+          data: { status: 'PAUSED' },
         });
       }
     })();
@@ -415,5 +474,25 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
     next(err);
   }
 });
+
+/**
+ * Recovery de campanhas RUNNING após restart do servidor.
+ * Marca como PAUSED (não COMPLETED) para indicar interrupção inesperada.
+ */
+export async function recoverStuckCampaigns(): Promise<void> {
+  const stuck = await prisma.whatsAppCampaign.findMany({
+    where: { status: 'RUNNING' },
+    select: { id: true, name: true },
+  });
+
+  if (stuck.length === 0) return;
+
+  await prisma.whatsAppCampaign.updateMany({
+    where: { status: 'RUNNING' },
+    data: { status: 'PAUSED' },
+  });
+
+  console.log(`[campaign] Recovery: ${stuck.length} campanha(s) RUNNING marcada(s) como PAUSED — ${stuck.map(c => c.name).join(', ')}`);
+}
 
 export default router;

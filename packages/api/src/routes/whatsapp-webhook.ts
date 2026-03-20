@@ -83,10 +83,16 @@ async function webhookHandler(req: Request, res: Response) {
       // Verificar se contato já fez opt-out anteriormente
       const conversation = await prisma.whatsAppConversation.findUnique({
         where: { phone },
-        select: { optedOut: true },
+        select: { id: true, optedOut: true },
       });
       if (conversation?.optedOut) {
-        return res.status(200).json({ received: true, optedOut: true });
+        // Lead que fez opt-out voltou a falar (e NÃO é keyword de opt-out) → re-engajamento
+        console.log(`[webhook] Re-engajamento após opt-out: ${phone}`);
+        await prisma.whatsAppConversation.update({
+          where: { id: conversation.id },
+          data: { optedOut: false, optedOutAt: null, status: 'open' },
+        });
+        // Continua o processamento normal (handleMessage será chamado abaixo)
       }
 
       // Map Z-API payload to the shape handleMessage expects

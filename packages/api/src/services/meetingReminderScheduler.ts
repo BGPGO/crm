@@ -112,6 +112,20 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
           .replace(/\{\{hora\}\}/gi, timeStr)
           .replace(/\{\{falta\}\}/gi, faltaStr);
 
+        // Verificar opt-out antes de enviar
+        const conv = await prisma.whatsAppConversation.findUnique({
+          where: { phone: meeting.contact!.phone! },
+          select: { optedOut: true },
+        });
+        if (conv?.optedOut) {
+          console.log(`[meeting-reminder] Pulando ${meeting.contact!.phone} — opt-out`);
+          await prisma.scheduledFollowUp.updateMany({
+            where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
+            data: { status: 'CANCELLED', cancelledAt: new Date() },
+          });
+          return;
+        }
+
         await client.sendText(meeting.contact!.phone!, message);
         console.log(`[meeting-reminder] Sent ${faltaStr} reminder to ${meeting.contact!.phone} for meeting ${meetingId}`);
 

@@ -132,6 +132,17 @@ async function checkMeetingReminders() {
           });
 
           try {
+            // Verificar opt-out antes de enviar
+            const conv = await prisma.whatsAppConversation.findUnique({
+              where: { phone: meeting.contact.phone },
+              select: { optedOut: true },
+            });
+            if (conv?.optedOut) {
+              console.log(`[meeting-reminder] Pulando ${meeting.contact.phone} — opt-out`);
+              sentReminders.add(key);
+              continue;
+            }
+
             if (!client) {
               client = await EvolutionApiClient.fromConfig();
             }
