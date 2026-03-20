@@ -222,8 +222,15 @@ export async function cancelFollowUp(conversationId: string): Promise<void> {
 
 /**
  * On server startup, re-schedule follow-ups for all eligible conversations.
+ * Roda com delay de 30s após o boot para não bloquear requests iniciais,
+ * e processa conversas com throttle de 300ms entre cada uma.
  */
-export async function initFollowUpScheduler(): Promise<void> {
+export function initFollowUpScheduler(): void {
+  // Delay de 30s: garante que o servidor está respondendo antes de iniciar
+  setTimeout(() => _runInit().catch(console.error), 30_000);
+}
+
+async function _runInit(): Promise<void> {
   try {
     const config = await prisma.whatsAppConfig.findFirst();
     if (!config?.followUpEnabled || !config?.botEnabled) {
@@ -244,8 +251,12 @@ export async function initFollowUpScheduler(): Promise<void> {
       select: { id: true },
     });
 
+    console.log(`[follow-up] Iniciando scheduler para ${conversations.length} conversas (throttled)`);
+
     for (const conv of conversations) {
       await scheduleNextFollowUp(conv.id);
+      // Throttle: 300ms entre cada conversa para não saturar o pool de conexões
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     console.log(`[follow-up] Scheduler inicializado para ${conversations.length} conversas`);

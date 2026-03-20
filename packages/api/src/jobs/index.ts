@@ -21,7 +21,7 @@ export function startAllJobs() {
 
   // Event-driven schedulers (replace old polling crons)
   initMeetingReminders().catch(console.error);
-  initFollowUpScheduler().catch(console.error);
+  initFollowUpScheduler();
 
   console.log('[jobs] All cron jobs started');
 }
