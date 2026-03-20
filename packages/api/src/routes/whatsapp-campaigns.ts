@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
+import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
 
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -9,6 +10,19 @@ function normalizePhone(phone: string): string {
   if (digits.length === 10 || digits.length === 11) return '55' + digits;
   return digits;
 }
+
+/** Delay aleatório entre 15s e 45s — quebra fingerprint de bot */
+function randomDelay(): Promise<void> {
+  const minMs = parseInt(process.env.MESSAGE_DELAY_MIN_MS || '15000', 10);
+  const maxMs = parseInt(process.env.MESSAGE_DELAY_MAX_MS || '45000', 10);
+  const delay = minMs + Math.floor(Math.random() * (maxMs - minMs));
+  console.log(`[campaign] Aguardando ${Math.round(delay / 1000)}s até próximo envio...`);
+  return new Promise(resolve => setTimeout(resolve, delay));
+}
+
+/** Pausa longa a cada N mensagens — simula comportamento humano */
+const HUMAN_PAUSE_EVERY = 20;
+const HUMAN_PAUSE_MS = 5 * 60 * 1000; // 5 minutos
 
 const router = Router();
 
@@ -311,42 +325,84 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
       return next(createError('Campaign has no contacts', 400));
     }
 
+    // Campanhas só iniciam em horário comercial (9h–18h seg–sex)
+    if (!isBusinessHours()) {
+      const msUntil = msUntilNextBusinessHour();
+      const nextHour = new Date(Date.now() + msUntil).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      return next(createError(
+        `Campanhas só podem ser enviadas em horário comercial (9h–18h, seg–sex). Próximo horário disponível: ${nextHour}`,
+        400
+      ));
+    }
+
     // Set status to RUNNING
     const updated = await prisma.whatsAppCampaign.update({
       where: { id: campaign.id },
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
-    // Send messages in background with 5s delay between each
+    // Send messages in background with random delay and business hours respect
     (async () => {
       try {
         const client = await EvolutionApiClient.fromConfig();
+        let sentCount = 0;
 
         for (const contact of campaign.contacts) {
+          if (contact.status !== 'PENDING') continue;
+
+          // Buscar contatos opt-out em tempo real (pode ter saído durante o envio)
+          const conv = await prisma.whatsAppConversation.findUnique({
+            where: { phone: contact.phone },
+            select: { optedOut: true },
+          });
+          if (conv?.optedOut) {
+            await prisma.whatsAppCampaignContact.update({
+              where: { id: contact.id },
+              data: { status: 'SKIPPED' },
+            });
+            console.log(`[campaign] Pulando ${contact.phone} — opt-out`);
+            continue;
+          }
+
+          // Verificar horário comercial antes de cada mensagem
+          if (!isBusinessHours()) {
+            const msUntil = msUntilNextBusinessHour();
+            console.log(`[campaign] Fora do horário comercial — aguardando ${Math.round(msUntil / 60000)}min`);
+            await new Promise(resolve => setTimeout(resolve, msUntil));
+          }
+
           try {
             await client.sendText(contact.phone, campaign.message);
             await prisma.whatsAppCampaignContact.update({
               where: { id: contact.id },
               data: { status: 'SENT', sentAt: new Date() },
             });
+            sentCount++;
           } catch (err) {
-            console.error(`[whatsapp-campaigns] Failed to send to ${contact.phone}:`, err);
+            console.error(`[campaign] Falha ao enviar para ${contact.phone}:`, err);
             await prisma.whatsAppCampaignContact.update({
               where: { id: contact.id },
               data: { status: 'ERROR' },
             });
           }
 
-          // 5-second delay between messages
-          await new Promise((resolve) => setTimeout(resolve, 5000));
+          // Pausa longa a cada N mensagens (comportamento humano)
+          if (sentCount > 0 && sentCount % HUMAN_PAUSE_EVERY === 0) {
+            console.log(`[campaign] Pausa de ${HUMAN_PAUSE_MS / 60000}min após ${sentCount} mensagens...`);
+            await new Promise(resolve => setTimeout(resolve, HUMAN_PAUSE_MS));
+          } else {
+            // Delay aleatório entre mensagens
+            await randomDelay();
+          }
         }
 
         await prisma.whatsAppCampaign.update({
           where: { id: campaign.id },
           data: { status: 'COMPLETED', completedAt: new Date() },
         });
+        console.log(`[campaign] Concluída: ${campaign.id} — ${sentCount} enviadas`);
       } catch (err) {
-        console.error(`[whatsapp-campaigns] Campaign ${campaign.id} failed:`, err);
+        console.error(`[campaign] Campanha ${campaign.id} falhou:`, err);
         await prisma.whatsAppCampaign.update({
           where: { id: campaign.id },
           data: { status: 'COMPLETED' },

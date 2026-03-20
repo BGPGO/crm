@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { handleMessage } from '../services/whatsappBot';
 import prisma from '../lib/prisma';
+import { isOptOutMessage, processOptOut } from '../utils/optOut';
 
 const router = Router();
 
@@ -64,11 +65,35 @@ async function webhookHandler(req: Request, res: Response) {
         return res.status(200).json({ received: true, deduplicated: true });
       }
 
+      const phone = body.phone as string;
+      const rawText: string =
+        body.text?.message ||
+        (typeof body.text === 'string' ? body.text : undefined) ||
+        body.body ||
+        '';
+
+      // --- OPT-OUT CHECK (sempre antes de qualquer outra lógica) ---
+      if (rawText && isOptOutMessage(rawText)) {
+        processOptOut(phone, rawText).catch(err =>
+          console.error('[whatsapp-webhook] Erro ao processar opt-out:', err)
+        );
+        return res.status(200).json({ received: true, optOut: true });
+      }
+
+      // Verificar se contato já fez opt-out anteriormente
+      const conversation = await prisma.whatsAppConversation.findUnique({
+        where: { phone },
+        select: { optedOut: true },
+      });
+      if (conversation?.optedOut) {
+        return res.status(200).json({ received: true, optedOut: true });
+      }
+
       // Map Z-API payload to the shape handleMessage expects
-      const remoteJid = body.phone + '@s.whatsapp.net';
+      const remoteJid = phone + '@s.whatsapp.net';
 
       const message: any = {
-        conversation: body.text?.message || (typeof body.text === 'string' ? body.text : undefined) || body.body || undefined,
+        conversation: rawText || undefined,
       };
 
       // Map audio if present
@@ -114,7 +139,7 @@ async function webhookHandler(req: Request, res: Response) {
           pushName: body.senderName || body.chatName || '',
           message,
         },
-        sender: body.phone,
+        sender: phone,
       };
 
       // Process message in background — don't await to keep response fast

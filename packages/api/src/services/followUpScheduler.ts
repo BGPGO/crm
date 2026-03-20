@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma';
+import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
 
 // In-memory map: conversationId -> scheduled timeout
 const scheduledFollowUps = new Map<string, NodeJS.Timeout>();
@@ -22,6 +23,7 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   });
 
   if (!conversation || conversation.needsHumanAttention || conversation.meetingBooked) return;
+  if (conversation.optedOut) return; // Não agendar follow-up para quem fez opt-out
 
   const state = conversation.followUpState;
   if (!state || state.paused || state.respondedSinceLastBot) return;
@@ -82,7 +84,7 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   const delay = sendAt - Date.now();
 
   if (delay <= 0) {
-    // Should have already fired — send immediately
+    // Should have already fired — send immediately (respeitando horário comercial)
     executeFollowUp(conversationId, step, currentStep, steps.length).catch(console.error);
     return;
   }
@@ -93,7 +95,7 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   }, delay);
 
   scheduledFollowUps.set(conversationId, timeout);
-  console.log(`[follow-up] Scheduled step ${currentStep + 1} for ${conversationId} in ${Math.round(delay / 60000)}min`);
+  console.log(`[follow-up] Agendado step ${currentStep + 1} para ${conversationId} em ${Math.round(delay / 60000)}min`);
 }
 
 async function executeFollowUp(conversationId: string, step: any, stepIndex: number, totalSteps: number): Promise<void> {
@@ -106,7 +108,27 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
   if (!conversation?.followUpState) return;
   const state = conversation.followUpState;
   if (state.paused || state.respondedSinceLastBot || conversation.meetingBooked) {
-    console.log(`[follow-up] Skipping ${conversationId} — state changed since scheduling`);
+    console.log(`[follow-up] Pulando ${conversationId} — estado mudou desde o agendamento`);
+    return;
+  }
+
+  // Não enviar para quem fez opt-out
+  if (conversation.optedOut) {
+    console.log(`[follow-up] Pulando ${conversationId} — opt-out`);
+    return;
+  }
+
+  // Verificar horário comercial — follow-ups proativos respeitam 9h–18h seg–sex
+  if (!isBusinessHours()) {
+    const msUntil = msUntilNextBusinessHour();
+    console.log(`[follow-up] Fora do horário comercial — reagendando ${conversationId} para daqui ${Math.round(msUntil / 60000)}min`);
+
+    const timeout = setTimeout(() => {
+      scheduledFollowUps.delete(conversationId);
+      executeFollowUp(conversationId, step, stepIndex, totalSteps).catch(console.error);
+    }, msUntil);
+
+    scheduledFollowUps.set(conversationId, timeout);
     return;
   }
 
@@ -126,7 +148,7 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
       stepIndex + 1,
       totalSteps,
     );
-    console.log(`[follow-up] Sent step ${stepIndex + 1} (${step.tone}) to ${conversationId}`);
+    console.log(`[follow-up] Enviado step ${stepIndex + 1} (${step.tone}) para ${conversationId}`);
 
     // Mark as SENT in the DB
     await prisma.scheduledFollowUp.updateMany({
@@ -137,7 +159,7 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     // Schedule the NEXT step
     scheduleNextFollowUp(conversationId);
   } catch (err) {
-    console.error(`[follow-up] Error sending step ${stepIndex + 1} for ${conversationId}:`, err);
+    console.error(`[follow-up] Erro ao enviar step ${stepIndex + 1} para ${conversationId}:`, err);
   }
 }
 
@@ -165,7 +187,7 @@ export async function initFollowUpScheduler(): Promise<void> {
   try {
     const config = await prisma.whatsAppConfig.findFirst();
     if (!config?.followUpEnabled || !config?.botEnabled) {
-      console.log('[follow-up] Disabled, skipping init');
+      console.log('[follow-up] Desabilitado, pulando init');
       return;
     }
 
@@ -173,6 +195,7 @@ export async function initFollowUpScheduler(): Promise<void> {
       where: {
         needsHumanAttention: false,
         meetingBooked: false,
+        optedOut: false,
         followUpState: {
           respondedSinceLastBot: false,
           paused: false,
@@ -185,8 +208,8 @@ export async function initFollowUpScheduler(): Promise<void> {
       await scheduleNextFollowUp(conv.id);
     }
 
-    console.log(`[follow-up] Initialized scheduler for ${conversations.length} conversations`);
+    console.log(`[follow-up] Scheduler inicializado para ${conversations.length} conversas`);
   } catch (err) {
-    console.error('[follow-up] Init error:', err);
+    console.error('[follow-up] Erro no init:', err);
   }
 }

@@ -996,6 +996,7 @@ enum WaCampaignContactStatus {
   PENDING
   SENT
   ERROR
+  SKIPPED
 }
 
 enum MessageSender {
@@ -1075,6 +1076,8 @@ model WhatsAppConversation {
   status              String    @default("open") // open, closed
   lastMessageAt       DateTime?
   lastReadAt          DateTime?
+  optedOut            Boolean   @default(false)
+  optedOutAt          DateTime?
 
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
