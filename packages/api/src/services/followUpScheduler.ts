@@ -4,6 +4,22 @@ import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow
 // In-memory map: conversationId -> scheduled timeout
 const scheduledFollowUps = new Map<string, NodeJS.Timeout>();
 
+// Guard contra race condition: cancelamentos recentes persistem por alguns segundos
+const recentlyCancelled = new Map<string, number>(); // conversationId -> timestamp
+const CANCEL_GUARD_MS = 5000; // 5 segundos de guarda
+
+/**
+ * Retorna ms até meia-noite de Brasília do próximo dia (quando o limite diário reseta).
+ */
+function msUntilMidnightBrasilia(): number {
+  const now = new Date();
+  const dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(now);
+  // Meia-noite Brasília do próximo dia = dateStr+1 T00:00:00Z (mesma convenção do dailyLimitService)
+  const todayKey = new Date(`${dateStr}T00:00:00.000Z`);
+  const tomorrowKey = new Date(todayKey.getTime() + 86_400_000);
+  return Math.max(tomorrowKey.getTime() - now.getTime(), 60_000); // mínimo 1min
+}
+
 /**
  * Schedule the next follow-up for a conversation.
  * Called when: bot sends a message, or a follow-up is sent (to schedule the next one).
@@ -89,6 +105,13 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
     return;
   }
 
+  // Verificar se foi cancelado enquanto fazíamos queries (race condition guard)
+  const cancelTime = recentlyCancelled.get(conversationId);
+  if (cancelTime && Date.now() - cancelTime < CANCEL_GUARD_MS) {
+    console.log(`[follow-up] Agendamento abortado — ${conversationId} foi cancelado durante queries`);
+    return;
+  }
+
   const timeout = setTimeout(() => {
     scheduledFollowUps.delete(conversationId);
     executeFollowUp(conversationId, step, currentStep, steps.length).catch(console.error);
@@ -135,12 +158,12 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
   // Verificar limite diário antes de enviar follow-up proativo
   const { canSend, registerSent } = await import('./dailyLimitService');
   if (!await canSend()) {
-    const msUntil = msUntilNextBusinessHour();
-    console.log(`[follow-up] Limite diário atingido — reagendando ${conversationId} para próxima janela`);
+    const msUntil = msUntilMidnightBrasilia();
+    console.log(`[follow-up] Limite diário atingido — reagendando ${conversationId} para meia-noite (${Math.round(msUntil / 60000)}min)`);
     const timeout = setTimeout(() => {
       scheduledFollowUps.delete(conversationId);
       executeFollowUp(conversationId, step, stepIndex, totalSteps).catch(console.error);
-    }, msUntil + 60_000); // +1min após abertura da janela
+    }, msUntil + 60_000); // +1min após meia-noite para garantir reset
     scheduledFollowUps.set(conversationId, timeout);
     return;
   }
@@ -187,6 +210,9 @@ export async function cancelFollowUp(conversationId: string): Promise<void> {
     clearTimeout(existing);
     scheduledFollowUps.delete(conversationId);
   }
+  // Marcar como cancelado recentemente (guard contra race condition)
+  recentlyCancelled.set(conversationId, Date.now());
+  setTimeout(() => recentlyCancelled.delete(conversationId), CANCEL_GUARD_MS);
   // Cancel all pending DB records
   await prisma.scheduledFollowUp.updateMany({
     where: { conversationId, status: 'PENDING' },

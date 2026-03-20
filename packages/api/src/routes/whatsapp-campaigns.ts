@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
 import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
+import { processMessageTemplate, ContactData } from '../utils/messageTemplate';
 
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -409,7 +410,20 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
           }
 
           try {
-            await client.sendText(contact.phone, campaign.message);
+            // Buscar dados do contato para personalização
+            const dbContact = await prisma.contact.findFirst({
+              where: { phone: { endsWith: contact.phone.slice(-10) } },
+              select: { name: true, email: true, phone: true, organization: { select: { name: true } } },
+            });
+            const contactData: ContactData = {
+              name: dbContact?.name || null,
+              phone: contact.phone,
+              company: dbContact?.organization?.name || null,
+              email: dbContact?.email || null,
+            };
+            const personalizedMessage = processMessageTemplate(campaign.message, contactData);
+
+            await client.sendText(contact.phone, personalizedMessage);
             await prisma.whatsAppCampaignContact.update({
               where: { id: contact.id },
               data: { status: 'SENT', sentAt: new Date() },

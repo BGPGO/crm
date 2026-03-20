@@ -79,7 +79,27 @@ export async function getDailyLimit(): Promise<number> {
 export async function canSend(): Promise<boolean> {
   const volume = await getOrCreateTodayVolume();
   const limit = await getDailyLimit();
-  return volume.total < limit;
+
+  if (volume.total >= limit) return false;
+
+  // Verificar limite por hora (20% do limite diário, mínimo 10)
+  // Evita enviar centenas de mensagens em uma janela curta, o que sinaliza automação
+  const hourlyLimit = Math.max(10, Math.floor(limit * 0.20));
+  const oneHourAgo = new Date(Date.now() - 3_600_000);
+  const hourlyCount = await prisma.whatsAppMessage.count({
+    where: {
+      createdAt: { gte: oneHourAgo },
+      sender: { in: ['BOT', 'HUMAN'] },
+      isFollowUp: true, // apenas proativos (follow-ups e campanhas marcados como follow-up)
+    },
+  });
+
+  if (hourlyCount >= hourlyLimit) {
+    console.log(`[dailyLimit] Limite por hora atingido (${hourlyCount}/${hourlyLimit})`);
+    return false;
+  }
+
+  return true;
 }
 
 /**

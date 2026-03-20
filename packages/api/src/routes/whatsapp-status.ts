@@ -1,25 +1,23 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { getDailyLimit } from '../services/dailyLimitService';
 
 const router = Router();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Start of today in Brasília (UTC-3) */
-function todayBrasilia(): Date {
-  const now = new Date();
-  // Brasília = UTC-3
-  const brasiliaOffset = -3 * 60; // minutes
-  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-  const brasiliaMinutes = utcMinutes + brasiliaOffset;
-
-  const d = new Date(now);
-  if (brasiliaMinutes < 0) {
-    // Still previous day in Brasília
-    d.setUTCDate(d.getUTCDate() - 1);
-  }
-  d.setUTCHours(3, 0, 0, 0); // midnight Brasília = 03:00 UTC
-  return d;
+/**
+ * Retorna a "chave de data" de hoje em Brasília como Date em meia-noite UTC,
+ * exatamente igual ao dailyLimitService.getTodayBrasilia().
+ * Ex: se em Brasília é 20/03/2026, retorna new Date("2026-03-20T00:00:00.000Z")
+ */
+function getTodayUTCKey(offsetDays = 0): Date {
+  const target = new Date(Date.now() - offsetDays * 86400000);
+  const dateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(target);
+  return new Date(dateStr + 'T00:00:00.000Z');
 }
 
 function formatDateBR(date: Date): string {
@@ -36,10 +34,14 @@ function getWarmupPhase(day: number): string {
   return 'Fase 5 (22-30 dias) — Estabilização';
 }
 
-function getWarmupLimit(day: number, targetLimit: number): number {
-  // Linear ramp from ~10% to 100% over 30 days
-  const percent = Math.min(day / 30, 1);
-  return Math.max(10, Math.round(targetLimit * percent));
+/** Faixas discretas idênticas ao dailyLimitService.calculateWarmupLimit */
+function calculateWarmupLimit(daysSinceStart: number): number {
+  if (daysSinceStart <= 3) return 20;
+  if (daysSinceStart <= 7) return 50;
+  if (daysSinceStart <= 14) return 100;
+  if (daysSinceStart <= 21) return 200;
+  if (daysSinceStart <= 30) return 400;
+  return -1; // usar limite configurado
 }
 
 // ─── GET /api/whatsapp/status ───────────────────────────────────────────────
@@ -59,16 +61,12 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     };
 
     // ── Today's volume ──────────────────────────────────────────────────────
-    const todayStart = todayBrasilia();
-    const tomorrowStart = new Date(todayStart);
-    tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+    // Usa a mesma chave de data que o dailyLimitService grava (YYYY-MM-DDT00:00:00.000Z)
+    const todayKey = getTodayUTCKey();
 
     const todayVolume = await prisma.whatsAppDailyVolume.findFirst({
       where: {
-        date: {
-          gte: todayStart,
-          lt: tomorrowStart,
-        },
+        date: todayKey,
       },
     });
 
@@ -81,14 +79,17 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
 
     if (warmupEnabled && config.warmupStartDate) {
       const startDate = new Date(config.warmupStartDate);
-      const diffMs = todayStart.getTime() - startDate.getTime();
-      warmupCurrentDay = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1);
+      const now = new Date();
+      const diffMs = now.getTime() - startDate.getTime();
+      // Cálculo idêntico ao dailyLimitService.getDailyLimit()
+      warmupCurrentDay = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 
       if (warmupCurrentDay > 30) {
         warmupCurrentDay = 30;
       }
 
-      warmupCurrentLimit = getWarmupLimit(warmupCurrentDay, config.dailyMessageLimit);
+      const warmupLimit = calculateWarmupLimit(warmupCurrentDay);
+      warmupCurrentLimit = warmupLimit === -1 ? config.dailyMessageLimit : warmupLimit;
       warmupPhase = getWarmupPhase(warmupCurrentDay);
 
       const completionDate = new Date(startDate);
@@ -96,7 +97,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       warmupCompletedAt = completionDate.toISOString();
     }
 
-    const effectiveLimit = warmupCurrentLimit ?? config.dailyMessageLimit;
+    // Usa getDailyLimit() do service como fonte da verdade para o limite efetivo
+    const effectiveLimit = await getDailyLimit();
     const used = todayVolume?.total ?? 0;
     const remaining = Math.max(0, effectiveLimit - used);
     const usedPercent = effectiveLimit > 0 ? Math.round((used / effectiveLimit) * 100) : 0;
@@ -154,12 +156,15 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     };
 
     // ── Volume history (last 7 days) ────────────────────────────────────────
-    const sevenDaysAgo = new Date(todayStart);
-    sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
+    // Gera chaves de data com o mesmo padrão do dailyLimitService
+    const dayKeys: Date[] = [];
+    for (let i = 6; i >= 0; i--) {
+      dayKeys.push(getTodayUTCKey(i));
+    }
 
     const volumeRecords = await prisma.whatsAppDailyVolume.findMany({
       where: {
-        date: { gte: sevenDaysAgo },
+        date: { gte: dayKeys[0] },
       },
       orderBy: { date: 'asc' },
     });
@@ -173,17 +178,10 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       reminder: number;
     }> = [];
 
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(sevenDaysAgo);
-      d.setUTCDate(d.getUTCDate() + i);
-      const dateStr = formatDateBR(d);
-      const dStart = new Date(d);
-      dStart.setUTCHours(3, 0, 0, 0);
-      const dEnd = new Date(dStart);
-      dEnd.setUTCDate(dEnd.getUTCDate() + 1);
-
+    for (const dayKey of dayKeys) {
+      const dateStr = formatDateBR(dayKey);
       const record = volumeRecords.find(
-        (v) => v.date >= dStart && v.date < dEnd
+        (v) => v.date.getTime() === dayKey.getTime()
       );
 
       volumeHistory.push({
@@ -204,8 +202,8 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         where: {
           status: 'SENT',
           sentAt: {
-            gte: todayStart,
-            lt: tomorrowStart,
+            gte: todayKey,
+            lt: new Date(todayKey.getTime() + 86400000),
           },
         },
       }),

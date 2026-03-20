@@ -93,9 +93,15 @@ async function webhookHandler(req: Request, res: Response) {
           data: { optedOut: false, optedOutAt: null, status: 'open' },
         });
         // Reativar follow-up state para que a Bia volte a agendar follow-ups
+        // Reset followUpCount e lastFollowUpAt para permitir nova sequência de follow-ups
         await prisma.whatsAppFollowUpState.updateMany({
           where: { conversationId: conversation.id },
-          data: { paused: false, respondedSinceLastBot: false },
+          data: {
+            paused: false,
+            respondedSinceLastBot: false,
+            followUpCount: 0,
+            lastFollowUpAt: null,
+          },
         }).catch(() => {});
         // Continua o processamento normal (handleMessage será chamado abaixo)
       }

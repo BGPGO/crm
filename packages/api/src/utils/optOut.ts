@@ -71,6 +71,10 @@ export async function processOptOut(phone: string, originalText: string): Promis
         where: { conversationId: conversation.id },
         data: { paused: true },
       }).catch(() => {});
+
+      // Cancelar também o setTimeout in-memory do scheduler
+      const { cancelFollowUp } = await import('../services/followUpScheduler');
+      await cancelFollowUp(conversation.id).catch(() => {});
     }
 
     // 2. Marcar contato como opted-out (se existir vínculo)

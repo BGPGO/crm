@@ -29,8 +29,7 @@ interface ConversationWithState {
   } | null;
 }
 
-// ─── Cron State ─────────────────────────────────────────────────────────────
-
+// ─── Cron State (legado — mantido apenas para stopFollowUpCron de segurança) ─
 let checkInterval: ReturnType<typeof setInterval> | null = null;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -175,106 +174,30 @@ export async function sendFollowUp(
   }
 }
 
-// ─── Check Follow-Ups ──────────────────────────────────────────────────────
+// ─── Check Follow-Ups (LEGADO — DESATIVADO) ────────────────────────────────
+//
+// IMPORTANTE: Este cron legado foi desativado porque NÃO verificava:
+//   - isBusinessHours() → podia enviar às 3h da manhã
+//   - canSend() → podia ultrapassar limite diário
+//   - optedOut → podia enviar para quem fez opt-out
+//
+// Toda a funcionalidade foi substituída pelo followUpScheduler.ts (event-driven),
+// que é inicializado em jobs/index.ts via initFollowUpScheduler().
+// O novo scheduler respeita todas as proteções anti-bloqueio.
+//
+// Mantemos sendFollowUp() e getFollowUpInstruction() acima porque são
+// reutilizados pelo novo scheduler.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export async function checkFollowUps(): Promise<void> {
-  console.log('[follow-up] Checking follow-ups...');
-
-  const config = await prisma.whatsAppConfig.findFirst();
-  if (!config || !config.followUpEnabled || !config.botEnabled) {
-    console.log('[follow-up] Disabled (followUpEnabled=false or botEnabled=false)');
-    return;
-  }
-
-  // Load follow-up steps from DB
-  const steps = await prisma.whatsAppFollowUpStep.findMany({
-    where: { configId: config.id },
-    orderBy: { order: 'asc' },
-  });
-
-  if (steps.length === 0) {
-    console.log('[follow-up] No follow-up steps configured');
-    return;
-  }
-
-  // Find all conversations with follow-up state
-  const conversations = await prisma.whatsAppConversation.findMany({
-    where: {
-      needsHumanAttention: false,
-      meetingBooked: false,
-    },
-    include: {
-      followUpState: true,
-    },
-  });
-
-  console.log(`[follow-up] Steps=${steps.length}, eligible conversations=${conversations.length}`);
-
-  const now = Date.now();
-
-  for (const conversation of conversations) {
-    try {
-      const fu = conversation.followUpState;
-      if (!fu) {
-        console.log(`[follow-up] Skipping ${conversation.phone}: no follow-up state`);
-        continue;
-      }
-
-      const currentStep = fu.followUpCount || 0;
-
-      // Already completed all steps
-      if (currentStep >= steps.length) {
-        console.log(`[follow-up] Skipping ${conversation.phone}: all ${steps.length} steps completed`);
-        continue;
-      }
-
-      // Skip checks
-      if (!fu.lastBotMessageAt) {
-        console.log(`[follow-up] Skipping ${conversation.phone}: no lastBotMessageAt`);
-        continue;
-      }
-      if (fu.respondedSinceLastBot) {
-        console.log(`[follow-up] Skipping ${conversation.phone}: lead responded since last bot message`);
-        continue;
-      }
-      if (fu.paused) {
-        console.log(`[follow-up] Skipping ${conversation.phone}: paused`);
-        continue;
-      }
-
-      // Calculate delay
-      const lastTime = fu.lastFollowUpAt || fu.lastBotMessageAt;
-      const stepConfig = steps[currentStep];
-      const delayMs = (stepConfig.delayMinutes || 30) * 60 * 1000;
-      const elapsed = now - new Date(lastTime).getTime();
-
-      if (elapsed >= delayMs) {
-        console.log(`[FollowUp] Enviando follow-up #${currentStep + 1} (${stepConfig.tone}) para ${conversation.phone}`);
-        await sendFollowUp(
-          conversation as ConversationWithState,
-          stepConfig,
-          currentStep + 1,
-          steps.length,
-        );
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[FollowUp] Erro ao processar ${conversation.phone}:`, message);
-    }
-  }
-}
-
-// ─── Cron Management ────────────────────────────────────────────────────────
-
+/** @deprecated Substituído por initFollowUpScheduler em followUpScheduler.ts */
 export function startFollowUpCron(): void {
-  if (checkInterval) {
-    console.warn('[FollowUp] Cron já estava rodando, reiniciando...');
-    clearInterval(checkInterval);
-  }
-  checkInterval = setInterval(checkFollowUps, 60 * 1000);
-  console.log('[FollowUp] Motor de follow-up iniciado (checagem a cada 60s)');
+  console.warn(
+    '[FollowUp] startFollowUpCron está DESATIVADO. ' +
+    'Use initFollowUpScheduler() de followUpScheduler.ts que respeita horário comercial, limite diário e opt-out.',
+  );
 }
 
+/** @deprecated Substituído por initFollowUpScheduler em followUpScheduler.ts */
 export function stopFollowUpCron(): void {
   if (checkInterval) {
     clearInterval(checkInterval);
