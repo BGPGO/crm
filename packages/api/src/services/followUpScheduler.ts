@@ -100,8 +100,8 @@ export async function scheduleNextFollowUp(conversationId: string): Promise<void
   const delay = sendAt - Date.now();
 
   if (delay <= 0) {
-    // Should have already fired — send immediately (respeitando horário comercial)
-    executeFollowUp(conversationId, step, currentStep, steps.length).catch(console.error);
+    // Should have already fired — await to serialize execution during init (prevent DB pool saturation)
+    await executeFollowUp(conversationId, step, currentStep, steps.length).catch(console.error);
     return;
   }
 
