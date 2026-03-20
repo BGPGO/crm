@@ -5,6 +5,9 @@ import { EvolutionApiClient } from '../services/evolutionApiClient';
 
 const router = Router();
 
+// Cache stats por 30s para evitar 6 COUNTs a cada polling do frontend
+let statsCache: { data: object; expiresAt: number } | null = null;
+
 // GET /api/whatsapp-conversations — List conversations with pagination
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -79,14 +82,13 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const unreadCounts: Record<string, number> = {};
     if (convIds.length > 0) {
       const unreadRows = await prisma.$queryRaw<Array<{ conversationId: string; cnt: bigint }>>`
-        SELECT "conversationId", COUNT(*) as cnt FROM "WhatsAppMessage"
-         WHERE "conversationId" = ANY(${convIds}::text[])
-           AND "sender" = 'CLIENT'
-           AND "createdAt" > COALESCE(
-             (SELECT "lastReadAt" FROM "WhatsAppConversation" WHERE id = "WhatsAppMessage"."conversationId"),
-             '1970-01-01'::timestamp
-           )
-         GROUP BY "conversationId"`;
+        SELECT m."conversationId", COUNT(*) as cnt
+          FROM "WhatsAppMessage" m
+          JOIN "WhatsAppConversation" c ON c.id = m."conversationId"
+         WHERE m."conversationId" = ANY(${convIds}::text[])
+           AND m."sender" = 'CLIENT'
+           AND m."createdAt" > COALESCE(c."lastReadAt", '1970-01-01'::timestamp)
+         GROUP BY m."conversationId"`;
       for (const row of unreadRows) {
         unreadCounts[row.conversationId] = Number(row.cnt);
       }
@@ -112,6 +114,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 // GET /api/whatsapp-conversations/stats — Conversation counts by type
 router.get('/stats', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (statsCache && Date.now() < statsCache.expiresAt) {
+      return res.json({ data: statsCache.data });
+    }
+
     const [total, withAI, withHuman, open, closed, withErrors] = await Promise.all([
       prisma.whatsAppConversation.count(),
       prisma.whatsAppConversation.count({ where: { needsHumanAttention: false, isActive: true } }),
@@ -121,7 +127,9 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
       prisma.whatsAppConversation.count({ where: { messages: { some: { delivered: false } } } }),
     ]);
 
-    res.json({ data: { total, withAI, withHuman, open, closed, withErrors } });
+    const data = { total, withAI, withHuman, open, closed, withErrors };
+    statsCache = { data, expiresAt: Date.now() + 30_000 };
+    res.json({ data });
   } catch (err) {
     next(err);
   }

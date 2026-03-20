@@ -1137,6 +1137,8 @@ model WhatsAppMessage {
 
   @@index([conversationId])
   @@index([conversationId, createdAt])
+  @@index([conversationId, sender, createdAt])
+  @@index([conversationId, delivered])
   @@index([externalId])
 }
 
