@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableCell,
 } from "@/components/ui/Table";
+import BatchLostModal from "@/components/pipeline/BatchLostModal";
 import {
   LayoutGrid,
   List,
@@ -29,6 +30,7 @@ import {
   Search,
   X,
   SlidersHorizontal,
+  XCircle,
 } from "lucide-react";
 import type { Deal } from "@/components/pipeline/DealCard";
 import { api } from "@/lib/api";
@@ -209,9 +211,22 @@ export default function PipelinePage() {
   const [searchInput, setSearchInput] = useState(() => readSession("search", ""));
   const [searchQuery, setSearchQuery] = useState(() => readSession("search", ""));
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [view, setView] = useState<"kanban" | "list">("kanban");
+  const [view, setViewRaw] = useState<"kanban" | "list">(() => {
+    const saved = readSession("view", "kanban");
+    return saved === "list" ? "list" : "kanban";
+  });
+  const setView = (v: "kanban" | "list") => { setViewRaw(v); writeSession("view", v); };
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({});
+  const [advancedFilters, setAdvancedFiltersRaw] = useState<AdvancedFilters>(() => {
+    try {
+      const saved = readSession("advancedFilters", "");
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+  const setAdvancedFilters = (v: AdvancedFilters) => {
+    setAdvancedFiltersRaw(v);
+    writeSession("advancedFilters", JSON.stringify(v));
+  };
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedCount = countAdvancedFilters(advancedFilters);
   const [pendingMeeting, setPendingMeeting] = useState<{
@@ -221,6 +236,10 @@ export default function PipelinePage() {
     sourceStageId: string;
     destStageId: string;
   } | null>(null);
+
+  // Batch selection state (list view)
+  const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
+  const [batchLostOpen, setBatchLostOpen] = useState(false);
 
   // ── Search debounce ──────────────────────────────────────────────────────
 
@@ -636,6 +655,58 @@ export default function PipelinePage() {
     [pipelineId, fetchSummary, fetchBatchDeals, allFilterOpts, view, fetchListDeals, listPage]
   );
 
+  // ── Batch mark as lost ─────────────────────────────────────────────────
+
+  const handleBatchLost = useCallback(
+    async (lostReasonId: string) => {
+      const dealIds = Array.from(selectedDealIds);
+      if (dealIds.length === 0) return;
+      try {
+        await api.patch("/deals/batch/status", {
+          status: "LOST",
+          lostReasonId,
+          dealIds,
+        });
+        setSelectedDealIds(new Set());
+        setBatchLostOpen(false);
+        // Refresh data
+        if (pipelineId) {
+          fetchSummary(pipelineId, allFilterOpts);
+          fetchBatchDeals(pipelineId, allFilterOpts);
+        }
+        if (view === "list") {
+          fetchListDeals(listPage);
+        }
+      } catch (err) {
+        console.error("[pipeline] Batch lost error:", err);
+        throw err; // re-throw so the modal can show the error
+      }
+    },
+    [selectedDealIds, pipelineId, fetchSummary, fetchBatchDeals, allFilterOpts, view, fetchListDeals, listPage]
+  );
+
+  // Clear selection when deals list changes
+  useEffect(() => {
+    setSelectedDealIds(new Set());
+  }, [listDeals]);
+
+  // Selection helpers
+  const toggleDealSelection = useCallback((dealId: string) => {
+    setSelectedDealIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dealId)) next.delete(dealId);
+      else next.add(dealId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedDealIds((prev) => {
+      if (prev.size === listDeals.length) return new Set();
+      return new Set(listDeals.map((d) => d.id));
+    });
+  }, [listDeals]);
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -730,6 +801,7 @@ export default function PipelinePage() {
             className={`${SELECT_CLASS} text-gray-600`}
           >
             <option value="recent">Mais recentes</option>
+            <option value="oldest">Mais antigos</option>
             <option value="task">Próximas tarefas</option>
             <option value="value_desc">Maior valor</option>
             <option value="value_asc">Menor valor</option>
@@ -885,10 +957,43 @@ export default function PipelinePage() {
             </div>
           ) : (
             <>
+              {/* Batch action bar */}
+              {selectedDealIds.size > 0 && (
+                <div className="mb-3 flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+                  <span className="text-sm font-medium text-blue-800">
+                    {selectedDealIds.size} negociação(ões) selecionada(s)
+                  </span>
+                  <button
+                    onClick={() => setBatchLostOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+                  >
+                    <XCircle size={14} />
+                    Marcar como Perdido
+                  </button>
+                  <button
+                    onClick={() => setSelectedDealIds(new Set())}
+                    className="ml-auto text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    Limpar seleção
+                  </button>
+                </div>
+              )}
+
               <div className="overflow-x-auto">
               <Table>
                 <TableHead>
                   <TableRow>
+                    <TableHeader className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={listDeals.length > 0 && selectedDealIds.size === listDeals.length}
+                        ref={(el) => {
+                          if (el) el.indeterminate = selectedDealIds.size > 0 && selectedDealIds.size < listDeals.length;
+                        }}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </TableHeader>
                     <TableHeader>Título</TableHeader>
                     <TableHeader>Etapa</TableHeader>
                     <TableHeader>Valor</TableHeader>
@@ -901,10 +1006,18 @@ export default function PipelinePage() {
                   {listDeals.map((deal) => (
                     <TableRow
                       key={deal.id}
-                      className="cursor-pointer"
+                      className={`cursor-pointer ${selectedDealIds.has(deal.id) ? "bg-blue-50" : ""}`}
                       onClick={() => router.push(`/pipeline/${deal.id}`)}
                       onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); window.open(`/pipeline/${deal.id}`, '_blank'); } }}
                     >
+                      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDealIds.has(deal.id)}
+                          onChange={() => toggleDealSelection(deal.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </TableCell>
                       <TableCell className="font-medium text-gray-900">
                         {deal.title}
                       </TableCell>
@@ -924,7 +1037,7 @@ export default function PipelinePage() {
                   {listDeals.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="text-center text-gray-400 py-8"
                       >
                         Nenhuma negociação encontrada.
@@ -996,6 +1109,14 @@ export default function PipelinePage() {
           onCancel={handleMeetingCancel}
         />
       )}
+
+      {/* Batch mark as lost modal */}
+      <BatchLostModal
+        isOpen={batchLostOpen}
+        onClose={() => setBatchLostOpen(false)}
+        count={selectedDealIds.size}
+        onConfirm={handleBatchLost}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* Mobile menu slide-in animation */
 @keyframes slide-in-left {
@@ -42,4 +43,24 @@ html, body {
 
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
+}
+
+/* Tiptap editor placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Tiptap editor area — resizable */
+.tiptap {
+  resize: vertical;
+  overflow: auto;
+}
+
+/* Tiptap editor focus ring */
+.tiptap:focus {
+  outline: none;
 }

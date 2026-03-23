@@ -4,6 +4,10 @@ import { useState } from "react";
 import { ChevronDown, CheckCircle2, Circle, Pencil, Calendar, Clock } from "lucide-react";
 import { formatDateTime, formatWhatsAppText } from "@/lib/formatters";
 import clsx from "clsx";
+import DOMPurify from "dompurify";
+import dynamic from "next/dynamic";
+
+const RichTextEditor = dynamic(() => import("@/components/ui/RichTextEditor"), { ssr: false });
 
 export type TimelineEventType =
   | "NOTE"
@@ -65,15 +69,25 @@ function eventLabel(type: TimelineEventType, content: string, user?: string): Re
           {content}
         </span>
       );
-    case "NOTE":
+    case "NOTE": {
+      const isHtml = /<[a-z][\s\S]*>/i.test(content);
+      const sanitized = isHtml
+        ? DOMPurify.sanitize(content, { ALLOWED_TAGS: ["b", "strong", "i", "em", "h2", "h3", "ul", "ol", "li", "a", "p", "br"], ALLOWED_ATTR: ["href", "target", "rel", "class"] })
+        : formatWhatsAppText(content);
       return (
-        <span className="text-sm text-gray-700">
-          {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
-          {userName && " adicionou uma anotação: "}
-          {!userName && "Anotação: "}
-          <span className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatWhatsAppText(content) }} />
-        </span>
+        <div className="text-sm text-gray-700">
+          <div>
+            {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
+            {userName && " adicionou uma anotação:"}
+            {!userName && "Anotação:"}
+          </div>
+          <div
+            className="text-gray-600 mt-1 prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline"
+            dangerouslySetInnerHTML={{ __html: sanitized }}
+          />
+        </div>
       );
+    }
     case "TASK_COMPLETED":
       return (
         <span className="text-sm text-gray-700">
@@ -182,6 +196,7 @@ function formatTaskDateTime(dueDate: string | Date): string {
 export default function DealTimeline({ events, onAddNote, pendingTasks, onToggleTask, onEditTask }: DealTimelineProps) {
   const [note, setNote] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const isNoteEmpty = !note.trim() || note === "<p></p>";
 
   const filtered =
     filterType === "all"
@@ -189,7 +204,7 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
       : events.filter((e) => e.type === filterType);
 
   const handleSubmit = () => {
-    if (!note.trim()) return;
+    if (isNoteEmpty) return;
     onAddNote?.(note.trim());
     setNote("");
   };
@@ -294,24 +309,21 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
         </div>
       )}
 
-      {/* Add note area */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden mb-5 bg-white shadow-sm">
-        <textarea
-          id="timeline-note-input"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
+      {/* Add note area — Rich Text Editor */}
+      <div className="mb-5">
+        <RichTextEditor
+          content={note}
+          onChange={setNote}
+          onSubmit={handleSubmit}
           placeholder="Escreva uma anotação sobre esta negociação..."
-          rows={2}
-          className="w-full px-3 py-2.5 text-sm resize-none focus:outline-none placeholder:text-gray-400"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
-          }}
+          minRows={8}
+          id="timeline-note-input"
         />
-        <div className="flex items-center justify-between px-3 pb-2.5">
+        <div className="flex items-center justify-between px-1 pt-2">
           <span className="text-xs text-gray-400">Ctrl + Enter para salvar</span>
           <button
             onClick={handleSubmit}
-            disabled={!note.trim()}
+            disabled={isNoteEmpty}
             className="px-3 py-1 text-xs bg-violet-600 text-white rounded-md hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
           >
             Salvar anotação

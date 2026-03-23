@@ -32,6 +32,7 @@ import StageProgressBar from "@/components/deal/StageProgressBar";
 import ContractGenerator from "@/components/pipeline/ContractGenerator";
 import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
+import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -321,10 +322,127 @@ function fallbackCopy(text: string) {
 function SidebarContact({
   contact,
   onRemove,
+  onUpdate,
 }: {
   contact: DealContact;
   onRemove?: () => void;
+  onUpdate?: (updated: DealContact) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(contact.name);
+  const [editPhone, setEditPhone] = useState(contact.phone ?? "");
+  const [editEmail, setEditEmail] = useState(contact.email ?? "");
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
+
+  const validateFields = () => {
+    const errs: { phone?: string; email?: string } = {};
+    if (editEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail)) {
+      errs.email = "Email inválido";
+    }
+    if (editPhone && !/^[\d\s()+-]{8,20}$/.test(editPhone)) {
+      errs.phone = "Telefone inválido";
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleStartEdit = () => {
+    setEditName(contact.name);
+    setEditPhone(contact.phone ?? "");
+    setEditEmail(contact.email ?? "");
+    setErrors({});
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setEditing(false);
+    setErrors({});
+  };
+
+  const handleSave = async () => {
+    if (!validateFields()) return;
+    if (!editName.trim()) return;
+    setSaving(true);
+    try {
+      await api.put(`/contacts/${contact.id}`, {
+        name: editName.trim(),
+        phone: editPhone.trim() || null,
+        email: editEmail.trim() || null,
+      });
+      const updated: DealContact = {
+        ...contact,
+        name: editName.trim(),
+        phone: editPhone.trim() || undefined,
+        email: editEmail.trim() || undefined,
+      };
+      if (onUpdate) onUpdate(updated);
+      setEditing(false);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="py-2 border-b border-gray-100 last:border-0">
+        <div className="space-y-1.5">
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase tracking-wide">Nome</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase tracking-wide">Telefone</label>
+            <input
+              type="text"
+              value={editPhone}
+              onChange={(e) => { setEditPhone(e.target.value); if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined })); }}
+              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400", errors.phone ? "border-red-300" : "border-gray-200")}
+              placeholder="(00) 00000-0000"
+            />
+            {errors.phone && <p className="text-[10px] text-red-500 mt-0.5">{errors.phone}</p>}
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-400 uppercase tracking-wide">Email</label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => { setEditEmail(e.target.value); if (errors.email) setErrors((prev) => ({ ...prev, email: undefined })); }}
+              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400", errors.email ? "border-red-300" : "border-gray-200")}
+              placeholder="email@exemplo.com"
+            />
+            {errors.email && <p className="text-[10px] text-red-500 mt-0.5">{errors.email}</p>}
+          </div>
+          <div className="flex items-center gap-1.5 pt-1">
+            <button
+              onClick={handleSave}
+              disabled={saving || !editName.trim()}
+              className="flex items-center gap-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-2.5 py-1 rounded transition-colors"
+            >
+              {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              Salvar
+            </button>
+            <button
+              onClick={handleCancel}
+              className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-800 px-2 py-1 rounded transition-colors"
+            >
+              <X size={11} />
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-2 border-b border-gray-100 last:border-0">
       <div className="flex items-center gap-2 mb-1">
@@ -332,6 +450,13 @@ function SidebarContact({
           <User size={12} />
         </div>
         <span className="text-sm font-semibold text-gray-800 truncate flex-1">{contact.name}</span>
+        <button
+          onClick={handleStartEdit}
+          className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+          title="Editar contato"
+        >
+          <Pencil size={12} />
+        </button>
         {onRemove && (
           <button
             onClick={onRemove}
@@ -602,6 +727,16 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       // Non-critical
     }
   }, [dealId]);
+
+  // ── Item 5: Update browser tab title with deal name ───────────────────
+  useEffect(() => {
+    if (deal?.title) {
+      document.title = `${deal.title} | CRM BGPGO`;
+    }
+    return () => {
+      document.title = "CRM BGPGO";
+    };
+  }, [deal?.title]);
 
   useEffect(() => {
     loadDeal();
@@ -1336,11 +1471,25 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   key={dc.id}
                   contact={dc.contact}
                   onRemove={() => handleRemoveContact(dc.contact.id)}
+                  onUpdate={(updated) => {
+                    setDeal((d) => d ? {
+                      ...d,
+                      dealContacts: d.dealContacts.map((link) =>
+                        link.contact.id === updated.id ? { ...link, contact: updated } : link
+                      ),
+                    } : d);
+                  }}
                 />
               ))}
               {/* Primary contact (from deal.contact) if not in dealContacts */}
               {deal.contact && deal.dealContacts.length === 0 && (
-                <SidebarContact key={deal.contact.id} contact={deal.contact} />
+                <SidebarContact
+                  key={deal.contact.id}
+                  contact={deal.contact}
+                  onUpdate={(updated) => {
+                    setDeal((d) => d ? { ...d, contact: updated } : d);
+                  }}
+                />
               )}
               <button
                 onClick={handleOpenAddContact}
@@ -1547,6 +1696,25 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     setShowAddTask(true);
                   }}
                   onEdit={handleEditTask}
+                  onPostpone={async (taskId, newDate) => {
+                    try {
+                      await api.put(`/tasks/${taskId}`, { dueDate: newDate.toISOString() });
+                      setDeal((d) =>
+                        d
+                          ? {
+                              ...d,
+                              tasks: d.tasks.map((t) =>
+                                t.id === taskId ? { ...t, dueDate: newDate.toISOString() } : t
+                              ),
+                            }
+                          : d
+                      );
+                      window.dispatchEvent(new Event("tasks-changed"));
+                    } catch (err: unknown) {
+                      const e = err as { message?: string };
+                      alert(`Erro ao adiar tarefa: ${e?.message ?? "Tente novamente."}`);
+                    }
+                  }}
                 />
 
                 {/* Inline add-task form */}
@@ -1560,12 +1728,10 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     </p>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Título</label>
-                      <input
-                        autoFocus
+                      <TaskTitleCombobox
                         value={taskTitle}
-                        onChange={(e) => setTaskTitle(e.target.value)}
-                        placeholder="Título da tarefa..."
-                        className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        onChange={setTaskTitle}
+                        compact
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">

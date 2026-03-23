@@ -231,6 +231,108 @@ router.patch(
   }
 );
 
+// PATCH /api/deals/batch/status — mark multiple deals as lost (batch)
+router.patch(
+  '/batch/status',
+  validate({ status: 'required', dealIds: 'required' }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { status, lostReasonId, dealIds } = req.body as {
+        status: string;
+        lostReasonId?: string;
+        dealIds: string[];
+      };
+
+      if (!Array.isArray(dealIds) || dealIds.length === 0) {
+        return next(createError('dealIds must be a non-empty array', 400));
+      }
+
+      if (dealIds.length > 200) {
+        return next(createError('Maximum 200 deals per batch', 400));
+      }
+
+      const allowedStatuses = ['OPEN', 'WON', 'LOST'];
+      if (!allowedStatuses.includes(status)) {
+        return next(createError(`Status must be one of: ${allowedStatuses.join(', ')}`, 400));
+      }
+
+      if (status === 'LOST' && !lostReasonId) {
+        return next(createError('lostReasonId is required when status is LOST', 400));
+      }
+
+      // Fetch all deals with their current stage info
+      const deals = await prisma.deal.findMany({
+        where: { id: { in: dealIds } },
+        include: { stage: true },
+      });
+
+      if (deals.length === 0) {
+        return next(createError('No deals found with the provided IDs', 404));
+      }
+
+      const actingUserId = (req as any).user?.id ?? deals[0].userId;
+      const now = new Date();
+
+      // Update all deals in a transaction
+      const results = await prisma.$transaction(
+        deals.map((deal) => {
+          const updateData: Record<string, unknown> = { status };
+
+          if (status === 'LOST') {
+            updateData.closedAt = now;
+            updateData.lostReasonId = lostReasonId;
+            updateData.lostAtStage = deal.stage.name;
+          } else if (status === 'WON') {
+            updateData.closedAt = now;
+            updateData.lostReasonId = null;
+          } else {
+            updateData.closedAt = null;
+            updateData.lostReasonId = null;
+            updateData.lostAtStage = null;
+          }
+
+          return prisma.deal.update({
+            where: { id: deal.id },
+            data: updateData,
+          });
+        })
+      );
+
+      // Log activities for each deal (fire-and-forget)
+      Promise.all(
+        deals.map((deal) =>
+          logActivity({
+            type: 'STATUS_CHANGE',
+            content: `Status alterado para ${status} (em massa)`,
+            userId: actingUserId,
+            dealId: deal.id,
+            contactId: deal.contactId ?? undefined,
+            metadata: { fromStatus: deal.status, toStatus: status, batch: true },
+          })
+        )
+      ).catch((err) => console.error('[deals] Batch activity log error:', err));
+
+      // Dispatch webhooks for each deal (fire-and-forget)
+      if (status === 'LOST') {
+        deals.forEach((deal) => {
+          dispatchWebhook('deal.lost', {
+            dealId: deal.id,
+            dealTitle: deal.title,
+            lostAtStage: deal.stage.name,
+            lostReasonId,
+            closedAt: now,
+            batch: true,
+          });
+        });
+      }
+
+      res.json({ data: { updated: results.length, dealIds: results.map((r) => r.id) } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // PATCH /api/deals/:id/status — mark as won or lost
 router.patch(
   '/:id/status',

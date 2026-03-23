@@ -71,13 +71,23 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
     where[dateField] = { gte: from };
   }
 
+  // Helper: parse a date string that may be date-only (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:mm)
+  // For "to" dates without time, append end-of-day; with time, use as-is
+  const parseFrom = (val: string): Date => new Date(val);
+  const parseTo = (val: string): Date => {
+    // If it contains 'T' it has a time component — use as-is
+    if (val.includes('T')) return new Date(val);
+    // Otherwise it's date-only — use end of day
+    return new Date(val + 'T23:59:59.999Z');
+  };
+
   // Created date range
   const createdFrom = str('createdAtFrom');
   const createdTo = str('createdAtTo');
   if (createdFrom || createdTo) {
     const createdFilter: Record<string, Date> = {};
-    if (createdFrom) createdFilter.gte = new Date(createdFrom);
-    if (createdTo) createdFilter.lte = new Date(createdTo + 'T23:59:59.999Z');
+    if (createdFrom) createdFilter.gte = parseFrom(createdFrom);
+    if (createdTo) createdFilter.lte = parseTo(createdTo);
     where.createdAt = { ...((where.createdAt as Record<string, Date>) || {}), ...createdFilter };
   }
 
@@ -86,8 +96,8 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   const updatedTo = str('updatedAtTo');
   if (updatedFrom || updatedTo) {
     const updatedFilter: Record<string, Date> = {};
-    if (updatedFrom) updatedFilter.gte = new Date(updatedFrom);
-    if (updatedTo) updatedFilter.lte = new Date(updatedTo + 'T23:59:59.999Z');
+    if (updatedFrom) updatedFilter.gte = parseFrom(updatedFrom);
+    if (updatedTo) updatedFilter.lte = parseTo(updatedTo);
     where.updatedAt = updatedFilter;
   }
 
@@ -96,8 +106,8 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   const closedTo = str('closedAtTo');
   if (closedFrom || closedTo) {
     const closedFilter: Record<string, Date> = {};
-    if (closedFrom) closedFilter.gte = new Date(closedFrom);
-    if (closedTo) closedFilter.lte = new Date(closedTo + 'T23:59:59.999Z');
+    if (closedFrom) closedFilter.gte = parseFrom(closedFrom);
+    if (closedTo) closedFilter.lte = parseTo(closedTo);
     where.closedAt = closedFilter;
   }
 
@@ -106,9 +116,19 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   const expectedTo = str('expectedCloseDateTo');
   if (expectedFrom || expectedTo) {
     const expectedFilter: Record<string, Date> = {};
-    if (expectedFrom) expectedFilter.gte = new Date(expectedFrom);
-    if (expectedTo) expectedFilter.lte = new Date(expectedTo);
+    if (expectedFrom) expectedFilter.gte = parseFrom(expectedFrom);
+    if (expectedTo) expectedFilter.lte = parseTo(expectedTo);
     where.expectedCloseDate = expectedFilter;
+  }
+
+  // Filter: deals with at least one overdue task (dueDate < now and not completed)
+  if (str('hasOverdueTask') === 'true') {
+    where.tasks = {
+      some: {
+        status: { not: 'COMPLETED' },
+        dueDate: { lt: new Date() },
+      },
+    };
   }
 
   return where;
@@ -274,6 +294,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
     if (sortBy === 'value_desc') orderBy = { value: 'desc' };
     else if (sortBy === 'value_asc') orderBy = { value: 'asc' };
+    else if (sortBy === 'oldest') orderBy = { createdAt: 'asc' };
 
     const [total, data] = await Promise.all([
       prisma.deal.count({ where }),
@@ -334,6 +355,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
     if (sortBy === 'value_desc') orderBy = { value: 'desc' };
     else if (sortBy === 'value_asc') orderBy = { value: 'asc' };
+    else if (sortBy === 'oldest') orderBy = { createdAt: 'asc' };
 
     const dealInclude = {
       stage: { select: { id: true, name: true } },

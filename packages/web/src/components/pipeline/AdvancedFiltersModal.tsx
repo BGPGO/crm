@@ -33,6 +33,7 @@ export interface AdvancedFilters {
   closedAtTo?: string;
   expectedCloseDateFrom?: string;
   expectedCloseDateTo?: string;
+  hasOverdueTask?: string;
 }
 
 const EMPTY: AdvancedFilters = {};
@@ -237,24 +238,43 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
           </div>
         </div>
 
+        {/* Row 4b: Overdue task filter */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="hasOverdueTask"
+            checked={draft.hasOverdueTask === "true"}
+            onChange={(e) => set("hasOverdueTask", e.target.checked ? "true" : "")}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="hasOverdueTask" className="text-sm text-gray-700 select-none">
+            Com tarefa atrasada
+          </label>
+        </div>
+
         {/* Row 5: Created date range */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Data de Criação</label>
+          <p className="text-[10px] text-gray-400 mb-1.5">Inclua horário para filtros precisos (ex: sexta 18:00 a segunda 08:00)</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="date"
-              value={draft.createdAtFrom ?? ""}
-              onChange={(e) => set("createdAtFrom", e.target.value)}
-              placeholder="De"
-              className={INPUT}
-            />
-            <input
-              type="date"
-              value={draft.createdAtTo ?? ""}
-              onChange={(e) => set("createdAtTo", e.target.value)}
-              placeholder="Até"
-              className={INPUT}
-            />
+            <div>
+              <span className="text-[10px] text-gray-400">De</span>
+              <input
+                type="datetime-local"
+                value={draft.createdAtFrom ?? ""}
+                onChange={(e) => set("createdAtFrom", e.target.value)}
+                className={INPUT}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400">Até</span>
+              <input
+                type="datetime-local"
+                value={draft.createdAtTo ?? ""}
+                onChange={(e) => set("createdAtTo", e.target.value)}
+                className={INPUT}
+              />
+            </div>
           </div>
         </div>
 
@@ -262,20 +282,24 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Última Alteração</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="date"
-              value={draft.updatedAtFrom ?? ""}
-              onChange={(e) => set("updatedAtFrom", e.target.value)}
-              placeholder="De"
-              className={INPUT}
-            />
-            <input
-              type="date"
-              value={draft.updatedAtTo ?? ""}
-              onChange={(e) => set("updatedAtTo", e.target.value)}
-              placeholder="Até"
-              className={INPUT}
-            />
+            <div>
+              <span className="text-[10px] text-gray-400">De</span>
+              <input
+                type="datetime-local"
+                value={draft.updatedAtFrom ?? ""}
+                onChange={(e) => set("updatedAtFrom", e.target.value)}
+                className={INPUT}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400">Até</span>
+              <input
+                type="datetime-local"
+                value={draft.updatedAtTo ?? ""}
+                onChange={(e) => set("updatedAtTo", e.target.value)}
+                className={INPUT}
+              />
+            </div>
           </div>
         </div>
 
@@ -283,20 +307,24 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Data de Fechamento</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="date"
-              value={draft.closedAtFrom ?? ""}
-              onChange={(e) => set("closedAtFrom", e.target.value)}
-              placeholder="De"
-              className={INPUT}
-            />
-            <input
-              type="date"
-              value={draft.closedAtTo ?? ""}
-              onChange={(e) => set("closedAtTo", e.target.value)}
-              placeholder="Até"
-              className={INPUT}
-            />
+            <div>
+              <span className="text-[10px] text-gray-400">De</span>
+              <input
+                type="datetime-local"
+                value={draft.closedAtFrom ?? ""}
+                onChange={(e) => set("closedAtFrom", e.target.value)}
+                className={INPUT}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400">Até</span>
+              <input
+                type="datetime-local"
+                value={draft.closedAtTo ?? ""}
+                onChange={(e) => set("closedAtTo", e.target.value)}
+                className={INPUT}
+              />
+            </div>
           </div>
         </div>
 
@@ -304,20 +332,24 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Previsão de Fechamento</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="date"
-              value={draft.expectedCloseDateFrom ?? ""}
-              onChange={(e) => set("expectedCloseDateFrom", e.target.value)}
-              placeholder="De"
-              className={INPUT}
-            />
-            <input
-              type="date"
-              value={draft.expectedCloseDateTo ?? ""}
-              onChange={(e) => set("expectedCloseDateTo", e.target.value)}
-              placeholder="Até"
-              className={INPUT}
-            />
+            <div>
+              <span className="text-[10px] text-gray-400">De</span>
+              <input
+                type="datetime-local"
+                value={draft.expectedCloseDateFrom ?? ""}
+                onChange={(e) => set("expectedCloseDateFrom", e.target.value)}
+                className={INPUT}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400">Até</span>
+              <input
+                type="datetime-local"
+                value={draft.expectedCloseDateTo ?? ""}
+                onChange={(e) => set("expectedCloseDateTo", e.target.value)}
+                className={INPUT}
+              />
+            </div>
           </div>
         </div>
 

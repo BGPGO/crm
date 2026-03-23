@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Send, MessageCircle, Bot, Loader2 } from "lucide-react";
+import { X, Send, MessageCircle, Bot, Loader2, Pencil, Check, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +23,8 @@ interface Message {
   text: string;
   createdAt: string;
   delivered?: boolean;
+  editedAt?: string | null;
+  senderUserId?: string | null;
   senderUser?: { id: string; name: string } | null;
 }
 
@@ -48,6 +50,10 @@ export default function WhatsAppSidebar({
   const [sending, setSending] = useState(false);
   const [activatingBot, setActivatingBot] = useState(false);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const sidebarTextareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const formatTime = (dateStr: string) => {
@@ -123,6 +129,34 @@ export default function WhatsAppSidebar({
     }
   };
 
+  const handleStartEdit = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditText(msg.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId || !editText.trim() || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await api.put(`/whatsapp/conversations/${conversationId}/messages/${editingMessageId}`, {
+        text: editText.trim(),
+        userId: authUser?.id,
+      });
+      setEditingMessageId(null);
+      setEditText("");
+      await fetchMessages(false);
+    } catch {
+      // Silent fail
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -175,39 +209,82 @@ export default function WhatsAppSidebar({
             messages.map((msg) => {
               const isClient = msg.sender === "CLIENT";
               const isBot = msg.sender === "BOT";
+              const isHuman = msg.sender === "HUMAN";
+              const isEditing = editingMessageId === msg.id;
+              const canEdit = isHuman && msg.senderUserId === authUser?.id;
 
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isClient ? "justify-start" : "justify-end"}`}
+                  className={`flex group ${isClient ? "justify-start" : "justify-end"}`}
                 >
-                  <div
-                    className={`max-w-[75%] rounded-xl px-3 py-2 shadow-sm ${
-                      isClient
-                        ? "bg-gray-200 text-gray-900"
-                        : isBot
-                        ? "bg-green-100 border border-green-200 text-gray-900"
-                        : "bg-blue-100 border border-blue-200 text-gray-900"
-                    }`}
-                  >
-                    {!isClient && (
-                      <p
-                        className={`text-[10px] font-semibold mb-0.5 ${
-                          isBot ? "text-green-700" : "text-blue-700"
-                        }`}
+                  <div className={`relative ${!isClient ? "flex items-start gap-1" : ""}`}>
+                    {/* Edit button */}
+                    {canEdit && !isEditing && (
+                      <button
+                        onClick={() => handleStartEdit(msg)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1.5"
+                        title="Editar mensagem"
                       >
-                        {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
-                      </p>
+                        <Pencil size={11} />
+                      </button>
                     )}
-                    <p
-                      className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
-                      dangerouslySetInnerHTML={{
-                        __html: formatWhatsAppText(msg.text || ""),
-                      }}
-                    />
-                    <p className="text-[10px] text-gray-400 text-right mt-0.5">
-                      {formatTime(msg.createdAt)}
-                    </p>
+                    <div
+                      className={`max-w-[75%] rounded-xl px-3 py-2 shadow-sm ${
+                        isClient
+                          ? "bg-gray-200 text-gray-900"
+                          : isBot
+                          ? "bg-green-100 border border-green-200 text-gray-900"
+                          : "bg-blue-100 border border-blue-200 text-gray-900"
+                      }`}
+                    >
+                      {!isClient && (
+                        <p
+                          className={`text-[10px] font-semibold mb-0.5 ${
+                            isBot ? "text-green-700" : "text-blue-700"
+                          }`}
+                        >
+                          {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
+                        </p>
+                      )}
+                      {isEditing ? (
+                        <div className="space-y-1.5">
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault();
+                                handleSaveEdit();
+                              }
+                              if (e.key === "Escape") handleCancelEdit();
+                            }}
+                            className="w-full text-sm border border-blue-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-1 justify-end">
+                            <button onClick={handleCancelEdit} className="p-0.5 rounded hover:bg-gray-200 text-gray-500" title="Cancelar">
+                              <XCircle size={13} />
+                            </button>
+                            <button onClick={handleSaveEdit} disabled={!editText.trim() || savingEdit} className="p-0.5 rounded hover:bg-blue-100 text-blue-600 disabled:opacity-50" title="Salvar (Ctrl+Enter)">
+                              <Check size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                          dangerouslySetInnerHTML={{
+                            __html: formatWhatsAppText(msg.text || ""),
+                          }}
+                        />
+                      )}
+                      <p className="text-[10px] text-gray-400 text-right mt-0.5">
+                        {formatTime(msg.createdAt)}
+                        {msg.editedAt && <span className="ml-1 italic">(editada)</span>}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -277,29 +354,39 @@ export default function WhatsAppSidebar({
               {activatingBot ? "Acionando..." : "Acionar Bot SDR"}
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={sidebarTextareaRef}
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                if (sidebarTextareaRef.current) {
+                  sidebarTextareaRef.current.style.height = "auto";
+                  sidebarTextareaRef.current.style.height = Math.min(sidebarTextareaRef.current.scrollHeight, 100) + "px";
+                }
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
-              placeholder="Digite uma mensagem..."
+              placeholder="Mensagem... (Ctrl+Enter envia)"
               disabled={sending}
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              rows={1}
+              style={{ maxHeight: "100px" }}
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
             />
             <button
               onClick={handleSend}
               disabled={!inputText.trim() || sending}
-              className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              title="Enviar (Ctrl+Enter)"
             >
               <Send size={16} />
             </button>
           </div>
+          <p className="text-[10px] text-gray-400 mt-0.5">Enter = nova linha · Ctrl+Enter = enviar</p>
         </div>
       </div>
     </>

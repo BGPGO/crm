@@ -115,34 +115,57 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
 
             {/* Next task row */}
             {deal.nextTask && (() => {
+              const now = new Date();
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               const tomorrow = new Date(today);
               tomorrow.setDate(tomorrow.getDate() + 1);
-              const dueDate = deal.nextTask.dueDate ? new Date(deal.nextTask.dueDate) : null;
-              if (dueDate) dueDate.setHours(0, 0, 0, 0);
+              const rawDueDate = deal.nextTask.dueDate ? new Date(deal.nextTask.dueDate) : null;
+              const dueDateDay = rawDueDate ? new Date(rawDueDate) : null;
+              if (dueDateDay) dueDateDay.setHours(0, 0, 0, 0);
+
+              const isOverdue = rawDueDate ? rawDueDate.getTime() < now.getTime() : false;
+              const isToday = dueDateDay ? dueDateDay.getTime() === today.getTime() : false;
+              const isTomorrow = dueDateDay ? dueDateDay.getTime() === tomorrow.getTime() : false;
 
               let badgeBg = "bg-gray-100 text-gray-600";
-              let badgeText = dueDate
-                ? `${String(dueDate.getDate()).padStart(2, "0")}/${String(dueDate.getMonth() + 1).padStart(2, "0")}`
+              let badgeText = dueDateDay
+                ? `${String(dueDateDay.getDate()).padStart(2, "0")}/${String(dueDateDay.getMonth() + 1).padStart(2, "0")}`
                 : "";
 
-              if (dueDate) {
-                if (dueDate.getTime() < today.getTime()) {
+              // Format time part (HH:mm)
+              const timeStr = rawDueDate
+                ? `${String(rawDueDate.getHours()).padStart(2, "0")}:${String(rawDueDate.getMinutes()).padStart(2, "0")}`
+                : null;
+              const hasTime = timeStr && timeStr !== "00:00" && timeStr !== "12:00";
+
+              if (dueDateDay) {
+                if (isOverdue && !isToday) {
                   badgeBg = "bg-red-100 text-red-700";
                   badgeText = "Atrasada";
-                } else if (dueDate.getTime() === today.getTime()) {
+                } else if (isToday && isOverdue) {
+                  badgeBg = "bg-red-100 text-red-700";
+                  badgeText = hasTime ? `Hoje ${timeStr}` : "Hoje";
+                } else if (isToday) {
                   badgeBg = "bg-orange-100 text-orange-700";
-                  badgeText = "Hoje";
-                } else if (dueDate.getTime() === tomorrow.getTime()) {
+                  badgeText = hasTime ? `Hoje ${timeStr}` : "Hoje";
+                } else if (isTomorrow) {
                   badgeBg = "bg-green-100 text-green-700";
-                  badgeText = "Amanhã";
+                  badgeText = hasTime ? `Amanhã ${timeStr}` : "Amanhã";
+                } else {
+                  // Future date: show date + time
+                  if (hasTime) {
+                    badgeText = `${badgeText} ${timeStr}`;
+                  }
                 }
               }
 
               return (
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-2">
-                  <Calendar size={11} className="text-gray-400 flex-shrink-0" />
+                <div className={clsx(
+                  "flex items-center gap-1.5 text-xs mb-2",
+                  isOverdue ? "text-red-500" : "text-gray-500"
+                )}>
+                  <Calendar size={11} className={clsx("flex-shrink-0", isOverdue ? "text-red-400" : "text-gray-400")} />
                   <span className="truncate flex-1">{deal.nextTask.title}</span>
                   {badgeText && (
                     <span className={clsx("px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0", badgeBg)}>

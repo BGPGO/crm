@@ -2,6 +2,7 @@
 
 import { Calendar, CheckCircle2, Circle } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
+import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import clsx from "clsx";
 
 export interface DealTask {
@@ -17,6 +18,7 @@ interface DealTasksProps {
   onAdd?: () => void;
   onToggle?: (id: string) => void;
   onEdit?: (task: DealTask) => void;
+  onPostpone?: (taskId: string, newDate: Date) => void | Promise<void>;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -75,7 +77,7 @@ function EmptyState({ onAdd }: { onAdd?: () => void }) {
 const pending = (tasks: DealTask[]) => tasks.filter((t) => !t.done);
 const done = (tasks: DealTask[]) => tasks.filter((t) => t.done);
 
-export default function DealTasks({ tasks, onAdd, onToggle, onEdit }: DealTasksProps) {
+export default function DealTasks({ tasks, onAdd, onToggle, onEdit, onPostpone }: DealTasksProps) {
   const nextTasks = pending(tasks);
   const doneTasks = done(tasks);
 
@@ -101,7 +103,7 @@ export default function DealTasks({ tasks, onAdd, onToggle, onEdit }: DealTasksP
       {nextTasks.length > 0 && (
         <div className="space-y-2">
           {nextTasks.map((task) => (
-            <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} />
+            <TaskRow key={task.id} task={task} onToggle={onToggle} onEdit={onEdit} onPostpone={onPostpone} />
           ))}
         </div>
       )}
@@ -127,18 +129,40 @@ function TaskRow({
   task,
   onToggle,
   onEdit,
+  onPostpone,
 }: {
   task: DealTask;
   onToggle?: (id: string) => void;
   onEdit?: (task: DealTask) => void;
+  onPostpone?: (taskId: string, newDate: Date) => void | Promise<void>;
 }) {
+  const now = new Date();
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = !task.done && dueDate ? dueDate.getTime() < now.getTime() : false;
+  const isToday = (() => {
+    if (!dueDate || task.done) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDateDay = new Date(dueDate);
+    dueDateDay.setHours(0, 0, 0, 0);
+    return dueDateDay.getTime() === today.getTime();
+  })();
+
+  // Format time part
+  const timeStr = dueDate
+    ? `${String(dueDate.getHours()).padStart(2, "0")}:${String(dueDate.getMinutes()).padStart(2, "0")}`
+    : null;
+  const hasTime = timeStr && timeStr !== "00:00" && timeStr !== "12:00";
+
   return (
     <div
       className={clsx(
         "flex items-start gap-3 p-3 border rounded-lg transition-colors group",
         task.done
           ? "border-gray-100 bg-gray-50"
-          : "border-gray-200 bg-white hover:border-blue-200",
+          : isOverdue
+            ? "border-red-200 bg-red-50 hover:border-red-300"
+            : "border-gray-200 bg-white hover:border-blue-200",
         onEdit && "cursor-pointer"
       )}
       onClick={() => onEdit?.(task)}
@@ -162,7 +186,11 @@ function TaskRow({
         <p
           className={clsx(
             "text-sm font-medium",
-            task.done ? "line-through text-gray-400" : "text-gray-800 group-hover:text-blue-600"
+            task.done
+              ? "line-through text-gray-400"
+              : isOverdue
+                ? "text-red-600"
+                : "text-gray-800 group-hover:text-blue-600"
           )}
         >
           {task.title}
@@ -177,13 +205,32 @@ function TaskRow({
             {task.type}
           </span>
           {task.dueDate && (
-            <span className="flex items-center gap-1 text-xs text-gray-400">
+            <span className={clsx(
+              "flex items-center gap-1 text-xs",
+              isOverdue ? "text-red-500 font-semibold" : isToday ? "text-orange-600 font-medium" : "text-gray-400"
+            )}>
               <Calendar size={11} />
               {formatDate(task.dueDate)}
+              {hasTime && (
+                <span className={clsx(isOverdue ? "text-red-500" : isToday ? "text-orange-600" : "text-gray-500")}>
+                  {timeStr}
+                </span>
+              )}
             </span>
           )}
         </div>
       </div>
+
+      {/* Postpone button — only for pending tasks */}
+      {!task.done && onPostpone && (
+        <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <PostponeDropdown
+            currentDueDate={task.dueDate}
+            onPostpone={(newDate) => onPostpone(task.id, newDate)}
+            size="sm"
+          />
+        </div>
+      )}
     </div>
   );
 }

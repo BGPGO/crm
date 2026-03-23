@@ -15,9 +15,11 @@ import {
 } from "@/components/ui/Table";
 import Badge from "@/components/ui/Badge";
 import { Plus, Phone, Mail, Calendar, MapPin, MoreHorizontal, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import { formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import clsx from "clsx";
 
 type ApiTaskType = "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
@@ -364,6 +366,18 @@ export default function TasksPage() {
     }
   };
 
+  // Postpone task
+  const handlePostpone = async (taskId: string, newDate: Date) => {
+    try {
+      await api.put(`/tasks/${taskId}`, { dueDate: newDate.toISOString() });
+      window.dispatchEvent(new Event('tasks-changed'));
+      await fetchTasks(page, activeFilter, userFilter);
+      await fetchCounts(userFilter);
+    } catch (err) {
+      console.error("Erro ao adiar tarefa:", err);
+    }
+  };
+
   // Delete task
   const handleDelete = async () => {
     if (!editingTask) return;
@@ -533,13 +547,14 @@ export default function TasksPage() {
               <TableHeader className="hidden md:table-cell">Responsável</TableHeader>
               <TableHeader className="hidden sm:table-cell">Vencimento</TableHeader>
               <TableHeader>Status</TableHeader>
+              <TableHeader className="w-10"></TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-gray-100 rounded animate-pulse" />
                     </TableCell>
@@ -548,7 +563,7 @@ export default function TasksPage() {
               ))
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={8}>
                   <div className="py-10 text-center text-gray-400 text-sm">
                     Nenhuma tarefa encontrada.
                   </div>
@@ -639,6 +654,17 @@ export default function TasksPage() {
                         {statusConfig[task.status].label}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      {!isCompleted && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <PostponeDropdown
+                            currentDueDate={task.dueDate}
+                            onPostpone={(newDate) => handlePostpone(task.id, newDate)}
+                            size="sm"
+                          />
+                        </div>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -679,13 +705,15 @@ export default function TasksPage() {
       {/* Create / Edit Task Modal */}
       <Modal isOpen={modalOpen} onClose={closeModal} title={isEditing ? "Editar Tarefa" : "Nova Tarefa"}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Título *"
-            placeholder="Descreva a tarefa..."
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            required
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700">Título *</label>
+            <TaskTitleCombobox
+              value={form.title}
+              onChange={(val) => setForm((f) => ({ ...f, title: val }))}
+              placeholder="Descreva a tarefa..."
+              autoFocus
+            />
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Tipo *</label>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
-import { MessageSquare, Send, UserCheck, AlertCircle, Search, Tag, X, Plus, Wifi, WifiOff, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, UserCheck, AlertCircle, Search, Tag, X, Plus, Wifi, WifiOff, ArrowLeft, Pencil, Check, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
@@ -58,6 +58,8 @@ interface Message {
   text: string;
   createdAt: string;
   delivered?: boolean;
+  editedAt?: string | null;
+  senderUserId?: string | null;
   senderUser?: { id: string; name: string } | null;
 }
 
@@ -82,7 +84,11 @@ export default function ConversasChatPage() {
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchConversations = useCallback(async (query?: string) => {
@@ -184,6 +190,34 @@ export default function ConversasChatPage() {
       setError("Erro ao enviar mensagem.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleStartEdit = (msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditText(msg.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId || !editText.trim() || !selectedId || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await api.put(`/whatsapp/conversations/${selectedId}/messages/${editingMessageId}`, {
+        text: editText.trim(),
+        userId: authUser?.id,
+      });
+      setEditingMessageId(null);
+      setEditText("");
+      await fetchMessages(selectedId);
+    } catch {
+      setError("Erro ao editar mensagem.");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -581,9 +615,12 @@ export default function ConversasChatPage() {
                   messages.map((msg, idx) => {
                     const isClient = msg.sender === "CLIENT";
                     const isBot = msg.sender === "BOT";
+                    const isHuman = msg.sender === "HUMAN";
                     const currentDateKey = getMessageDateKey(msg.createdAt);
                     const prevDateKey = idx > 0 ? getMessageDateKey(messages[idx - 1].createdAt) : null;
                     const showDateSeparator = currentDateKey !== prevDateKey;
+                    const isEditing = editingMessageId === msg.id;
+                    const canEdit = isHuman && msg.senderUserId === authUser?.id;
 
                     return (
                       <div key={msg.id}>
@@ -594,41 +631,92 @@ export default function ConversasChatPage() {
                             </span>
                           </div>
                         )}
-                        <div className={clsx("flex", isClient ? "justify-start" : "justify-end")}>
-                          <div
-                            className={clsx(
-                              "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
-                              msg.delivered === false && !isClient
-                                ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
-                                : isClient
-                                ? "bg-gray-200 text-gray-900"
-                                : isBot
-                                ? "bg-green-50 border border-green-200 text-gray-900"
-                                : "bg-blue-50 border border-blue-200 text-gray-900"
+                        <div className={clsx("flex group", isClient ? "justify-start" : "justify-end")}>
+                          <div className={clsx("relative", !isClient && "flex items-start gap-1")}>
+                            {/* Edit button — shown on hover for own HUMAN messages */}
+                            {canEdit && !isEditing && (
+                              <button
+                                onClick={() => handleStartEdit(msg)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 flex-shrink-0 mt-2"
+                                title="Editar mensagem"
+                              >
+                                <Pencil size={12} />
+                              </button>
                             )}
-                          >
-                            {!isClient && (
-                              <p className={clsx(
-                                "text-[10px] font-semibold mb-0.5",
-                                isBot ? "text-green-600" : "text-blue-600"
-                              )}>
-                                {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
-                              </p>
-                            )}
-                            <p
-                              className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
-                              dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
-                            />
-                            <div className="flex items-center justify-between mt-1 gap-2">
-                              {msg.delivered === false && !isClient && (
-                                <p className="text-[10px] text-red-500 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-                                  Nao enviada
+                            <div
+                              className={clsx(
+                                "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
+                                msg.delivered === false && !isClient
+                                  ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
+                                  : isClient
+                                  ? "bg-gray-200 text-gray-900"
+                                  : isBot
+                                  ? "bg-green-50 border border-green-200 text-gray-900"
+                                  : "bg-blue-50 border border-blue-200 text-gray-900"
+                              )}
+                            >
+                              {!isClient && (
+                                <p className={clsx(
+                                  "text-[10px] font-semibold mb-0.5",
+                                  isBot ? "text-green-600" : "text-blue-600"
+                                )}>
+                                  {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
                                 </p>
                               )}
-                              <p className="text-[10px] text-gray-400 text-right flex-1">
-                                {formatTime(msg.createdAt)}
-                              </p>
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <textarea
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                        e.preventDefault();
+                                        handleSaveEdit();
+                                      }
+                                      if (e.key === "Escape") {
+                                        handleCancelEdit();
+                                      }
+                                    }}
+                                    className="w-full text-sm border border-blue-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                    rows={3}
+                                    autoFocus
+                                  />
+                                  <div className="flex items-center gap-1.5 justify-end">
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="p-1 rounded hover:bg-gray-200 text-gray-500"
+                                      title="Cancelar"
+                                    >
+                                      <XCircle size={14} />
+                                    </button>
+                                    <button
+                                      onClick={handleSaveEdit}
+                                      disabled={!editText.trim() || savingEdit}
+                                      className="p-1 rounded hover:bg-blue-100 text-blue-600 disabled:opacity-50"
+                                      title="Salvar (Ctrl+Enter)"
+                                    >
+                                      <Check size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p
+                                  className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                                  dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
+                                />
+                              )}
+                              <div className="flex items-center justify-between mt-1 gap-2">
+                                {msg.delivered === false && !isClient && (
+                                  <p className="text-[10px] text-red-500 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                                    Nao enviada
+                                  </p>
+                                )}
+                                <p className="text-[10px] text-gray-400 text-right flex-1">
+                                  {formatTime(msg.createdAt)}
+                                  {msg.editedAt && <span className="ml-1 italic">(editada)</span>}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -717,9 +805,9 @@ export default function ConversasChatPage() {
                     )}
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={textareaRef}
                     value={inputText}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -730,23 +818,36 @@ export default function ConversasChatPage() {
                       } else {
                         setShowTemplates(false);
                       }
+                      // Auto-resize textarea
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = "auto";
+                        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+                      }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Escape") { setShowTemplates(false); return; }
-                      if (e.key === "Enter" && !e.shiftKey && !showTemplates) { e.preventDefault(); handleSend(); }
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !showTemplates) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                      // Enter sem Ctrl = quebra de linha (comportamento padrão do textarea)
                     }}
-                    placeholder="Digite / para usar um modelo..."
-                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Digite / para usar um modelo... (Ctrl+Enter para enviar)"
+                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     disabled={sending}
+                    rows={1}
+                    style={{ maxHeight: "120px" }}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!inputText.trim() || sending || showTemplates}
-                    className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    title="Enviar (Ctrl+Enter)"
                   >
                     <Send size={18} />
                   </button>
                 </div>
+                <p className="text-[10px] text-gray-400 mt-1">Enter = nova linha · Ctrl+Enter = enviar</p>
               </div>
             </>
           )}

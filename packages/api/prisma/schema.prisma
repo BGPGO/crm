@@ -144,6 +144,7 @@ enum AutomationActionType {
   MOVE_PIPELINE_STAGE
   CONDITION
   MARK_LOST
+  WAIT_FOR_RESPONSE
 }
 
 enum AutomationEnrollmentStatus {
@@ -1126,6 +1127,7 @@ model WhatsAppMessage {
   followUpStep Int?
   metadata     Json?
   delivered    Boolean       @default(true)
+  editedAt     DateTime?
 
   conversationId String
   conversation   WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

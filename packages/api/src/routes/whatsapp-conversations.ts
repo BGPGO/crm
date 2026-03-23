@@ -333,6 +333,39 @@ router.delete('/:id/tags/:tagId', async (req: Request, res: Response, next: Next
   }
 });
 
+// PUT /api/whatsapp-conversations/:id/messages/:messageId — Edit a sent message (only HUMAN sender)
+router.put('/:id/messages/:messageId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const message = await prisma.whatsAppMessage.findUnique({
+      where: { id: req.params.messageId },
+    });
+    if (!message) return next(createError('Message not found', 404));
+    if (message.conversationId !== req.params.id) return next(createError('Message does not belong to this conversation', 400));
+    if (message.sender !== 'HUMAN') return next(createError('Only HUMAN messages can be edited', 403));
+
+    const { text, userId } = req.body;
+    if (!text || !text.trim()) return next(createError('text is required', 400));
+
+    // Optionally verify that the requesting user is the original sender
+    if (userId && message.senderUserId && message.senderUserId !== userId) {
+      return next(createError('You can only edit your own messages', 403));
+    }
+
+    const updated = await prisma.whatsAppMessage.update({
+      where: { id: req.params.messageId },
+      data: {
+        text: text.trim(),
+        editedAt: new Date(),
+      },
+      include: { senderUser: { select: { id: true, name: true } } },
+    });
+
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/whatsapp-conversations/:id/scheduled-followups
 router.get('/:id/scheduled-followups', async (req: Request, res: Response, next: NextFunction) => {
   try {
