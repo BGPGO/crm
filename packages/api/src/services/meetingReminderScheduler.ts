@@ -18,6 +18,7 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
   });
 
   if (!meeting || meeting.status !== 'active' || !meeting.contact?.phone) {
+    console.warn(`[meeting-reminder] Meeting ${meetingId} sem contato/telefone — pulando`);
     return;
   }
 
@@ -93,7 +94,10 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
         const client = await ZApiClient.fromConfig();
         const status = await client.getInstanceStatus();
         const state = status?.instance?.state?.toLowerCase() || '';
-        if (state !== 'open' && state !== 'connected') return;
+        if (state !== 'open' && state !== 'connected') {
+          console.warn(`[meeting-reminder] Z-API desconectada (state: ${state}) — lembrete para meeting ${meetingId} NÃO enviado, será tentado pelo cron`);
+          return; // O cron backup vai tentar depois
+        }
 
         // Build message from template
         const meetingDate = new Date(meeting.startTime);
@@ -112,10 +116,10 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
           .replace(/\{\{hora\}\}/gi, timeStr)
           .replace(/\{\{falta\}\}/gi, faltaStr);
 
-        // Verificar opt-out antes de enviar
-        const conv = await prisma.whatsAppConversation.findUnique({
-          where: { phone: meeting.contact!.phone! },
-          select: { optedOut: true },
+        // Verificar opt-out antes de enviar (buscar por contactId, mais robusto que phone)
+        const conv = await prisma.whatsAppConversation.findFirst({
+          where: { contactId: meeting.contact!.id },
+          select: { optedOut: true, phone: true },
         });
         if (conv?.optedOut) {
           console.log(`[meeting-reminder] Pulando ${meeting.contact!.phone} — opt-out`);
@@ -126,16 +130,31 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
           return;
         }
 
-        await client.sendText(meeting.contact!.phone!, message);
-        console.log(`[meeting-reminder] Sent ${faltaStr} reminder to ${meeting.contact!.phone} for meeting ${meetingId}`);
-
-        // Mark DB record as SENT
-        await prisma.scheduledFollowUp.updateMany({
+        // Marca SENT primeiro (atômico — padrão anti-duplicação)
+        const updated = await prisma.scheduledFollowUp.updateMany({
           where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
           data: { status: 'SENT', sentAt: new Date() },
         });
+        if (updated.count === 0) return; // outro processo já enviou
+
+        // Agora envia
+        try {
+          await client.sendText(meeting.contact!.phone!, message);
+          console.log(`[meeting-reminder] Enviado lembrete ${faltaStr} para ${meeting.contact!.phone} (meeting ${meetingId})`);
+        } catch (sendErr) {
+          // Falhou — reverter para FAILED
+          await prisma.scheduledFollowUp.updateMany({
+            where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'SENT' },
+            data: { status: 'FAILED' },
+          }).catch(() => {});
+          console.error(`[meeting-reminder] FALHA ao enviar para ${meeting.contact!.phone}:`, sendErr);
+        }
       } catch (err) {
-        console.error(`[meeting-reminder] Error sending reminder for meeting ${meetingId}:`, err);
+        console.error(`[meeting-reminder] Erro ao enviar lembrete meeting ${meetingId}:`, err);
+        await prisma.scheduledFollowUp.updateMany({
+          where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
+          data: { status: 'FAILED' },
+        }).catch(() => {});
       }
     }, delay);
 
