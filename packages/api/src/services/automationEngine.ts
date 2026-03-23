@@ -131,6 +131,82 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         continue;
       }
 
+      // ── WAIT_FOR_RESPONSE branching ──────────────────────────────────────
+      // When the enrollment arrives at a WAIT_FOR_RESPONSE step and
+      // nextActionAt <= now, it means either the client responded early
+      // or the timeout has expired. Check metadata to decide the branch.
+      if (step.actionType === 'WAIT_FOR_RESPONSE') {
+        const meta = (enrollment.metadata as any) || {};
+        const config = step.config as any;
+        const waitHours = config?.waitHours || 24;
+        const channel = config?.channel || 'any';
+
+        let nextStepId: string | null = null;
+
+        if (meta.responseReceived === true) {
+          // Client responded before the timeout
+          console.log(`[AutomationEngine] Cliente respondeu dentro do prazo — seguindo caminho 'respondeu'`);
+          nextStepId = step.falseStepId; // "respondeu" path
+        } else {
+          // Timeout expired without response
+          console.log(`[AutomationEngine] Sem resposta após ${waitHours}h — seguindo caminho 'não respondeu'`);
+          nextStepId = step.trueStepId; // "não respondeu" path
+        }
+
+        // Log the WAIT_FOR_RESPONSE resolution
+        await prisma.automationLog.create({
+          data: {
+            enrollmentId: enrollment.id,
+            stepId: step.id,
+            actionType: step.actionType,
+            result: {
+              success: true,
+              output: {
+                responseReceived: meta.responseReceived === true,
+                channel,
+                waitHours,
+                branchTaken: meta.responseReceived === true ? 'respondeu (falseStepId)' : 'não respondeu (trueStepId)',
+              },
+            },
+          },
+        });
+
+        if (nextStepId) {
+          // Advance to the chosen branch and clear awaiting metadata
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: {
+              currentStepId: nextStepId,
+              nextActionAt: new Date(),
+              metadata: {
+                ...(typeof meta === 'object' ? meta : {}),
+                awaitingResponse: false,
+                responseReceived: undefined,
+                awaitingSince: undefined,
+              },
+            },
+          });
+        } else {
+          // No branch target — complete the enrollment
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: {
+              status: 'COMPLETED',
+              completedAt: new Date(),
+              currentStepId: null,
+              nextActionAt: null,
+              metadata: {
+                ...(typeof meta === 'object' ? meta : {}),
+                awaitingResponse: false,
+              },
+            },
+          });
+        }
+
+        processed++;
+        continue;
+      }
+
       // Execute the action
       const result = await executeAction(enrollment, step);
 

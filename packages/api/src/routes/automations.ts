@@ -218,6 +218,7 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
     const validActionTypes: string[] = [
       'ADD_TAG', 'REMOVE_TAG', 'SEND_EMAIL', 'SEND_WHATSAPP', 'SEND_WHATSAPP_AI',
       'WAIT', 'UPDATE_FIELD', 'MOVE_PIPELINE_STAGE', 'CONDITION', 'MARK_LOST',
+      'WAIT_FOR_RESPONSE',
     ];
     for (const step of steps) {
       if (!validActionTypes.includes(step.actionType)) {
@@ -382,6 +383,26 @@ router.post('/:id/test', async (req: Request, res: Response, next: NextFunction)
           durationMs: 0,
         });
         currentStepId = step.nextStepId;
+        continue;
+      }
+
+      if (step.actionType === 'WAIT_FOR_RESPONSE') {
+        const stepConfig = step.config as any;
+        log.push({
+          stepId: step.id,
+          order: step.order,
+          actionType: 'WAIT_FOR_RESPONSE',
+          success: true,
+          output: {
+            skipped: true,
+            waitHours: stepConfig?.waitHours,
+            channel: stepConfig?.channel,
+            testMode: 'Wait for response pulado no teste — seguindo caminho "não respondeu" (trueStepId)',
+          },
+          durationMs: 0,
+        });
+        // In test mode, follow the "não respondeu" path (trueStepId) by default
+        currentStepId = step.trueStepId;
         continue;
       }
 

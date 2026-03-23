@@ -58,6 +58,9 @@ export async function executeAction(
       case 'MARK_LOST':
         return await markLost(enrollment.contactId, config);
 
+      case 'WAIT_FOR_RESPONSE':
+        return await waitForResponse(config);
+
       default:
         return { success: false, output: `Unknown action type: ${step.actionType}` };
     }
@@ -539,6 +542,32 @@ async function sendWhatsAppAI(
       messageLength: messageText.length,
       aiModel: 'gpt-4o-mini',
     },
+  };
+}
+
+async function waitForResponse(
+  config: { waitHours: number; channel: 'whatsapp' | 'email' | 'any' }
+): Promise<ActionResult> {
+  const waitHours = config.waitHours || 24;
+  const channel = config.channel || 'any';
+  const nextActionDelay = waitHours * 60; // in minutes
+
+  const now = new Date();
+  const nextActionAt = new Date(now.getTime() + nextActionDelay * 60 * 1000);
+
+  console.log(`[AutomationActions] Aguardando resposta por ${waitHours}h (canal: ${channel})`);
+
+  return {
+    success: true,
+    output: {
+      awaitingResponse: true,
+      awaitingSince: now.toISOString(),
+      channel,
+      responseReceived: false,
+      waitHours,
+      waitUntil: nextActionAt.toISOString(),
+    },
+    nextActionAt,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   Tag,
   X,
   XCircle,
+  Hourglass,
   ChevronDown,
   ChevronUp,
   Trash2,
@@ -90,6 +91,13 @@ const nodeTypeConfig: Record<
     borderColor: "border-l-red-500",
     iconBg: "bg-red-50",
     iconColor: "text-red-600",
+  },
+  WAIT_FOR_RESPONSE: {
+    label: "Aguardar Resposta",
+    icon: Hourglass,
+    borderColor: "border-l-amber-500",
+    iconBg: "bg-amber-50",
+    iconColor: "text-amber-600",
   },
 };
 

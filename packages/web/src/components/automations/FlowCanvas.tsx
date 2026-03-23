@@ -13,6 +13,7 @@ import MoveStageNode from "./nodes/MoveStageNode";
 import MarkLostNode from "./nodes/MarkLostNode";
 import AddTagNode from "./nodes/AddTagNode";
 import RemoveTagNode from "./nodes/RemoveTagNode";
+import WaitForResponseNode from "./nodes/WaitForResponseNode";
 
 interface FlowStep {
   id: string;
@@ -66,6 +67,8 @@ function getNodeConfigComponent(
       return <AddTagNode config={config} onChange={onChange} />;
     case "REMOVE_TAG":
       return <RemoveTagNode config={config} onChange={onChange} />;
+    case "WAIT_FOR_RESPONSE":
+      return <WaitForResponseNode config={config} onChange={onChange} />;
     default:
       return null;
   }
@@ -115,7 +118,7 @@ export default function FlowCanvas({
       const step = map.get(id);
       if (!step) return;
       step.order = order++;
-      if (step.actionType === "CONDITION") {
+      if (step.actionType === "CONDITION" || step.actionType === "WAIT_FOR_RESPONSE") {
         traverse(step.trueStepId);
         traverse(step.falseStepId);
       }
@@ -188,15 +191,15 @@ export default function FlowCanvas({
           s.nextStepId === id || s.trueStepId === id || s.falseStepId === id
       );
 
-      // If CONDITION, collect all steps in both branches to delete
+      // If CONDITION or WAIT_FOR_RESPONSE, collect all steps in both branches to delete
       const toDelete = new Set<string>([id]);
-      if (step.actionType === "CONDITION") {
+      if (step.actionType === "CONDITION" || step.actionType === "WAIT_FOR_RESPONSE") {
         const collectBranch = (startId: string | null | undefined) => {
           let currentId = startId;
           while (currentId && !toDelete.has(currentId)) {
             toDelete.add(currentId);
             const s = updated.find((x) => x.id === currentId);
-            if (s?.actionType === "CONDITION") {
+            if (s?.actionType === "CONDITION" || s?.actionType === "WAIT_FOR_RESPONSE") {
               collectBranch(s.trueStepId);
               collectBranch(s.falseStepId);
             }
@@ -212,7 +215,7 @@ export default function FlowCanvas({
         const pIdx = updated.findIndex((s) => s.id === parent.id);
         const p = { ...updated[pIdx] };
         const skipTo =
-          step.actionType === "CONDITION" ? null : step.nextStepId || null;
+          step.actionType === "CONDITION" || step.actionType === "WAIT_FOR_RESPONSE" ? null : step.nextStepId || null;
         if (p.nextStepId === id) p.nextStepId = skipTo;
         if (p.trueStepId === id) p.trueStepId = skipTo;
         if (p.falseStepId === id) p.falseStepId = skipTo;
@@ -314,6 +317,35 @@ export default function FlowCanvas({
                 />
                 <span className="text-xs font-semibold text-red-700 bg-red-100 px-3 py-0.5 rounded-full mb-1">
                   Não
+                </span>
+                {renderChain(step.falseStepId, step.id, "false")}
+              </div>
+            </div>
+          </>
+        ) : step.actionType === "WAIT_FOR_RESPONSE" ? (
+          // Branch into Sem resposta / Respondeu
+          <>
+            <div className="w-0.5 h-4 bg-gray-300" />
+            <div className="flex items-start">
+              {/* Left branch - Sem resposta (trueStepId) */}
+              <div className="flex flex-col items-center min-w-[280px]">
+                <div
+                  className="h-5 border-r-2 border-t-2 border-gray-300 rounded-tr-xl self-stretch"
+                  style={{ marginLeft: "50%" }}
+                />
+                <span className="text-xs font-semibold text-red-700 bg-red-100 px-3 py-0.5 rounded-full mb-1">
+                  Sem resposta
+                </span>
+                {renderChain(step.trueStepId, step.id, "true")}
+              </div>
+              {/* Right branch - Respondeu (falseStepId) */}
+              <div className="flex flex-col items-center min-w-[280px]">
+                <div
+                  className="h-5 border-l-2 border-t-2 border-gray-300 rounded-tl-xl self-stretch"
+                  style={{ marginRight: "50%" }}
+                />
+                <span className="text-xs font-semibold text-green-700 bg-green-100 px-3 py-0.5 rounded-full mb-1">
+                  Respondeu
                 </span>
                 {renderChain(step.falseStepId, step.id, "false")}
               </div>

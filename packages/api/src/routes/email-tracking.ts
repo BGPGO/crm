@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
+import { checkAndCancelWaitForResponse } from '../services/waitForResponseService';
 
 const router = Router();
 
@@ -78,6 +79,11 @@ router.get('/t/open/:sendId', async (req: Request, res: Response, _next: NextFun
           contactId: send.contactId,
           lastEmailOpenedAt: new Date(),
         },
+      });
+
+      // Check if contact has automations waiting for response (fire-and-forget)
+      checkAndCancelWaitForResponse(send.contactId).catch((err) => {
+        console.error('[email-tracking] Erro ao checar WAIT_FOR_RESPONSE no open:', err);
       });
     }
   } catch (error) {

@@ -10,6 +10,7 @@ import {
   Tag,
   X,
   XCircle,
+  Hourglass,
 } from "lucide-react";
 
 interface FlowAddNodeMenuProps {
@@ -46,6 +47,13 @@ const nodeOptions = [
     description: "Divide o fluxo com base em uma regra",
     icon: GitBranch,
     color: "text-purple-600 bg-purple-50",
+  },
+  {
+    actionType: "WAIT_FOR_RESPONSE",
+    label: "Aguardar Resposta",
+    description: "Se após X horas sem resposta...",
+    icon: Hourglass,
+    color: "text-amber-600 bg-amber-50",
   },
   {
     actionType: "MOVE_PIPELINE_STAGE",

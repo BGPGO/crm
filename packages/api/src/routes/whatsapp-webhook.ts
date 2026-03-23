@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { handleMessage } from '../services/whatsappBot';
 import prisma from '../lib/prisma';
 import { isOptOutMessage, processOptOut } from '../utils/optOut';
+import { checkAndCancelWaitForResponse } from '../services/waitForResponseService';
 
 const router = Router();
 
@@ -83,7 +84,7 @@ async function webhookHandler(req: Request, res: Response) {
       // Verificar se contato já fez opt-out anteriormente
       const conversation = await prisma.whatsAppConversation.findUnique({
         where: { phone },
-        select: { id: true, optedOut: true },
+        select: { id: true, optedOut: true, contactId: true },
       });
       if (conversation?.optedOut) {
         // Lead que fez opt-out voltou a falar (e NÃO é keyword de opt-out) → re-engajamento
@@ -164,6 +165,28 @@ async function webhookHandler(req: Request, res: Response) {
       handleMessage(payload, instanceName).catch((err) => {
         console.error('[whatsapp-webhook] Error handling message:', err);
       });
+
+      // Check if client has automations waiting for response (fire-and-forget)
+      const contactId = conversation?.contactId;
+      if (contactId) {
+        checkAndCancelWaitForResponse(contactId).catch((err) => {
+          console.error('[whatsapp-webhook] Erro ao checar WAIT_FOR_RESPONSE:', err);
+        });
+      } else {
+        // No conversation or no contactId linked — try to find contact by phone
+        prisma.contact.findFirst({
+          where: { phone },
+          select: { id: true },
+        }).then((contact) => {
+          if (contact) {
+            checkAndCancelWaitForResponse(contact.id).catch((err) => {
+              console.error('[whatsapp-webhook] Erro ao checar WAIT_FOR_RESPONSE:', err);
+            });
+          }
+        }).catch((err) => {
+          console.error('[whatsapp-webhook] Erro ao buscar contato por phone:', err);
+        });
+      }
     } else if (eventType === 'ConnectedCallback') {
       console.log(`[whatsapp-webhook] Connected: instanceId=${body.instanceId}, phone=${body.phone}`);
 
