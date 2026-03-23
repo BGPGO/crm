@@ -5,6 +5,39 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
+// Ensure unaccent extension exists (idempotent, runs once at startup)
+prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS unaccent').catch(() => {});
+
+/**
+ * Accent-insensitive search: find Deal IDs matching search term across
+ * title, contact name/email, and organization name using PostgreSQL unaccent().
+ */
+async function searchDealIds(term: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT DISTINCT d.id
+    FROM "Deal" d
+    LEFT JOIN "Contact" c ON d."contactId" = c.id
+    LEFT JOIN "Organization" o ON d."organizationId" = o.id
+    WHERE unaccent(COALESCE(d.title, '')) ILIKE '%' || unaccent(${term}) || '%'
+       OR unaccent(COALESCE(c.name, ''))  ILIKE '%' || unaccent(${term}) || '%'
+       OR unaccent(COALESCE(c.email, '')) ILIKE '%' || unaccent(${term}) || '%'
+       OR unaccent(COALESCE(o.name, ''))  ILIKE '%' || unaccent(${term}) || '%'
+  `;
+  return rows.map(r => r.id);
+}
+
+/**
+ * Apply accent-insensitive search to a where clause if _searchTerm is present.
+ * Mutates the where object in-place.
+ */
+async function applySearch(where: Record<string, unknown>): Promise<void> {
+  const term = (where as any)._searchTerm as string | undefined;
+  if (!term) return;
+  delete (where as any)._searchTerm;
+  const ids = await searchDealIds(term);
+  where.id = { in: ids };
+}
+
 // ── Shared helper: build Deal where clause from query params ────────────────
 
 function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string): Record<string, unknown> {
@@ -33,15 +66,10 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
     where.value = valueFilter;
   }
 
-  // Search across title, contact name/email, org name
+  // Search across title, contact name/email, org name (accent-insensitive)
   const search = str('search');
   if (search) {
-    where.OR = [
-      { title: { contains: search, mode: 'insensitive' } },
-      { contact: { name: { contains: search, mode: 'insensitive' } } },
-      { contact: { email: { contains: search, mode: 'insensitive' } } },
-      { organization: { name: { contains: search, mode: 'insensitive' } } },
-    ];
+    (where as any)._searchTerm = search; // marker for accent-insensitive search
   }
 
   // Period preset filter
@@ -198,6 +226,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
     if (!pipeline) return next(createError('Pipeline not found', 404));
 
     const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id);
+    await applySearch(where);
 
     // When status is not explicitly WON, we need a separate WON count using closedAt
     // because the main where uses createdAt for period filtering
@@ -211,6 +240,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
         { ...req.query as Record<string, unknown>, status: 'WON' },
         req.params.id,
       );
+      await applySearch(wonWhere);
     }
 
     const [grouped, totals, countsByStatusRaw, wonCountResult] = await Promise.all([
@@ -289,6 +319,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     const skip = (page - 1) * limit;
 
     const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
+    await applySearch(where);
 
     const sortBy = req.query.sortBy as string | undefined;
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
@@ -350,6 +381,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
 
     const baseWhere = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
+    await applySearch(baseWhere);
 
     const sortBy = req.query.sortBy as string | undefined;
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
