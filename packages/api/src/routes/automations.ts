@@ -234,6 +234,10 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
     // Wrap delete + create in a transaction so steps are never lost
     const automationId = req.params.id;
     const created = await prisma.$transaction(async (tx) => {
+      // Clear references before deleting steps
+      await tx.automationLog.deleteMany({ where: { enrollment: { automationId } } });
+      await tx.automationEnrollment.updateMany({ where: { automationId }, data: { currentStepId: null } });
+      await tx.automationStep.updateMany({ where: { automationId }, data: { nextStepId: null, trueStepId: null, falseStepId: null } });
       await tx.automationStep.deleteMany({ where: { automationId } });
 
       // Phase 1: Create all steps WITHOUT references (to get new IDs)
@@ -265,6 +269,15 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
             data: { nextStepId, trueStepId, falseStepId },
           });
         }
+      }
+
+      // Reassign active enrollments to the new first step
+      if (createdSteps.length > 0) {
+        const firstNewStep = createdSteps.reduce((min, s) => s.order < min.order ? s : min, createdSteps[0]);
+        await tx.automationEnrollment.updateMany({
+          where: { automationId, status: { in: ['ACTIVE', 'PAUSED'] } },
+          data: { currentStepId: firstNewStep.id, nextActionAt: new Date() },
+        });
       }
 
       return createdSteps;
