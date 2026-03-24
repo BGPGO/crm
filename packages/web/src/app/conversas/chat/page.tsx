@@ -619,7 +619,7 @@ export default function ConversasChatPage() {
                           </div>
                         )}
                         <div className={clsx("flex group", isClient ? "justify-start" : "justify-end")}>
-                          <div className={clsx("relative", !isClient && "flex items-start gap-1")}>
+                          <div className={clsx("relative max-w-[70%]", !isClient && "flex items-start gap-1")}>
                             {/* Edit button — shown on hover for own HUMAN messages */}
                             {canEdit && !isEditing && (
                               <button
@@ -632,7 +632,7 @@ export default function ConversasChatPage() {
                             )}
                             <div
                               className={clsx(
-                                "max-w-[70%] rounded-xl px-4 py-2.5 shadow-sm",
+                                "rounded-xl px-4 py-2.5 shadow-sm",
                                 msg.delivered === false && !isClient
                                   ? "bg-red-50 border border-red-300 text-gray-900 opacity-70"
                                   : isClient
