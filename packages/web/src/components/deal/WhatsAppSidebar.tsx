@@ -9,7 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 interface ScheduledTask {
   id: string;
   stepNumber: number;
-  tone: string;
+  label?: string;
+  tone?: string;
   delayMinutes: number;
   scheduledAt: string;
   status: "PENDING" | "SENT" | "CANCELLED";
@@ -308,14 +309,12 @@ export default function WhatsAppSidebar({
                 else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
                 else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
 
-                const toneLabel = task.tone === 'CASUAL' ? 'Casual' : task.tone === 'REFORCO' ? 'Reforço' : 'Encerramento';
-                const toneColor = task.tone === 'CASUAL' ? 'bg-blue-100 text-blue-700' : task.tone === 'REFORCO' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700';
-
                 return (
                   <div key={task.id} className="flex items-center gap-1.5 text-[11px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                    <span className="text-gray-600">#{task.stepNumber}</span>
-                    <span className={`px-1 py-0.5 rounded font-medium text-[10px] ${toneColor}`}>{toneLabel}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
+                      {task.label || `Step #${task.stepNumber}`}
+                    </span>
                     <span className="text-gray-400 ml-auto text-[10px]">{timeLabel}</span>
                   </div>
                 );

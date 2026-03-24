@@ -110,17 +110,4 @@ npx prisma db push --schema=packages/api/prisma/schema.prisma   # sync schema
 npx prisma generate --schema=packages/api/prisma/schema.prisma  # gerar client
 ```
 
-## Próximos Passos
 
-- [x] Setup do monorepo
-- [x] Schema Prisma inicial
-- [x] API REST básica
-- [x] Frontend com layout base e pipeline visual
-- [ ] Conectar ao Supabase e sync do schema
-- [ ] Kanban com drag-and-drop real
-- [ ] Página de negociação completa (deal detail)
-- [ ] Webhook de entrada para leads
-- [ ] Timeline/histórico de atividades
-- [ ] Webhook de saída configurável
-- [ ] Relatórios e dashboard real
-- [ ] Filtros (andamento/perdido/ganho)

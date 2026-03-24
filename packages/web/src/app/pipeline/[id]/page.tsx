@@ -1666,14 +1666,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                         <span className={`font-medium ${task.status === 'CANCELLED' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                           {task.label || (isMeeting ? `Lembrete reunião` : `Follow-up #${task.stepNumber}`)}
                         </span>
-                        {task.tone && (
-                          <span className={`px-1.5 py-0.5 rounded font-medium text-[10px] ${
-                            task.tone === 'CASUAL' ? 'bg-blue-100 text-blue-700' :
-                            task.tone === 'REFORCO' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            {task.tone === 'CASUAL' ? 'Casual' : task.tone === 'REFORCO' ? 'Reforço' : 'Encerramento'}
-                          </span>
-                        )}
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
+                          {task.label || `Step #${task.stepNumber}`}
+                        </span>
                         <span className="text-gray-400 ml-auto text-[10px]">
                           {isPending ? timeLabel : isSent ? `✓ ${timeLabel}` : '✗ Cancelado'}
                         </span>

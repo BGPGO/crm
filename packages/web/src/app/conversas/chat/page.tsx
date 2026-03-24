@@ -12,7 +12,8 @@ import { useAuth } from "@/contexts/AuthContext";
 interface ScheduledTask {
   id: string;
   stepNumber: number;
-  tone: string;
+  label?: string;
+  tone?: string;
   delayMinutes: number;
   scheduledAt: string;
   status: "PENDING" | "SENT" | "CANCELLED";
@@ -727,36 +728,49 @@ export default function ConversasChatPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Scheduled follow-ups */}
-              {scheduledTasks.filter(t => t.status === 'PENDING').length > 0 && (
-                <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex-shrink-0">
-                  <p className="text-[10px] font-semibold text-amber-700 mb-1.5">Follow-ups agendados</p>
-                  <div className="space-y-1">
-                    {scheduledTasks.filter(t => t.status === 'PENDING').map(task => {
-                      const scheduledDate = new Date(task.scheduledAt);
-                      const now = new Date();
-                      const diffMs = scheduledDate.getTime() - now.getTime();
-                      const diffMin = Math.max(0, Math.round(diffMs / 60000));
-                      let timeLabel: string;
-                      if (diffMin < 60) timeLabel = `em ${diffMin}min`;
-                      else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
-                      else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
+              {/* Cadência ativa */}
+              {(() => {
+                const cadenceTags = selectedConv?.tags?.filter(t =>
+                  t.name?.startsWith('Cadência Etapa')
+                ) || [];
+                const activeCadence = cadenceTags[0];
 
-                      const toneLabel = task.tone === 'CASUAL' ? 'Casual' : task.tone === 'REFORCO' ? 'Reforço' : 'Encerramento';
-                      const toneColor = task.tone === 'CASUAL' ? 'bg-blue-100 text-blue-700' : task.tone === 'REFORCO' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700';
+                if (!activeCadence && scheduledTasks.filter(t => t.status === 'PENDING').length === 0) return null;
 
-                      return (
-                        <div key={task.id} className="flex items-center gap-2 text-xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                          <span className="text-gray-600">Follow-up #{task.stepNumber}</span>
-                          <span className={`px-1.5 py-0.5 rounded font-medium ${toneColor}`}>{toneLabel}</span>
-                          <span className="text-gray-400 ml-auto">{timeLabel}</span>
-                        </div>
-                      );
-                    })}
+                return (
+                  <div className="px-4 py-2 bg-purple-50 border-t border-purple-200 flex-shrink-0">
+                    {activeCadence && (
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse flex-shrink-0" />
+                        <span className="text-xs font-semibold text-purple-700">{activeCadence.name}</span>
+                        <span className="text-[10px] text-purple-400">em andamento</span>
+                      </div>
+                    )}
+                    {scheduledTasks.filter(t => t.status === 'PENDING').length > 0 && (
+                      <div className="space-y-1">
+                        {scheduledTasks.filter(t => t.status === 'PENDING').map(task => {
+                          const scheduledDate = new Date(task.scheduledAt);
+                          const now = new Date();
+                          const diffMs = scheduledDate.getTime() - now.getTime();
+                          const diffMin = Math.max(0, Math.round(diffMs / 60000));
+                          let timeLabel: string;
+                          if (diffMin < 60) timeLabel = `em ${diffMin}min`;
+                          else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
+                          else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
+
+                          return (
+                            <div key={task.id} className="flex items-center gap-2 text-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-300 flex-shrink-0" />
+                              <span className="text-gray-600">{task.label || `Step #${task.stepNumber}`}</span>
+                              <span className="text-gray-400 ml-auto">{timeLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
               {scheduledTasks.filter(t => t.status !== 'PENDING').length > 0 && (
                 <div className="px-4 py-1 bg-gray-50 border-t border-gray-100 flex-shrink-0">
                   <div className="space-y-0.5">
@@ -768,7 +782,7 @@ export default function ConversasChatPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
                         )}
                         <span className={task.status === 'CANCELLED' ? 'text-gray-400 line-through' : 'text-gray-500'}>
-                          Follow-up #{task.stepNumber} — {task.status === 'SENT' ? 'Enviado' : 'Cancelado (lead respondeu)'}
+                          {task.label || `Step #${task.stepNumber}`} — {task.status === 'SENT' ? 'Enviado' : 'Cancelado'}
                         </span>
                       </div>
                     ))}

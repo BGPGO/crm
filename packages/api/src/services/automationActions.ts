@@ -349,6 +349,12 @@ async function sendWhatsApp(
     return { success: false, output: 'No message template or custom message provided' };
   }
 
+  // Reopen conversation if closed
+  await prisma.whatsAppConversation.updateMany({
+    where: { phone: contact.phone, status: 'closed' },
+    data: { status: 'open', isActive: true },
+  }).catch(() => {});
+
   // Send via Evolution API
   const { EvolutionApiClient } = await import('./evolutionApiClient');
   const client = await EvolutionApiClient.fromConfig();
@@ -668,6 +674,12 @@ async function sendWhatsAppAI(
         isActive: true,
         status: 'open',
       },
+    });
+  } else if (conversation.status === 'closed') {
+    // Reopen closed conversation when automation sends a message
+    conversation = await prisma.whatsAppConversation.update({
+      where: { id: conversation.id },
+      data: { status: 'open', isActive: true },
     });
   }
 
