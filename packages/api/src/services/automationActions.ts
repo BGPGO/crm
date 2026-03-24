@@ -6,6 +6,13 @@ import OpenAI from 'openai';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/** Normalize phone: strip non-digits, prepend 55 if needed */
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) return '55' + digits;
+  return digits;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface ActionResult {
@@ -311,7 +318,7 @@ async function sendWhatsApp(
 
   // Verificar opt-out antes de enviar WhatsApp
   const optOutCheck = await prisma.whatsAppConversation.findUnique({
-    where: { phone: contact.phone },
+    where: { phone: normalizePhone(contact.phone) },
     select: { optedOut: true },
   });
   if (optOutCheck?.optedOut) {
@@ -351,14 +358,14 @@ async function sendWhatsApp(
 
   // Reopen conversation if closed + update lastMessageAt
   await prisma.whatsAppConversation.updateMany({
-    where: { phone: contact.phone },
+    where: { phone: normalizePhone(contact.phone) },
     data: { status: 'open', isActive: true, lastMessageAt: new Date() },
   }).catch(() => {});
 
   // Send via Evolution API
   const { EvolutionApiClient } = await import('./evolutionApiClient');
   const client = await EvolutionApiClient.fromConfig();
-  await client.sendText(contact.phone, messageText);
+  await client.sendText(normalizePhone(contact.phone), messageText);
 
   return {
     success: true,
@@ -654,7 +661,7 @@ async function sendWhatsAppAI(
 
   // Verificar opt-out antes de enviar WhatsApp IA
   const optOutCheckAI = await prisma.whatsAppConversation.findUnique({
-    where: { phone: contact.phone },
+    where: { phone: normalizePhone(contact.phone) },
     select: { optedOut: true },
   });
   if (optOutCheckAI?.optedOut) {
@@ -663,7 +670,7 @@ async function sendWhatsAppAI(
 
   // 2. Find or create WhatsAppConversation for this phone
   let conversation = await prisma.whatsAppConversation.findUnique({
-    where: { phone: contact.phone },
+    where: { phone: normalizePhone(contact.phone) },
   });
 
   if (!conversation) {
@@ -715,9 +722,10 @@ async function sendWhatsAppAI(
     return { success: false, output: 'AI failed to generate message' };
   }
 
-  // 5. Send via ZApiClient
+  // 5. Send via ZApiClient (normalize phone)
+  const normalizedPhone = normalizePhone(contact.phone);
   const zapiClient = await ZApiClient.fromConfig();
-  const sendResult = await zapiClient.sendText(contact.phone, messageText);
+  const sendResult = await zapiClient.sendText(normalizedPhone, messageText);
 
   // 6. Save the message as a WhatsAppMessage with sender: 'BOT'
   await prisma.whatsAppMessage.create({

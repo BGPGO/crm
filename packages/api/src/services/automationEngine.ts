@@ -56,8 +56,16 @@ export async function evaluateTriggers(
 
     if (existingEnrollment) continue;
 
-    // Find the first step (order 1)
-    const firstStep = automation.steps.find((s) => s.order === 1);
+    // Find the root step (not referenced by any other step)
+    const referencedIds = new Set<string>();
+    automation.steps.forEach((s) => {
+      if (s.nextStepId) referencedIds.add(s.nextStepId);
+      if (s.trueStepId) referencedIds.add(s.trueStepId);
+      if (s.falseStepId) referencedIds.add(s.falseStepId);
+    });
+    const firstStep = automation.steps.find((s) => !referencedIds.has(s.id))
+      || automation.steps.find((s) => s.order === 0)
+      || automation.steps[0];
     if (!firstStep) continue;
 
     // Create enrollment
