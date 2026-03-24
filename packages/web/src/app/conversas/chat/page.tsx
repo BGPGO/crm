@@ -688,7 +688,7 @@ export default function ConversasChatPage() {
                                 </div>
                               ) : (
                                 <p
-                                  className="text-sm whitespace-pre-wrap break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
+                                  className="text-sm whitespace-pre-line break-words [&_strong]:font-bold [&_em]:italic [&_del]:line-through"
                                   dangerouslySetInnerHTML={{ __html: formatWhatsAppText(msg.text || '') }}
                                 />
                               )}
