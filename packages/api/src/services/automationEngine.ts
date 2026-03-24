@@ -254,9 +254,16 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         // WhatsApp actions respect business hours; emails don't
         const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI';
         if (isWhatsAppAction) {
-          const { isBusinessHours } = await import('../utils/sendingWindow');
+          const { isBusinessHours, msUntilNextBusinessHour } = await import('../utils/sendingWindow');
           if (!isBusinessHours()) {
-            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário comercial — adiando enrollment ${enrollment.id}`);
+            // Schedule for next business hour instead of retrying every minute
+            const msUntil = msUntilNextBusinessHour();
+            const nextBH = new Date(Date.now() + msUntil);
+            await prisma.automationEnrollment.update({
+              where: { id: enrollment.id },
+              data: { nextActionAt: nextBH },
+            });
+            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário — reagendado para ${nextBH.toISOString()} (enrollment ${enrollment.id})`);
             continue;
           }
         }
