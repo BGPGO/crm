@@ -236,21 +236,38 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
     const created = await prisma.$transaction(async (tx) => {
       await tx.automationStep.deleteMany({ where: { automationId } });
 
-      return Promise.all(
-        steps.map((step) =>
-          tx.automationStep.create({
-            data: {
-              order: step.order,
-              actionType: step.actionType as AutomationActionType,
-              config: step.config as any,
-              nextStepId: step.nextStepId,
-              trueStepId: step.trueStepId,
-              falseStepId: step.falseStepId,
-              automationId,
-            },
-          })
-        )
-      );
+      // Phase 1: Create all steps WITHOUT references (to get new IDs)
+      const oldToNewId = new Map<string, string>();
+      const createdSteps = [];
+
+      for (const step of steps) {
+        const newStep = await tx.automationStep.create({
+          data: {
+            order: step.order,
+            actionType: step.actionType as AutomationActionType,
+            config: step.config as any,
+            automationId,
+          },
+        });
+        if (step.id) oldToNewId.set(step.id, newStep.id);
+        createdSteps.push({ ...newStep, _oldNextStepId: step.nextStepId, _oldTrueStepId: step.trueStepId, _oldFalseStepId: step.falseStepId });
+      }
+
+      // Phase 2: Update references with new IDs
+      for (const step of createdSteps) {
+        const nextStepId = step._oldNextStepId ? (oldToNewId.get(step._oldNextStepId) || null) : null;
+        const trueStepId = step._oldTrueStepId ? (oldToNewId.get(step._oldTrueStepId) || null) : null;
+        const falseStepId = step._oldFalseStepId ? (oldToNewId.get(step._oldFalseStepId) || null) : null;
+
+        if (nextStepId || trueStepId || falseStepId) {
+          await tx.automationStep.update({
+            where: { id: step.id },
+            data: { nextStepId, trueStepId, falseStepId },
+          });
+        }
+      }
+
+      return createdSteps;
     });
 
     res.json({ data: created });
