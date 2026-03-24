@@ -362,15 +362,32 @@ async function sendWhatsApp(
     data: { status: 'open', isActive: true, lastMessageAt: new Date() },
   }).catch(() => {});
 
+  // Save message to conversation history
+  const normalizedPhone = normalizePhone(contact.phone);
+  let conversation = await prisma.whatsAppConversation.findUnique({ where: { phone: normalizedPhone } });
+  if (!conversation) {
+    conversation = await prisma.whatsAppConversation.create({
+      data: { phone: normalizedPhone, contactId, isActive: true, status: 'open' },
+    });
+  }
+  await prisma.whatsAppMessage.create({
+    data: {
+      conversationId: conversation.id,
+      sender: 'BOT',
+      text: messageText,
+    },
+  });
+
   // Send via Evolution API
   const { EvolutionApiClient } = await import('./evolutionApiClient');
   const client = await EvolutionApiClient.fromConfig();
-  await client.sendText(normalizePhone(contact.phone), messageText);
+  await client.sendText(normalizedPhone, messageText);
 
   return {
     success: true,
     output: {
       phone: contact.phone,
+      conversationId: conversation.id,
       messageLength: messageText.length,
       templateId: config.messageTemplateId || null,
     },
