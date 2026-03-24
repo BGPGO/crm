@@ -279,7 +279,8 @@ router.get('/:id/enrollments', async (req: Request, res: Response, next: NextFun
         take: limit,
         orderBy: { enrolledAt: 'desc' },
         include: {
-          contact: { select: { name: true, email: true } },
+          contact: { select: { name: true, email: true, phone: true } },
+          currentStep: { select: { id: true, order: true, actionType: true, config: true } },
         },
       }),
     ]);

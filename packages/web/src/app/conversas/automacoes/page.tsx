@@ -6,6 +6,7 @@ import Header from "@/components/layout/Header";
 import ConversasNav from "@/components/conversas/ConversasNav";
 import AutomationCard from "@/components/automations/AutomationCard";
 import AutomationCreateModal from "@/components/automations/AutomationCreateModal";
+import EnrollmentsPanel from "@/components/automations/EnrollmentsPanel";
 import Button from "@/components/ui/Button";
 import { Plus, Zap } from "lucide-react";
 import { api } from "@/lib/api";
@@ -26,6 +27,7 @@ export default function ConversasAutomacoesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [viewEnrollments, setViewEnrollments] = useState<{ id: string; name: string } | null>(null);
 
   const fetchAutomations = useCallback(async () => {
     setLoading(true);
@@ -180,7 +182,7 @@ export default function ConversasAutomacoesPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {cadences.map((automation) => (
-                        <div key={automation.id} className="relative">
+                        <div key={automation.id} className="relative cursor-pointer" onClick={() => setViewEnrollments({ id: automation.id, name: automation.name })}>
                           {/* Badge Cadência sobreposto no canto superior esquerdo */}
                           <div className="absolute top-3 left-3 z-10 pointer-events-none">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
@@ -221,13 +223,14 @@ export default function ConversasAutomacoesPage() {
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {regularAutomations.map((automation) => (
-                        <AutomationCard
-                          key={automation.id}
-                          automation={automation}
-                          onActivate={handleActivate}
-                          onPause={handlePause}
-                          onDelete={handleDelete}
-                        />
+                        <div key={automation.id} onClick={() => setViewEnrollments({ id: automation.id, name: automation.name })} className="cursor-pointer">
+                          <AutomationCard
+                            automation={automation}
+                            onActivate={handleActivate}
+                            onPause={handlePause}
+                            onDelete={handleDelete}
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -244,6 +247,14 @@ export default function ConversasAutomacoesPage() {
         onClose={() => setShowCreateModal(false)}
         onCreated={handleCreated}
       />
+
+      {viewEnrollments && (
+        <EnrollmentsPanel
+          automationId={viewEnrollments.id}
+          automationName={viewEnrollments.name}
+          onClose={() => setViewEnrollments(null)}
+        />
+      )}
     </div>
   );
 }
