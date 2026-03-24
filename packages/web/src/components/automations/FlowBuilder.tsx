@@ -51,6 +51,7 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
     message: string;
   } | null>(null);
   const [showTestPanel, setShowTestPanel] = useState(false);
+  const [showContext, setShowContext] = useState(false);
 
   const fetchAutomation = useCallback(async () => {
     setLoading(true);
@@ -203,6 +204,34 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
           )}
           {saving ? "Salvando..." : "Salvar"}
         </button>
+      </div>
+
+      {/* General Context */}
+      <div className="bg-gray-50 border-b border-gray-200 px-4 sm:px-6">
+        <button
+          onClick={() => setShowContext(!showContext)}
+          className="w-full py-2 flex items-center justify-between text-sm text-gray-600 hover:text-gray-900"
+        >
+          <span className="font-medium">Contexto geral da automação</span>
+          <svg className={`w-4 h-4 transition-transform ${showContext ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {showContext && (
+          <div className="pb-3">
+            <textarea
+              value={trigger.triggerConfig?.generalContext || ''}
+              onChange={(e) => setTrigger({
+                ...trigger,
+                triggerConfig: { ...trigger.triggerConfig, generalContext: e.target.value },
+              })}
+              placeholder="Instruções que se aplicam a TODAS as mensagens desta automação. Ex: 'O lead já recebeu proposta. Seja sucinto, máx 2 linhas por mensagem. Foco em fechar a venda.'"
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            <p className="text-xs text-gray-400 mt-1">Este contexto será injetado em todas as mensagens de WhatsApp IA e emails gerados por IA desta automação.</p>
+          </div>
+        )}
       </div>
 
       {/* Alert */}

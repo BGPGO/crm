@@ -24,8 +24,22 @@ export async function evaluateTriggers(
     },
   });
 
+  // Pre-check: if any automation is a cadence, verify cadenceEnabled once
+  let cadenceEnabledChecked = false;
+  let cadenceEnabled = false;
+
   for (const automation of automations) {
     const triggerConfig = automation.triggerConfig as any;
+
+    // Skip cadence automations if cadences are disabled
+    if (triggerConfig?.isCadence) {
+      if (!cadenceEnabledChecked) {
+        const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
+        cadenceEnabled = waConfig?.cadenceEnabled === true;
+        cadenceEnabledChecked = true;
+      }
+      if (!cadenceEnabled) continue;
+    }
 
     // Check if the contact matches the trigger config
     const matches = doesTriggerMatch(triggerType, triggerConfig, data.metadata);
@@ -207,8 +221,43 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         continue;
       }
 
+      // Cadence automations: check feature flag + business hours for WhatsApp
+      const isCadence = (enrollment.automation.triggerConfig as any)?.isCadence === true;
+
+      if (isCadence) {
+        // Check if cadences are enabled globally
+        const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
+        if (!waConfig?.cadenceEnabled) {
+          continue;
+        }
+
+        // Check if conversation is in human attention mode — pause cadence
+        if (enrollment.contactId) {
+          const conv = await prisma.whatsAppConversation.findFirst({
+            where: { contactId: enrollment.contactId },
+            select: { needsHumanAttention: true },
+          });
+          if (conv?.needsHumanAttention) {
+            console.log(`[AutomationEngine] Cadência pausada — atendimento humano ativo para enrollment ${enrollment.id}`);
+            continue;
+          }
+        }
+
+        // WhatsApp actions respect business hours; emails don't
+        const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI';
+        if (isWhatsAppAction) {
+          const { isBusinessHours } = await import('../utils/sendingWindow');
+          if (!isBusinessHours()) {
+            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário comercial — adiando enrollment ${enrollment.id}`);
+            continue;
+          }
+        }
+      }
+
       // Execute the action
-      const result = await executeAction(enrollment, step);
+      const result = await executeAction(enrollment, step, {
+        generalContext: (enrollment.automation.triggerConfig as any)?.generalContext || '',
+      });
 
       // Create log entry
       await prisma.automationLog.create({

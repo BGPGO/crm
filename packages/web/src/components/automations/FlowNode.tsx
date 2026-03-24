@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   MessageSquare,
   MessageCircle,
+  Mail,
   Clock,
   GitBranch,
   ArrowRightLeft,
@@ -49,6 +50,13 @@ const nodeTypeConfig: Record<
     borderColor: "border-l-green-500",
     iconBg: "bg-green-50",
     iconColor: "text-green-600",
+  },
+  SEND_EMAIL: {
+    label: "Enviar Email",
+    icon: Mail,
+    borderColor: "border-l-indigo-500",
+    iconBg: "bg-indigo-50",
+    iconColor: "text-indigo-600",
   },
   WAIT: {
     label: "Aguardar",

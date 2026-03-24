@@ -40,6 +40,11 @@ export default function SendWhatsAppAINode({ config, onChange }: NodeConfigProps
           A IA vai gerar uma mensagem personalizada baseada neste prompt e no contexto do lead.
         </p>
       </div>
+      {config._label && (
+        <p className="text-[11px] text-gray-400 pt-1 border-t border-gray-100">
+          {config._label}
+        </p>
+      )}
     </div>
   );
 }

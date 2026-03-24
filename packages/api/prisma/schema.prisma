@@ -225,6 +225,7 @@ model Contact {
   birthday  DateTime?
   instagram String?
   notes     String?
+  sector    String?
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
@@ -334,8 +335,9 @@ model Deal {
   id                String     @id @default(cuid())
   title             String
   value             Decimal?   @db.Decimal(15, 2)
-  expectedCloseDate DateTime?
-  closedAt          DateTime?
+  expectedCloseDate  DateTime?
+  expectedReturnDate DateTime?
+  closedAt           DateTime?
   sdrActivatedAt    DateTime?
   status            DealStatus @default(OPEN)
   classification    String?
@@ -1043,6 +1045,7 @@ model WhatsAppConfig {
   leadQualificationEnabled Boolean                  @default(true)
   sdrAutoMessageEnabled    Boolean                  @default(true)
   meetingReminderEnabled   Boolean                  @default(true)
+  cadenceEnabled           Boolean                  @default(false)
   botPhoneNumber           String?
 
   dailyMessageLimit   Int      @default(200)

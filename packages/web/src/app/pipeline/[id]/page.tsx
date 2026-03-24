@@ -69,6 +69,7 @@ interface DealDetail {
   stageName: string;
   value: number;
   expectedCloseDate?: string;
+  expectedReturnDate?: string;
   closedAt?: string;
   classification?: number;
   contaAzulCode?: string;
@@ -173,6 +174,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     stageName: (data.stage as { id: string; name: string; order: number } | undefined)?.name ?? "",
     value: (data.value as number) ?? 0,
     expectedCloseDate: data.expectedCloseDate as string | undefined,
+    expectedReturnDate: data.expectedReturnDate as string | undefined,
     closedAt: data.closedAt as string | undefined,
     classification: data.classification as number | undefined,
     contaAzulCode: data.contaAzulCode as string | undefined,
@@ -1369,6 +1371,16 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 onChange={(v) => {
                   setDeal((d) => d ? { ...d, expectedCloseDate: v } : d);
                   handleUpdateDeal("expectedCloseDate", v);
+                }}
+                formatValue={(v) => (v ? formatDate(v) : "")}
+              />
+              <InlineField
+                label="Data de retorno"
+                value={deal.expectedReturnDate ?? ""}
+                type="date"
+                onChange={(v) => {
+                  setDeal((d) => d ? { ...d, expectedReturnDate: v } : d);
+                  handleUpdateDeal("expectedReturnDate", v);
                 }}
                 formatValue={(v) => (v ? formatDate(v) : "")}
               />

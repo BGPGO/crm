@@ -121,7 +121,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.contact.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Contact not found', 404));
 
-    const { name, email, phone, position, birthday, instagram, notes, organizationId } = req.body;
+    const { name, email, phone, position, birthday, instagram, notes, organizationId, sector } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (email !== undefined) data.email = email;
@@ -131,6 +131,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (instagram !== undefined) data.instagram = instagram;
     if (notes !== undefined) data.notes = notes;
     if (organizationId !== undefined) data.organizationId = organizationId;
+    if (sector !== undefined) data.sector = sector;
 
     const contact = await prisma.contact.update({
       where: { id: req.params.id },

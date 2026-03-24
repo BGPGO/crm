@@ -16,6 +16,7 @@ import {
   TrendingUp,
   CheckSquare,
   Clock,
+  Layers,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import InlineField from "@/components/deal/InlineField";
@@ -87,6 +88,7 @@ interface ContactDetail {
   email: string | null;
   phone: string | null;
   position: string | null;
+  sector: string | null;
   birthday: string | null;
   instagram: string | null;
   notes: string | null;
@@ -338,6 +340,21 @@ export default function ContactDetailPage() {
                       label="Cargo"
                       value={contact.position ?? ""}
                       onChange={(v) => handleFieldSave("position", v)}
+                    />
+                  </div>
+                </div>
+
+                {/* Sector */}
+                <div className="flex items-start gap-2 py-0.5">
+                  <Layers
+                    size={13}
+                    className="mt-3 text-gray-400 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <InlineField
+                      label="Setor"
+                      value={contact.sector ?? ""}
+                      onChange={(v) => handleFieldSave("sector", v)}
                     />
                   </div>
                 </div>

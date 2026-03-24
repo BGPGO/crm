@@ -22,7 +22,8 @@ interface ActionResult {
  */
 export async function executeAction(
   enrollment: any,
-  step: any
+  step: any,
+  options?: { generalContext?: string }
 ): Promise<ActionResult> {
   const config = step.config as any;
 
@@ -35,7 +36,7 @@ export async function executeAction(
         return await removeTag(enrollment.contactId, config);
 
       case 'SEND_EMAIL':
-        return await sendEmail(enrollment.contactId, config);
+        return await sendEmail(enrollment.contactId, config, options?.generalContext);
 
       case 'WAIT':
         return await wait(enrollment, config);
@@ -53,7 +54,7 @@ export async function executeAction(
         return await evaluateCondition(enrollment.contactId, config);
 
       case 'SEND_WHATSAPP_AI':
-        return await sendWhatsAppAI(enrollment, config);
+        return await sendWhatsAppAI(enrollment, config, options?.generalContext);
 
       case 'MARK_LOST':
         return await markLost(enrollment.contactId, config);
@@ -107,16 +108,53 @@ async function removeTag(
   return { success: true, output: { tagId: config.tagId, action: 'removed' } };
 }
 
+function buildBrandedEmail(firstName: string, bodyHtml: string): string {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <tr><td style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8e 100%); padding:28px 32px; text-align:center;">
+          <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:0.5px;">Bertuzzi Patrimonial</h1>
+          <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:1.5px;">Soluções Financeiras</p>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:32px 32px 24px;">
+          ${firstName ? `<p style="margin:0 0 20px;font-size:16px;color:#1e3a5f;font-weight:600;">Olá, ${firstName}!</p>` : ''}
+          <div style="font-size:15px;color:#3d4852;">
+            ${bodyHtml}
+          </div>
+        </td></tr>
+        <!-- Divider -->
+        <tr><td style="padding:0 32px;"><hr style="border:none;border-top:1px solid #e8ecf1;margin:0;"></td></tr>
+        <!-- Signature -->
+        <tr><td style="padding:24px 32px;">
+          <p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#1e3a5f;">Equipe Bertuzzi Patrimonial</p>
+          <p style="margin:0;font-size:13px;color:#8795a1;">GoBI · Inteligência Financeira para Empresas</p>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="background-color:#f8f9fb;padding:20px 32px;text-align:center;border-top:1px solid #e8ecf1;">
+          <p style="margin:0;font-size:11px;color:#b0b7c3;">Este email foi enviado por Bertuzzi Patrimonial BGPGO.</p>
+          <p style="margin:4px 0 0;font-size:11px;color:#b0b7c3;">Se não deseja mais receber nossos emails, responda com "SAIR".</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 async function sendEmail(
   contactId: string,
-  config: { templateId: string }
+  config: { templateId?: string; subject?: string; prompt?: string; isAIGenerated?: boolean },
+  generalContext?: string
 ): Promise<ActionResult> {
-  const template = await prisma.emailTemplate.findUniqueOrThrow({
-    where: { id: config.templateId },
-  });
-
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
+    include: { organization: { select: { name: true } } },
   });
 
   if (!contact.email) {
@@ -128,16 +166,74 @@ async function sendEmail(
     return { success: false, output: 'Contact unsubscribed' };
   }
 
+  let subject: string;
+  let htmlContent: string;
+
+  if (config.isAIGenerated && config.prompt) {
+    // AI-generated email content
+    const waConfig = await prisma.whatsAppConfig.findFirst({ select: { openaiApiKey: true } });
+    const openaiKey = waConfig?.openaiApiKey || process.env.OPENAI_API_KEY;
+    if (!openaiKey) return { success: false, output: 'OpenAI API key not configured for AI email' };
+
+    const openai = new OpenAI({ apiKey: openaiKey });
+    const sector = (contact as any).sector || '';
+    const orgName = (contact as any).organization?.name || '';
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Você é um redator de emails profissionais da Bertuzzi Patrimonial (BGPGO).
+Gere APENAS o corpo do email em texto simples (parágrafos). NÃO use HTML, NÃO use markdown, NÃO use code blocks.
+Escreva parágrafos separados por linha em branco. O sistema vai formatar automaticamente.
+Nome do contato: ${contact.name || ''}
+Setor: ${sector || 'Não informado'}
+Empresa: ${orgName || 'Não informada'}
+${sector ? `Adapte o conteúdo para o setor "${sector}".` : 'Use conteúdo genérico sobre gestão financeira.'}
+Produto: GoBI (BI financeiro). A reunião é de Diagnóstico Financeiro (20 min).
+NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? `\n\nCONTEXTO GERAL DA CADÊNCIA:\n${generalContext}` : ''}`,
+        },
+        { role: 'user', content: config.prompt },
+      ],
+      max_tokens: 600,
+      temperature: 0.7,
+    });
+
+    let rawContent = completion.choices[0]?.message?.content || 'Conteúdo não disponível';
+
+    // Strip markdown code blocks if AI wraps in ```html ... ```
+    rawContent = rawContent.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+
+    // Convert plain text paragraphs to HTML
+    const paragraphs = rawContent.split(/\n\n+/).map(p => p.trim()).filter(p => p);
+    const bodyHtml = paragraphs.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${p.replace(/\n/g, '<br>')}</p>`).join('');
+
+    // Wrap in branded template
+    const firstName = (contact.name || '').split(' ')[0] || '';
+    htmlContent = buildBrandedEmail(firstName, bodyHtml);
+    subject = config.subject || 'BGPGO — Informações para você';
+  } else if (config.templateId) {
+    // Template-based email
+    const template = await prisma.emailTemplate.findUniqueOrThrow({
+      where: { id: config.templateId },
+    });
+    subject = template.subject || template.name;
+    htmlContent = template.htmlContent;
+  } else {
+    return { success: false, output: 'No email template or AI prompt provided' };
+  }
+
   const result = await resend.emails.send({
-    from: `BGPGO <noreply@bgpgo.com>`,
+    from: `BGPGO CRM <noreply@bertuzzipatrimonial.app.br>`,
     to: contact.email,
-    subject: template.subject || template.name,
-    html: template.htmlContent,
+    subject,
+    html: htmlContent,
   });
 
   return {
     success: true,
-    output: { messageId: result.data?.id, templateId: config.templateId },
+    output: { messageId: result.data?.id, templateId: config.templateId || 'ai-generated', subject },
   };
 }
 
@@ -175,7 +271,7 @@ async function wait(
 }
 
 const ALLOWED_UPDATE_FIELDS = new Set([
-  'name', 'phone', 'position', 'notes', 'city', 'state',
+  'name', 'phone', 'position', 'notes', 'city', 'state', 'sector',
 ]);
 
 async function updateField(
@@ -206,6 +302,7 @@ async function sendWhatsApp(
 ): Promise<ActionResult> {
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
+    include: { organization: { select: { name: true } } },
   });
 
   if (!contact.phone) {
@@ -236,14 +333,18 @@ async function sendWhatsApp(
       .replace(/\{\{email\}\}/gi, contact.email || '')
       .replace(/\{\{telefone\}\}/gi, contact.phone || '')
       .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')
-      .replace(/\{\{estado\}\}/gi, (contact as any).state || '');
+      .replace(/\{\{estado\}\}/gi, (contact as any).state || '')
+      .replace(/\{\{setor\}\}/gi, (contact as any).sector || '')
+      .replace(/\{\{empresa\}\}/gi, (contact as any).organization?.name || '');
   } else if (config.customMessage) {
     messageText = config.customMessage
       .replace(/\{\{nome\}\}/gi, contact.name || '')
       .replace(/\{\{email\}\}/gi, contact.email || '')
       .replace(/\{\{telefone\}\}/gi, contact.phone || '')
       .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')
-      .replace(/\{\{estado\}\}/gi, (contact as any).state || '');
+      .replace(/\{\{estado\}\}/gi, (contact as any).state || '')
+      .replace(/\{\{setor\}\}/gi, (contact as any).sector || '')
+      .replace(/\{\{empresa\}\}/gi, (contact as any).organization?.name || '');
   } else {
     return { success: false, output: 'No message template or custom message provided' };
   }
@@ -389,6 +490,98 @@ async function evaluateCondition(
     };
   }
 
+  if (config.field === 'sector') {
+    const fieldValue = (contact as any).sector || '';
+    let conditionResult = false;
+    switch (config.operator) {
+      case 'equals': case 'eq': conditionResult = fieldValue.toLowerCase() === (config.value || '').toLowerCase(); break;
+      case 'not_equals': case 'neq': conditionResult = fieldValue.toLowerCase() !== (config.value || '').toLowerCase(); break;
+      case 'contains': conditionResult = fieldValue.toLowerCase().includes((config.value || '').toLowerCase()); break;
+      case 'is_empty': conditionResult = !fieldValue; break;
+      case 'is_not_empty': conditionResult = !!fieldValue; break;
+      default: conditionResult = false;
+    }
+    return {
+      success: true, conditionResult,
+      output: { field: 'sector', operator: config.operator, expected: config.value, actual: fieldValue || 'Não informado', result: conditionResult },
+    };
+  }
+
+  if (config.field === 'deal_stage') {
+    const deal = await prisma.deal.findFirst({
+      where: { contactId, status: 'OPEN' },
+      include: { stage: { select: { id: true, name: true } } },
+    });
+    const stageId = deal?.stageId || '';
+    const stageName = deal?.stage?.name || '';
+    const matchesId = stageId === config.value;
+    const matchesName = stageName.toLowerCase() === (config.value || '').toLowerCase();
+    const conditionResult = config.operator === 'equals' || config.operator === 'eq'
+      ? matchesId || matchesName
+      : !(matchesId || matchesName);
+    return {
+      success: true, conditionResult,
+      output: { field: 'deal_stage', operator: config.operator, expected: config.value, actual: stageName || 'Sem deal aberta', stageId, result: conditionResult },
+    };
+  }
+
+  if (config.field === 'has_email') {
+    const hasEmail = !!contact.email && contact.email.trim().length > 0;
+    const conditionResult = config.operator === 'is_true' ? hasEmail : !hasEmail;
+    return {
+      success: true, conditionResult,
+      output: { field: 'has_email', operator: config.operator, actual: hasEmail ? 'Sim' : 'Não', result: conditionResult },
+    };
+  }
+
+  if (config.field === 'days_in_stage') {
+    const deal = await prisma.deal.findFirst({
+      where: { contactId, status: 'OPEN' },
+      select: { updatedAt: true },
+    });
+    const daysInStage = deal ? Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+    const targetDays = parseInt(config.value || '0', 10);
+    let conditionResult = false;
+    switch (config.operator) {
+      case 'equals': case 'eq': conditionResult = daysInStage === targetDays; break;
+      case 'greater_than': case 'gt': conditionResult = daysInStage > targetDays; break;
+      case 'less_than': case 'lt': conditionResult = daysInStage < targetDays; break;
+      default: conditionResult = false;
+    }
+    return {
+      success: true, conditionResult,
+      output: { field: 'days_in_stage', operator: config.operator, expected: targetDays, actual: daysInStage, result: conditionResult },
+    };
+  }
+
+  if (config.field === 'expected_return_date') {
+    const deal = await prisma.deal.findFirst({
+      where: { contactId, status: 'OPEN' },
+      select: { expectedReturnDate: true },
+    });
+    const hasDate = !!deal?.expectedReturnDate;
+    if (config.operator === 'is_not_empty') {
+      return { success: true, conditionResult: hasDate, output: { field: 'expected_return_date', operator: config.operator, actual: hasDate ? deal!.expectedReturnDate!.toISOString() : 'Não definida', result: hasDate } };
+    }
+    if (config.operator === 'is_empty') {
+      return { success: true, conditionResult: !hasDate, output: { field: 'expected_return_date', operator: config.operator, actual: hasDate ? 'Definida' : 'Não definida', result: !hasDate } };
+    }
+    // Check days until return date
+    if (hasDate) {
+      const daysUntil = Math.ceil((new Date(deal!.expectedReturnDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const targetDays = parseInt(config.value || '1', 10);
+      let conditionResult = false;
+      switch (config.operator) {
+        case 'equals': case 'eq': conditionResult = daysUntil === targetDays; break;
+        case 'less_than': case 'lt': conditionResult = daysUntil < targetDays; break;
+        case 'less_than_or_equal': case 'lte': conditionResult = daysUntil <= targetDays; break;
+        default: conditionResult = false;
+      }
+      return { success: true, conditionResult, output: { field: 'expected_return_date', operator: config.operator, expected: targetDays, actual: daysUntil, returnDate: deal!.expectedReturnDate!.toISOString(), result: conditionResult } };
+    }
+    return { success: true, conditionResult: false, output: { field: 'expected_return_date', operator: config.operator, actual: 'Não definida', result: false } };
+  }
+
   // ── Generic contact field comparison ────────────────────────────────────
   const fieldValue = String((contact as any)[config.field] ?? '');
   const targetValue = config.value;
@@ -440,11 +633,13 @@ async function evaluateCondition(
 
 async function sendWhatsAppAI(
   enrollment: any,
-  config: { prompt: string; objective: string }
+  config: { prompt: string; objective: string },
+  generalContext?: string
 ): Promise<ActionResult> {
   // 1. Find the contact's phone
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: enrollment.contactId },
+    include: { organization: { select: { name: true } } },
   });
 
   if (!contact.phone) {
@@ -492,7 +687,7 @@ async function sendWhatsAppAI(
     messages: [
       {
         role: 'system',
-        content: `Você é um assistente de vendas da BGPGO. Seu objetivo: ${config.objective}\n\nInstruções: ${config.prompt}\n\nNome do contato: ${contact.name}\nEmail: ${contact.email || 'N/A'}\nTelefone: ${contact.phone}`,
+        content: `Você é um assistente de vendas da BGPGO. Seu objetivo: ${config.objective}\n\nInstruções: ${config.prompt}\n${generalContext ? `\nCONTEXTO GERAL DA CADÊNCIA:\n${generalContext}\n` : ''}\nNome do contato: ${contact.name}\nEmail: ${contact.email || 'N/A'}\nTelefone: ${contact.phone}\nSetor: ${(contact as any).sector || 'Não informado'}\nEmpresa: ${(contact as any).organization?.name || 'Não informada'}`,
       },
       {
         role: 'user',

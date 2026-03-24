@@ -187,6 +187,16 @@ async function webhookHandler(req: Request, res: Response) {
           console.error('[whatsapp-webhook] Erro ao buscar contato por phone:', err);
         });
       }
+
+      // Cancel cadence automations when lead responds (fire-and-forget)
+      const resolvedContactId = contactId || await prisma.contact.findFirst({ where: { phone }, select: { id: true } }).then(c => c?.id);
+      if (resolvedContactId) {
+        import('../services/cadenceInterruptService').then(({ interruptCadenceOnResponse }) => {
+          interruptCadenceOnResponse(resolvedContactId).catch(err =>
+            console.error('[whatsapp-webhook] Erro ao interromper cadência:', err)
+          );
+        }).catch(() => {});
+      }
     } else if (eventType === 'ConnectedCallback') {
       console.log(`[whatsapp-webhook] Connected: instanceId=${body.instanceId}, phone=${body.phone}`);
 

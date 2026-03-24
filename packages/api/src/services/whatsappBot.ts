@@ -392,6 +392,11 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
           },
         });
         console.log(`[Bot] Deal ${deal.id} movida: Contato feito → Marcar reunião`);
+
+        // Fire automation triggers (cancels old cadence + may start new one)
+        import('./automationTriggerListener').then(({ onStageChanged }) => {
+          onStageChanged(conversation.contactId!, STAGE_MARCAR_REUNIAO, deal.id);
+        }).catch(() => {});
       }
     } catch (stageErr) {
       console.error('[Bot] Erro ao mover deal:', stageErr);

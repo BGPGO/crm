@@ -1,4 +1,5 @@
 import { evaluateTriggers } from './automationEngine';
+import { interruptCadenceOnStageChange } from './cadenceInterruptService';
 
 // ─── Trigger Listener Helpers ────────────────────────────────────────────────
 //
@@ -18,6 +19,11 @@ export function onTagRemoved(contactId: string, tagId: string): void {
 }
 
 export function onStageChanged(contactId: string, stageId: string, dealId: string): void {
+  // First: cancel any active cadence for the OLD stage
+  interruptCadenceOnStageChange(contactId, stageId).catch(
+    (err) => console.error('[AutomationTrigger] interruptCadenceOnStageChange failed:', err)
+  );
+  // Then: evaluate triggers for the NEW stage (may start a new cadence)
   evaluateTriggers('STAGE_CHANGED', { contactId, metadata: { stageId, dealId } }).catch(
     (err) => console.error('[AutomationTrigger] onStageChanged failed:', err)
   );

@@ -2,8 +2,8 @@
  * Controla a janela de horário comercial para envios proativos.
  *
  * Janelas permitidas (horário de Brasília):
- *   Seg–Sex:  9h–18h
- *   Sábado:   9h–13h
+ *   Seg–Sex:  8h–18h
+ *   Sábado:   8h–12h
  *   Domingo:  Bloqueado
  *   Feriados: Bloqueado (tratados como domingo)
  *
@@ -11,9 +11,9 @@
  */
 
 const TIMEZONE = 'America/Sao_Paulo';
-const START_HOUR = 9;
+const START_HOUR = 8;
 const END_HOUR_WEEKDAY = 18;
-const END_HOUR_SATURDAY = 13;
+const END_HOUR_SATURDAY = 12;
 
 // ---------------------------------------------------------------------------
 // Helpers de timezone — usa Intl.DateTimeFormat para toda conversão
@@ -221,7 +221,7 @@ function checkWindow(date: Date): WindowCheck {
     return { inWindow: false, reason: 'Domingo — envios bloqueados' };
   }
 
-  // Sábado → 9h–13h
+  // Sábado → 8h–12h
   if (weekday === 6) {
     if (hour >= START_HOUR && hour < END_HOUR_SATURDAY) {
       return { inWindow: true };
@@ -232,7 +232,7 @@ function checkWindow(date: Date): WindowCheck {
     };
   }
 
-  // Seg–Sex → 9h–18h
+  // Seg–Sex → 8h–18h
   if (hour >= START_HOUR && hour < END_HOUR_WEEKDAY) {
     return { inWindow: true };
   }

@@ -156,18 +156,85 @@ export default function ConversasAutomacoesPage() {
             </Button>
           </div>
         ) : (
-          /* Automation grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {automations.map((automation) => (
-              <AutomationCard
-                key={automation.id}
-                automation={automation}
-                onActivate={handleActivate}
-                onPause={handlePause}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
+          /* Automation grid — cadências primeiro, depois automações regulares */
+          (() => {
+            const cadences = automations.filter(
+              (a) => (a.triggerConfig as any)?.isCadence === true
+            );
+            const regularAutomations = automations.filter(
+              (a) => (a.triggerConfig as any)?.isCadence !== true
+            );
+
+            return (
+              <div className="space-y-8">
+                {/* Cadências */}
+                {cadences.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-semibold text-purple-700 uppercase tracking-wider">
+                        Cadências de Follow-up
+                      </h3>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                        {cadences.length}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {cadences.map((automation) => (
+                        <div key={automation.id} className="relative">
+                          {/* Badge Cadência sobreposto no canto superior esquerdo */}
+                          <div className="absolute top-3 left-3 z-10 pointer-events-none">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                              Cadência
+                            </span>
+                          </div>
+                          <div className="ring-2 ring-purple-200 rounded-xl">
+                            <AutomationCard
+                              automation={automation}
+                              onActivate={handleActivate}
+                              onPause={handlePause}
+                              onDelete={handleDelete}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Separador se houver os dois grupos */}
+                {cadences.length > 0 && regularAutomations.length > 0 && (
+                  <div className="border-t border-gray-200" />
+                )}
+
+                {/* Automações regulares */}
+                {regularAutomations.length > 0 && (
+                  <div className="space-y-4">
+                    {cadences.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                          Automações
+                        </h3>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          {regularAutomations.length}
+                        </span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {regularAutomations.map((automation) => (
+                        <AutomationCard
+                          key={automation.id}
+                          automation={automation}
+                          onActivate={handleActivate}
+                          onPause={handlePause}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()
         )}
       </main>
 

@@ -44,6 +44,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       'companyName', 'companyPhone', 'botPhoneNumber', 'meetingLink', 'openaiApiKey',
       'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
       'leadQualificationEnabled', 'sdrAutoMessageEnabled', 'meetingReminderEnabled',
+      'cadenceEnabled',
     ];
 
     const updateData: Record<string, unknown> = {};

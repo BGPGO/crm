@@ -4,6 +4,7 @@ import { useRef, useEffect } from "react";
 import {
   MessageSquare,
   MessageCircle,
+  Mail,
   Clock,
   GitBranch,
   ArrowRightLeft,
@@ -33,6 +34,13 @@ const nodeOptions = [
     description: "Envia mensagem fixa (template)",
     icon: MessageCircle,
     color: "text-green-600 bg-green-50",
+  },
+  {
+    actionType: "SEND_EMAIL",
+    label: "Enviar Email",
+    description: "Envia email (template ou gerado por IA)",
+    icon: Mail,
+    color: "text-indigo-600 bg-indigo-50",
   },
   {
     actionType: "WAIT",

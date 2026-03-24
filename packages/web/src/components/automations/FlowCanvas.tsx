@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Zap } from "lucide-react";
 import FlowConnector from "./FlowConnector";
 import FlowAddNodeMenu from "./FlowAddNodeMenu";
@@ -14,6 +14,7 @@ import MarkLostNode from "./nodes/MarkLostNode";
 import AddTagNode from "./nodes/AddTagNode";
 import RemoveTagNode from "./nodes/RemoveTagNode";
 import WaitForResponseNode from "./nodes/WaitForResponseNode";
+import SendEmailNode from "./nodes/SendEmailNode";
 
 interface FlowStep {
   id: string;
@@ -41,6 +42,10 @@ const triggerLabels: Record<string, string> = {
   NEW_LEAD: "Novo lead entra no funil",
   STAGE_CHANGED: "Lead muda de etapa",
   TAG_ADDED: "Tag adicionada ao lead",
+  TAG_REMOVED: "Tag removida do lead",
+  CONTACT_CREATED: "Novo contato criado",
+  FIELD_UPDATED: "Campo atualizado",
+  DATE_BASED: "Baseado em data",
   NO_RESPONSE: "Lead não responde",
   MANUAL: "Acionado manualmente",
 };
@@ -55,6 +60,8 @@ function getNodeConfigComponent(
       return <SendWhatsAppAINode config={config} onChange={onChange} />;
     case "SEND_WHATSAPP":
       return <SendWhatsAppTemplateNode config={config} onChange={onChange} />;
+    case "SEND_EMAIL":
+      return <SendEmailNode config={config} onChange={onChange} />;
     case "WAIT":
       return <WaitNode config={config} onChange={onChange} />;
     case "CONDITION":
@@ -73,6 +80,225 @@ function getNodeConfigComponent(
       return null;
   }
 }
+
+// ─── Trigger Node (editable) ────────────────────────────────────────────────
+
+function TriggerNode({
+  trigger,
+  onTriggerChange,
+}: {
+  trigger: TriggerConfig;
+  onTriggerChange: (t: TriggerConfig) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [stages, setStages] = useState<Array<{ id: string; name: string }>>([]);
+  const [tags, setTags] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Fetch stages and tags when expanded
+  useEffect(() => {
+    if (!expanded) return;
+    import("@/lib/api").then(({ api }) => {
+      api.get<{ data: Array<{ id: string; name: string }> }>("/pipelines/default/stages")
+        .then((res) => setStages(res.data || []))
+        .catch(() => {
+          // Fallback: try fetching all stages
+          api.get<{ data: Array<{ id: string; name: string; stages?: Array<{ id: string; name: string }> }> }>("/pipelines")
+            .then((res2) => {
+              const defaultPipeline = res2.data?.find((p: any) => p.isDefault) || res2.data?.[0];
+              if (defaultPipeline?.stages) setStages(defaultPipeline.stages);
+            })
+            .catch(() => {});
+        });
+      api.get<{ data: Array<{ id: string; name: string }> }>("/tags")
+        .then((res) => setTags(res.data || []))
+        .catch(() => {});
+    });
+  }, [expanded]);
+
+  const isCadence = trigger.triggerConfig?.isCadence === true;
+  const stageName = trigger.triggerConfig?.stageName || "";
+
+  // Determine info text to show
+  let infoText = "";
+  if (trigger.triggerType === "STAGE_CHANGED") {
+    infoText = stageName ? `Etapa: ${stageName}` : "Quando lead muda de etapa";
+  } else if (trigger.triggerType === "TAG_ADDED" || trigger.triggerType === "TAG_REMOVED") {
+    infoText = trigger.triggerConfig?.tagName || trigger.triggerConfig?.tagId || "";
+  } else if (trigger.triggerType === "CONTACT_CREATED") {
+    infoText = "Qualquer novo contato";
+  }
+
+  return (
+    <div className="w-96">
+      <div
+        className={`bg-gradient-to-r ${isCadence ? "from-purple-500 to-purple-600" : "from-blue-500 to-blue-600"} rounded-xl shadow-md text-white p-4 cursor-pointer transition-all hover:shadow-lg`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+            <Zap size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-white/70">Gatilho</p>
+              {isCadence && (
+                <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full">
+                  CADÊNCIA
+                </span>
+              )}
+            </div>
+            <p className="text-sm font-semibold">
+              {triggerLabels[trigger.triggerType] || trigger.triggerType || "Selecionar gatilho"}
+            </p>
+            {infoText && (
+              <p className="text-xs text-white/80 mt-0.5">{infoText}</p>
+            )}
+          </div>
+          <svg
+            className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="bg-white rounded-b-xl shadow-md border border-t-0 border-gray-200 p-4 space-y-3">
+          {/* Trigger type selector */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de gatilho</label>
+            <select
+              value={trigger.triggerType}
+              onChange={(e) =>
+                onTriggerChange({
+                  triggerType: e.target.value,
+                  triggerConfig: { ...(isCadence ? { isCadence: true } : {}) },
+                })
+              }
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Selecionar...</option>
+              {Object.entries(triggerLabels).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* STAGE_CHANGED config */}
+          {trigger.triggerType === "STAGE_CHANGED" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Quando mover para etapa</label>
+              <select
+                value={trigger.triggerConfig?.stageId || ""}
+                onChange={(e) => {
+                  const stage = stages.find((s) => s.id === e.target.value);
+                  onTriggerChange({
+                    ...trigger,
+                    triggerConfig: {
+                      ...trigger.triggerConfig,
+                      stageId: e.target.value,
+                      stageName: stage?.name || "",
+                    },
+                  });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Qualquer etapa</option>
+                {stages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {stages.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1">Carregando etapas...</p>
+              )}
+            </div>
+          )}
+
+          {/* TAG_ADDED / TAG_REMOVED config */}
+          {(trigger.triggerType === "TAG_ADDED" || trigger.triggerType === "TAG_REMOVED") && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Tag</label>
+              <select
+                value={trigger.triggerConfig?.tagId || ""}
+                onChange={(e) => {
+                  const tag = tags.find((t) => t.id === e.target.value);
+                  onTriggerChange({
+                    ...trigger,
+                    triggerConfig: {
+                      ...trigger.triggerConfig,
+                      tagId: e.target.value,
+                      tagName: tag?.name || "",
+                    },
+                  });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecionar tag...</option>
+                {tags.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* FIELD_UPDATED config */}
+          {trigger.triggerType === "FIELD_UPDATED" && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Campo</label>
+              <select
+                value={trigger.triggerConfig?.field || ""}
+                onChange={(e) =>
+                  onTriggerChange({
+                    ...trigger,
+                    triggerConfig: { ...trigger.triggerConfig, field: e.target.value },
+                  })
+                }
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecionar campo...</option>
+                <option value="sector">Setor</option>
+                <option value="position">Cargo</option>
+                <option value="notes">Anotações</option>
+                <option value="city">Cidade</option>
+                <option value="state">Estado</option>
+              </select>
+            </div>
+          )}
+
+          {/* Cadence flag */}
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+            <input
+              type="checkbox"
+              id="isCadence"
+              checked={trigger.triggerConfig?.isCadence === true}
+              onChange={(e) =>
+                onTriggerChange({
+                  ...trigger,
+                  triggerConfig: { ...trigger.triggerConfig, isCadence: e.target.checked },
+                })
+              }
+              className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <label htmlFor="isCadence" className="text-xs text-gray-600">
+              Marcar como cadência (respeita horário comercial para WhatsApp, cancela ao receber resposta)
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function FlowCanvas({
   trigger,
@@ -395,45 +621,8 @@ export default function FlowCanvas({
           minWidth: "fit-content",
         }}
       >
-        {/* Trigger node */}
-        <div className="w-80 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-md text-white p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-              <Zap size={16} />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-blue-100">Gatilho</p>
-              <p className="text-sm font-semibold">
-                {triggerLabels[trigger.triggerType] ||
-                  trigger.triggerType ||
-                  "Selecionar gatilho"}
-              </p>
-            </div>
-          </div>
-          {!trigger.triggerType && (
-            <div className="mt-3">
-              <select
-                value={trigger.triggerType || ""}
-                onChange={(e) =>
-                  onTriggerChange({
-                    ...trigger,
-                    triggerType: e.target.value,
-                  })
-                }
-                className="w-full px-3 py-2 text-sm bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-              >
-                <option value="" className="text-gray-900">
-                  Selecionar...
-                </option>
-                {Object.entries(triggerLabels).map(([key, label]) => (
-                  <option key={key} value={key} className="text-gray-900">
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
+        {/* Trigger node — editable */}
+        <TriggerNode trigger={trigger} onTriggerChange={onTriggerChange} />
 
         {/* Connector after trigger → into the flow tree */}
         {steps.length === 0 ? (

@@ -115,9 +115,9 @@ router.post(
   validate({ title: 'required', pipelineId: 'required', stageId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+      const { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
       const deal = await prisma.deal.create({
-        data: { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId },
+        data: { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId },
         include: dealInclude,
       });
       res.status(201).json({ data: deal });
@@ -133,7 +133,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.deal.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Deal not found', 404));
 
-    const { title, value, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+    const { title, value, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (value !== undefined) data.value = value;
@@ -143,6 +143,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (organizationId !== undefined) data.organizationId = organizationId;
     if (sourceId !== undefined) data.sourceId = sourceId;
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate;
+    if (expectedReturnDate !== undefined) data.expectedReturnDate = expectedReturnDate;
     if (classification !== undefined) data.classification = typeof classification === 'string' ? parseInt(classification) : classification;
     if (contaAzulCode !== undefined) data.contaAzulCode = contaAzulCode;
     if (recurrence !== undefined) data.recurrence = recurrence;
