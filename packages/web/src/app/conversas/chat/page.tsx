@@ -68,7 +68,7 @@ export default function ConversasChatPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors' | 'cadence'>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [allUsers, setAllUsers] = useState<Array<{id: string, name: string}>>([]);
-  const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0 });
+  const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0, inCadence: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
@@ -103,7 +103,7 @@ export default function ConversasChatPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await api.get<{ data: {total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number} }>("/whatsapp/conversations/stats");
+      const res = await api.get<{ data: {total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number} }>("/whatsapp/conversations/stats");
       setStats(res.data);
     } catch {}
   }, []);
@@ -365,7 +365,7 @@ export default function ConversasChatPage() {
             <div className="flex flex-wrap gap-1">
               {([
                 { key: 'all' as const, label: 'Todas', count: stats.total, color: '' },
-                { key: 'cadence' as const, label: 'Automação', count: (stats as any).inCadence || 0, color: 'cadence' },
+                { key: 'cadence' as const, label: 'Automação', count: stats.inCadence, color: 'cadence' },
                 { key: 'ai' as const, label: 'Com IA', count: stats.withAI, color: '' },
                 { key: 'human' as const, label: 'Humano', count: stats.withHuman, color: '' },
                 { key: 'open' as const, label: 'Abertas', count: stats.open, color: '' },

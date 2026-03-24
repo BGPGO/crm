@@ -11,8 +11,8 @@ const pendingTimers = new Map<string, NodeJS.Timeout>();
 
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  // If 11 digits (DDD + 9-digit number), add Brazil country code 55
-  if (digits.length === 11) {
+  // If 10-11 digits (BR without country code), prepend 55
+  if (digits.length === 10 || digits.length === 11) {
     return `55${digits}`;
   }
   return digits;
@@ -334,6 +334,11 @@ ${campaignContext.context}
         contactId: contact.id,
       },
     });
+
+    // Fire automation triggers (may start cadence for "Contato feito")
+    import('./automationTriggerListener').then(({ onStageChanged }) => {
+      onStageChanged(contact.id, STAGE_CONTATO_FEITO, deal.id);
+    }).catch(() => {});
   }
 
   // 15. Create Activity on deal

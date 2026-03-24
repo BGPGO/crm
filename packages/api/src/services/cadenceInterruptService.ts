@@ -1,16 +1,14 @@
 import prisma from '../lib/prisma';
 
-// Tag IDs for each cadence (created by cadenceSeed)
-const CADENCE_TAG_IDS = [
-  'cmn50zh8h0000ey2yuzau9dmx', // Cadência Etapa 2
-  'cmn50zheu0001ey2ywj3ickql', // Cadência Etapa 3
-  'cmn50zhix0002ey2y7fsj2oy8', // Cadência Etapa 5
-];
-
 /** Remove all cadence tags from a contact */
 async function removeCadenceTags(contactId: string): Promise<void> {
+  const cadenceTags = await prisma.tag.findMany({
+    where: { name: { startsWith: 'Cadência Etapa' } },
+    select: { id: true },
+  });
+  if (cadenceTags.length === 0) return;
   await prisma.contactTag.deleteMany({
-    where: { contactId, tagId: { in: CADENCE_TAG_IDS } },
+    where: { contactId, tagId: { in: cadenceTags.map(t => t.id) } },
   }).catch(() => {});
 }
 

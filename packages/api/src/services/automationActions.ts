@@ -676,7 +676,7 @@ async function sendWhatsAppAI(
   if (!conversation) {
     conversation = await prisma.whatsAppConversation.create({
       data: {
-        phone: contact.phone,
+        phone: normalizePhone(contact.phone),
         contactId: contact.id,
         isActive: true,
         status: 'open',

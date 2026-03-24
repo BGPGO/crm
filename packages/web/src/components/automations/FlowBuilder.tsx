@@ -40,7 +40,7 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
-  const [status, setStatus] = useState("draft");
+  const [status, setStatus] = useState("DRAFT");
   const [trigger, setTrigger] = useState<TriggerConfig>({
     triggerType: "",
     triggerConfig: {},
@@ -61,7 +61,7 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
       );
       const data = res.data;
       setName(data.name || "");
-      setStatus(data.status || "draft");
+      setStatus((data.status || "DRAFT").toUpperCase());
       setTrigger({
         triggerType: data.triggerType || "",
         triggerConfig: data.triggerConfig || {},
@@ -98,10 +98,15 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
   };
 
   const handleToggleStatus = async () => {
-    const newStatus = status === "active" ? "paused" : "active";
+    const isActive = status.toUpperCase() === "ACTIVE";
     try {
-      await api.put(`/automations/${automationId}`, { status: newStatus });
-      setStatus(newStatus);
+      if (isActive) {
+        await api.post(`/automations/${automationId}/pause`, {});
+        setStatus("PAUSED");
+      } else {
+        await api.post(`/automations/${automationId}/activate`, {});
+        setStatus("ACTIVE");
+      }
     } catch {
       setAlert({ type: "error", message: "Erro ao alterar status." });
     }
@@ -150,16 +155,16 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
         <span
           className={clsx(
             "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0",
-            status === "active"
+            status.toUpperCase() === "ACTIVE"
               ? "bg-green-100 text-green-700"
-              : status === "paused"
+              : status.toUpperCase() === "PAUSED"
               ? "bg-yellow-100 text-yellow-700"
               : "bg-gray-100 text-gray-600"
           )}
         >
-          {status === "active"
+          {status.toUpperCase() === "ACTIVE"
             ? "Ativa"
-            : status === "paused"
+            : status.toUpperCase() === "PAUSED"
             ? "Pausada"
             : "Rascunho"}
         </span>
@@ -168,12 +173,12 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
           onClick={handleToggleStatus}
           className={clsx(
             "inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors flex-shrink-0",
-            status === "active"
+            status.toUpperCase() === "ACTIVE"
               ? "text-yellow-700 bg-yellow-50 hover:bg-yellow-100"
               : "text-green-700 bg-green-50 hover:bg-green-100"
           )}
         >
-          {status === "active" ? (
+          {status.toUpperCase() === "ACTIVE" ? (
             <>
               <Pause size={14} /> Pausar
             </>

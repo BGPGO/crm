@@ -75,6 +75,16 @@ export async function processOptOut(phone: string, originalText: string): Promis
       // Cancelar também o setTimeout in-memory do scheduler
       const { cancelFollowUp } = await import('../services/followUpScheduler');
       await cancelFollowUp(conversation.id).catch(() => {});
+
+      // Cancelar cadências de automação ativas
+      const convWithContact = await prisma.whatsAppConversation.findUnique({
+        where: { id: conversation.id },
+        select: { contactId: true },
+      });
+      if (convWithContact?.contactId) {
+        const { interruptCadenceOnResponse } = await import('../services/cadenceInterruptService');
+        await interruptCadenceOnResponse(convWithContact.contactId).catch(() => {});
+      }
     }
 
     // 2. Marcar contato como opted-out (se existir vínculo)
