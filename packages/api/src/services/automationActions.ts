@@ -349,10 +349,10 @@ async function sendWhatsApp(
     return { success: false, output: 'No message template or custom message provided' };
   }
 
-  // Reopen conversation if closed
+  // Reopen conversation if closed + update lastMessageAt
   await prisma.whatsAppConversation.updateMany({
-    where: { phone: contact.phone, status: 'closed' },
-    data: { status: 'open', isActive: true },
+    where: { phone: contact.phone },
+    data: { status: 'open', isActive: true, lastMessageAt: new Date() },
   }).catch(() => {});
 
   // Send via Evolution API
@@ -679,7 +679,7 @@ async function sendWhatsAppAI(
     // Reopen closed conversation when automation sends a message
     conversation = await prisma.whatsAppConversation.update({
       where: { id: conversation.id },
-      data: { status: 'open', isActive: true },
+      data: { status: 'open', isActive: true, lastMessageAt: new Date() },
     });
   }
 

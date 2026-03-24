@@ -159,7 +159,7 @@ export async function sendFollowUp(
     // Update conversation timestamp + reopen if closed
     await prisma.whatsAppConversation.update({
       where: { id: conversation.id },
-      data: { updatedAt: new Date(), status: 'open', isActive: true },
+      data: { updatedAt: new Date(), lastMessageAt: new Date(), status: 'open', isActive: true },
     });
 
     // Send via Z-API
