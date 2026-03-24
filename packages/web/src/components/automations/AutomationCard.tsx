@@ -100,8 +100,8 @@ export default function AutomationCard({ automation, onActivate, onPause, onDele
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
+      {/* Actions — stopPropagation to prevent parent onClick from firing */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50 rounded-b-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-1">
           {canToggle && (
             <Button
