@@ -6,18 +6,6 @@ import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface ScheduledTask {
-  id: string;
-  stepNumber: number;
-  label?: string;
-  tone?: string;
-  delayMinutes: number;
-  scheduledAt: string;
-  status: "PENDING" | "SENT" | "CANCELLED";
-  sentAt?: string;
-  cancelledAt?: string;
-}
-
 interface Message {
   id: string;
   sender: "CLIENT" | "BOT" | "HUMAN";
@@ -50,7 +38,6 @@ export default function WhatsAppSidebar({
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const [activatingBot, setActivatingBot] = useState(false);
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -82,10 +69,7 @@ export default function WhatsAppSidebar({
   // Initial load
   useEffect(() => {
     fetchMessages(true);
-    api.get<{ data: ScheduledTask[] }>(`/whatsapp/conversations/${conversationId}/scheduled-followups`)
-      .then(res => setScheduledTasks(res.data || []))
-      .catch(() => {});
-  }, [fetchMessages, conversationId]);
+  }, [fetchMessages]);
 
   // Poll every 5 seconds
   useEffect(() => {
@@ -293,53 +277,6 @@ export default function WhatsAppSidebar({
           )}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Scheduled follow-ups */}
-        {scheduledTasks.filter(t => t.status === 'PENDING').length > 0 && (
-          <div className="px-3 py-2 bg-amber-50 border-t border-amber-200 flex-shrink-0">
-            <p className="text-[10px] font-semibold text-amber-700 mb-1">Follow-ups agendados</p>
-            <div className="space-y-1">
-              {scheduledTasks.filter(t => t.status === 'PENDING').map(task => {
-                const scheduledDate = new Date(task.scheduledAt);
-                const now = new Date();
-                const diffMs = scheduledDate.getTime() - now.getTime();
-                const diffMin = Math.max(0, Math.round(diffMs / 60000));
-                let timeLabel: string;
-                if (diffMin < 60) timeLabel = `em ${diffMin}min`;
-                else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
-                else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
-
-                return (
-                  <div key={task.id} className="flex items-center gap-1.5 text-[11px]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700">
-                      {task.label || `Step #${task.stepNumber}`}
-                    </span>
-                    <span className="text-gray-400 ml-auto text-[10px]">{timeLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {scheduledTasks.filter(t => t.status !== 'PENDING').length > 0 && (
-          <div className="px-3 py-1 bg-gray-50 border-t border-gray-100 flex-shrink-0">
-            <div className="space-y-0.5">
-              {scheduledTasks.filter(t => t.status !== 'PENDING').slice(-5).map(task => (
-                <div key={task.id} className="flex items-center gap-1.5 text-[10px]">
-                  {task.status === 'SENT' ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                  ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                  )}
-                  <span className={task.status === 'CANCELLED' ? 'text-gray-400 line-through' : 'text-gray-500'}>
-                    #{task.stepNumber} — {task.status === 'SENT' ? 'Enviado' : 'Cancelado'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Input bar */}
         <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0 space-y-2">

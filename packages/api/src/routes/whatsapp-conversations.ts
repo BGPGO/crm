@@ -59,7 +59,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         where,
         skip,
         take: limit,
-        orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
         include: {
           messages: {
             orderBy: { createdAt: 'desc' },

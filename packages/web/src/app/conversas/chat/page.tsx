@@ -9,18 +9,6 @@ import { api } from "@/lib/api";
 import { formatWhatsAppText } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface ScheduledTask {
-  id: string;
-  stepNumber: number;
-  label?: string;
-  tone?: string;
-  delayMinutes: number;
-  scheduledAt: string;
-  status: "PENDING" | "SENT" | "CANCELLED";
-  sentAt?: string;
-  cancelledAt?: string;
-}
-
 interface ConversationMessage {
   id: string;
   conversationId: string;
@@ -84,7 +72,6 @@ export default function ConversasChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
-  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -169,9 +156,6 @@ export default function ConversasChatPage() {
     if (selectedId) {
       fetchMessages(selectedId, true);
       api.post(`/whatsapp/conversations/${selectedId}/read`, {}).catch(() => {});
-      api.get<{ data: ScheduledTask[] }>(`/whatsapp/conversations/${selectedId}/scheduled-followups`)
-        .then(res => setScheduledTasks(res.data || []))
-        .catch(() => setScheduledTasks([]));
     }
   }, [selectedId, fetchMessages]);
 
@@ -734,61 +718,18 @@ export default function ConversasChatPage() {
                   t.name?.startsWith('Cadência Etapa')
                 ) || [];
                 const activeCadence = cadenceTags[0];
-
-                if (!activeCadence && scheduledTasks.filter(t => t.status === 'PENDING').length === 0) return null;
+                if (!activeCadence) return null;
 
                 return (
                   <div className="px-4 py-2 bg-purple-50 border-t border-purple-200 flex-shrink-0">
-                    {activeCadence && (
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse flex-shrink-0" />
-                        <span className="text-xs font-semibold text-purple-700">{activeCadence.name}</span>
-                        <span className="text-[10px] text-purple-400">em andamento</span>
-                      </div>
-                    )}
-                    {scheduledTasks.filter(t => t.status === 'PENDING').length > 0 && (
-                      <div className="space-y-1">
-                        {scheduledTasks.filter(t => t.status === 'PENDING').map(task => {
-                          const scheduledDate = new Date(task.scheduledAt);
-                          const now = new Date();
-                          const diffMs = scheduledDate.getTime() - now.getTime();
-                          const diffMin = Math.max(0, Math.round(diffMs / 60000));
-                          let timeLabel: string;
-                          if (diffMin < 60) timeLabel = `em ${diffMin}min`;
-                          else if (diffMin < 1440) timeLabel = `em ${Math.round(diffMin / 60)}h`;
-                          else timeLabel = `em ${Math.round(diffMin / 1440)}d`;
-
-                          return (
-                            <div key={task.id} className="flex items-center gap-2 text-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-purple-300 flex-shrink-0" />
-                              <span className="text-gray-600">{task.label || `Step #${task.stepNumber}`}</span>
-                              <span className="text-gray-400 ml-auto">{timeLabel}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse flex-shrink-0" />
+                      <span className="text-xs font-semibold text-purple-700">{activeCadence.name}</span>
+                      <span className="text-[10px] text-purple-400">em andamento</span>
+                    </div>
                   </div>
                 );
               })()}
-              {scheduledTasks.filter(t => t.status !== 'PENDING').length > 0 && (
-                <div className="px-4 py-1 bg-gray-50 border-t border-gray-100 flex-shrink-0">
-                  <div className="space-y-0.5">
-                    {scheduledTasks.filter(t => t.status !== 'PENDING').slice(-5).map(task => (
-                      <div key={task.id} className="flex items-center gap-2 text-[10px]">
-                        {task.status === 'SENT' ? (
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                        ) : (
-                          <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                        )}
-                        <span className={task.status === 'CANCELLED' ? 'text-gray-400 line-through' : 'text-gray-500'}>
-                          {task.label || `Step #${task.stepNumber}`} — {task.status === 'SENT' ? 'Enviado' : 'Cancelado'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Input */}
               <div className="bg-white border-t border-gray-200 p-3 relative">
