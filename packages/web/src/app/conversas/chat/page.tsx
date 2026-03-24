@@ -65,7 +65,7 @@ export default function ConversasChatPage() {
   const [templates, setTemplates] = useState<Array<{id: string, name: string, content: string, category: string}>>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateFilter, setTemplateFilter] = useState("");
-  const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors' | 'cadence'>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [allUsers, setAllUsers] = useState<Array<{id: string, name: string}>>([]);
   const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0 });
@@ -86,6 +86,7 @@ export default function ConversasChatPage() {
       else if (activeFilter === 'human') params.set('attendant', 'human');
       else if (activeFilter === 'open') params.set('status', 'open');
       else if (activeFilter === 'closed') params.set('status', 'closed');
+      else if (activeFilter === 'cadence') params.set('cadence', 'true');
       else if (activeFilter === 'errors') params.set('hasErrors', 'true');
       if (userFilter && userFilter !== 'all') params.set('assignedUserId', userFilter);
       const s = query !== undefined ? query : searchQuery;
@@ -364,6 +365,7 @@ export default function ConversasChatPage() {
             <div className="flex flex-wrap gap-1">
               {([
                 { key: 'all' as const, label: 'Todas', count: stats.total, color: '' },
+                { key: 'cadence' as const, label: 'Automação', count: (stats as any).inCadence || 0, color: 'cadence' },
                 { key: 'ai' as const, label: 'Com IA', count: stats.withAI, color: '' },
                 { key: 'human' as const, label: 'Humano', count: stats.withHuman, color: '' },
                 { key: 'open' as const, label: 'Abertas', count: stats.open, color: '' },
@@ -376,8 +378,8 @@ export default function ConversasChatPage() {
                   className={clsx(
                     "px-2 py-1 rounded text-[11px] font-medium transition-colors",
                     activeFilter === f.key
-                      ? f.color === 'error' ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-                      : f.color === 'error' && f.count > 0 ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                      ? f.color === 'error' ? "bg-red-100 text-red-700" : f.color === 'cadence' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                      : f.color === 'error' && f.count > 0 ? "bg-red-50 text-red-500 hover:bg-red-100" : f.color === 'cadence' && f.count > 0 ? "bg-purple-50 text-purple-500 hover:bg-purple-100" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
                   )}
                 >
                   {f.label} <span className="text-[10px] opacity-70">({f.count})</span>

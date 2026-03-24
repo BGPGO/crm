@@ -47,6 +47,14 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.status = 'closed';
     }
 
+    // Filter by cadence: conversations with active cadence tags
+    const { cadence } = req.query;
+    if (cadence === 'true') {
+      where.contact = {
+        tags: { some: { tag: { name: { startsWith: 'Cadência Etapa' } } } },
+      };
+    }
+
     // Filter by errors: conversations with undelivered messages
     const { hasErrors } = req.query;
     if (hasErrors === 'true') {
@@ -118,16 +126,17 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
       return res.json({ data: statsCache.data });
     }
 
-    const [total, withAI, withHuman, open, closed, withErrors] = await Promise.all([
+    const [total, withAI, withHuman, open, closed, withErrors, inCadence] = await Promise.all([
       prisma.whatsAppConversation.count(),
       prisma.whatsAppConversation.count({ where: { needsHumanAttention: false, isActive: true } }),
       prisma.whatsAppConversation.count({ where: { needsHumanAttention: true } }),
       prisma.whatsAppConversation.count({ where: { status: 'open' } }),
       prisma.whatsAppConversation.count({ where: { status: 'closed' } }),
       prisma.whatsAppConversation.count({ where: { messages: { some: { delivered: false } } } }),
+      prisma.whatsAppConversation.count({ where: { contact: { tags: { some: { tag: { name: { startsWith: 'Cadência Etapa' } } } } } } }),
     ]);
 
-    const data = { total, withAI, withHuman, open, closed, withErrors };
+    const data = { total, withAI, withHuman, open, closed, withErrors, inCadence };
     statsCache = { data, expiresAt: Date.now() + 30_000 };
     res.json({ data });
   } catch (err) {
