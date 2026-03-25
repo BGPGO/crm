@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
+  RefreshCw,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -939,15 +940,15 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sendingAutentique, setSendingAutentique] = useState(false);
-  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
 
   const contractRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Show toast helper ──
-  const showToast = (type: "success" | "error", message: string) => {
+  const showToast = (type: "success" | "error" | "warning", message: string) => {
     setToast({ type, message });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), type === "warning" ? 8000 : 4000);
   };
 
   // ── Update form field ──
@@ -1132,6 +1133,33 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     printWindow.print();
   };
 
+  // ── Revise contract (cancel Autentique & reopen form) ──
+  const [revising, setRevising] = useState(false);
+  const handleRevise = async () => {
+    if (!contractId) return;
+    const confirmed = window.confirm(
+      "Tem certeza que deseja alterar o contrato?\n\nO contrato atual no Autentique será cancelado e você poderá editar as informações e enviar um novo."
+    );
+    if (!confirmed) return;
+
+    setRevising(true);
+    try {
+      const res = await api.post<{ data: any; autentiqueCancelled: boolean; autentiqueCancelError: string | null }>(`/contracts/${contractId}/revise`, {});
+      setContractStatus("draft");
+      setMode("form");
+      if (res.autentiqueCancelled) {
+        showToast("success", "Contrato cancelado no Autentique. Edite as informações e envie novamente.");
+      } else {
+        showToast("warning", `Contrato reaberto para edição, mas o cancelamento no Autentique falhou: ${res.autentiqueCancelError || "erro desconhecido"}. Cancele manualmente no painel do Autentique.`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao cancelar contrato";
+      showToast("error", msg);
+    } finally {
+      setRevising(false);
+    }
+  };
+
   // ── Send to Autentique ──
   const handleSendAutentique = async () => {
     const validationErrors = validateContractForm(form);
@@ -1257,7 +1285,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={() => setMode("preview")}
             className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-4 py-2 transition-colors"
@@ -1272,6 +1300,16 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             <Download size={16} />
             Baixar PDF
           </button>
+          {!isSigned && (
+            <button
+              onClick={handleRevise}
+              disabled={revising}
+              className="flex items-center gap-2 text-sm font-medium text-amber-600 hover:text-amber-700 border border-amber-200 rounded-lg px-4 py-2 transition-colors disabled:opacity-50"
+            >
+              {revising ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              Alterar Contrato
+            </button>
+          )}
         </div>
 
         {/* Contract preview inline */}
@@ -1290,7 +1328,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         {toast && (
           <div
             className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-              toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+              toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : toast.type === "warning" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-700 border border-red-200"
             }`}
           >
             {toast.message}
@@ -1345,7 +1383,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       {toast && (
         <div
           className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
-            toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
+            toast.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : toast.type === "warning" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-700 border border-red-200"
           }`}
         >
           {toast.message}

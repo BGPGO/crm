@@ -327,4 +327,98 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
   }
 });
 
+// POST /api/contracts/:id/revise — Cancel current contract on Autentique and reopen for editing
+router.post('/:id/revise', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const contract = await prisma.contract.findUnique({ where: { id: req.params.id } });
+    if (!contract) return next(createError('Contract not found', 404));
+    if (contract.status !== 'PENDING_SIGNATURE') {
+      return next(createError('Só é possível alterar contratos aguardando assinatura.', 400));
+    }
+
+    // Cancel on Autentique if we have a document ID
+    let autentiqueCancelled = false;
+    let autentiqueCancelError: string | null = null;
+    if (contract.autentiqueDocumentId) {
+      const AUTENTIQUE_TOKEN = process.env.AUTENTIQUE_API_TOKEN;
+      if (!AUTENTIQUE_TOKEN) {
+        autentiqueCancelError = 'AUTENTIQUE_API_TOKEN não configurado no .env';
+        console.error('[contracts] AUTENTIQUE_API_TOKEN not set — cannot cancel document on Autentique');
+      } else {
+        try {
+          const axios = (await import('axios')).default;
+          const query = 'mutation { deleteDocument(id: "' + contract.autentiqueDocumentId + '") }';
+          const response = await axios.post('https://api.autentique.com.br/v2/graphql', { query }, {
+            headers: {
+              Authorization: `Bearer ${AUTENTIQUE_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          // Check for GraphQL-level errors
+          if (response.data?.errors?.length) {
+            const gqlError = response.data.errors.map((e: any) => e.message).join('; ');
+            autentiqueCancelError = `Autentique retornou erro: ${gqlError}`;
+            console.error(`[contracts] Autentique GraphQL errors for doc ${contract.autentiqueDocumentId}:`, gqlError);
+          } else if (response.data?.data?.deleteDocument !== undefined) {
+            autentiqueCancelled = true;
+            console.log(`[contracts] Autentique document ${contract.autentiqueDocumentId} cancelled successfully`);
+          } else {
+            autentiqueCancelError = 'Resposta inesperada do Autentique';
+            console.warn(`[contracts] Unexpected Autentique response for doc ${contract.autentiqueDocumentId}:`, JSON.stringify(response.data));
+          }
+        } catch (autErr) {
+          const errDetail = autErr instanceof Error ? autErr.message : String(autErr);
+          if (autErr && typeof autErr === 'object' && 'response' in autErr) {
+            const axiosErr = autErr as any;
+            autentiqueCancelError = `Erro HTTP ${axiosErr.response?.status}: ${JSON.stringify(axiosErr.response?.data || errDetail)}`;
+          } else {
+            autentiqueCancelError = errDetail;
+          }
+          console.error('[contracts] Failed to cancel Autentique document:', autentiqueCancelError);
+        }
+      }
+    } else {
+      // No Autentique document to cancel — that's fine
+      autentiqueCancelled = true;
+    }
+
+    // Delete signature records
+    await prisma.contractSignatureRecord.deleteMany({ where: { contractId: contract.id } });
+
+    // Reset contract to DRAFT
+    const updated = await prisma.contract.update({
+      where: { id: contract.id },
+      data: {
+        status: 'DRAFT',
+        autentiqueDocumentId: null,
+        autentiqueSentAt: null,
+        autentiqueSignedAt: null,
+      },
+    });
+
+    // Log activity
+    const currentUserId = (req as any).user?.id;
+    if (currentUserId) {
+      await prisma.activity.create({
+        data: {
+          type: 'NOTE',
+          content: 'Contrato cancelado para revisão. O contrato anterior no Autentique foi descartado.',
+          dealId: contract.dealId,
+          userId: currentUserId,
+          metadata: { source: 'contract', action: 'revise' },
+        },
+      });
+    }
+
+    res.json({
+      data: updated,
+      autentiqueCancelled,
+      autentiqueCancelError,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
