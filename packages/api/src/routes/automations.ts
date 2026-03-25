@@ -234,8 +234,18 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
     // Wrap delete + create in a transaction so steps are never lost
     const automationId = req.params.id;
     const created = await prisma.$transaction(async (tx) => {
-      // Clear references before deleting steps
-      await tx.automationLog.deleteMany({ where: { enrollment: { automationId } } });
+      // Snapshot old steps so we can map enrollment progress by order
+      const oldSteps = await tx.automationStep.findMany({ where: { automationId } });
+      const oldStepOrderById = new Map<string, number>();
+      for (const s of oldSteps) oldStepOrderById.set(s.id, s.order);
+
+      // Snapshot active enrollments and their current step order
+      const activeEnrollments = await tx.automationEnrollment.findMany({
+        where: { automationId, status: { in: ['ACTIVE', 'PAUSED'] } },
+        select: { id: true, currentStepId: true },
+      });
+
+      // Clear references before deleting steps (keep logs — they're history)
       await tx.automationEnrollment.updateMany({ where: { automationId }, data: { currentStepId: null } });
       await tx.automationStep.updateMany({ where: { automationId }, data: { nextStepId: null, trueStepId: null, falseStepId: null } });
       await tx.automationStep.deleteMany({ where: { automationId } });
@@ -271,12 +281,37 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
         }
       }
 
-      // Reassign active enrollments to the new first step
-      if (createdSteps.length > 0) {
-        const firstNewStep = createdSteps.reduce((min, s) => s.order < min.order ? s : min, createdSteps[0]);
-        await tx.automationEnrollment.updateMany({
-          where: { automationId, status: { in: ['ACTIVE', 'PAUSED'] } },
-          data: { currentStepId: firstNewStep.id, nextActionAt: new Date() },
+      // Phase 3: Preserve enrollment progress by mapping old step order → new step
+      // Build a sorted list of new steps by order for quick lookup
+      const newStepsByOrder = [...createdSteps].sort((a, b) => a.order - b.order);
+      const firstNewStep = newStepsByOrder[0];
+
+      for (const enrollment of activeEnrollments) {
+        const oldOrder = enrollment.currentStepId
+          ? oldStepOrderById.get(enrollment.currentStepId)
+          : undefined;
+
+        let targetStep = firstNewStep; // fallback: start from beginning
+
+        if (oldOrder !== undefined) {
+          // Find the new step at the same order, or the next one after it
+          const sameOrNext = newStepsByOrder.find((s) => s.order >= oldOrder);
+          if (sameOrNext) {
+            targetStep = sameOrNext;
+          } else {
+            // Was past the last step — mark as completed
+            await tx.automationEnrollment.update({
+              where: { id: enrollment.id },
+              data: { status: 'COMPLETED', completedAt: new Date(), currentStepId: null, nextActionAt: null },
+            });
+            continue;
+          }
+        }
+
+        await tx.automationEnrollment.update({
+          where: { id: enrollment.id },
+          data: { currentStepId: targetStep.id },
+          // Keep existing nextActionAt — don't reset the timer
         });
       }
 
