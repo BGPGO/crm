@@ -717,17 +717,29 @@ async function sendWhatsAppAI(
 
   const openai = new OpenAI({ apiKey: openaiKey });
 
-  // 4. Generate AI message using the prompt and objective
+  // 4. Load conversation history for continuity
+  const recentMessages = await prisma.whatsAppMessage.findMany({
+    where: { conversationId: conversation.id },
+    orderBy: { createdAt: 'desc' },
+    take: 15,
+    select: { sender: true, text: true },
+  });
+  const historyLines = recentMessages
+    .reverse()
+    .map((m) => `${m.sender === 'CLIENT' ? 'LEAD' : 'VOCÊ'}: ${m.text}`)
+    .join('\n');
+
+  // 5. Generate AI message using the prompt, objective, and conversation history
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       {
         role: 'system',
-        content: `Você é um assistente de vendas da BGPGO. Seu objetivo: ${config.objective}\n\nInstruções: ${config.prompt}\n${generalContext ? `\nCONTEXTO GERAL DA CADÊNCIA:\n${generalContext}\n` : ''}\nNome do contato: ${contact.name}\nEmail: ${contact.email || 'N/A'}\nTelefone: ${contact.phone}\nSetor: ${(contact as any).sector || 'Não informado'}\nEmpresa: ${(contact as any).organization?.name || 'Não informada'}`,
+        content: `Você é um assistente de vendas da BGPGO. Seu objetivo: ${config.objective}\n\nInstruções: ${config.prompt}\n${generalContext ? `\nCONTEXTO GERAL DA CADÊNCIA:\n${generalContext}\n` : ''}\nNome do contato: ${contact.name}\nEmail: ${contact.email || 'N/A'}\nTelefone: ${contact.phone}\nSetor: ${(contact as any).sector || 'Não informado'}\nEmpresa: ${(contact as any).organization?.name || 'Não informada'}\n\nIMPORTANTE: Você já está em contato com este lead. NÃO se apresente novamente. NÃO diga "Olá, sou..." se já houve mensagens anteriores. Dê continuidade à conversa de forma natural.${historyLines ? `\n\nHISTÓRICO DA CONVERSA:\n${historyLines}` : ''}`,
       },
       {
         role: 'user',
-        content: 'Gere a mensagem de WhatsApp para este contato. Responda APENAS com o texto da mensagem, sem aspas ou formatação extra.',
+        content: 'Gere a próxima mensagem de WhatsApp para este contato, dando continuidade à conversa. Responda APENAS com o texto da mensagem, sem aspas ou formatação extra.',
       },
     ],
     temperature: 0.7,

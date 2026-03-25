@@ -111,7 +111,7 @@ export default function ConversasChatPage() {
   const fetchMessages = useCallback(async (conversationId: string, showLoading = false) => {
     if (showLoading) setMessagesLoading(true);
     try {
-      const res = await api.get<{ data: Message[] }>(`/whatsapp/conversations/${conversationId}/messages`);
+      const res = await api.get<{ data: Message[] }>(`/whatsapp/conversations/${conversationId}/messages?limit=200`);
       setMessages(res.data || []);
     } catch {
       setError("Erro ao carregar mensagens.");

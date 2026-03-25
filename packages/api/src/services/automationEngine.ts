@@ -121,11 +121,28 @@ function doesTriggerMatch(
 export async function processEnrollments(): Promise<{ processed: number }> {
   const now = new Date();
 
-  const enrollments = await prisma.automationEnrollment.findMany({
+  // Fetch candidates and immediately claim them by pushing nextActionAt into the future.
+  // This prevents duplicate processing if the cron fires again before we finish.
+  const candidates = await prisma.automationEnrollment.findMany({
     where: {
       status: 'ACTIVE',
       nextActionAt: { lte: now },
     },
+    select: { id: true },
+  });
+
+  if (candidates.length === 0) return { processed: 0 };
+
+  // Atomic claim: set nextActionAt to 5 min in the future so no other cycle picks them up
+  const claimUntil = new Date(now.getTime() + 5 * 60 * 1000);
+  await prisma.automationEnrollment.updateMany({
+    where: { id: { in: candidates.map((c) => c.id) }, status: 'ACTIVE', nextActionAt: { lte: now } },
+    data: { nextActionAt: claimUntil },
+  });
+
+  // Now fetch full data for claimed enrollments
+  const enrollments = await prisma.automationEnrollment.findMany({
+    where: { id: { in: candidates.map((c) => c.id) } },
     include: {
       currentStep: true,
       automation: {

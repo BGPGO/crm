@@ -177,25 +177,28 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
     if (!existing) return next(createError('Conversation not found', 404));
 
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
-    const skip = (page - 1) * limit;
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
 
     const where = { conversationId: req.params.id };
+    const total = await prisma.whatsAppMessage.count({ where });
 
-    const [total, data] = await Promise.all([
-      prisma.whatsAppMessage.count({ where }),
-      prisma.whatsAppMessage.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'asc' },
-        include: { senderUser: { select: { id: true, name: true } } },
-      }),
-    ]);
+    // When no explicit page is requested, return the LAST `limit` messages
+    // so the chat always shows the most recent conversation.
+    const totalPages = Math.ceil(total / limit);
+    const effectivePage = req.query.page ? page : Math.max(1, totalPages);
+    const skip = (effectivePage - 1) * limit;
+
+    const data = await prisma.whatsAppMessage.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'asc' },
+      include: { senderUser: { select: { id: true, name: true } } },
+    });
 
     res.json({
       data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: { total, page: effectivePage, limit, totalPages },
     });
   } catch (err) {
     next(err);
