@@ -50,7 +50,12 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   if (str('userId')) where.userId = str('userId');
   if (str('stageId')) where.stageId = str('stageId');
   if (str('sourceId')) where.sourceId = str('sourceId');
-  if (str('campaignId')) where.campaignId = str('campaignId');
+  const campaignIds = str('campaignIds');
+  if (campaignIds) {
+    where.campaignId = { in: campaignIds.split(',').filter(Boolean) };
+  } else if (str('campaignId')) {
+    where.campaignId = str('campaignId');
+  }
   if (str('lostReasonId')) where.lostReasonId = str('lostReasonId');
   if (str('organizationId')) where.organizationId = str('organizationId');
   if (str('contactId')) where.contactId = str('contactId');

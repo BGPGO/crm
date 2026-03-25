@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Modal from "@/components/ui/Modal";
 import { api } from "@/lib/api";
-import { X } from "lucide-react";
+import { X, ChevronDown, Check } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ interface ListResponse<T = Option> {
 
 export interface AdvancedFilters {
   sourceId?: string;
-  campaignId?: string;
+  campaignIds?: string;
   lostReasonId?: string;
   organizationId?: string;
   contactId?: string;
@@ -55,6 +55,98 @@ const INPUT =
 
 function countActive(f: AdvancedFilters): number {
   return Object.values(f).filter((v) => v !== undefined && v !== "").length;
+}
+
+// ── Campaign Multi-Select ────────────────────────────────────────────────────
+
+function CampaignMultiSelect({
+  campaigns,
+  value,
+  onChange,
+}: {
+  campaigns: Option[];
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = value ? value.split(",").filter(Boolean) : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((s) => s !== id)
+      : [...selected, id];
+    onChange(next.join(","));
+  };
+
+  const label =
+    selected.length === 0
+      ? "Todas as campanhas"
+      : selected.length === 1
+        ? campaigns.find((c) => c.id === selected[0])?.name ?? "1 campanha"
+        : `${selected.length} campanhas`;
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs font-medium text-gray-600 mb-1">Campanhas</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={SEL + " flex items-center justify-between text-left"}
+      >
+        <span className={selected.length === 0 ? "text-gray-500" : "text-gray-900 truncate"}>
+          {label}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {campaigns.length === 0 && (
+            <div className="px-3 py-2 text-sm text-gray-400">Nenhuma campanha</div>
+          )}
+          {campaigns.map((c) => {
+            const isSelected = selected.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => toggle(c.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
+              >
+                <span
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    isSelected
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "border-gray-300"
+                  }`}
+                >
+                  {isSelected && <Check size={12} />}
+                </span>
+                <span className="truncate">{c.name}</span>
+              </button>
+            );
+          })}
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="w-full px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left"
+            >
+              Limpar seleção
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -143,19 +235,11 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Campanha</label>
-            <select
-              value={draft.campaignId ?? ""}
-              onChange={(e) => set("campaignId", e.target.value)}
-              className={SEL}
-            >
-              <option value="">Todas as campanhas</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          <CampaignMultiSelect
+            campaigns={campaigns}
+            value={draft.campaignIds ?? ""}
+            onChange={(val) => setDraft((prev) => ({ ...prev, campaignIds: val || undefined }))}
+          />
         </div>
 
         {/* Row 2: Organization + Contact */}
