@@ -63,17 +63,23 @@ function MiniCalendar({ meetings, selectedDate, onSelectDate }: {
   const lastDay = new Date(year, month + 1, 0);
   const startOffset = (firstDay.getDay() + 6) % 7; // Monday = 0
 
-  // Count meetings per day
-  const meetingDays = new Map<string, number>();
+  // Group meetings by day
+  const meetingsByDay = new Map<number, Meeting[]>();
   meetings.forEach(m => {
     const d = new Date(m.startTime);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    meetingDays.set(key, (meetingDays.get(key) || 0) + 1);
+    if (d.getMonth() === month && d.getFullYear() === year) {
+      const day = d.getDate();
+      const arr = meetingsByDay.get(day) || [];
+      arr.push(m);
+      meetingsByDay.set(day, arr);
+    }
   });
 
   const days: (number | null)[] = [];
   for (let i = 0; i < startOffset; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(d);
+  // Pad to complete last row
+  while (days.length % 7 !== 0) days.push(null);
 
   const today = new Date();
   const isToday = (d: number) =>
@@ -83,34 +89,45 @@ function MiniCalendar({ meetings, selectedDate, onSelectDate }: {
     selectedDate && d === selectedDate.getDate() &&
     month === selectedDate.getMonth() && year === selectedDate.getFullYear();
 
-  const getMeetingCount = (d: number) =>
-    meetingDays.get(`${year}-${month}-${d}`) || 0;
+  const isPast = (d: number) => {
+    const date = new Date(year, month, d);
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    return date < todayStart;
+  };
 
   const prevMonth = () => setViewMonth(new Date(year, month - 1, 1));
   const nextMonth = () => setViewMonth(new Date(year, month + 1, 1));
 
   const monthName = viewMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
+  const formatChipTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded text-gray-500">
-          <ChevronLeft size={16} />
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={prevMonth} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
+          <ChevronLeft size={18} />
         </button>
         <span className="text-sm font-semibold text-gray-700 capitalize">{monthName}</span>
-        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded text-gray-500">
-          <ChevronRight size={16} />
+        <button onClick={nextMonth} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
+          <ChevronRight size={18} />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center">
+      <div className="grid grid-cols-7 gap-px bg-gray-100 rounded-lg overflow-hidden">
         {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
-          <span key={d} className="text-[10px] font-medium text-gray-400 py-1">{d}</span>
+          <div key={d} className="bg-gray-50 text-center py-2">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase">{d}</span>
+          </div>
         ))}
         {days.map((day, i) => {
-          if (day === null) return <span key={`empty-${i}`} />;
-          const count = getMeetingCount(day);
+          if (day === null) return <div key={`empty-${i}`} className="bg-white min-h-[80px]" />;
+          const dayMeetings = meetingsByDay.get(day) || [];
           const sel = isSelected(day);
           const tod = isToday(day);
+          const past = isPast(day);
           return (
             <button
               key={day}
@@ -120,25 +137,41 @@ function MiniCalendar({ meetings, selectedDate, onSelectDate }: {
                 else onSelectDate(clickedDate);
               }}
               className={clsx(
-                "relative w-8 h-8 mx-auto rounded-full text-xs font-medium transition-colors",
-                sel ? "bg-blue-600 text-white" :
-                tod ? "bg-blue-50 text-blue-700 font-bold" :
-                "text-gray-700 hover:bg-gray-100"
+                "bg-white min-h-[80px] p-1 text-left transition-colors flex flex-col",
+                sel ? "ring-2 ring-blue-500 ring-inset bg-blue-50/50" :
+                "hover:bg-gray-50",
+                past && !sel && "opacity-60"
               )}
             >
-              {day}
-              {count > 0 && !sel && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-                  {Array.from({ length: Math.min(count, 3) }).map((_, j) => (
-                    <span key={j} className="w-1 h-1 rounded-full bg-blue-500" />
-                  ))}
-                </span>
-              )}
-              {count > 0 && sel && (
-                <span className="absolute -top-1 -right-1 bg-white text-blue-600 text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center border border-blue-200">
-                  {count}
-                </span>
-              )}
+              <span className={clsx(
+                "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-0.5",
+                tod ? "bg-blue-600 text-white" :
+                sel ? "text-blue-700 font-bold" :
+                "text-gray-600"
+              )}>
+                {day}
+              </span>
+              <div className="flex flex-col gap-0.5 overflow-hidden flex-1">
+                {dayMeetings.slice(0, 3).map((m, j) => (
+                  <div
+                    key={m.id}
+                    className={clsx(
+                      "text-[9px] leading-tight px-1 py-0.5 rounded truncate",
+                      m.status === 'canceled'
+                        ? "bg-red-50 text-red-500 line-through"
+                        : past
+                          ? "bg-gray-100 text-gray-500"
+                          : "bg-blue-50 text-blue-700"
+                    )}
+                    title={`${formatChipTime(m.startTime)} - ${m.contact?.name || m.inviteeName || m.inviteeEmail}`}
+                  >
+                    {formatChipTime(m.startTime)} {m.contact?.name?.split(' ')[0] || m.inviteeName?.split(' ')[0] || ''}
+                  </div>
+                ))}
+                {dayMeetings.length > 3 && (
+                  <span className="text-[9px] text-gray-400 px-1">+{dayMeetings.length - 3} mais</span>
+                )}
+              </div>
             </button>
           );
         })}
@@ -164,6 +197,7 @@ export default function ReunioesPage() {
   const [hostFilter, setHostFilter] = useState<string>("all");
   const [hosts, setHosts] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [calendarMeetings, setCalendarMeetings] = useState<Meeting[]>([]);
 
   const fetchHosts = useCallback(async () => {
     try {
@@ -173,6 +207,16 @@ export default function ReunioesPage() {
   }, []);
 
   useEffect(() => { fetchHosts(); }, [fetchHosts]);
+
+  const fetchCalendarMeetings = useCallback(async () => {
+    try {
+      const url = `/calendly/config/meetings?period=all${hostFilter !== 'all' ? `&hostName=${encodeURIComponent(hostFilter)}` : ''}`;
+      const res = await api.get<{ data: Meeting[] }>(url);
+      setCalendarMeetings(res.data || []);
+    } catch { /* silent */ }
+  }, [hostFilter]);
+
+  useEffect(() => { fetchCalendarMeetings(); }, [fetchCalendarMeetings]);
 
   const fetchMeetings = useCallback(async () => {
     try {
@@ -367,8 +411,8 @@ export default function ReunioesPage() {
 
         {/* Two-column layout: meetings list + calendar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Meetings list — takes 2 cols */}
-          <div className="lg:col-span-2">
+          {/* Meetings list — compact sidebar */}
+          <div className="lg:col-span-1 order-2 lg:order-1">
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {loading ? (
                 <div className="p-6 space-y-4">
@@ -489,10 +533,10 @@ export default function ReunioesPage() {
             </div>
           </div>
 
-          {/* Calendar — takes 1 col */}
-          <div className="space-y-4">
+          {/* Calendar — main area */}
+          <div className="lg:col-span-2 order-1 lg:order-2 space-y-4">
             <MiniCalendar
-              meetings={meetings}
+              meetings={calendarMeetings}
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
             />

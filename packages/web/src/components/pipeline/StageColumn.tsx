@@ -188,14 +188,6 @@ export default function StageColumn({
             <span className="text-xs text-gray-400 font-medium flex-shrink-0">
               ({stage.dealCount})
             </span>
-            <span className="text-xs text-gray-500 font-medium flex-shrink-0 ml-1">
-              {formatCurrency(stage.totalValue)}
-            </span>
-            {showTicketMedio && stage.dealCount > 0 && (
-              <span className="text-[10px] text-gray-400 flex-shrink-0">
-                TM {formatCurrency(stage.totalValue / stage.dealCount)}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
             <button
@@ -206,6 +198,16 @@ export default function StageColumn({
               <Plus size={13} />
             </button>
           </div>
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-gray-500 font-medium">
+            {formatCurrency(stage.totalValue)}
+          </span>
+          {showTicketMedio && stage.dealCount > 0 && (
+            <span className="text-[10px] text-gray-400">
+              · TM {formatCurrency(stage.totalValue / stage.dealCount)}
+            </span>
+          )}
         </div>
       </div>
 
