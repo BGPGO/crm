@@ -154,17 +154,24 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
   try {
     const { type, data } = req.body as { type: string; data: { email_id: string } };
 
-    // Map Resend event types to our status
-    const statusMap: Record<string, string> = {
-      'email.delivered': 'DELIVERED',
-      'email.bounced': 'BOUNCED',
-      'email.complained': 'SPAM',
+    // Map Resend event types to our status + timestamp field
+    const eventHandlers: Record<string, { status?: string; timestampField?: string; suppress?: boolean }> = {
+      'email.sent':              { status: 'SENT' },
+      'email.delivered':         { status: 'DELIVERED' },
+      'email.opened':            { status: 'OPENED', timestampField: 'openedAt' },
+      'email.clicked':           { status: 'CLICKED', timestampField: 'clickedAt' },
+      'email.bounced':           { status: 'BOUNCED', timestampField: 'bouncedAt', suppress: true },
+      'email.complained':        { status: 'SPAM', suppress: true },
+      'email.failed':            { status: 'BOUNCED', timestampField: 'bouncedAt', suppress: true },
+      'email.suppressed':        { status: 'UNSUBSCRIBED', suppress: true },
+      'email.delivery_delayed':  {}, // Log event only, don't change status
+      'email.scheduled':         {}, // Log event only
+      'email.received':          {}, // Log event only
     };
 
-    const newStatus = statusMap[type];
-    if (!newStatus) {
-      // Unknown event type — acknowledge but ignore
-      return res.status(200).json({ received: true });
+    const handler = eventHandlers[type];
+    if (!handler) {
+      return res.status(200).json({ received: true, ignored: true });
     }
 
     const send = await prisma.emailSend.findFirst({
@@ -175,19 +182,33 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
       return res.status(200).json({ received: true });
     }
 
-    // Build update data with relevant timestamp
-    const updateData: Record<string, unknown> = { status: newStatus };
-    if (newStatus === 'BOUNCED') {
-      updateData.bouncedAt = new Date();
+    // Build update data
+    const updateData: Record<string, unknown> = {};
+    if (handler.status) {
+      // Only update status if it's a "progression" (don't downgrade OPENED to DELIVERED)
+      const statusPriority: Record<string, number> = {
+        'QUEUED': 0, 'SENT': 1, 'DELIVERED': 2, 'OPENED': 3, 'CLICKED': 4,
+        'BOUNCED': 10, 'SPAM': 10, 'UNSUBSCRIBED': 10,
+      };
+      const currentPriority = statusPriority[send.status] ?? 0;
+      const newPriority = statusPriority[handler.status] ?? 0;
+      if (newPriority > currentPriority) {
+        updateData.status = handler.status;
+      }
+    }
+    if (handler.timestampField) {
+      updateData[handler.timestampField] = new Date();
     }
 
-    await prisma.emailSend.update({
-      where: { id: send.id },
-      data: updateData,
-    });
+    if (Object.keys(updateData).length > 0) {
+      await prisma.emailSend.update({
+        where: { id: send.id },
+        data: updateData,
+      });
+    }
 
     // Auto-suppress: add to UnsubscribeList on bounce or spam complaint
-    if (newStatus === 'SPAM' || newStatus === 'BOUNCED') {
+    if (handler.suppress) {
       const contact = await prisma.contact.findFirst({
         where: { id: send.contactId },
         select: { email: true },
@@ -199,13 +220,25 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
           create: {
             email: contact.email,
             contactId: send.contactId,
-            reason: newStatus === 'SPAM'
+            reason: handler.status === 'SPAM'
               ? 'Auto-suppressed: spam complaint via Resend'
               : 'Auto-suppressed: hard bounce via Resend',
           },
         }).catch(() => {}); // Non-critical
-        console.log(`[email-tracking] Auto-suppressed ${contact.email} (${newStatus})`);
+        console.log(`[email-tracking] Auto-suppressed ${contact.email} (${handler.status})`);
       }
+    }
+
+    // Update LeadScore on open/click (same as tracking pixel logic)
+    if (type === 'email.opened' || type === 'email.clicked') {
+      const scoreData: Record<string, unknown> = {};
+      if (type === 'email.opened') scoreData.lastEmailOpenedAt = new Date();
+      if (type === 'email.clicked') scoreData.lastEmailClickedAt = new Date();
+      await prisma.leadScore.upsert({
+        where: { contactId: send.contactId },
+        update: scoreData,
+        create: { contactId: send.contactId, ...scoreData },
+      }).catch(() => {});
     }
 
     // Create email event
@@ -217,6 +250,7 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
       },
     });
 
+    console.log(`[email-tracking] Webhook ${type} for send ${send.id}`);
     return res.status(200).json({ received: true });
   } catch (error) {
     console.error('Error processing Resend webhook:', error);
