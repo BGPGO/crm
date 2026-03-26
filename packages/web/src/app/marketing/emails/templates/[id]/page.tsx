@@ -623,83 +623,64 @@ ${htmlContent}
             </span>
           </div>
 
-          {/* Preview area with BGP brand template */}
-          <div
-            className="flex-1 overflow-auto"
-            style={{
-              backgroundColor: "#f4f4f4",
-              padding: "20px 16px",
-            }}
-          >
-            <div
-              style={{
-                maxWidth: 600,
-                margin: "0 auto",
-                backgroundColor: "#ffffff",
-                borderRadius: 8,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-                overflow: "hidden",
-              }}
-            >
-              {/* BGP Header */}
-              <div style={{
-                background: "linear-gradient(135deg, #244c5a 0%, #244c5add 50%, #abc7c988 100%)",
-                padding: "24px 32px",
-                textAlign: "right" as const,
-              }}>
-                <img src="/images/logo-bgp-email.png" alt="BGP" style={{ height: 40, display: "inline-block" }} />
-              </div>
+          {/* Preview area — exact replica of BGP email template */}
+          <div className="flex-1 overflow-auto" style={{ backgroundColor: "#f4f4f4", padding: "20px 8px" }}>
+            {/* Logo header */}
+            <div style={{ maxWidth: 605, margin: "0 auto", paddingTop: 48, paddingBottom: 24, textAlign: "center" as const }}>
+              <img src="https://email-editor-production.s3.amazonaws.com/images/665130/Logo_BGP_16%20(2).png" alt="BGP" style={{ maxWidth: 206, width: "100%", height: "auto", display: "inline-block" }} />
+            </div>
 
-              {/* Editable body */}
-              <div style={{
-                padding: "32px",
-                fontFamily: design.fontFamily,
-                fontSize: design.fontSize,
-                color: design.textColor,
-              }}>
-                {htmlContent ? (
-                  <div
-                    key={previewKey}
-                    ref={previewRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onBlur={syncPreviewToState}
-                    onInput={syncPreviewToState}
-                    dangerouslySetInnerHTML={{ __html: htmlContent }}
-                    style={{
-                      outline: "none",
-                      minHeight: 200,
-                      wordBreak: "break-word",
-                    }}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                    <Sparkles size={32} className="mb-3 text-gray-300" />
-                    <p className="text-sm font-medium text-gray-500">
-                      Nenhum conteúdo ainda
-                    </p>
-                    <p className="text-xs mt-1 text-gray-400">
-                      Use a aba IA ao lado para gerar seu email
-                    </p>
-                  </div>
-                )}
-              </div>
+            {/* White card body */}
+            <div style={{
+              maxWidth: 605, margin: "0 auto", backgroundColor: "#fff",
+              borderRadius: "16px 16px 0 0",
+              padding: "48px 60px 32px",
+              fontFamily: "Montserrat, 'Trebuchet MS', sans-serif",
+              fontSize: 16, fontWeight: 400, lineHeight: 1.5, color: "#000",
+            }}>
+              {htmlContent ? (
+                <div
+                  key={previewKey}
+                  ref={previewRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={syncPreviewToState}
+                  onInput={syncPreviewToState}
+                  dangerouslySetInnerHTML={{ __html: htmlContent }}
+                  style={{ outline: "none", minHeight: 200, wordBreak: "break-word" }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                  <Sparkles size={32} className="mb-3 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-500">Nenhum conteúdo ainda</p>
+                  <p className="text-xs mt-1 text-gray-400">Use a aba IA ao lado para gerar seu email</p>
+                </div>
+              )}
+            </div>
 
-              {/* BGP Footer */}
-              <div style={{
-                backgroundColor: "#244c5a",
-                padding: "24px 32px",
-                textAlign: "center" as const,
-              }}>
-                <img src="/images/logo-bgp-email.png" alt="BGP" style={{ height: 28, display: "inline-block", opacity: 0.7, marginBottom: 12 }} />
-                <p style={{ color: "#ffffff", fontSize: 13, fontWeight: "bold", margin: "0 0 4px" }}>Bertuzzi Patrimonial</p>
-                <p style={{ color: "#abc7c9", fontSize: 12, margin: "0 0 12px", lineHeight: 1.5 }}>
-                  Gestão financeira inteligente para o seu negócio
-                </p>
-                <p style={{ color: "#abc7c9", fontSize: 11, margin: 0, borderTop: "1px solid #244c5a88", paddingTop: 12 }}>
-                  Não quer mais receber? <span style={{ textDecoration: "underline" }}>Descadastrar</span>
-                </p>
-              </div>
+            {/* Spacer */}
+            <div style={{ maxWidth: 605, margin: "0 auto", backgroundColor: "#fff", height: 16 }} />
+
+            {/* Social icons */}
+            <div style={{ maxWidth: 605, margin: "0 auto", padding: "10px 0", textAlign: "center" as const }}>
+              <a href="https://www.instagram.com/bertuzzigp/" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", margin: "0 10px" }}>
+                <img src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/instagram@2x.png" width={32} height="auto" alt="Instagram" style={{ display: "block", border: 0 }} />
+              </a>
+              <a href="https://www.youtube.com/@bertuzzigp" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", margin: "0 10px" }}>
+                <img src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/youtube@2x.png" width={32} height="auto" alt="YouTube" style={{ display: "block", border: 0 }} />
+              </a>
+              <a href="https://wa.me/5551992091726" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", margin: "0 10px" }}>
+                <img src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/whatsapp@2x.png" width={32} height="auto" alt="WhatsApp" style={{ display: "block", border: 0 }} />
+              </a>
+            </div>
+
+            {/* Footer */}
+            <div style={{ maxWidth: 605, margin: "0 auto", paddingBottom: 24, textAlign: "center" as const }}>
+              <p style={{ fontFamily: "Montserrat, sans-serif", fontSize: 10, color: "#8c8c8c", lineHeight: 1.5, margin: 0 }}>
+                Enviado por www.bertuzzipatrimonial.com.br<br />
+                Av. Carlos Gomes, 75 - Sala 603 - Auxiliadora, Porto Alegre - RS, 90480-000<br />
+                Caso não queira mais receber estes e-mails, <span style={{ textDecoration: "underline" }}>cancele sua inscrição</span>.
+              </p>
             </div>
           </div>
         </div>
