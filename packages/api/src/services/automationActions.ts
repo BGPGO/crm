@@ -232,12 +232,23 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     return { success: false, output: 'No email template or AI prompt provided' };
   }
 
+  // Build unsubscribe URL for List-Unsubscribe header
+  const apiBase = process.env.API_URL || 'http://localhost:3001/api';
+  const unsubUrl = `${apiBase.replace('/api', '')}/api/unsubscribe?email=${encodeURIComponent(contact.email)}`;
+
   const result = await resend.emails.send({
     from: `BGPGO CRM <noreply@bertuzzipatrimonial.app.br>`,
     to: contact.email,
     subject,
     html: htmlContent,
+    headers: {
+      'List-Unsubscribe': `<${unsubUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
   });
+
+  // Throttle: small delay between automation emails to prevent rate limiting
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   return {
     success: true,

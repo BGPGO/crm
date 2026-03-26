@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { onContactCreated } from '../services/automationTriggerListener';
+import { isValidEmail } from './email-tracking';
 
 const router = Router();
 
@@ -101,6 +102,11 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name, email, phone, position, birthday, instagram, notes, organizationId } = req.body;
+
+      if (email && !isValidEmail(email)) {
+        return next(createError('Email inválido', 400));
+      }
+
       const contact = await prisma.contact.create({
         data: { name, email, phone, position, birthday, instagram, notes, organizationId },
         include: {
@@ -120,6 +126,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await prisma.contact.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Contact not found', 404));
+
+    if (req.body.email && !isValidEmail(req.body.email)) {
+      return next(createError('Email inválido', 400));
+    }
 
     const { name, email, phone, position, birthday, instagram, notes, organizationId, sector } = req.body;
     const data: Record<string, unknown> = {};
