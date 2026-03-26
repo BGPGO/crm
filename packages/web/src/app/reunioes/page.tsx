@@ -199,6 +199,25 @@ export default function ReunioesPage() {
   const [hosts, setHosts] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [calendarMeetings, setCalendarMeetings] = useState<Meeting[]>([]);
+  const [readAiMeetings, setReadAiMeetings] = useState<Array<{
+    id: string;
+    sessionId: string;
+    title: string | null;
+    summary: string | null;
+    actionItems: any;
+    topics: any;
+    duration: number | null;
+    meetingDate: string | null;
+    participants: any;
+    dealId: string | null;
+    contactId: string | null;
+    createdAt: string;
+  }>>([]);
+  const [readAiLoading, setReadAiLoading] = useState(false);
+  const [linkingMeetingId, setLinkingMeetingId] = useState<string | null>(null);
+  const [dealSearch, setDealSearch] = useState('');
+  const [dealResults, setDealResults] = useState<Array<{ id: string; title: string; contact?: { name: string } | null; organization?: { name: string } | null }>>([]);
+  const [dealSearchLoading, setDealSearchLoading] = useState(false);
 
   const fetchHosts = useCallback(async () => {
     try {
@@ -208,6 +227,37 @@ export default function ReunioesPage() {
   }, []);
 
   useEffect(() => { fetchHosts(); }, [fetchHosts]);
+
+  const fetchReadAiMeetings = useCallback(async () => {
+    setReadAiLoading(true);
+    try {
+      const res = await api.get<{ data: typeof readAiMeetings }>('/readai/meetings?all=true');
+      setReadAiMeetings(res.data || []);
+    } catch { /* silent */ }
+    finally { setReadAiLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchReadAiMeetings(); }, [fetchReadAiMeetings]);
+
+  const searchDeals = useCallback(async (query: string) => {
+    if (!query || query.length < 2) { setDealResults([]); return; }
+    setDealSearchLoading(true);
+    try {
+      const res = await api.get<{ data: typeof dealResults }>(`/deals?search=${encodeURIComponent(query)}&status=OPEN&limit=5`);
+      setDealResults(res.data || []);
+    } catch { setDealResults([]); }
+    finally { setDealSearchLoading(false); }
+  }, []);
+
+  const linkMeetingToDeal = async (meetingId: string, dealId: string) => {
+    try {
+      await api.put(`/readai/meetings/${meetingId}/link`, { dealId });
+      setLinkingMeetingId(null);
+      setDealSearch('');
+      setDealResults([]);
+      fetchReadAiMeetings();
+    } catch { /* silent */ }
+  };
 
   const fetchCalendarMeetings = useCallback(async () => {
     try {
@@ -550,6 +600,164 @@ export default function ReunioesPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* ── Read.ai Recordings ─────────────────────────────────────── */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-900">Gravações Read.ai</h2>
+            <span className="text-xs text-gray-400">
+              {readAiMeetings.filter(m => !m.dealId).length > 0 && (
+                <span className="text-amber-600 font-medium">
+                  {readAiMeetings.filter(m => !m.dealId).length} sem vínculo
+                </span>
+              )}
+            </span>
+          </div>
+
+          {readAiLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Clock size={18} className="animate-spin text-gray-400" />
+            </div>
+          ) : readAiMeetings.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+              <Video size={32} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">Nenhuma gravação do Read.ai</p>
+              <p className="text-xs text-gray-400 mt-1">Gravações aparecem automaticamente após reuniões de Diagnóstico</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {readAiMeetings.map((meeting) => {
+                const isLinked = !!meeting.dealId;
+                const isLinking = linkingMeetingId === meeting.id;
+                return (
+                  <div
+                    key={meeting.id}
+                    className={clsx(
+                      "bg-white rounded-xl border overflow-hidden transition-colors",
+                      isLinked
+                        ? "border-green-200 bg-green-50/30"
+                        : "border-amber-200 bg-amber-50/30"
+                    )}
+                  >
+                    {/* Header */}
+                    <div className="px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={clsx(
+                          "w-2 h-2 rounded-full flex-shrink-0",
+                          isLinked ? "bg-green-500" : "bg-amber-500 animate-pulse"
+                        )} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {meeting.title || 'Reunião sem título'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {meeting.meetingDate && (
+                              <span className="text-xs text-gray-500">
+                                {new Date(meeting.meetingDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            {meeting.duration && (
+                              <span className="text-xs text-gray-400">{meeting.duration}min</span>
+                            )}
+                            {isLinked && (
+                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">Vinculada</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <a
+                          href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-blue-600 hover:underline"
+                        >
+                          Ver no Read.ai
+                        </a>
+                        {!isLinked && !isLinking && (
+                          <button
+                            onClick={() => setLinkingMeetingId(meeting.id)}
+                            className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-1 rounded-md font-medium transition-colors"
+                          >
+                            Vincular
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Link deal form */}
+                    {isLinking && (
+                      <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                        <p className="text-xs text-gray-500 mb-2">Buscar negociação para vincular:</p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={dealSearch}
+                            onChange={(e) => {
+                              setDealSearch(e.target.value);
+                              searchDeals(e.target.value);
+                            }}
+                            placeholder="Digite o nome do cliente ou negociação..."
+                            className="flex-1 text-sm border border-gray-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => { setLinkingMeetingId(null); setDealSearch(''); setDealResults([]); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 px-2"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                        {dealSearchLoading && (
+                          <p className="text-xs text-gray-400 mt-2">Buscando...</p>
+                        )}
+                        {dealResults.length > 0 && (
+                          <div className="mt-2 border border-gray-200 rounded-md bg-white divide-y divide-gray-100 max-h-40 overflow-y-auto">
+                            {dealResults.map((deal) => (
+                              <button
+                                key={deal.id}
+                                onClick={() => linkMeetingToDeal(meeting.id, deal.id)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors"
+                              >
+                                <p className="text-sm text-gray-800">{deal.organization?.name || deal.contact?.name || deal.title}</p>
+                                <p className="text-[10px] text-gray-400">{deal.title}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Summary preview */}
+                    {meeting.summary && (
+                      <div className="px-4 py-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-600 line-clamp-2">{meeting.summary}</p>
+                      </div>
+                    )}
+
+                    {/* Action items preview */}
+                    {meeting.actionItems && Array.isArray(meeting.actionItems) && meeting.actionItems.length > 0 && (
+                      <div className="px-4 py-2 border-t border-gray-100">
+                        <p className="text-[10px] text-gray-400 font-medium mb-1">Action items:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {meeting.actionItems.slice(0, 3).map((item: any, i: number) => (
+                            <span key={i} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              {typeof item === 'string' ? item.slice(0, 50) : (item.text || item.title || '').slice(0, 50)}
+                            </span>
+                          ))}
+                          {meeting.actionItems.length > 3 && (
+                            <span className="text-[10px] text-gray-400">+{meeting.actionItems.length - 3}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

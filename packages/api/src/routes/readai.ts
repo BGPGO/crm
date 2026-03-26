@@ -18,6 +18,15 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
     // Read.ai can send data in various formats — extract flexibly
     const sessionId = body.session_id || body.id || body.meeting_id || `readai_${Date.now()}`;
     const title = body.title || body.meeting_title || body.name || body.subject || null;
+
+    // Only process meetings with "Diagnóstico" in the title (sales meetings)
+    // Other meetings are ignored
+    const REQUIRED_TITLE_KEYWORD = 'diagnóstico';
+    if (title && !title.toLowerCase().includes(REQUIRED_TITLE_KEYWORD)) {
+      console.log(`[Read.ai] Ignoring meeting "${title}" — not a sales meeting`);
+      return res.json({ ok: true, ignored: true, reason: 'Title does not match sales meeting pattern' });
+    }
+
     const summary = body.summary || body.meeting_summary || body.report?.summary || null;
     const transcript = body.transcript
       ? (typeof body.transcript === 'string' ? body.transcript : JSON.stringify(body.transcript))
@@ -117,13 +126,23 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
 router.get('/meetings', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { dealId, contactId } = req.query;
+    const unlinked = req.query.unlinked === 'true';
+    const all = req.query.all === 'true';
+
     const where: Record<string, unknown> = {};
     if (dealId) where.dealId = dealId as string;
     if (contactId) where.contactId = contactId as string;
+    if (unlinked) where.dealId = null;
+
+    // If not filtering by anything specific and not requesting all, return empty
+    // (prevents accidentally loading everything)
+    if (!dealId && !contactId && !unlinked && !all) {
+      return res.json({ data: [] });
+    }
 
     const meetings = await prisma.readAiMeeting.findMany({
       where,
-      orderBy: { meetingDate: 'desc' },
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         sessionId: true,
