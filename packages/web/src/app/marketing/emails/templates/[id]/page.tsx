@@ -64,6 +64,26 @@ function removeImageFromHtml(html: string, src: string): string {
   return result;
 }
 
+function extractButtons(html: string): { text: string; href: string; index: number }[] {
+  const buttons: { text: string; href: string; index: number }[] = [];
+  // Match <a> tags that look like buttons (have data-cta, or padding+background-color in style)
+  const regex = /<a\s[^>]*href=["']([^"']*)["'][^>]*(?:data-cta|padding[^"]*background)[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  let i = 0;
+  while ((match = regex.exec(html))) {
+    const text = match[2].replace(/<[^>]+>/g, '').trim();
+    buttons.push({ href: match[1], text, index: i++ });
+  }
+  return buttons;
+}
+
+function replaceButtonHref(html: string, oldHref: string, newHref: string): string {
+  return html.replace(
+    new RegExp(`(href=["'])${oldHref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["'])`, "g"),
+    `$1${newHref}$2`
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type TabId = "ai" | "design" | "content";
@@ -104,8 +124,13 @@ export default function TemplateEditorPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  // Button editing
+  const [editingBtnIdx, setEditingBtnIdx] = useState<number | null>(null);
+  const [editBtnHref, setEditBtnHref] = useState("");
+
   // Derived
   const hasContent = htmlContent.trim().length > 20;
+  const buttons = useMemo(() => extractButtons(htmlContent), [htmlContent]);
   const images = useMemo(() => extractImages(htmlContent), [htmlContent]);
 
   // ── Load template ────────────────────────────────────────────────────────
@@ -600,16 +625,70 @@ ${htmlContent}
 
             {/* ── Tab: Conteudo ────────────────────────────────────────── */}
             {activeTab === "content" && (
-              <EmailContentPanel
-                onFormat={handleFormat}
-                onInsertImage={handleInsertImage}
-                onInsertButton={handleInsertButton}
-                images={images}
-                onRemoveImage={(src) => handleRemoveImage(src)}
-                onChangeImageSrc={(oldSrc, newSrc) =>
-                  handleChangeImageSrc(oldSrc, newSrc)
-                }
-              />
+              <div className="space-y-4">
+                <EmailContentPanel
+                  onFormat={handleFormat}
+                  onInsertImage={handleInsertImage}
+                  onInsertButton={handleInsertButton}
+                  images={images}
+                  onRemoveImage={(src) => handleRemoveImage(src)}
+                  onChangeImageSrc={(oldSrc, newSrc) =>
+                    handleChangeImageSrc(oldSrc, newSrc)
+                  }
+                />
+
+                {/* Detected CTA buttons — edit links */}
+                {buttons.length > 0 && (
+                  <div className="px-4 pb-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Botões detectados</p>
+                    <div className="space-y-2">
+                      {buttons.map((btn) => (
+                        <div key={btn.index} className="border border-gray-200 rounded-lg p-2.5 bg-gray-50">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-700 truncate">{btn.text || 'Botão'}</span>
+                            <button
+                              onClick={() => {
+                                if (editingBtnIdx === btn.index) {
+                                  setEditingBtnIdx(null);
+                                } else {
+                                  setEditingBtnIdx(btn.index);
+                                  setEditBtnHref(btn.href);
+                                }
+                              }}
+                              className="text-[10px] text-blue-600 hover:underline"
+                            >
+                              {editingBtnIdx === btn.index ? 'Fechar' : 'Editar link'}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-400 truncate">{btn.href}</p>
+                          {editingBtnIdx === btn.index && (
+                            <div className="mt-2 flex gap-1.5">
+                              <input
+                                type="url"
+                                value={editBtnHref}
+                                onChange={(e) => setEditBtnHref(e.target.value)}
+                                placeholder="https://..."
+                                className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <button
+                                onClick={() => {
+                                  const updated = replaceButtonHref(htmlContent, btn.href, editBtnHref);
+                                  setHtmlContent(updated);
+                                  setPreviewKey((k) => k + 1);
+                                  setEditingBtnIdx(null);
+                                }}
+                                className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded font-medium hover:bg-blue-700"
+                              >
+                                Salvar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
