@@ -119,6 +119,18 @@ export default function AudienceSelector({
           Nenhum segmento criado. A campanha será enviada para todos os contatos.
         </p>
       )}
+
+      {/* TIME BGP notice */}
+      <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
+        <span className="text-blue-500 text-sm mt-0.5">👥</span>
+        <div>
+          <p className="text-xs font-medium text-blue-700">TIME BGP recebe cópia automaticamente</p>
+          <p className="text-[10px] text-blue-500 mt-0.5">
+            Além do segmento escolhido, os 16 membros do time interno recebem uma cópia
+            com [TIME] no assunto para acompanhamento.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
