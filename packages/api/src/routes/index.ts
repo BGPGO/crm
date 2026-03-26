@@ -58,6 +58,8 @@ router.use('/email-tracking', emailTrackingRouter);
 router.use('/whatsapp/webhook', whatsappWebhookRouter);
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
+router.use('/readai', readaiRouter);
+
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
 router.use(requireAuth);
