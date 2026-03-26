@@ -260,9 +260,6 @@ const pendingResponses = new Map<string, NodeJS.Timeout>();
 // ─── Main Handler ───────────────────────────────────────────────────────────
 
 export async function handleMessage(payload: WhatsAppPayload, instance: string): Promise<void> {
-  const config = await prisma.whatsAppConfig.findFirst();
-  if (!config || !config.botEnabled) return;
-
   const data = payload.data;
   if (!data || !data.key) return;
   if (data.key.fromMe) return;
@@ -304,12 +301,12 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
         if (transcribed) text = transcribed;
       } catch (err: unknown) {
         console.error('[Bot] Falha na transcrição:', err instanceof Error ? err.message : err);
-        return;
       }
     }
   }
 
-  if (!text) return;
+  // For non-text messages (images, stickers, videos), use a placeholder
+  if (!text) text = '[mídia recebida]';
 
   const pushName = data.pushName || '';
 
@@ -328,20 +325,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
 
   console.log(`[Bot] Mensagem de ${phone} (${pushName}): "${text}"`);
 
-  // ── Save message immediately (always, regardless of debounce) ──
-
-  // Human attention mode: save but don't respond
-  const existingConv = await prisma.whatsAppConversation.findUnique({ where: { phone } });
-  if (existingConv?.needsHumanAttention) {
-    await prisma.whatsAppMessage.create({
-      data: { conversationId: existingConv.id, sender: MessageSender.CLIENT, text },
-    });
-    await prisma.whatsAppConversation.update({
-      where: { id: existingConv.id },
-      data: { lastMessageAt: new Date(), updatedAt: new Date() },
-    });
-    return;
-  }
+  // ── ALWAYS save client message, even if bot is disabled ──────────────
 
   // Get or create conversation
   let conversation = await prisma.whatsAppConversation.findUnique({
@@ -363,7 +347,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   }
   if (!conversation) throw new Error('Unexpected: conversation is null');
 
-  // Save message to DB instantly
+  // Save message to DB instantly — ALWAYS, regardless of bot status
   await prisma.whatsAppMessage.create({
     data: { conversationId: conversation.id, sender: MessageSender.CLIENT, text },
   });
@@ -373,6 +357,12 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     where: { id: conversation.id },
     data: { lastMessageAt: new Date(), updatedAt: new Date() },
   });
+
+  // ── If bot disabled or human attention mode, stop here (msg already saved) ──
+  const config = await prisma.whatsAppConfig.findFirst();
+  if (!config || !config.botEnabled) return;
+
+  if (conversation.needsHumanAttention) return;
 
   // Update follow-up state: client responded
   if (conversation.followUpState) {
