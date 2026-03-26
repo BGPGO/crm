@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import prisma from '../lib/prisma';
 import { createUnsubToken } from '../routes/email-tracking';
+import { wrapInBrandTemplate } from './emailTemplate';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -159,12 +160,13 @@ export async function sendCampaignEmails(campaignId: string): Promise<void> {
             return;
           }
 
-          // Inject per-send tracking pixel
-          const finalHtml = injectTrackingPixel(linkedHtml, send.id);
-
           // Generate unsubscribe URL for this send
           const unsubToken = createUnsubToken(send.id);
           const unsubUrl = `${TRACKING_BASE_URL.replace('/api', '')}/api/unsubscribe/${unsubToken}`;
+
+          // Wrap in brand template with unsubscribe link, then inject tracking pixel
+          const brandedHtml = wrapInBrandTemplate(linkedHtml, unsubUrl);
+          const finalHtml = injectTrackingPixel(brandedHtml, send.id);
 
           // Generate plain text from HTML (strip tags)
           const plainText = finalHtml
