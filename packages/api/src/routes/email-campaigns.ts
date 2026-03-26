@@ -55,7 +55,14 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
     if (!campaign) return next(createError('Email campaign not found', 404));
 
-    res.json({ data: campaign });
+    // Enrich response with computed fields the frontend expects
+    const enriched = {
+      ...campaign,
+      htmlContent: campaign.template?.htmlContent || '',
+      recipientCount: campaign.totalRecipients || campaign._count?.sends || 0,
+    };
+
+    res.json({ data: enriched });
   } catch (err) {
     next(err);
   }
