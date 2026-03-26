@@ -9,6 +9,26 @@ const TRACKING_BASE_URL = process.env.API_URL || 'http://localhost:3001/api';
 const BATCH_SIZE = 10;
 const BATCH_DELAY_MS = 1000;
 
+// ── TIME BGP: always receive a copy of every campaign email ──────────────────
+const TIME_BGP_EMAILS = [
+  'norbert@bertuzzipatrimonial.com.br',
+  'mariavitoria@bertuzzipatrimonial.com.br',
+  'melissa@bertuzzipatrimonial.com.br',
+  'eduardo@bertuzzipatrimonial.com.br',
+  'otavio@bertuzzipatrimonial.com.br',
+  'thomas@bertuzzipatrimonial.com.br',
+  'caio@bertuzzipatrimonial.com.br',
+  'henrique.kovalezyk@bertuzzipatrimonial.com.br',
+  'gustavo@bertuzzipatrimonial.com.br',
+  'joao.lopes@bertuzzipatrimonial.com.br',
+  'josi@bertuzzipatrimonial.com.br',
+  'joao.rosa@bertuzzipatrimonial.com.br',
+  'pedro.arenhaldt@bertuzzipatrimonial.com.br',
+  'vicenza.porto@bertuzzipatrimonial.com.br',
+  'vitor@bertuzzipatrimonial.com.br',
+  'oliver@bertuzzipatrimonial.com.br',
+];
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
@@ -224,6 +244,23 @@ export async function sendCampaignEmails(campaignId: string): Promise<void> {
     if (i + BATCH_SIZE < sends.length) {
       await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
     }
+  }
+
+  // ── Send copy to TIME BGP (BCC-like, one email with all team members) ─────
+  try {
+    const teamHtml = wrapInBrandTemplate(
+      `<p style="margin:0 0 12px;font-size:12px;color:#999;background:#f5f5f5;padding:8px 12px;border-radius:4px;">📋 Cópia interna — Campanha: <strong>${campaign.name}</strong> (${sends.length} destinatários)</p>${linkedHtml}`
+    );
+    await resend.emails.send({
+      from: fromAddress,
+      to: TIME_BGP_EMAILS,
+      replyTo: 'vitor@bertuzzipatrimonial.com.br',
+      subject: `[TIME] ${campaign.subject}`,
+      html: teamHtml,
+    });
+    console.log(`[emailSender] Cópia enviada para TIME BGP (${TIME_BGP_EMAILS.length} membros)`);
+  } catch (teamErr) {
+    console.error('[emailSender] Falha ao enviar cópia pro TIME BGP:', teamErr);
   }
 
   // Update campaign status
