@@ -807,7 +807,7 @@ function ProductBlock({
             <strong>1.1.4.</strong> A CONTRATADA oferece à CONTRATANTE a opção de personalização/customização de análises/telas da Plataforma de BI, conforme disponibilidade da Plataforma de BI e das informações disponíveis para tal fim.
           </p>
           <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
-            <strong>1.1.4.1.</strong> Com a confirmação da CONTRATADA de que a personalização desejada pela CONTRATANTE é possível e a aprovação da CONTRATANTE para seguir com tal personalização, concordam as Partes que será devido um valor adicional mensal de R$ 99,00 (noventa e nove reais) por cada análise/tela personalizada criada, a ser paga juntamente com a remuneração pactuada neste Contrato e nas condições aqui definidas.
+            <strong>1.1.4.1.</strong> Com a confirmação da CONTRATADA de que a personalização desejada pela CONTRATANTE é possível e a aprovação da CONTRATANTE para seguir com tal personalização, concordam as Partes que será devido um valor adicional conforme anexo por cada análise/tela personalizada criada, a ser paga juntamente com a remuneração pactuada neste Contrato e nas condições aqui definidas.
           </p>
           <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
             <strong>1.1.5.</strong> A licença da Plataforma de BI e os serviços a ele inerentes serão fornecidos mensalmente e de modo contínuo durante toda a vigência do Contrato.
