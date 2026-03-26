@@ -54,7 +54,8 @@ const router = Router();
 router.use('/auth', authRouter);
 
 // ─── Public routes (no auth — tracking pixels, unsubscribe, webhooks) ────────
-router.use('/email-tracking', emailTrackingRouter);
+router.use('/email-tracking', emailTrackingRouter);  // /api/email-tracking/t/...
+router.use('/', emailTrackingRouter);               // /api/t/... (tracking pixels + webhook + unsubscribe)
 router.use('/whatsapp/webhook', whatsappWebhookRouter);
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
