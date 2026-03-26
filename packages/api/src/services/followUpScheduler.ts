@@ -8,6 +8,31 @@ const scheduledFollowUps = new Map<string, NodeJS.Timeout>();
 const recentlyCancelled = new Map<string, number>(); // conversationId -> timestamp
 const CANCEL_GUARD_MS = 5000; // 5 segundos de guarda
 
+// ── Send queue: serializa envios de follow-up com delay anti-ban ─────────────
+// Sem isso, 50 follow-ups agendados pro mesmo horário disparam em paralelo.
+const FOLLOWUP_MIN_DELAY_S = 20;
+const FOLLOWUP_MAX_DELAY_S = 45;
+
+let sendQueuePromise: Promise<void> = Promise.resolve();
+
+/**
+ * Enfileira uma função de envio na fila serial.
+ * Cada envio espera o anterior terminar + delay aleatório entre eles.
+ */
+function enqueueSend<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    sendQueuePromise = sendQueuePromise.then(async () => {
+      const delaySec = FOLLOWUP_MIN_DELAY_S + Math.random() * (FOLLOWUP_MAX_DELAY_S - FOLLOWUP_MIN_DELAY_S);
+      await new Promise(r => setTimeout(r, delaySec * 1000));
+      try {
+        resolve(await fn());
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
 /**
  * Retorna ms até meia-noite de Brasília do próximo dia (quando o limite diário reseta).
  */
@@ -184,33 +209,48 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     return;
   }
 
-  // Import and send using the existing sendFollowUp from whatsappFollowUp
+  // Enfileira na send queue — serializa envios com delay anti-ban (20-45s)
+  // Sem isso, N follow-ups agendados pro mesmo horário enviam em rajada
   const { sendFollowUp } = await import('./whatsappFollowUp');
   try {
-    await sendFollowUp(
-      {
-        id: conversation.id,
-        phone: conversation.phone,
-        pushName: conversation.pushName,
-        needsHumanAttention: conversation.needsHumanAttention,
-        meetingBooked: conversation.meetingBooked,
-        followUpState: conversation.followUpState,
-      },
-      step,
-      stepIndex + 1,
-      totalSteps,
-    );
-    console.log(`[follow-up] Enviado step ${stepIndex + 1} (${step.tone}) para ${conversationId}`);
-    await registerSent('followUp').catch(() => {});
+    await enqueueSend(async () => {
+      // Re-check canSend() dentro da fila (pode ter esgotado enquanto esperava)
+      if (!await canSend()) {
+        console.log(`[follow-up] Limite diário atingido na fila — reagendando ${conversationId}`);
+        const msUntilReset = msUntilMidnightBrasilia();
+        const timeout = setTimeout(() => {
+          scheduledFollowUps.delete(conversationId);
+          executeFollowUp(conversationId, step, stepIndex, totalSteps).catch(console.error);
+        }, msUntilReset + 60_000);
+        scheduledFollowUps.set(conversationId, timeout);
+        return;
+      }
 
-    // Mark as SENT in the DB
-    await prisma.scheduledFollowUp.updateMany({
-      where: { conversationId, stepNumber: stepIndex + 1, status: 'PENDING' },
-      data: { status: 'SENT', sentAt: new Date() },
+      await sendFollowUp(
+        {
+          id: conversation.id,
+          phone: conversation.phone,
+          pushName: conversation.pushName,
+          needsHumanAttention: conversation.needsHumanAttention,
+          meetingBooked: conversation.meetingBooked,
+          followUpState: conversation.followUpState,
+        },
+        step,
+        stepIndex + 1,
+        totalSteps,
+      );
+      console.log(`[follow-up] Enviado step ${stepIndex + 1} (${step.tone}) para ${conversationId}`);
+      await registerSent('followUp').catch(() => {});
+
+      // Mark as SENT in the DB
+      await prisma.scheduledFollowUp.updateMany({
+        where: { conversationId, stepNumber: stepIndex + 1, status: 'PENDING' },
+        data: { status: 'SENT', sentAt: new Date() },
+      });
+
+      // Schedule the NEXT step
+      scheduleNextFollowUp(conversationId);
     });
-
-    // Schedule the NEXT step
-    scheduleNextFollowUp(conversationId);
   } catch (err) {
     console.error(`[follow-up] Erro ao enviar step ${stepIndex + 1} para ${conversationId}:`, err);
   }

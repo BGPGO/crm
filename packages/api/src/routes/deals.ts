@@ -20,6 +20,7 @@ const dealInclude = {
   source: { select: { id: true, name: true } },
   lostReason: { select: { id: true, name: true } },
   campaign: { select: { id: true, name: true } },
+  products: { select: { unitPrice: true, quantity: true, setupPrice: true, recurrenceValue: true, discount: true } },
 };
 
 // GET /api/deals
@@ -42,6 +43,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       const now = new Date();
       let from: Date;
       switch (period) {
+        case 'today': {
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          from = todayStart;
+          break;
+        }
+        case 'this_week': {
+          const dayOfWeek = now.getDay();
+          const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
+          break;
+        }
         case 'this_month':
           from = new Date(now.getFullYear(), now.getMonth(), 1);
           break;

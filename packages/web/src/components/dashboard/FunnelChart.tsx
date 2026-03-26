@@ -16,7 +16,7 @@ interface FunnelChartProps {
 
 export default function FunnelChart({ stages }: FunnelChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [cumulative, setCumulative] = useState(false);
+  const [cumulative, setCumulative] = useState(true);
 
   // Cumulative: each stage = its count + sum of all stages below it
   const cumulativeStages = useMemo(() => {
@@ -120,7 +120,7 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
                   </div>
 
                   {/* Conversion badge */}
-                  {i > 0 && (
+                  {cumulative && i > 0 && (
                     <span
                       className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
                         convFromPrev >= 50
@@ -183,7 +183,7 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
                 <span className="text-xs text-gray-600 font-medium">
                   {formatCurrency(stage.value)}
                 </span>
-                {i > 0 && (
+                {cumulative && i > 0 && (
                   <span className="text-[10px] text-gray-400">
                     {convFromTotal.toFixed(0)}% do total
                   </span>

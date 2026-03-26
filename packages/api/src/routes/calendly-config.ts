@@ -83,6 +83,11 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
       where.status = 'active';
     }
 
+    const hostName = req.query.hostName as string | undefined;
+    if (hostName) {
+      where.hostName = hostName;
+    }
+
     const [total, data] = await Promise.all([
       prisma.calendlyEvent.count({ where }),
       prisma.calendlyEvent.findMany({
@@ -102,6 +107,21 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/calendly/config/meetings/hosts — Unique host names for filter
+router.get('/meetings/hosts', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const hosts = await prisma.calendlyEvent.findMany({
+      where: { hostName: { not: null } },
+      select: { hostName: true },
+      distinct: ['hostName'],
+      orderBy: { hostName: 'asc' },
+    });
+    res.json({ data: hosts.map(h => h.hostName).filter(Boolean) });
   } catch (err) {
     next(err);
   }

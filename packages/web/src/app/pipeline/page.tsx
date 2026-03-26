@@ -101,7 +101,7 @@ interface ApiUsersResponse {
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
 type FilterType = "all" | "active" | "won" | "lost";
-type PeriodFilter = "all" | "this_month" | "last_3" | "last_6" | "this_year";
+type PeriodFilter = "all" | "today" | "this_week" | "this_month" | "last_3" | "last_6" | "this_year";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -785,6 +785,8 @@ export default function PipelinePage() {
             className={`${SELECT_CLASS} text-gray-600`}
           >
             <option value="all">Todos os períodos</option>
+            <option value="today">Hoje</option>
+            <option value="this_week">Essa semana</option>
             <option value="this_month">Este mês</option>
             <option value="last_3">Últimos 3 meses</option>
             <option value="last_6">Últimos 6 meses</option>
@@ -939,6 +941,7 @@ export default function PipelinePage() {
                   initialDeals={batchDeals[stage.id]?.deals}
                   initialTotal={batchDeals[stage.id]?.total}
                   injectedDeals={injectedDeals[stage.id]}
+                  showTicketMedio={["Proposta Enviada", "Aguardando Dados", "Aguardando Assinatura", "Ganho Fechado"].includes(stage.name)}
                   onAddDeal={() => setIsModalOpen(true)}
                   onDealsLoaded={handleDealsLoaded}
                 />

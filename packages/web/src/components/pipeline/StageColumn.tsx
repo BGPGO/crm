@@ -43,6 +43,7 @@ interface StageColumnProps {
   initialTotal?: number;
   /** Externally injected deals (e.g. after drag-and-drop optimistic update) */
   injectedDeals?: Deal[];
+  showTicketMedio?: boolean;
   onAddDeal?: () => void;
   onDealsLoaded?: (stageId: string, deals: Deal[]) => void;
 }
@@ -56,6 +57,7 @@ export default function StageColumn({
   initialDeals,
   initialTotal,
   injectedDeals,
+  showTicketMedio,
   onAddDeal,
   onDealsLoaded,
 }: StageColumnProps) {
@@ -189,6 +191,11 @@ export default function StageColumn({
             <span className="text-xs text-gray-500 font-medium flex-shrink-0 ml-1">
               {formatCurrency(stage.totalValue)}
             </span>
+            {showTicketMedio && stage.dealCount > 0 && (
+              <span className="text-[10px] text-gray-400 flex-shrink-0">
+                TM {formatCurrency(stage.totalValue / stage.dealCount)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
             <button

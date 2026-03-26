@@ -56,6 +56,10 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   } else if (str('campaignId')) {
     where.campaignId = str('campaignId');
   }
+  // Product filter: deals that have this product
+  if (str('productId')) {
+    where.products = { some: { productId: str('productId') } };
+  }
   if (str('lostReasonId')) where.lostReasonId = str('lostReasonId');
   if (str('organizationId')) where.organizationId = str('organizationId');
   if (str('contactId')) where.contactId = str('contactId');
@@ -85,6 +89,17 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
     const now = new Date();
     let from: Date;
     switch (period) {
+      case 'today': {
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        from = todayStart;
+        break;
+      }
+      case 'this_week': {
+        const dayOfWeek = now.getDay();
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Monday = start of week
+        from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
+        break;
+      }
       case 'this_month':
         from = new Date(now.getFullYear(), now.getMonth(), 1);
         break;
@@ -270,6 +285,31 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
         : Promise.resolve(null),
     ]);
 
+    // Calculate setup vs monthly breakdown for WON deals
+    let wonSetupTotal = 0;
+    let wonMonthlyTotal = 0;
+    let wonTotalValue = 0;
+
+    // Build WON-specific where for value breakdown
+    const wonValueWhere = buildDealWhere(
+      { ...req.query as Record<string, unknown>, status: 'WON' },
+      req.params.id,
+    );
+    await applySearch(wonValueWhere);
+
+    const wonProducts = await prisma.dealProduct.findMany({
+      where: { deal: wonValueWhere },
+      select: { unitPrice: true, quantity: true, setupPrice: true, recurrenceValue: true },
+    });
+
+    for (const p of wonProducts) {
+      const monthly = Number(p.recurrenceValue ?? p.unitPrice) * p.quantity;
+      const setup = Number(p.setupPrice ?? 0);
+      wonMonthlyTotal += monthly;
+      wonSetupTotal += setup;
+    }
+    wonTotalValue = wonMonthlyTotal + wonSetupTotal;
+
     const countsByStatus: Record<string, number> = { OPEN: 0, WON: 0, LOST: 0 };
     for (const g of countsByStatusRaw) {
       countsByStatus[g.status] = g._count.id;
@@ -301,6 +341,11 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
         totalDeals: totals._count.id,
         totalValue: totals._sum.value ?? 0,
         countsByStatus,
+        wonValueBreakdown: {
+          total: wonTotalValue,
+          monthly: wonMonthlyTotal,
+          setup: wonSetupTotal,
+        },
       },
     });
   } catch (err) {

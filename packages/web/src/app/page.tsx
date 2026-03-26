@@ -27,6 +27,13 @@ interface Deal {
   contact: { name: string } | null;
   organization: { name: string } | null;
   user: { name: string } | null;
+  products?: Array<{
+    unitPrice: number;
+    quantity: number;
+    setupPrice?: number | null;
+    recurrenceValue?: number | null;
+    discount?: number;
+  }>;
 }
 
 interface DealsResponse {
@@ -58,6 +65,7 @@ interface PipelineSummaryResponse {
     totalDeals: number;
     totalValue: number;
     countsByStatus?: { OPEN: number; WON: number; LOST: number };
+    wonValueBreakdown?: { total: number; monthly: number; setup: number };
   };
 }
 
@@ -89,6 +97,8 @@ interface TopDeal {
   id: string;
   name: string;
   value: number;
+  monthlyValue: number;
+  setupValue: number;
   stage: string;
   owner: string;
 }
@@ -98,6 +108,9 @@ interface DashboardData {
   pipelineValue: number;
   closedDealsCount: number;
   conversionRate: number;
+  closedDealsTotalValue: number;
+  closedDealsMonthlyValue: number;
+  closedDealsSetupValue: number;
   funnelStages: FunnelStage[];
   recentActivities: Activity[];
   topDeals: TopDeal[];
@@ -201,9 +214,9 @@ export default function DashboardPage() {
   const [pipelines, setPipelines] = useState<PipelineStub[]>([]);
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [users, setUsers] = useState<ApiUser[]>([]);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [userFilter, setUserFilter] = useState<string>("all");
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("this_month");
 
   // ── Load pipelines + users once ─────────────────────────────────────────
 
@@ -290,23 +303,44 @@ export default function DashboardPage() {
         time: a.createdAt,
       }));
 
-      // Top deals — highest value OPEN deals (value comes as string from Decimal)
+      // Top deals — rank by monthly value only (not setup)
       const topDeals: TopDeal[] = [...(topDealsRes.data ?? [])]
-        .filter((d) => Number(d.value ?? 0) > 0)
-        .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0))
-        .slice(0, 5)
-        .map((d) => ({
-          id: d.id,
-          name: d.organization?.name ?? d.contact?.name ?? d.title,
-          value: Number(d.value ?? 0),
-          stage: d.stage?.name ?? "",
-          owner: d.user?.name ?? "—",
-        }));
+        .map((d) => {
+          const products = d.products ?? [];
+          const hasProducts = products.length > 0;
+          const monthlyValue = hasProducts
+            ? products.reduce(
+                (sum, p) => sum + Number(p.recurrenceValue ?? p.unitPrice) * p.quantity,
+                0
+              )
+            : Number(d.value ?? 0); // fallback: deal sem produtos usa value total como mensal
+          const setupValue = hasProducts
+            ? products.reduce(
+                (sum, p) => sum + Number(p.setupPrice ?? 0),
+                0
+              )
+            : 0;
+          return {
+            id: d.id,
+            name: d.organization?.name ?? d.contact?.name ?? d.title,
+            value: Number(d.value ?? 0),
+            monthlyValue,
+            setupValue,
+            stage: d.stage?.name ?? "",
+            owner: d.user?.name ?? "—",
+          };
+        })
+        .filter((d) => d.monthlyValue > 0 || d.setupValue > 0)
+        .sort((a, b) => b.monthlyValue - a.monthlyValue)
+        .slice(0, 5);
 
       setData({
         activeDealsCount: activeCount,
         pipelineValue,
         closedDealsCount: wonCount,
+        closedDealsTotalValue: summaryRes.data?.wonValueBreakdown?.total ?? 0,
+        closedDealsMonthlyValue: summaryRes.data?.wonValueBreakdown?.monthly ?? 0,
+        closedDealsSetupValue: summaryRes.data?.wonValueBreakdown?.setup ?? 0,
         conversionRate,
         funnelStages,
         recentActivities,
@@ -346,7 +380,7 @@ export default function DashboardPage() {
         {
           title: "Vendas Fechadas",
           value: String(data.closedDealsCount),
-          sub: "negociações ganhas",
+          sub: `${formatCurrency(data.closedDealsMonthlyValue)}/mês + ${formatCurrency(data.closedDealsSetupValue)} setup`,
           icon: Trophy,
           color: "text-yellow-600",
           bg: "bg-yellow-50",
@@ -505,6 +539,13 @@ export default function DashboardPage() {
           <Card padding="md">
             <CardHeader>
               <CardTitle>Top 5 Em Andamento</CardTitle>
+              {!loading && (
+                <span className="text-sm font-bold text-gray-700">
+                  {formatCurrency(
+                    (data?.topDeals ?? []).reduce((s, d) => s + d.monthlyValue, 0)
+                  )}/mês
+                </span>
+              )}
             </CardHeader>
             {loading ? (
               <div className="space-y-3 mt-1">
@@ -532,9 +573,16 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     </div>
-                    <p className="text-sm font-bold text-blue-600 flex-shrink-0">
-                      {formatCurrency(deal.value)}
-                    </p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-blue-600">
+                        {formatCurrency(deal.monthlyValue)}/mês
+                      </p>
+                      {deal.setupValue > 0 && (
+                        <p className="text-[10px] text-gray-400">
+                          +{formatCurrency(deal.setupValue)} setup
+                        </p>
+                      )}
+                    </div>
                   </Link>
                 ))}
                 {(data?.topDeals ?? []).length === 0 && (

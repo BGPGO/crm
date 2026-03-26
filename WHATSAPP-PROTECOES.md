@@ -13,7 +13,7 @@ O sistema tem **5 canais** que enviam mensagens proativas pelo WhatsApp:
 | Canal | Arquivo | Quando dispara |
 |-------|---------|----------------|
 | **Cadências** | `automationEngine.ts` → `automationActions.ts` | Cron a cada 60s processa enrollments pendentes |
-| **Follow-up do bot** | `followUpScheduler.ts` → `whatsappFollowUp.ts` | setTimeout event-driven após bot enviar msg |
+| **Follow-up do bot** | `followUpScheduler.ts` → `whatsappFollowUp.ts` | setTimeout event-driven após bot enviar msg (fila serial com 20-45s entre envios) |
 | **Campanhas** | `whatsapp-campaigns.ts` | Manual — operador clica "Iniciar" |
 | **Reminders de reunião** | `meetingReminderScheduler.ts` | setTimeout X minutos antes da reunião |
 | **Reminders backup** | `automationCron.ts` → `processOverdueReminders()` | Cron a cada 60s (rede de segurança) |
@@ -31,7 +31,7 @@ Todos compartilham o **mesmo limite diário** controlado pelo `dailyLimitService
 | Business hours (8h-18h seg-sex) | Sim | Sim | Sim | Nao* | Nao* |
 | Opt-out check | Sim | Sim | Sim | Sim | Sim |
 | Contato frio (max 5 msgs) | Sim | Sim | Nao | N/A | N/A |
-| Delay entre envios | 30-90s aleatorio | Event-driven | 25-120s aleatorio | N/A | N/A |
+| Delay entre envios | 30-90s aleatorio | 20-45s (fila serial) | 25-120s aleatorio | N/A | N/A |
 | Cap por lote/ciclo | Max 10/ciclo | 1 por vez | 12-25 por lote | N/A | N/A |
 | Anti-duplicacao | Atomic claim | Race guard | Optimistic lock | SENT atomico | SENT atomico |
 

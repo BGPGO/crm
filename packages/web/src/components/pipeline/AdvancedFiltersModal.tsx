@@ -18,6 +18,7 @@ interface ListResponse<T = Option> {
 
 export interface AdvancedFilters {
   sourceId?: string;
+  productId?: string;
   campaignIds?: string;
   lostReasonId?: string;
   organizationId?: string;
@@ -160,6 +161,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
   const [lostReasons, setLostReasons] = useState<Option[]>([]);
   const [organizations, setOrganizations] = useState<Option[]>([]);
   const [contacts, setContacts] = useState<Option[]>([]);
+  const [products, setProducts] = useState<Option[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   // Sync draft when modal opens with new current
@@ -171,18 +173,20 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
   const loadOptions = useCallback(async () => {
     if (loaded) return;
     try {
-      const [srcRes, campRes, lrRes, orgRes, ctRes] = await Promise.all([
+      const [srcRes, campRes, lrRes, orgRes, ctRes, prodRes] = await Promise.all([
         api.get<ListResponse>("/sources?limit=100"),
         api.get<ListResponse>("/campaigns?limit=100"),
         api.get<ListResponse>("/lost-reasons?limit=100"),
         api.get<ListResponse>("/organizations?limit=200"),
         api.get<ListResponse>("/contacts?limit=200"),
+        api.get<ListResponse>("/products?limit=200&isActive=true"),
       ]);
       setSources(srcRes.data ?? []);
       setCampaigns(campRes.data ?? []);
       setLostReasons(lrRes.data ?? []);
       setOrganizations(orgRes.data ?? []);
       setContacts(ctRes.data ?? []);
+      setProducts(prodRes.data ?? []);
       setLoaded(true);
     } catch {
       // silent
@@ -240,6 +244,23 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
             value={draft.campaignIds ?? ""}
             onChange={(val) => setDraft((prev) => ({ ...prev, campaignIds: val || undefined }))}
           />
+        </div>
+
+        {/* Row: Product */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Produto</label>
+            <select
+              value={draft.productId ?? ""}
+              onChange={(e) => set("productId", e.target.value)}
+              className={SEL}
+            >
+              <option value="">Todos os produtos</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Row 2: Organization + Contact */}
