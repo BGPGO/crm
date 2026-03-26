@@ -68,13 +68,16 @@ export default function ConversasChatPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'ai' | 'human' | 'open' | 'closed' | 'errors' | 'cadence'>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [allUsers, setAllUsers] = useState<Array<{id: string, name: string}>>([]);
-  const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0, inCadence: 0 });
+  const [stats, setStats] = useState<{total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number, byStage: Array<{stageId: string, stageName: string, count: number}>}>({ total: 0, withAI: 0, withHuman: 0, open: 0, closed: 0, withErrors: 0, inCadence: 0, byStage: [] });
   const [searchQuery, setSearchQuery] = useState("");
   const [allTags, setAllTags] = useState<ConvTag[]>([]);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -91,6 +94,9 @@ export default function ConversasChatPage() {
       if (userFilter && userFilter !== 'all') params.set('assignedUserId', userFilter);
       const s = query !== undefined ? query : searchQuery;
       if (s) params.set('search', s);
+      if (stageFilter && stageFilter !== 'all') params.set('stageId', stageFilter);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
 
       const res = await api.get<{ data: Conversation[] }>(`/whatsapp/conversations?${params.toString()}`);
       setConversations(res.data || []);
@@ -99,12 +105,12 @@ export default function ConversasChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, userFilter, searchQuery]);
+  }, [activeFilter, userFilter, searchQuery, stageFilter, dateFrom, dateTo]);
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await api.get<{ data: {total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number} }>("/whatsapp/conversations/stats");
-      setStats(res.data);
+      const res = await api.get<{ data: {total: number, withAI: number, withHuman: number, open: number, closed: number, withErrors: number, inCadence: number, byStage: Array<{stageId: string, stageName: string, count: number}>} }>("/whatsapp/conversations/stats");
+      setStats({ ...res.data, byStage: res.data.byStage || [] });
     } catch {}
   }, []);
 
@@ -327,6 +333,34 @@ export default function ConversasChatPage() {
         )}
       </div>
 
+      {/* Pipeline stage indicators */}
+      {stats.byStage.length > 0 && (
+        <div className="bg-white border-b border-gray-200 px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto">
+          <span className="text-[10px] text-gray-400 font-medium mr-1 flex-shrink-0">Funil:</span>
+          <button
+            onClick={() => setStageFilter('all')}
+            className={clsx(
+              "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
+              stageFilter === 'all' ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+            )}
+          >
+            Todas
+          </button>
+          {stats.byStage.map(s => (
+            <button
+              key={s.stageId}
+              onClick={() => setStageFilter(stageFilter === s.stageId ? 'all' : s.stageId)}
+              className={clsx(
+                "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
+                stageFilter === s.stageId ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+              )}
+            >
+              {s.stageName} <span className="opacity-60">({s.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && (
         <div className="mx-4 mt-2 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
           <span className="text-sm text-red-700">{error}</span>
@@ -398,6 +432,31 @@ export default function ConversasChatPage() {
                 ))}
               </select>
             )}
+            <div className="flex gap-1.5">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="De"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Até"
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  className="text-gray-400 hover:text-gray-600 px-1"
+                  title="Limpar datas"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (

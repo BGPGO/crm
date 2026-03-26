@@ -61,6 +61,31 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.messages = { some: { delivered: false } };
     }
 
+    // Filter by pipeline stage: conversations whose contact has an OPEN deal in this stage
+    const { stageId } = req.query;
+    if (stageId) {
+      where.contact = {
+        ...(where.contact as object || {}),
+        deals: { some: { stageId: stageId as string, status: 'OPEN' } },
+      };
+    }
+
+    // Filter by date range (lastMessageAt)
+    const { dateFrom, dateTo } = req.query;
+    if (dateFrom || dateTo) {
+      const dateFilter: Record<string, Date> = {};
+      if (dateFrom) dateFilter.gte = new Date(dateFrom as string);
+      if (dateTo) {
+        const to = new Date(dateTo as string);
+        // If date-only (no time), use end of day
+        if (!(dateTo as string).includes('T')) {
+          to.setHours(23, 59, 59, 999);
+        }
+        dateFilter.lte = to;
+      }
+      where.lastMessageAt = dateFilter;
+    }
+
     const [total, data] = await Promise.all([
       prisma.whatsAppConversation.count({ where }),
       prisma.whatsAppConversation.findMany({
@@ -136,7 +161,25 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
       prisma.whatsAppConversation.count({ where: { contact: { tags: { some: { tag: { name: { startsWith: 'Cadência Etapa' } } } } } } }),
     ]);
 
-    const data = { total, withAI, withHuman, open, closed, withErrors, inCadence };
+    // Count conversations per pipeline stage (via contact → deals)
+    const stageCountsRaw = await prisma.$queryRaw<Array<{ stageId: string; stageName: string; cnt: bigint }>>`
+      SELECT ps.id as "stageId", ps.name as "stageName", COUNT(DISTINCT wc.id) as cnt
+      FROM "WhatsAppConversation" wc
+      JOIN "Contact" co ON co.id = wc."contactId"
+      JOIN "Deal" d ON d."contactId" = co.id AND d.status = 'OPEN'
+      JOIN "PipelineStage" ps ON ps.id = d."stageId"
+      WHERE wc."contactId" IS NOT NULL
+      GROUP BY ps.id, ps.name, ps."order"
+      ORDER BY ps."order" ASC
+    `;
+
+    const byStage = stageCountsRaw.map(r => ({
+      stageId: r.stageId,
+      stageName: r.stageName,
+      count: Number(r.cnt),
+    }));
+
+    const data = { total, withAI, withHuman, open, closed, withErrors, inCadence, byStage };
     statsCache = { data, expiresAt: Date.now() + 30_000 };
     res.json({ data });
   } catch (err) {
