@@ -33,53 +33,53 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
       return res.json({ data: null });
     }
 
-    // ── 1. Funnel counts — ALL deals (not just OPEN), by stage, filtered by date ──
-    // "Total de leads que entraram" = deals created in period, any status
-    const funnelWhere = {
-      pipelineId: pipeline.id,
-      createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
-      ...userWhere,
-    };
+    // ── 1. Funnel — current state of pipeline (accumulated, not date-filtered) ──
+    // Shows how many OPEN deals are at each stage or beyond (same as dashboard funnel)
+    const funnelBaseWhere = { pipelineId: pipeline.id, status: 'OPEN' as const, ...userWhere };
+
     const funnelCounts = await prisma.deal.groupBy({
       by: ['stageId'],
-      where: funnelWhere,
+      where: funnelBaseWhere,
       _count: { id: true },
     });
-    const totalDealsInPeriod = await prisma.deal.count({ where: funnelWhere });
 
-    // Count deals that REACHED specific stages (reunião marcada, proposta enviada)
-    // Use stage change history or just count deals currently in or past these stages
     const stageMap = new Map(pipeline.stages.map(s => [s.id, s]));
-    const funnelByStage: Record<string, number> = {};
+    const countByOrder = new Map<number, number>();
+    let totalOpen = 0;
     for (const g of funnelCounts) {
       const stage = stageMap.get(g.stageId);
       if (stage) {
-        funnelByStage[stage.name] = g._count.id;
+        countByOrder.set(stage.order, g._count.id);
+        totalOpen += g._count.id;
       }
     }
 
-    // Count reuniões marcadas (CalendlyEvents in period)
-    const reunioesMarcadas = await prisma.calendlyEvent.count({
-      where: {
-        createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
-        status: 'active',
-      },
-    });
-
-    // Count propostas enviadas (deals that reached "Proposta Enviada" stage or beyond)
-    const propostaStage = pipeline.stages.find(s => s.name === 'Proposta Enviada');
-    let propostasEnviadas = 0;
-    if (propostaStage) {
-      // Deals in proposta stage or any stage after it (higher order), created in period
-      propostasEnviadas = await prisma.deal.count({
-        where: {
-          pipelineId: pipeline.id,
-          createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
-          stage: { order: { gte: propostaStage.order } },
-          ...userWhere,
-        },
-      });
+    // Accumulated: deals at stage X or any stage AFTER X
+    const sortedOrders = [...pipeline.stages].sort((a, b) => a.order - b.order);
+    const accumulatedByName = new Map<string, number>();
+    for (let i = 0; i < sortedOrders.length; i++) {
+      let acc = 0;
+      for (let j = i; j < sortedOrders.length; j++) {
+        acc += countByOrder.get(sortedOrders[j].order) || 0;
+      }
+      accumulatedByName.set(sortedOrders[i].name, acc);
     }
+
+    // Key funnel numbers (accumulated) — case-insensitive lookup
+    const findAccumulated = (keywords: string[]): number => {
+      for (const [name, count] of accumulatedByName.entries()) {
+        const lower = name.toLowerCase();
+        if (keywords.some(kw => lower.includes(kw))) return count;
+      }
+      return 0;
+    };
+    const reunioesMarcadas = findAccumulated(['reunião agendada', 'reunião marcada', 'reuniao']);
+    const propostasEnviadas = findAccumulated(['proposta enviada', 'proposta']);
+
+    // Total deals created in period (for conversion rate)
+    const totalDealsInPeriod = await prisma.deal.count({
+      where: { pipelineId: pipeline.id, createdAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
+    });
 
     // ── 2. WON deals this month and last month ───────────────────────────
     const wonDateWhere = { closedAt: { gte: thisMonthStart, lte: thisMonthEnd } };
@@ -230,7 +230,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     res.json({
       data: {
         funnel: {
-          totalLeads: totalDealsInPeriod,
+          totalLeads: totalOpen,
           reunioesMarcadas,
           propostasEnviadas,
           vendas: wonCount,
