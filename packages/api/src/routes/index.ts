@@ -44,6 +44,7 @@ import notificationConfigRouter from './notification-config';
 import contractsRouter from './contracts';
 import contractWitnessesRouter from './contract-witnesses';
 import contractWebhookRouter from './contract-webhook';
+import reportsRouter from './reports';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -101,5 +102,6 @@ router.use('/meeting-reminders', meetingRemindersRouter);
 router.use('/contracts', contractsRouter);
 router.use('/contract-witnesses', contractWitnessesRouter);
 router.use('/notification-config', notificationConfigRouter);
+router.use('/reports', reportsRouter);
 
 export default router;

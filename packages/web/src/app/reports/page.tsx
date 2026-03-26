@@ -1,132 +1,80 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
-import Badge from "@/components/ui/Badge";
-import {
-  DollarSign,
-  TrendingUp,
-  BarChart3,
-  AlertTriangle,
-  Clock,
-  Phone,
-  Mail,
-  Calendar,
-  MapPin,
-  MoreHorizontal,
-  CheckCircle,
-  XCircle,
-  Loader2,
-} from "lucide-react";
-import { formatCurrency, formatDate, formatRelativeTime } from "@/lib/formatters";
+import { Loader2, TrendingDown, Trophy, DollarSign, Wrench } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 import { api } from "@/lib/api";
 
-interface PipelineStage {
-  id: string;
-  name: string;
-  color: string;
-  order: number;
-  dealCount: number;
-  totalValue: number;
+interface ReportData {
+  funnel: {
+    total: number;
+    byStage: Record<string, number>;
+    stages: Array<{ id: string; name: string; order: number }>;
+  };
+  summary: {
+    wonCount: number;
+    wonTotalValue: number;
+    wonMonthlyValue: number;
+    wonSetupValue: number;
+    lostCount: number;
+    lostValue: number;
+    totalDealsThisMonth: number;
+    conversionRate: number;
+  };
+  ticketMedio: Array<{
+    product: string;
+    currentAvg: number;
+    currentTotal: number;
+    currentCount: number;
+    lastMonthAvg: number;
+  }>;
+  monthlyTrend: Array<{
+    month: string;
+    totalMonthly: number;
+    totalSetup: number;
+  }>;
+  salesByClient: Array<{
+    dealId: string;
+    clientName: string;
+    products: string;
+    monthlyValue: number;
+    setupValue: number;
+    totalValue: number;
+  }>;
 }
 
-interface PipelineSummaryData {
-  stages: PipelineStage[];
-  totalDeals: number;
-  totalValue: number;
-  countsByStatus: { OPEN: number; WON: number; LOST: number };
+// ── Donut Chart ──────────────────────────────────────────────────────────────
+
+function DonutChart({ percentage, color, size = 80 }: { percentage: number; color: string; size?: number }) {
+  const r = (size / 2) - 4;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (Math.min(percentage, 100) / 100) * circumference;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#374151" strokeWidth="5" opacity="0.2" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="5"
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}
+        className="transition-all duration-700" />
+      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
+        className="text-xs font-bold" fill="#f1f5f9">{percentage.toFixed(0)}%</text>
+    </svg>
+  );
 }
 
-interface Activity {
-  id: string;
-  type: string;
-  description: string;
-  createdAt: string;
-  deal?: { title: string } | null;
-  user?: { name: string } | null;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  type: "CALL" | "EMAIL" | "MEETING" | "VISIT" | "OTHER";
-  dueDate: string | null;
-  status: "PENDING" | "COMPLETED" | "OVERDUE";
-}
-
-interface TaskCounts {
-  ALL: number;
-  PENDING: number;
-  COMPLETED: number;
-  OVERDUE: number;
-}
-
-const taskTypeIcons: Record<string, typeof Phone> = {
-  CALL: Phone,
-  EMAIL: Mail,
-  MEETING: Calendar,
-  VISIT: MapPin,
-  OTHER: MoreHorizontal,
-};
-
-const taskTypeLabels: Record<string, string> = {
-  CALL: "Ligação",
-  EMAIL: "E-mail",
-  MEETING: "Reunião",
-  VISIT: "Visita",
-  OTHER: "Outro",
-};
+// ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
-  const router = useRouter();
+  const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryData | null>(null);
-  const [taskCounts, setTaskCounts] = useState<TaskCounts>({ ALL: 0, PENDING: 0, COMPLETED: 0, OVERDUE: 0 });
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [pendingTasks, setPendingTasks] = useState<Task[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch pipelines first to get the default one
-      const pipelinesRes = await api.get<{ data: { id: string; name: string }[] }>("/pipelines");
-      const defaultPipeline = pipelinesRes.data?.[0];
-
-      const promises: Promise<void>[] = [];
-
-      // Pipeline summary
-      if (defaultPipeline) {
-        promises.push(
-          api.get<{ data: PipelineSummaryData }>(`/pipelines/${defaultPipeline.id}/summary`).then((res) => {
-            setPipelineSummary(res.data);
-          }).catch(() => {})
-        );
-      }
-
-      // Task counts
-      promises.push(
-        api.get<{ data: TaskCounts }>("/tasks/counts").then((res) => {
-          setTaskCounts(res.data);
-        }).catch(() => {})
-      );
-
-      // Recent activities
-      promises.push(
-        api.get<{ data: Activity[]; meta: unknown }>("/activities?limit=10").then((res) => {
-          setActivities(res.data);
-        }).catch(() => {})
-      );
-
-      // Pending tasks
-      promises.push(
-        api.get<{ data: Task[]; meta: unknown }>("/tasks?status=PENDING&limit=8").then((res) => {
-          setPendingTasks(res.data);
-        }).catch(() => {})
-      );
-
-      await Promise.all(promises);
+      const res = await api.get<{ data: ReportData }>("/reports/sales");
+      setData(res.data);
     } catch (err) {
       console.error("Erro ao carregar relatórios:", err);
     } finally {
@@ -134,301 +82,214 @@ export default function ReportsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const stages = pipelineSummary?.stages || [];
-  const maxDealsInStage = Math.max(...stages.map((s) => s.dealCount || 0), 1);
-
-  const totalDeals = pipelineSummary?.totalDeals || 0;
-  const totalValue = pipelineSummary?.totalValue || 0;
-  const openDeals = pipelineSummary?.countsByStatus?.OPEN || 0;
-  const wonDeals = pipelineSummary?.countsByStatus?.WON || 0;
-  const lostDeals = pipelineSummary?.countsByStatus?.LOST || 0;
-  const conversionRate = totalDeals > 0 ? (wonDeals / totalDeals) * 100 : 0;
-  const openPct = totalDeals > 0 ? Math.round((openDeals / totalDeals) * 100) : 0;
-  const wonPct = totalDeals > 0 ? Math.round((wonDeals / totalDeals) * 100) : 0;
-  const lostPct = totalDeals > 0 ? Math.round((lostDeals / totalDeals) * 100) : 0;
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-auto">
-        <Header title="Relatórios" breadcrumb={["Analytics", "Relatórios"]} />
+        <Header title="Análises" breadcrumb={["Análises"]} />
         <main className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-3 text-gray-400">
             <Loader2 size={24} className="animate-spin" />
-            <span className="text-sm">Carregando relatórios...</span>
+            <span className="text-sm">Carregando análises...</span>
           </div>
         </main>
       </div>
     );
   }
 
+  if (!data) {
+    return (
+      <div className="flex flex-col h-full overflow-auto">
+        <Header title="Análises" breadcrumb={["Análises"]} />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-sm text-gray-400">Nenhum dado disponível</p>
+        </main>
+      </div>
+    );
+  }
+
+  const { funnel, summary, ticketMedio, monthlyTrend, salesByClient } = data;
+
+  // Key stage counts
+  const reuniaoCount = funnel.byStage["Reunião Marcada"] || funnel.byStage["Reuniao Marcada"] || 0;
+  const propostaCount = funnel.byStage["Proposta Enviada"] || 0;
+  const vendasCount = summary.wonCount;
+
+  // Monthly chart max
+  const maxMonthly = Math.max(...monthlyTrend.map(m => m.totalMonthly + m.totalSetup), 1);
+
+  // Ticket médio max for bar sizing
+  const maxTicket = Math.max(...ticketMedio.map(t => t.currentAvg), 1);
+
+  // Percentages for summary cards
+  const totalWonLost = summary.wonCount + summary.lostCount;
+  const lostPct = totalWonLost > 0 ? (summary.lostCount / totalWonLost) * 100 : 0;
+  const wonPct = summary.conversionRate;
+  const monthlyPct = summary.wonTotalValue > 0 ? (summary.wonMonthlyValue / summary.wonTotalValue) * 100 : 0;
+  const setupPct = summary.wonTotalValue > 0 ? (summary.wonSetupValue / summary.wonTotalValue) * 100 : 0;
+
   return (
     <div className="flex flex-col h-full overflow-auto">
-      <Header title="Relatórios" breadcrumb={["Analytics", "Relatórios"]} />
+      <Header title="Análises" breadcrumb={["Análises"]} />
 
       <main className="flex-1 px-4 sm:px-6 py-6 space-y-6">
-        {/* Row 1 - Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total de Negociações */}
-          <Card padding="md">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-                <BarChart3 size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Total de Negociações</p>
-                <p className="text-2xl font-bold text-gray-900">{totalDeals}</p>
-              </div>
+        {/* ── Row 1: Funnel + Monthly Chart ────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Funnel numbers */}
+          <div className="space-y-3">
+            <div className="bg-gray-900 rounded-xl p-5">
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Total</p>
+              <p className="text-4xl font-bold text-white mt-1">{funnel.total}</p>
             </div>
-          </Card>
-
-          {/* Valor Total em Aberto */}
-          <Card padding="md">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-green-50 text-green-600">
-                <DollarSign size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Valor em Aberto</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(totalValue)}
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Taxa de Conversão */}
-          <Card padding="md">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
-                <TrendingUp size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Taxa de Conversão</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {conversionRate.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Tarefas Atrasadas */}
-          <Card
-            padding="md"
-            className={`${taskCounts.OVERDUE > 0 ? "ring-2 ring-red-200 bg-red-50 cursor-pointer hover:ring-red-300 transition-all" : ""}`}
-            onClick={() => taskCounts.OVERDUE > 0 && router.push("/tasks?status=OVERDUE")}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl ${taskCounts.OVERDUE > 0 ? "bg-red-100 text-red-600 animate-pulse" : "bg-orange-50 text-orange-600"}`}>
-                <AlertTriangle size={20} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Tarefas Atrasadas</p>
-                <p className={`text-2xl font-bold ${taskCounts.OVERDUE > 0 ? "text-red-600" : "text-gray-900"}`}>
-                  {taskCounts.OVERDUE}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Row 2 - Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pipeline por Etapa */}
-          <Card padding="md">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Pipeline por Etapa</h3>
-            {stages.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-400">
-                Nenhum dado de pipeline disponível
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {stages
-                  .sort((a, b) => a.order - b.order)
-                  .map((stage) => {
-                    const count = stage.dealCount || 0;
-                    const pct = Math.max((count / maxDealsInStage) * 100, 2);
-                    return (
-                      <div key={stage.id} className="flex items-center gap-3">
-                        <div className="w-28 text-xs text-gray-600 truncate flex-shrink-0 text-right">
-                          {stage.name}
-                        </div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
-                          <div
-                            className="h-full rounded-full flex items-center justify-end pr-2 transition-all duration-500"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: stage.color || "#3B82F6",
-                              minWidth: count > 0 ? "32px" : "0",
-                            }}
-                          >
-                            {count > 0 && (
-                              <span className="text-[10px] font-bold text-white drop-shadow-sm">
-                                {count}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </Card>
-
-          {/* Negociações por Status */}
-          <Card padding="md">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">Negociações por Status</h3>
-            <div className="space-y-5">
-              {/* Open */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <Clock size={14} className="text-blue-500" />
-                    <span className="text-sm font-medium text-gray-700">Em Aberto</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-gray-900">{openDeals}</span>
-                    <Badge variant="blue">{openPct}%</Badge>
-                  </div>
+            {[
+              { label: "Reunião Marcada", count: reuniaoCount, color: "#3B82F6" },
+              { label: "Proposta Enviada", count: propostaCount, color: "#F59E0B" },
+              { label: "Vendas", count: vendasCount, color: "#22C55E" },
+            ].map(item => (
+              <div key={item.label} className="bg-gray-900 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-gray-400">{item.label}</p>
+                  <p className="text-2xl font-bold text-white">{item.count}</p>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-3">
+                <div className="w-full bg-gray-700 rounded-full h-2">
                   <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                    style={{ width: `${openPct}%` }}
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${funnel.total > 0 ? Math.max((item.count / funnel.total) * 100, 2) : 0}%`,
+                      backgroundColor: item.color,
+                    }}
                   />
                 </div>
               </div>
+            ))}
+          </div>
 
-              {/* Won */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle size={14} className="text-green-500" />
-                    <span className="text-sm font-medium text-gray-700">Ganhas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-gray-900">{wonDeals}</span>
-                    <Badge variant="green">{wonPct}%</Badge>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-3">
-                  <div
-                    className="h-full bg-green-500 rounded-full transition-all duration-500"
-                    style={{ width: `${wonPct}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Lost */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <XCircle size={14} className="text-red-500" />
-                    <span className="text-sm font-medium text-gray-700">Perdidas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-gray-900">{lostDeals}</span>
-                    <Badge variant="red">{lostPct}%</Badge>
-                  </div>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-3">
-                  <div
-                    className="h-full bg-red-500 rounded-full transition-all duration-500"
-                    style={{ width: `${lostPct}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Row 3 - Activities & Tasks */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Últimas Atividades */}
-          <Card padding="none">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="text-sm font-semibold text-gray-900">Últimas Atividades</h3>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {activities.length === 0 ? (
-                <div className="px-5 py-8 text-center text-sm text-gray-400">
-                  Nenhuma atividade registrada
-                </div>
-              ) : (
-                activities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start gap-3 px-5 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="mt-0.5 w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 truncate">{activity.description}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {activity.deal?.title && (
-                          <span className="text-xs text-blue-600 truncate">{activity.deal.title}</span>
-                        )}
-                        {activity.user?.name && (
-                          <span className="text-xs text-gray-400">· {activity.user.name}</span>
-                        )}
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">
-                      {formatRelativeTime(activity.createdAt)}
+          {/* Monthly chart */}
+          <div className="lg:col-span-2 bg-gray-900 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">Vendas por mês</h3>
+            <div className="flex items-end gap-3 h-52">
+              {monthlyTrend.map((m, i) => {
+                const total = m.totalMonthly + m.totalSetup;
+                const heightPct = maxMonthly > 0 ? (total / maxMonthly) * 100 : 0;
+                const monthlyPctBar = total > 0 ? (m.totalMonthly / total) * 100 : 100;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-[10px] text-gray-300 font-medium">
+                      {total > 0 ? formatCurrency(total) : "—"}
                     </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          {/* Tarefas Pendentes */}
-          <Card padding="none">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900">Tarefas Pendentes</h3>
-              <Badge variant="yellow">{taskCounts.PENDING}</Badge>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {pendingTasks.length === 0 ? (
-                <div className="px-5 py-8 text-center text-sm text-gray-400">
-                  Nenhuma tarefa pendente
-                </div>
-              ) : (
-                pendingTasks.map((task) => {
-                  const TIcon = taskTypeIcons[task.type] || MoreHorizontal;
-                  const isOverdue = task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date();
-                  const overdueDays = isOverdue ? Math.floor((Date.now() - new Date(task.dueDate!).getTime()) / 86400000) : 0;
-                  return (
-                    <div
-                      key={task.id}
-                      className={`flex items-center gap-3 px-5 py-3 border-b border-gray-50 last:border-0 transition-colors ${isOverdue ? "bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500" : "hover:bg-gray-50"}`}
-                    >
-                      <div className={`p-1.5 rounded-full flex-shrink-0 ${isOverdue ? "bg-red-100 text-red-500" : "bg-gray-100 text-gray-500"}`}>
-                        <TIcon size={12} />
+                    <div className="w-full flex flex-col justify-end" style={{ height: '180px' }}>
+                      <div
+                        className="w-full rounded-t-md overflow-hidden transition-all duration-700"
+                        style={{ height: `${Math.max(heightPct, 3)}%` }}
+                      >
+                        <div className="bg-blue-500 w-full" style={{ height: `${monthlyPctBar}%` }} />
+                        <div className="bg-orange-400 w-full" style={{ height: `${100 - monthlyPctBar}%` }} />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm truncate ${isOverdue ? "text-red-700 font-medium" : "text-gray-700"}`}>{task.title}</p>
-                        <p className="text-xs text-gray-400">
-                          {taskTypeLabels[task.type] || task.type}
-                        </p>
-                      </div>
-                      {task.dueDate && (
-                        <span className={`text-xs flex-shrink-0 ${isOverdue ? "text-red-600 font-bold" : "text-gray-400"}`}>
-                          {isOverdue
-                            ? overdueDays === 0 ? "Vence hoje" : `${overdueDays} dia${overdueDays !== 1 ? "s" : ""} atrasada`
-                            : formatDate(task.dueDate)}
-                        </span>
-                      )}
                     </div>
-                  );
-                })
-              )}
+                    <span className="text-[10px] text-gray-500 capitalize">{m.month}</span>
+                  </div>
+                );
+              })}
             </div>
-          </Card>
+            <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-blue-500" />
+                <span className="text-[10px] text-gray-400">Mensal</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-orange-400" />
+                <span className="text-[10px] text-gray-400">Setup</span>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* ── Row 2: Four summary cards ────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: "Vendas Perdidas", value: formatCurrency(summary.lostValue), count: `${summary.lostCount} negociações`, pct: lostPct, color: "#EF4444", icon: TrendingDown },
+            { label: "Vendas Fechadas", value: formatCurrency(summary.wonTotalValue), count: `${summary.wonCount} negociações`, pct: wonPct, color: "#22C55E", icon: Trophy },
+            { label: "Mensal Contratado", value: formatCurrency(summary.wonMonthlyValue), count: `${summary.wonCount} contratos`, pct: monthlyPct, color: "#3B82F6", icon: DollarSign },
+            { label: "Setup", value: formatCurrency(summary.wonSetupValue), count: `receita única`, pct: setupPct, color: "#F59E0B", icon: Wrench },
+          ].map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.label} className="bg-gray-900 rounded-xl p-4 flex items-center gap-4">
+                <DonutChart percentage={card.pct} color={card.color} />
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-400">{card.label}</p>
+                  <p className="text-lg font-bold text-white truncate">{card.value}</p>
+                  <p className="text-[10px] text-gray-500">{card.count}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Row 3: Ticket Médio por Produto ─────────────────────────── */}
+        {ticketMedio.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">Ticket médio</h3>
+            <div className="space-y-4">
+              {ticketMedio.map((t) => {
+                const barPct = maxTicket > 0 ? Math.max((t.currentAvg / maxTicket) * 100, 3) : 0;
+                return (
+                  <div key={t.product}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-white">{t.product}</span>
+                        <span className="text-sm text-blue-400 font-bold">{formatCurrency(t.currentAvg)}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        Mês anterior: {formatCurrency(t.lastMonthAvg)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-6 relative overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full flex items-center justify-center transition-all duration-700"
+                        style={{ width: `${barPct}%`, minWidth: '60px' }}
+                      >
+                        <span className="text-[10px] font-bold text-white">{formatCurrency(t.currentAvg)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Row 4: Vendas por Cliente ────────────────────────────────── */}
+        {salesByClient.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-white mb-4">Vendas por Cliente</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400">Nome</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400">Produto</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Mensal</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Setup</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesByClient.map((sale, i) => (
+                    <tr key={sale.dealId} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
+                      <td className="py-2.5 px-3 text-gray-200">{sale.clientName}</td>
+                      <td className="py-2.5 px-3 text-gray-400">{sale.products}</td>
+                      <td className="py-2.5 px-3 text-right text-gray-200">{formatCurrency(sale.monthlyValue)}</td>
+                      <td className="py-2.5 px-3 text-right text-gray-400">{sale.setupValue > 0 ? formatCurrency(sale.setupValue) : "—"}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-white">{formatCurrency(sale.totalValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
