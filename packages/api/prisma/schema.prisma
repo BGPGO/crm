@@ -1047,6 +1047,7 @@ model WhatsAppConfig {
   meetingReminderEnabled   Boolean                  @default(true)
   cadenceEnabled           Boolean                  @default(false)
   botPhoneNumber           String?
+  readAiApiKey             String?
 
   dailyMessageLimit   Int      @default(200)
   warmupEnabled       Boolean  @default(false)
@@ -1294,4 +1295,30 @@ model WhatsAppCampaignContact {
 
   @@index([campaignId])
   @@index([campaignId, status])
+}
+
+// ─── Read.ai Integration ──────────────────────────────────────────────────
+
+model ReadAiMeeting {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique
+  title        String?
+  summary      String?  @db.Text
+  transcript   String?  @db.Text
+  actionItems  Json?
+  topics       Json?
+  duration     Int?
+  meetingDate  DateTime?
+  participants Json?
+  rawData      Json?
+
+  dealId       String?
+  contactId    String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([dealId])
+  @@index([contactId])
+  @@index([sessionId])
 }

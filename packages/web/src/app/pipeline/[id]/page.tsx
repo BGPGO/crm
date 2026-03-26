@@ -125,7 +125,7 @@ interface ContactOption {
   email?: string;
 }
 
-type TabKey = "historico" | "tarefas" | "produtos" | "arquivos" | "contrato";
+type TabKey = "historico" | "tarefas" | "produtos" | "arquivos" | "contrato" | "readai";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -615,11 +615,24 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("historico");
+  const [readAiMeetings, setReadAiMeetings] = useState<Array<{
+    id: string;
+    sessionId: string;
+    title: string | null;
+    summary: string | null;
+    transcript: string | null;
+    actionItems: any;
+    topics: any;
+    duration: number | null;
+    meetingDate: string | null;
+    participants: any;
+  }>>([]);
+  const [readAiLoading, setReadAiLoading] = useState(false);
 
   // Auto-select tab from ?tab= query param
   useEffect(() => {
     const tab = searchParams.get("tab") as TabKey | null;
-    const allKeys: TabKey[] = ["historico", "tarefas", "produtos", "arquivos", "contrato"];
+    const allKeys: TabKey[] = ["historico", "tarefas", "produtos", "arquivos", "contrato", "readai"];
     if (tab && allKeys.includes(tab)) {
       setActiveTab(tab);
     }
@@ -716,6 +729,20 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   }, [dealId]);
 
+  const fetchReadAiMeetings = useCallback(async () => {
+    if (!dealId) return;
+    setReadAiLoading(true);
+    try {
+      const res = await api.get<{ data: typeof readAiMeetings }>(`/readai/meetings?dealId=${dealId}`);
+      setReadAiMeetings(res.data || []);
+    } catch { /* silent */ }
+    finally { setReadAiLoading(false); }
+  }, [dealId]);
+
+  useEffect(() => {
+    if (activeTab === 'readai') fetchReadAiMeetings();
+  }, [activeTab, fetchReadAiMeetings]);
+
   // ── Item 5: Update browser tab title with deal name ───────────────────
   useEffect(() => {
     if (deal?.title) {
@@ -754,9 +781,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // ── Dynamic tabs (include "Contrato" from "Aguardando Dados" onwards) ──
   const stageLower = (deal?.stageName ?? "").toLowerCase();
   const showContractTab = stageLower.includes("aguardando") || stageLower.includes("ganho") || stageLower.includes("assinatura");
-  const TABS: { key: TabKey; label: string }[] = showContractTab
-    ? [...BASE_TABS, { key: "contrato", label: "Contrato" }]
-    : BASE_TABS;
+  const TABS: { key: TabKey; label: string }[] = [
+    ...BASE_TABS,
+    ...(showContractTab ? [{ key: "contrato" as TabKey, label: "Contrato" }] : []),
+    { key: "readai", label: "Read.ai" },
+  ];
 
   // ── Action handlers ───────────────────────────────────────────────────────
 
@@ -1810,6 +1839,128 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   })),
                 }}
               />
+            )}
+
+            {activeTab === "readai" && (
+              <div className="space-y-4">
+                {readAiLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={20} className="animate-spin text-gray-400" />
+                  </div>
+                ) : readAiMeetings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-12 h-12 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>
+                      </svg>
+                    </div>
+                    <p className="text-sm text-gray-500">Nenhuma gravação do Read.ai vinculada</p>
+                    <p className="text-xs text-gray-400 mt-1">As gravações aparecem automaticamente após reuniões</p>
+                  </div>
+                ) : (
+                  readAiMeetings.map((meeting) => (
+                    <div key={meeting.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                      {/* Meeting header */}
+                      <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">
+                            {meeting.title || 'Reunião sem título'}
+                          </h4>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            {meeting.meetingDate && (
+                              <span className="text-xs text-gray-500">
+                                {new Date(meeting.meetingDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                            {meeting.duration && (
+                              <span className="text-xs text-gray-400">
+                                {meeting.duration}min
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <a
+                          href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          Ver no Read.ai
+                        </a>
+                      </div>
+
+                      <div className="p-4 space-y-4">
+                        {/* Summary */}
+                        {meeting.summary && (
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Resumo</h5>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{meeting.summary}</p>
+                          </div>
+                        )}
+
+                        {/* Action Items */}
+                        {meeting.actionItems && Array.isArray(meeting.actionItems) && meeting.actionItems.length > 0 && (
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Action Items</h5>
+                            <ul className="space-y-1.5">
+                              {meeting.actionItems.map((item: any, i: number) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                                  <span>{typeof item === 'string' ? item : item.text || item.description || item.title || JSON.stringify(item)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Topics */}
+                        {meeting.topics && Array.isArray(meeting.topics) && meeting.topics.length > 0 && (
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Tópicos</h5>
+                            <div className="flex flex-wrap gap-1.5">
+                              {meeting.topics.map((topic: any, i: number) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                  {typeof topic === 'string' ? topic : topic.name || topic.title || JSON.stringify(topic)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Transcript (collapsible) */}
+                        {meeting.transcript && (
+                          <details className="group">
+                            <summary className="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none">
+                              Transcrição
+                              <span className="text-gray-400 font-normal ml-1">(clique para expandir)</span>
+                            </summary>
+                            <div className="mt-2 p-3 bg-gray-50 rounded-lg max-h-80 overflow-y-auto">
+                              <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed font-mono">
+                                {meeting.transcript}
+                              </p>
+                            </div>
+                          </details>
+                        )}
+
+                        {/* Participants */}
+                        {meeting.participants && Array.isArray(meeting.participants) && meeting.participants.length > 0 && (
+                          <div>
+                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Participantes</h5>
+                            <div className="flex flex-wrap gap-1">
+                              {meeting.participants.map((p: any, i: number) => (
+                                <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                  {typeof p === 'string' ? p : p.name || p.email || JSON.stringify(p)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
         </main>
