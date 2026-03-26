@@ -100,6 +100,13 @@ Etapas fixas do funil:
 - Produtos
 - Equipe e responsáveis
 
+## WhatsApp — Proteções Anti-Ban
+
+Todas as proteções contra ban do WhatsApp estão documentadas em **[WHATSAPP-PROTECOES.md](WHATSAPP-PROTECOES.md)**.
+Inclui: limites diários, warmup, throttle, contatos frios, matriz de proteções por canal.
+
+> **IMPORTANTE**: Qualquer novo canal de envio WhatsApp DEVE implementar `canSend()`/`registerSent()` do `dailyLimitService.ts`.
+
 ## Comandos
 
 ```bash
