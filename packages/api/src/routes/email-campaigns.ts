@@ -67,7 +67,20 @@ router.post(
   validate({ name: 'required', subject: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, subject, fromName, fromEmail, templateId, segmentId, status } = req.body;
+      const { name, subject, fromName, fromEmail, templateId, segmentId, status, htmlContent } = req.body;
+
+      // If custom HTML is provided without a template, create an inline template
+      let finalTemplateId = templateId ?? null;
+      if (!finalTemplateId && htmlContent) {
+        const inlineTemplate = await prisma.emailTemplate.create({
+          data: {
+            name: `[Auto] ${name}`,
+            subject,
+            htmlContent,
+          },
+        });
+        finalTemplateId = inlineTemplate.id;
+      }
 
       const campaign = await prisma.emailCampaign.create({
         data: {
@@ -75,7 +88,7 @@ router.post(
           subject,
           fromName: fromName || 'BGPGO',
           fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.com.br',
-          templateId: templateId ?? null,
+          templateId: finalTemplateId,
           segmentId: segmentId ?? null,
           status: status ?? 'DRAFT',
         },
