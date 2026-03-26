@@ -33,9 +33,13 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
       return res.json({ data: null });
     }
 
-    // ── 1. Funnel — current state of pipeline (accumulated, not date-filtered) ──
-    // Shows how many OPEN deals are at each stage or beyond (same as dashboard funnel)
-    const funnelBaseWhere = { pipelineId: pipeline.id, status: 'OPEN' as const, ...userWhere };
+    // ── 1. Funnel — ALL deals created in period, accumulated ──
+    // Includes OPEN + WON + LOST created in the selected date range
+    const funnelBaseWhere: Record<string, unknown> = {
+      pipelineId: pipeline.id,
+      createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
+      ...userWhere,
+    };
 
     const funnelCounts = await prisma.deal.groupBy({
       by: ['stageId'],
@@ -45,12 +49,12 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
 
     const stageMap = new Map(pipeline.stages.map(s => [s.id, s]));
     const countByOrder = new Map<number, number>();
-    let totalOpen = 0;
+    let totalAll = 0;
     for (const g of funnelCounts) {
       const stage = stageMap.get(g.stageId);
       if (stage) {
-        countByOrder.set(stage.order, g._count.id);
-        totalOpen += g._count.id;
+        countByOrder.set(stage.order, (countByOrder.get(stage.order) || 0) + g._count.id);
+        totalAll += g._count.id;
       }
     }
 
@@ -230,7 +234,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     res.json({
       data: {
         funnel: {
-          totalLeads: totalOpen,
+          totalLeads: totalAll,
           reunioesMarcadas,
           propostasEnviadas,
           vendas: wonCount,
