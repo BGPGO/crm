@@ -22,6 +22,7 @@ interface Meeting {
   inviteeEmail: string;
   inviteeName: string | null;
   hostName: string | null;
+  dealOwnerName: string | null;
   startTime: string;
   endTime: string;
   status: string;
@@ -486,9 +487,9 @@ export default function ReunioesPage() {
                             </span>
                           )}
                         </div>
-                        {meeting.hostName && (
+                        {(meeting.dealOwnerName || meeting.hostName) && (
                           <span className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                            <User size={11} /> {meeting.hostName}
+                            <User size={11} /> {meeting.dealOwnerName || meeting.hostName}
                           </span>
                         )}
                       </div>

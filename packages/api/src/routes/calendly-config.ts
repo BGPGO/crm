@@ -68,7 +68,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
 router.get('/meetings', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
     const { period } = req.query; // upcoming, past, all
@@ -83,10 +83,28 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
       where.status = 'active';
     }
 
+    // Filter by responsible: check deal owner OR Calendly hostName
     const hostName = req.query.hostName as string | undefined;
     if (hostName) {
-      where.hostName = hostName;
+      // Find dealIds where the deal owner matches
+      const matchingDeals = await prisma.deal.findMany({
+        where: { user: { name: hostName } },
+        select: { id: true },
+      });
+      const matchingDealIds = matchingDeals.map(d => d.id);
+
+      where.OR = [
+        { hostName },
+        ...(matchingDealIds.length > 0 ? [{ dealId: { in: matchingDealIds } }] : []),
+      ];
     }
+
+    // For "all" period, order newest first so recent meetings aren't cut off by limit
+    const orderBy = period === 'all'
+      ? { startTime: 'desc' as const }
+      : period === 'past'
+        ? { startTime: 'desc' as const }
+        : { startTime: 'asc' as const };
 
     const [total, data] = await Promise.all([
       prisma.calendlyEvent.count({ where }),
@@ -94,7 +112,7 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
         where,
         skip,
         take: limit,
-        orderBy: { startTime: period === 'past' ? 'desc' : 'asc' },
+        orderBy,
         include: {
           contact: {
             select: { id: true, name: true, email: true, phone: true },
@@ -103,8 +121,24 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
       }),
     ]);
 
+    // Batch load deal owners (CalendlyEvent.dealId has no Prisma relation)
+    const dealIds = data.map(m => m.dealId).filter((id): id is string => !!id);
+    const dealOwners = new Map<string, string>();
+    if (dealIds.length > 0) {
+      const deals = await prisma.deal.findMany({
+        where: { id: { in: dealIds } },
+        select: { id: true, user: { select: { name: true } } },
+      });
+      deals.forEach(d => { if (d.user?.name) dealOwners.set(d.id, d.user.name); });
+    }
+
+    const enrichedData = data.map(m => ({
+      ...m,
+      dealOwnerName: m.dealId ? dealOwners.get(m.dealId) || null : null,
+    }));
+
     res.json({
-      data,
+      data: enrichedData,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -112,16 +146,34 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
-// GET /api/calendly/config/meetings/hosts — Unique host names for filter
+// GET /api/calendly/config/meetings/hosts — Unique responsible names for filter
+// Uses deal owner (CRM responsible) with fallback to Calendly hostName
 router.get('/meetings/hosts', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const hosts = await prisma.calendlyEvent.findMany({
-      where: { hostName: { not: null } },
-      select: { hostName: true },
-      distinct: ['hostName'],
-      orderBy: { hostName: 'asc' },
+    // Get all meetings with dealId to resolve deal owners
+    const meetings = await prisma.calendlyEvent.findMany({
+      where: { OR: [{ hostName: { not: null } }, { dealId: { not: null } }] },
+      select: { hostName: true, dealId: true },
     });
-    res.json({ data: hosts.map(h => h.hostName).filter(Boolean) });
+
+    const dealIds = meetings.map(m => m.dealId).filter((id): id is string => !!id);
+    const dealOwners = new Map<string, string>();
+    if (dealIds.length > 0) {
+      const deals = await prisma.deal.findMany({
+        where: { id: { in: [...new Set(dealIds)] } },
+        select: { id: true, user: { select: { name: true } } },
+      });
+      deals.forEach(d => { if (d.user?.name) dealOwners.set(d.id, d.user.name); });
+    }
+
+    // Collect unique names: dealOwnerName preferred, fallback to hostName
+    const nameSet = new Set<string>();
+    meetings.forEach(m => {
+      const name = (m.dealId && dealOwners.get(m.dealId)) || m.hostName;
+      if (name) nameSet.add(name);
+    });
+
+    res.json({ data: [...nameSet].sort() });
   } catch (err) {
     next(err);
   }
