@@ -1,63 +1,46 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
 /**
- * POST /api/readai/webhook — Receives notification from Read.ai when meeting ends
- * Read.ai sends: { session_id, trigger }
- * We then fetch the full meeting data from Read.ai API and store it
+ * POST /api/readai/webhook — Receives data from Read.ai when meeting ends
+ * Read.ai sends the full meeting payload directly in the webhook body.
+ * No API key needed — all data comes in the POST payload.
  */
 router.post('/webhook', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { session_id, trigger } = req.body;
+    const body = req.body;
 
-    if (!session_id) {
-      return res.status(400).json({ error: 'session_id is required' });
-    }
+    console.log(`[Read.ai] Webhook received:`, JSON.stringify(body).slice(0, 500));
 
-    console.log(`[Read.ai] Webhook received: session=${session_id}, trigger=${trigger}`);
+    // Read.ai can send data in various formats — extract flexibly
+    const sessionId = body.session_id || body.id || body.meeting_id || `readai_${Date.now()}`;
+    const title = body.title || body.meeting_title || body.name || body.subject || null;
+    const summary = body.summary || body.meeting_summary || body.report?.summary || null;
+    const transcript = body.transcript
+      ? (typeof body.transcript === 'string' ? body.transcript : JSON.stringify(body.transcript))
+      : body.report?.transcript
+        ? (typeof body.report.transcript === 'string' ? body.report.transcript : JSON.stringify(body.report.transcript))
+        : null;
+    const actionItems = body.action_items || body.actionItems || body.report?.action_items || null;
+    const topics = body.topics || body.key_topics || body.report?.topics || null;
+    const duration = body.duration_minutes || body.duration || body.report?.duration || null;
+    const meetingDate = body.start_time || body.meeting_date || body.created_at || body.date || null;
+    const participants = body.participants || body.attendees || body.report?.participants || [];
 
-    // Get Read.ai API key from config
-    const config = await prisma.whatsAppConfig.findFirst();
-    const apiKey = (config as any)?.readAiApiKey;
-
-    if (!apiKey) {
-      console.warn('[Read.ai] No API key configured — storing session_id only');
-      await prisma.readAiMeeting.upsert({
-        where: { sessionId: session_id },
-        create: { sessionId: session_id },
-        update: {},
-      });
-      return res.json({ ok: true, message: 'Session stored, no API key to fetch details' });
-    }
-
-    // Fetch meeting data from Read.ai API
-    let meetingData: any = null;
-    try {
-      const meetingRes = await fetch(`https://api.read.ai/v1/meetings/${session_id}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (meetingRes.ok) {
-        meetingData = await meetingRes.json();
-      } else {
-        console.warn(`[Read.ai] API returned ${meetingRes.status} for session ${session_id}`);
-      }
-    } catch (fetchErr) {
-      console.error('[Read.ai] Failed to fetch meeting data:', fetchErr);
-    }
+    // Extract participant emails for matching
+    const participantEmails = (Array.isArray(participants) ? participants : [])
+      .map((p: any) => typeof p === 'string' ? p : (p.email || p.participant_email))
+      .filter(Boolean)
+      .map((e: string) => e.toLowerCase());
 
     // Try to match to a deal via participant emails
     let dealId: string | null = null;
     let contactId: string | null = null;
-    const participants = meetingData?.participants || meetingData?.attendees || [];
-    const participantEmails = participants
-      .map((p: any) => p.email || p.participant_email)
-      .filter(Boolean)
-      .map((e: string) => e.toLowerCase());
 
     if (participantEmails.length > 0) {
-      // Find contacts matching participant emails
       const contacts = await prisma.contact.findMany({
         where: { email: { in: participantEmails, mode: 'insensitive' } },
         select: { id: true, deals: { where: { status: 'OPEN' }, select: { id: true, userId: true }, take: 1 } },
@@ -70,33 +53,21 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
     }
 
     // Store the meeting data
-    const summary = meetingData?.summary || meetingData?.meeting_summary || null;
-    const transcript = meetingData?.transcript
-      ? (typeof meetingData.transcript === 'string'
-        ? meetingData.transcript
-        : JSON.stringify(meetingData.transcript))
-      : null;
-    const actionItems = meetingData?.action_items || meetingData?.actionItems || null;
-    const topics = meetingData?.topics || meetingData?.key_topics || null;
-    const title = meetingData?.title || meetingData?.meeting_title || meetingData?.name || null;
-    const duration = meetingData?.duration_minutes || meetingData?.duration || null;
-    const meetingDate = meetingData?.start_time || meetingData?.meeting_date || meetingData?.created_at || null;
-
     await prisma.readAiMeeting.upsert({
-      where: { sessionId: session_id },
+      where: { sessionId: String(sessionId) },
       create: {
-        sessionId: session_id,
+        sessionId: String(sessionId),
         title,
         summary,
         transcript,
         actionItems,
         topics,
         duration: duration ? parseInt(String(duration)) : null,
-        meetingDate: meetingDate ? new Date(meetingDate) : null,
+        meetingDate: meetingDate ? new Date(meetingDate) : new Date(),
         participants: participantEmails.length > 0 ? participantEmails : (participants.length > 0 ? participants : null),
         dealId,
         contactId,
-        rawData: meetingData,
+        rawData: body,
       },
       update: {
         title,
@@ -105,20 +76,19 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
         actionItems,
         topics,
         duration: duration ? parseInt(String(duration)) : null,
-        meetingDate: meetingDate ? new Date(meetingDate) : null,
+        meetingDate: meetingDate ? new Date(meetingDate) : undefined,
         participants: participantEmails.length > 0 ? participantEmails : (participants.length > 0 ? participants : null),
         dealId: dealId || undefined,
         contactId: contactId || undefined,
-        rawData: meetingData,
+        rawData: body,
       },
     });
 
-    console.log(`[Read.ai] Meeting ${session_id} stored (deal: ${dealId || 'none'}, contact: ${contactId || 'none'})`);
+    console.log(`[Read.ai] Meeting ${sessionId} stored (deal: ${dealId || 'none'}, contact: ${contactId || 'none'})`);
 
     // If we found a deal, log an activity
     if (dealId) {
       try {
-        // Fetch the deal to get userId (required for Activity)
         const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { userId: true } });
         if (deal) {
           await prisma.activity.create({
@@ -131,7 +101,7 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
             },
           });
         }
-      } catch { /* silent — activity logging is non-critical */ }
+      } catch { /* silent */ }
     }
 
     res.json({ ok: true, dealId, contactId });
@@ -144,7 +114,7 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
 /**
  * GET /api/readai/meetings — List all Read.ai meetings (optionally filter by dealId)
  */
-router.get('/meetings', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/meetings', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { dealId, contactId } = req.query;
     const where: Record<string, unknown> = {};
@@ -180,7 +150,7 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
 /**
  * GET /api/readai/meetings/:id — Get a single Read.ai meeting
  */
-router.get('/meetings/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/meetings/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const meeting = await prisma.readAiMeeting.findUnique({
       where: { id: req.params.id },
@@ -195,7 +165,7 @@ router.get('/meetings/:id', async (req: Request, res: Response, next: NextFuncti
 /**
  * PUT /api/readai/meetings/:id/link — Manually link a Read.ai meeting to a deal
  */
-router.put('/meetings/:id/link', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/meetings/:id/link', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { dealId } = req.body;
     const meeting = await prisma.readAiMeeting.update({
@@ -211,7 +181,7 @@ router.put('/meetings/:id/link', async (req: Request, res: Response, next: NextF
 /**
  * GET /api/readai/config — Get Read.ai configuration
  */
-router.get('/config', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/config', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const config = await prisma.whatsAppConfig.findFirst();
     const apiKey = (config as any)?.readAiApiKey || '';
@@ -224,7 +194,7 @@ router.get('/config', async (req: Request, res: Response, next: NextFunction) =>
 /**
  * PUT /api/readai/config — Update Read.ai API key
  */
-router.put('/config', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/config', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { apiKey } = req.body;
     const config = await prisma.whatsAppConfig.findFirst();
