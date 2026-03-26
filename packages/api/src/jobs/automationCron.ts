@@ -155,8 +155,21 @@ async function processOverdueReminders(): Promise<void> {
         .replace(/\{\{hora\}\}/gi, timeStr)
         .replace(/\{\{falta\}\}/gi, faltaStr);
 
+      // Checar limite diário
+      const { canSend, registerSent } = await import('../services/dailyLimitService');
+      if (!await canSend()) {
+        console.log(`[meeting-reminder-backup] Limite diário atingido — pulando lembrete para ${meeting.contact.phone}`);
+        // Reverter para PENDING para tentar amanhã
+        await prisma.scheduledFollowUp.update({
+          where: { id: reminder.id },
+          data: { status: 'PENDING' },
+        }).catch(() => {});
+        continue;
+      }
+
       try {
         await client.sendText(meeting.contact.phone, message);
+        await registerSent('reminder');
         console.log(`[meeting-reminder-backup] Enviado lembrete para ${meeting.contact.phone} (meeting ${meeting.id})`);
       } catch (err) {
         // Reverter para FAILED

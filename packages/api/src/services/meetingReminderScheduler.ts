@@ -130,6 +130,13 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
           return;
         }
 
+        // Checar limite diário antes de enviar
+        const { canSend, registerSent } = await import('./dailyLimitService');
+        if (!await canSend()) {
+          console.log(`[meeting-reminder] Limite diário atingido — lembrete para ${meeting.contact!.phone} NÃO enviado`);
+          return;
+        }
+
         // Marca SENT primeiro (atômico — padrão anti-duplicação)
         const updated = await prisma.scheduledFollowUp.updateMany({
           where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
@@ -140,6 +147,7 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
         // Agora envia
         try {
           await client.sendText(meeting.contact!.phone!, message);
+          await registerSent('reminder');
           console.log(`[meeting-reminder] Enviado lembrete ${faltaStr} para ${meeting.contact!.phone} (meeting ${meetingId})`);
         } catch (sendErr) {
           // Falhou — reverter para FAILED
