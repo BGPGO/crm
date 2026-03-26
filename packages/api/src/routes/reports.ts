@@ -7,9 +7,23 @@ const router = Router();
 router.get('/sales', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    // ── Date and user filters from query params ──────────────────────────
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+    const userId = req.query.userId as string | undefined;
+
+    const thisMonthStart = dateFrom ? new Date(dateFrom) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthEnd = dateTo ? (() => {
+      const d = new Date(dateTo);
+      if (!(dateTo).includes('T')) d.setHours(23, 59, 59, 999);
+      return d;
+    })() : now;
+    const lastMonthStart = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(thisMonthStart.getFullYear(), thisMonthStart.getMonth(), 0, 23, 59, 59, 999);
+
+    // Base deal filter (optional userId)
+    const userWhere = userId ? { userId } : {};
 
     // Get default pipeline
     const pipeline = await prisma.pipeline.findFirst({
@@ -19,27 +33,59 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
       return res.json({ data: null });
     }
 
-    // ── 1. Funnel counts (OPEN deals per key stage + total) ──────────────
+    // ── 1. Funnel counts — ALL deals (not just OPEN), by stage, filtered by date ──
+    // "Total de leads que entraram" = deals created in period, any status
+    const funnelWhere = {
+      pipelineId: pipeline.id,
+      createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
+      ...userWhere,
+    };
     const funnelCounts = await prisma.deal.groupBy({
       by: ['stageId'],
-      where: { pipelineId: pipeline.id, status: 'OPEN' },
+      where: funnelWhere,
       _count: { id: true },
     });
+    const totalDealsInPeriod = await prisma.deal.count({ where: funnelWhere });
+
+    // Count deals that REACHED specific stages (reunião marcada, proposta enviada)
+    // Use stage change history or just count deals currently in or past these stages
     const stageMap = new Map(pipeline.stages.map(s => [s.id, s]));
     const funnelByStage: Record<string, number> = {};
-    let totalOpen = 0;
     for (const g of funnelCounts) {
       const stage = stageMap.get(g.stageId);
       if (stage) {
         funnelByStage[stage.name] = g._count.id;
-        totalOpen += g._count.id;
       }
     }
 
+    // Count reuniões marcadas (CalendlyEvents in period)
+    const reunioesMarcadas = await prisma.calendlyEvent.count({
+      where: {
+        createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
+        status: 'active',
+      },
+    });
+
+    // Count propostas enviadas (deals that reached "Proposta Enviada" stage or beyond)
+    const propostaStage = pipeline.stages.find(s => s.name === 'Proposta Enviada');
+    let propostasEnviadas = 0;
+    if (propostaStage) {
+      // Deals in proposta stage or any stage after it (higher order), created in period
+      propostasEnviadas = await prisma.deal.count({
+        where: {
+          pipelineId: pipeline.id,
+          createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
+          stage: { order: { gte: propostaStage.order } },
+          ...userWhere,
+        },
+      });
+    }
+
     // ── 2. WON deals this month and last month ───────────────────────────
+    const wonDateWhere = { closedAt: { gte: thisMonthStart, lte: thisMonthEnd } };
     const [wonThisMonth, wonLastMonth, lostThisMonth] = await Promise.all([
       prisma.deal.findMany({
-        where: { status: 'WON', closedAt: { gte: thisMonthStart } },
+        where: { status: 'WON', ...wonDateWhere, ...userWhere },
         include: {
           products: { include: { product: { select: { name: true } } } },
           contact: { select: { name: true } },
@@ -53,7 +99,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
         },
       }),
       prisma.deal.aggregate({
-        where: { status: 'LOST', updatedAt: { gte: thisMonthStart } },
+        where: { status: 'LOST', updatedAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
         _count: { id: true },
         _sum: { value: true },
       }),
@@ -74,9 +120,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     const lostCount = lostThisMonth._count.id;
     const lostValue = Number(lostThisMonth._sum.value ?? 0);
 
-    const totalDealsThisMonth = await prisma.deal.count({
-      where: { createdAt: { gte: thisMonthStart } },
-    });
+    // totalDealsInPeriod already calculated above in funnel section
 
     // ── 4. Ticket médio by product (this month vs last month) ────────────
     const productTotals = new Map<string, { total: number; count: number }>();
@@ -186,9 +230,10 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     res.json({
       data: {
         funnel: {
-          total: totalOpen,
-          byStage: funnelByStage,
-          stages: pipeline.stages.map(s => ({ id: s.id, name: s.name, order: s.order })),
+          totalLeads: totalDealsInPeriod,
+          reunioesMarcadas,
+          propostasEnviadas,
+          vendas: wonCount,
         },
         summary: {
           wonCount,
@@ -197,8 +242,8 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
           wonSetupValue,
           lostCount,
           lostValue,
-          totalDealsThisMonth,
-          conversionRate: totalDealsThisMonth > 0 ? (wonCount / totalDealsThisMonth) * 100 : 0,
+          totalDealsInPeriod,
+          conversionRate: totalDealsInPeriod > 0 ? (wonCount / totalDealsInPeriod) * 100 : 0,
           ticketMedioGeral: wonCount > 0 ? wonMonthlyValue / wonCount : 0,
         },
         ticketMedio,

@@ -9,9 +9,10 @@ import { api } from "@/lib/api";
 
 interface ReportData {
   funnel: {
-    total: number;
-    byStage: Record<string, number>;
-    stages: Array<{ id: string; name: string; order: number }>;
+    totalLeads: number;
+    reunioesMarcadas: number;
+    propostasEnviadas: number;
+    vendas: number;
   };
   summary: {
     wonCount: number;
@@ -20,7 +21,7 @@ interface ReportData {
     wonSetupValue: number;
     lostCount: number;
     lostValue: number;
-    totalDealsThisMonth: number;
+    totalDealsInPeriod: number;
     conversionRate: number;
     ticketMedioGeral: number;
   };
@@ -29,6 +30,8 @@ interface ReportData {
   salesByClient: Array<{ dealId: string; clientName: string; products: string; monthlyValue: number; setupValue: number; totalValue: number }>;
   salesByCategory: Record<string, { monthlyTotal: number; setupTotal: number; count: number }>;
 }
+
+interface ApiUser { id: string; name: string; }
 
 // ── Donut Chart ──────────────────────────────────────────────────────────────
 
@@ -45,7 +48,7 @@ function DonutChart({ percentage, color, size = 90 }: { percentage: number; colo
         strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}
         className="transition-all duration-700" />
       <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
-        className="text-sm font-bold fill-gray-900">{clamped.toFixed(0)}%</text>
+        className="text-sm font-bold" fill="currentColor">{clamped.toFixed(0)}%</text>
     </svg>
   );
 }
@@ -88,11 +91,23 @@ function saveMeta(key: string, value: number) {
   localStorage.setItem(`report_meta_${key}`, String(value));
 }
 
+const SELECT_CLASS =
+  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500";
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<ApiUser[]>([]);
+  const [userFilter, setUserFilter] = useState("all");
+
+  // Date filter: default to this month
+  const now = new Date();
+  const defaultFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState("");
+
   const [metas, setMetas] = useState({
     vendasFechadas: 0,
     ticketMedio: 0,
@@ -114,17 +129,27 @@ export default function ReportsPage() {
     setMetas(prev => ({ ...prev, [key]: value }));
   };
 
+  // Fetch users
+  useEffect(() => {
+    api.get<{ data: ApiUser[] }>("/users?limit=100").then(res => setUsers(res.data ?? [])).catch(() => {});
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<{ data: ReportData }>("/reports/sales");
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      if (userFilter !== 'all') params.set('userId', userFilter);
+      const qs = params.toString();
+      const res = await api.get<{ data: ReportData }>(`/reports/sales${qs ? `?${qs}` : ''}`);
       setData(res.data);
     } catch (err) {
       console.error("Erro ao carregar relatórios:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateFrom, dateTo, userFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -152,21 +177,14 @@ export default function ReportsPage() {
 
   const { funnel, summary, ticketMedio, monthlyTrend, salesByClient, salesByCategory } = data;
 
-  // ── Accumulated funnel ─────────────────────────────────────────────────
-  const sortedStages = [...funnel.stages].sort((a, b) => a.order - b.order);
-  const stageCounts = sortedStages.map(s => ({
-    ...s,
-    count: funnel.byStage[s.name] || 0,
-  }));
-  // Accumulated: each stage = itself + all stages after it
-  const accumulated = stageCounts.map((s, i) => {
-    let acc = 0;
-    for (let j = i; j < stageCounts.length; j++) acc += stageCounts[j].count;
-    return { ...s, accumulated: acc };
-  });
-  // Add Vendas (WON) as last funnel step
-  accumulated.push({ id: 'won', name: 'Vendas', order: 999, count: summary.wonCount, accumulated: summary.wonCount });
-  const maxAccumulated = accumulated[0]?.accumulated || 1;
+  // ── Simplified funnel: 4 steps with % ─────────────────────────────────
+  const funnelSteps = [
+    { label: "Total", count: funnel.totalLeads, color: "#3B82F6" },
+    { label: "Reunião Marcada", count: funnel.reunioesMarcadas, color: "#8B5CF6" },
+    { label: "Proposta Enviada", count: funnel.propostasEnviadas, color: "#F59E0B" },
+    { label: "Vendas", count: funnel.vendas, color: "#22C55E" },
+  ];
+  const funnelMax = funnelSteps[0].count || 1;
 
   // Monthly chart max
   const maxMonthly = Math.max(...monthlyTrend.map(m => m.totalMonthly + m.totalSetup), 1);
@@ -191,43 +209,72 @@ export default function ReportsPage() {
       <Header title="Análises" breadcrumb={["Análises"]} />
 
       <main className="flex-1 px-4 sm:px-6 py-6 space-y-6">
-        {/* ── Row 1: Accumulated Funnel + Monthly Chart ──────────────── */}
+        {/* ── Filters bar ──────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">De:</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-gray-500">Até:</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="relative">
+            <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className={`${SELECT_CLASS} text-gray-600`}>
+              <option value="all">Todos os responsáveis</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">&#9662;</span>
+          </div>
+          {(dateFrom !== defaultFrom || dateTo || userFilter !== 'all') && (
+            <button onClick={() => { setDateFrom(defaultFrom); setDateTo(''); setUserFilter('all'); }}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+              <X size={12} /> Limpar
+            </button>
+          )}
+        </div>
+
+        {/* ── Row 1: Funnel + Monthly Chart ──────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Accumulated funnel */}
+          {/* Simplified funnel: 4 rows */}
           <Card padding="md">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">Funil de Vendas</h3>
-            <div className="space-y-2">
-              {accumulated.map((stage, i) => {
-                const widthPct = maxAccumulated > 0 ? Math.max((stage.accumulated / maxAccumulated) * 100, 5) : 5;
-                const prevAcc = i > 0 ? accumulated[i - 1].accumulated : stage.accumulated;
-                const convPct = prevAcc > 0 ? (stage.accumulated / prevAcc) * 100 : 100;
+            <div className="space-y-3">
+              {funnelSteps.map((step, i) => {
+                const widthPct = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 5) : 5;
+                const pctOfTotal = funnelMax > 0 ? (step.count / funnelMax) * 100 : 0;
+                const prevCount = i > 0 ? funnelSteps[i - 1].count : step.count;
+                const pctOfPrev = prevCount > 0 ? (step.count / prevCount) * 100 : 0;
                 return (
-                  <div key={stage.id}>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-xs text-gray-600 font-medium">{stage.name}</span>
+                  <div key={step.label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-600 font-medium">{step.label}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-900">{stage.accumulated}</span>
+                        <span className="text-lg font-bold text-gray-900">{step.count}</span>
                         {i > 0 && (
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            convPct >= 50 ? 'bg-green-100 text-green-700' :
-                            convPct >= 25 ? 'bg-yellow-100 text-yellow-700' :
+                            pctOfPrev >= 50 ? 'bg-green-100 text-green-700' :
+                            pctOfPrev >= 25 ? 'bg-yellow-100 text-yellow-700' :
                             'bg-red-100 text-red-600'
                           }`}>
-                            {convPct.toFixed(0)}%
+                            {pctOfPrev.toFixed(0)}%
+                          </span>
+                        )}
+                        {i > 0 && (
+                          <span className="text-[10px] text-gray-400">
+                            {pctOfTotal.toFixed(0)}% do total
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-5">
+                    <div className="w-full bg-gray-100 rounded-full h-7">
                       <div
-                        className="h-full rounded-full transition-all duration-700 flex items-center justify-center"
-                        style={{
-                          width: `${widthPct}%`,
-                          backgroundColor: stage.id === 'won' ? '#22C55E' : '#3B82F6',
-                          minWidth: '24px',
-                        }}
+                        className="h-full rounded-full transition-all duration-700 flex items-center px-2"
+                        style={{ width: `${widthPct}%`, backgroundColor: step.color, minWidth: '32px' }}
                       >
-                        <span className="text-[10px] font-bold text-white">{stage.accumulated}</span>
+                        <span className="text-xs font-bold text-white">{step.count}</span>
                       </div>
                     </div>
                   </div>
