@@ -54,12 +54,20 @@ router.post(
     try {
       const { name, description, filters, isActive } = req.body;
 
+      // Calculate contact count on creation
+      let contactCount = 0;
+      try {
+        const where = buildSegmentWhere(filters as SegmentFilter[]);
+        contactCount = await prisma.contact.count({ where });
+      } catch { /* non-critical */ }
+
       const segment = await prisma.segment.create({
         data: {
           name,
           description: description ?? null,
           filters,
           isActive: isActive ?? true,
+          contactCount,
         },
       });
 
@@ -82,6 +90,14 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (description !== undefined) data.description = description;
     if (filters !== undefined) data.filters = filters;
     if (isActive !== undefined) data.isActive = isActive;
+
+    // Recalculate contact count when filters change
+    if (filters !== undefined) {
+      try {
+        const where = buildSegmentWhere(filters as SegmentFilter[]);
+        data.contactCount = await prisma.contact.count({ where });
+      } catch { /* non-critical */ }
+    }
 
     const segment = await prisma.segment.update({
       where: { id: req.params.id },
