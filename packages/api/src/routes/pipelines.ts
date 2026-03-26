@@ -263,21 +263,34 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
       await applySearch(wonWhere);
     }
 
+    // When no status filter + period: also include WON deals with closedAt in period
+    // so they appear in the funnel stages (not just created-this-month deals)
+    let enrichedWhere = where;
+    if (needsSeparateWonCount && wonWhere && !status) {
+      enrichedWhere = {
+        pipelineId: req.params.id,
+        OR: [
+          where,
+          wonWhere,
+        ],
+      };
+    }
+
     const [grouped, totals, countsByStatusRaw, wonCountResult] = await Promise.all([
       prisma.deal.groupBy({
         by: ['stageId'],
-        where,
+        where: enrichedWhere,
         _count: { id: true },
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where,
+        where: enrichedWhere,
         _count: { id: true },
         _sum: { value: true },
       }),
       prisma.deal.groupBy({
         by: ['status'],
-        where,
+        where: enrichedWhere,
         _count: { id: true },
       }),
       wonWhere
