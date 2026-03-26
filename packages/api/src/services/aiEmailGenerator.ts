@@ -48,8 +48,9 @@ REGRAS DE COPY:
 - Assunto: máximo 50 caracteres, gere curiosidade, sem ALL CAPS, sem spam words (grátis, urgente, clique)
 - Primeira linha: hook forte que prende a atenção
 - Parágrafos curtos (2-3 linhas máximo)
-- Use <p>, <strong>, <em>, <a>, <ul>/<li>, <img> — sem <div> complexos
-- Para imagens: use <img> com width="100%" e border-radius: 8px
+- SEMPRE use tags <p> para cada parágrafo. NUNCA gere texto solto sem <p>
+- Use <p>, <h2>, <h3>, <strong>, <em>, <a>, <ul>/<li> — sem <div> complexos
+- NÃO inclua <img> a menos que o usuário forneça uma URL real. NUNCA gere src="placeholder" ou src="image.jpg"
 - Para botões CTA: use <a> com style="display:inline-block; background:#244c5a; color:#ffffff; padding:12px 28px; border-radius:6px; text-decoration:none; font-weight:bold; font-size:15px;"
 - Tom: profissional mas próximo, tuteia o leitor ("você"), sem excesso de emojis (máx 1-2)
 - NÃO inclua saudação genérica ("Prezado cliente") — comece direto no assunto

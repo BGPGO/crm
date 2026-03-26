@@ -623,53 +623,83 @@ ${htmlContent}
             </span>
           </div>
 
-          {/* Preview area */}
+          {/* Preview area with BGP brand template */}
           <div
             className="flex-1 overflow-auto"
             style={{
-              backgroundColor: design.bodyBg,
-              padding: `${design.paddingY}px 16px`,
+              backgroundColor: "#f4f4f4",
+              padding: "20px 16px",
             }}
           >
             <div
               style={{
-                maxWidth: design.contentWidth,
+                maxWidth: 600,
                 margin: "0 auto",
-                backgroundColor: design.contentBg,
+                backgroundColor: "#ffffff",
                 borderRadius: 8,
-                boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                padding: `${design.paddingY}px ${design.paddingX}px`,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                overflow: "hidden",
+              }}
+            >
+              {/* BGP Header */}
+              <div style={{
+                background: "linear-gradient(135deg, #244c5a 0%, #244c5add 50%, #abc7c988 100%)",
+                padding: "24px 32px",
+                textAlign: "right" as const,
+              }}>
+                <img src="/images/logo-bgp-email.png" alt="BGP" style={{ height: 40, display: "inline-block" }} />
+              </div>
+
+              {/* Editable body */}
+              <div style={{
+                padding: "32px",
                 fontFamily: design.fontFamily,
                 fontSize: design.fontSize,
                 color: design.textColor,
-              }}
-            >
-              {htmlContent ? (
-                <div
-                  key={previewKey}
-                  ref={previewRef}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onBlur={syncPreviewToState}
-                  onInput={syncPreviewToState}
-                  dangerouslySetInnerHTML={{ __html: htmlContent }}
-                  style={{
-                    outline: "none",
-                    minHeight: 300,
-                    wordBreak: "break-word",
-                  }}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                  <Sparkles size={32} className="mb-3 text-gray-300" />
-                  <p className="text-sm font-medium text-gray-500">
-                    Nenhum conteúdo ainda
-                  </p>
-                  <p className="text-xs mt-1 text-gray-400">
-                    Use a aba IA ao lado para gerar seu email
-                  </p>
-                </div>
-              )}
+              }}>
+                {htmlContent ? (
+                  <div
+                    key={previewKey}
+                    ref={previewRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={syncPreviewToState}
+                    onInput={syncPreviewToState}
+                    dangerouslySetInnerHTML={{ __html: htmlContent }}
+                    style={{
+                      outline: "none",
+                      minHeight: 200,
+                      wordBreak: "break-word",
+                    }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                    <Sparkles size={32} className="mb-3 text-gray-300" />
+                    <p className="text-sm font-medium text-gray-500">
+                      Nenhum conteúdo ainda
+                    </p>
+                    <p className="text-xs mt-1 text-gray-400">
+                      Use a aba IA ao lado para gerar seu email
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* BGP Footer */}
+              <div style={{
+                backgroundColor: "#244c5a",
+                padding: "24px 32px",
+                textAlign: "center" as const,
+              }}>
+                <img src="/images/logo-bgp-email.png" alt="BGP" style={{ height: 28, display: "inline-block", opacity: 0.7, marginBottom: 12 }} />
+                <p style={{ color: "#ffffff", fontSize: 13, fontWeight: "bold", margin: "0 0 4px" }}>Bertuzzi Patrimonial</p>
+                <p style={{ color: "#abc7c9", fontSize: 12, margin: "0 0 12px", lineHeight: 1.5 }}>
+                  Gestão financeira inteligente para o seu negócio
+                </p>
+                <p style={{ color: "#abc7c9", fontSize: 11, margin: 0, borderTop: "1px solid #244c5a88", paddingTop: 12 }}>
+                  Não quer mais receber? <span style={{ textDecoration: "underline" }}>Descadastrar</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>
