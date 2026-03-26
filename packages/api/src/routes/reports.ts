@@ -158,6 +158,30 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
       };
     }).sort((a, b) => b.totalValue - a.totalValue);
 
+    // ── 7. Sales by product category (for metric cards) ─────────────────
+    // Group WON deals this month by product category keywords
+    const categoryKeywords: Record<string, string[]> = {
+      'Controladoria': ['controladoria', 'controller'],
+      'BI': ['bi', 'business intelligence'],
+    };
+
+    const salesByCategory: Record<string, { monthlyTotal: number; setupTotal: number; count: number }> = {};
+    for (const deal of wonThisMonth) {
+      for (const dp of deal.products) {
+        const productName = dp.product.name.toLowerCase();
+        for (const [category, keywords] of Object.entries(categoryKeywords)) {
+          if (keywords.some(kw => productName.includes(kw))) {
+            const existing = salesByCategory[category] || { monthlyTotal: 0, setupTotal: 0, count: 0 };
+            existing.monthlyTotal += Number(dp.recurrenceValue ?? dp.unitPrice) * dp.quantity;
+            existing.setupTotal += Number(dp.setupPrice ?? 0);
+            existing.count += 1;
+            salesByCategory[category] = existing;
+            break; // Don't double-count if product matches multiple categories
+          }
+        }
+      }
+    }
+
     // ── Response ─────────────────────────────────────────────────────────
     res.json({
       data: {
@@ -175,10 +199,12 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
           lostValue,
           totalDealsThisMonth,
           conversionRate: totalDealsThisMonth > 0 ? (wonCount / totalDealsThisMonth) * 100 : 0,
+          ticketMedioGeral: wonCount > 0 ? wonMonthlyValue / wonCount : 0,
         },
         ticketMedio,
         monthlyTrend,
         salesByClient,
+        salesByCategory,
       },
     });
   } catch (err) {

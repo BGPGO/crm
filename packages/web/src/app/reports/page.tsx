@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
 import Card from "@/components/ui/Card";
-import { Loader2, TrendingDown, Trophy, DollarSign, Wrench } from "lucide-react";
+import { Loader2, Pencil, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { api } from "@/lib/api";
 
@@ -22,46 +22,70 @@ interface ReportData {
     lostValue: number;
     totalDealsThisMonth: number;
     conversionRate: number;
+    ticketMedioGeral: number;
   };
-  ticketMedio: Array<{
-    product: string;
-    currentAvg: number;
-    currentTotal: number;
-    currentCount: number;
-    lastMonthAvg: number;
-  }>;
-  monthlyTrend: Array<{
-    month: string;
-    totalMonthly: number;
-    totalSetup: number;
-  }>;
-  salesByClient: Array<{
-    dealId: string;
-    clientName: string;
-    products: string;
-    monthlyValue: number;
-    setupValue: number;
-    totalValue: number;
-  }>;
+  ticketMedio: Array<{ product: string; currentAvg: number; currentTotal: number; currentCount: number; lastMonthAvg: number }>;
+  monthlyTrend: Array<{ month: string; totalMonthly: number; totalSetup: number }>;
+  salesByClient: Array<{ dealId: string; clientName: string; products: string; monthlyValue: number; setupValue: number; totalValue: number }>;
+  salesByCategory: Record<string, { monthlyTotal: number; setupTotal: number; count: number }>;
 }
 
 // ── Donut Chart ──────────────────────────────────────────────────────────────
 
-function DonutChart({ percentage, color, size = 80 }: { percentage: number; color: string; size?: number }) {
-  const r = (size / 2) - 4;
+function DonutChart({ percentage, color, size = 90 }: { percentage: number; color: string; size?: number }) {
+  const r = (size / 2) - 5;
   const circumference = 2 * Math.PI * r;
-  const offset = circumference - (Math.min(percentage, 100) / 100) * circumference;
+  const clamped = Math.min(Math.max(percentage, 0), 100);
+  const offset = circumference - (clamped / 100) * circumference;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#374151" strokeWidth="5" opacity="0.2" />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="5"
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200" />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="6"
         strokeDasharray={circumference} strokeDashoffset={offset}
         strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`}
         className="transition-all duration-700" />
       <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
-        className="text-xs font-bold" fill="#f1f5f9">{percentage.toFixed(0)}%</text>
+        className="text-sm font-bold fill-gray-900">{clamped.toFixed(0)}%</text>
     </svg>
   );
+}
+
+// ── Editable Meta Input ──────────────────────────────────────────────────────
+
+function MetaInput({ metaKey, defaultValue, onSave }: { metaKey: string; defaultValue: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(defaultValue));
+
+  if (!editing) {
+    return (
+      <button onClick={() => { setValue(String(defaultValue)); setEditing(true); }}
+        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-blue-500 transition-colors">
+        Meta: {formatCurrency(defaultValue)} <Pencil size={9} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-[10px] text-gray-400">Meta:</span>
+      <input type="number" value={value} onChange={(e) => setValue(e.target.value)}
+        className="w-20 text-[10px] border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
+      <button onClick={() => { onSave(Number(value) || 0); setEditing(false); }} className="text-green-500 hover:text-green-700"><Check size={12} /></button>
+      <button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
+    </div>
+  );
+}
+
+// ── Meta storage helpers ─────────────────────────────────────────────────────
+
+function getMeta(key: string, fallback: number): number {
+  if (typeof window === 'undefined') return fallback;
+  const saved = localStorage.getItem(`report_meta_${key}`);
+  return saved ? Number(saved) : fallback;
+}
+
+function saveMeta(key: string, value: number) {
+  localStorage.setItem(`report_meta_${key}`, String(value));
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -69,6 +93,26 @@ function DonutChart({ percentage, color, size = 80 }: { percentage: number; colo
 export default function ReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [metas, setMetas] = useState({
+    vendasFechadas: 0,
+    ticketMedio: 0,
+    controladoria: 0,
+    bi: 0,
+  });
+
+  useEffect(() => {
+    setMetas({
+      vendasFechadas: getMeta('vendasFechadas', 10000),
+      ticketMedio: getMeta('ticketMedio', 1500),
+      controladoria: getMeta('controladoria', 5000),
+      bi: getMeta('bi', 3000),
+    });
+  }, []);
+
+  const updateMeta = (key: string, value: number) => {
+    saveMeta(key, value);
+    setMetas(prev => ({ ...prev, [key]: value }));
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -89,10 +133,7 @@ export default function ReportsPage() {
       <div className="flex flex-col h-full overflow-auto">
         <Header title="Análises" breadcrumb={["Análises"]} />
         <main className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-400">
-            <Loader2 size={24} className="animate-spin" />
-            <span className="text-sm">Carregando análises...</span>
-          </div>
+          <Loader2 size={24} className="animate-spin text-gray-400" />
         </main>
       </div>
     );
@@ -109,128 +150,157 @@ export default function ReportsPage() {
     );
   }
 
-  const { funnel, summary, ticketMedio, monthlyTrend, salesByClient } = data;
+  const { funnel, summary, ticketMedio, monthlyTrend, salesByClient, salesByCategory } = data;
 
-  // Key stage counts
-  const reuniaoCount = funnel.byStage["Reunião Marcada"] || funnel.byStage["Reuniao Marcada"] || 0;
-  const propostaCount = funnel.byStage["Proposta Enviada"] || 0;
-  const vendasCount = summary.wonCount;
+  // ── Accumulated funnel ─────────────────────────────────────────────────
+  const sortedStages = [...funnel.stages].sort((a, b) => a.order - b.order);
+  const stageCounts = sortedStages.map(s => ({
+    ...s,
+    count: funnel.byStage[s.name] || 0,
+  }));
+  // Accumulated: each stage = itself + all stages after it
+  const accumulated = stageCounts.map((s, i) => {
+    let acc = 0;
+    for (let j = i; j < stageCounts.length; j++) acc += stageCounts[j].count;
+    return { ...s, accumulated: acc };
+  });
+  // Add Vendas (WON) as last funnel step
+  accumulated.push({ id: 'won', name: 'Vendas', order: 999, count: summary.wonCount, accumulated: summary.wonCount });
+  const maxAccumulated = accumulated[0]?.accumulated || 1;
 
   // Monthly chart max
   const maxMonthly = Math.max(...monthlyTrend.map(m => m.totalMonthly + m.totalSetup), 1);
 
-  // Ticket médio max for bar sizing
-  const maxTicket = Math.max(...ticketMedio.map(t => t.currentAvg), 1);
+  // Category values
+  const controladoriaValue = salesByCategory?.['Controladoria']?.monthlyTotal || 0;
+  const biValue = salesByCategory?.['BI']?.monthlyTotal || 0;
 
-  // Percentages for summary cards
-  const totalWonLost = summary.wonCount + summary.lostCount;
-  const lostPct = totalWonLost > 0 ? (summary.lostCount / totalWonLost) * 100 : 0;
-  const wonPct = summary.conversionRate;
-  const monthlyPct = summary.wonTotalValue > 0 ? (summary.wonMonthlyValue / summary.wonTotalValue) * 100 : 0;
-  const setupPct = summary.wonTotalValue > 0 ? (summary.wonSetupValue / summary.wonTotalValue) * 100 : 0;
+  // Card data with metas
+  const cards = [
+    { key: 'vendasFechadas', label: 'Vendas Fechadas', value: summary.wonMonthlyValue, meta: metas.vendasFechadas, color: '#22C55E', sub: `${summary.wonCount} negociações` },
+    { key: 'ticketMedio', label: 'Ticket Médio', value: summary.ticketMedioGeral || 0, meta: metas.ticketMedio, color: '#3B82F6', sub: `média mensal/deal` },
+    { key: 'controladoria', label: 'Vendas Controladoria', value: controladoriaValue, meta: metas.controladoria, color: '#8B5CF6', sub: `${salesByCategory?.['Controladoria']?.count || 0} contratos` },
+    { key: 'bi', label: 'Vendas BI', value: biValue, meta: metas.bi, color: '#F59E0B', sub: `${salesByCategory?.['BI']?.count || 0} contratos` },
+  ];
+
+  // Ticket médio max
+  const maxTicket = Math.max(...ticketMedio.map(t => t.currentAvg), 1);
 
   return (
     <div className="flex flex-col h-full overflow-auto">
       <Header title="Análises" breadcrumb={["Análises"]} />
 
       <main className="flex-1 px-4 sm:px-6 py-6 space-y-6">
-        {/* ── Row 1: Funnel + Monthly Chart ────────────────────────────── */}
+        {/* ── Row 1: Accumulated Funnel + Monthly Chart ──────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Funnel numbers */}
-          <div className="space-y-3">
-            <div className="bg-gray-900 rounded-xl p-5">
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Total</p>
-              <p className="text-4xl font-bold text-white mt-1">{funnel.total}</p>
-            </div>
-            {[
-              { label: "Reunião Marcada", count: reuniaoCount, color: "#3B82F6" },
-              { label: "Proposta Enviada", count: propostaCount, color: "#F59E0B" },
-              { label: "Vendas", count: vendasCount, color: "#22C55E" },
-            ].map(item => (
-              <div key={item.label} className="bg-gray-900 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-gray-400">{item.label}</p>
-                  <p className="text-2xl font-bold text-white">{item.count}</p>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${funnel.total > 0 ? Math.max((item.count / funnel.total) * 100, 2) : 0}%`,
-                      backgroundColor: item.color,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Monthly chart */}
-          <div className="lg:col-span-2 bg-gray-900 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Vendas por mês</h3>
-            <div className="flex items-end gap-3 h-52">
-              {monthlyTrend.map((m, i) => {
-                const total = m.totalMonthly + m.totalSetup;
-                const heightPct = maxMonthly > 0 ? (total / maxMonthly) * 100 : 0;
-                const monthlyPctBar = total > 0 ? (m.totalMonthly / total) * 100 : 100;
+          {/* Accumulated funnel */}
+          <Card padding="md">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Funil de Vendas</h3>
+            <div className="space-y-2">
+              {accumulated.map((stage, i) => {
+                const widthPct = maxAccumulated > 0 ? Math.max((stage.accumulated / maxAccumulated) * 100, 5) : 5;
+                const prevAcc = i > 0 ? accumulated[i - 1].accumulated : stage.accumulated;
+                const convPct = prevAcc > 0 ? (stage.accumulated / prevAcc) * 100 : 100;
                 return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[10px] text-gray-300 font-medium">
-                      {total > 0 ? formatCurrency(total) : "—"}
-                    </span>
-                    <div className="w-full flex flex-col justify-end" style={{ height: '180px' }}>
-                      <div
-                        className="w-full rounded-t-md overflow-hidden transition-all duration-700"
-                        style={{ height: `${Math.max(heightPct, 3)}%` }}
-                      >
-                        <div className="bg-blue-500 w-full" style={{ height: `${monthlyPctBar}%` }} />
-                        <div className="bg-orange-400 w-full" style={{ height: `${100 - monthlyPctBar}%` }} />
+                  <div key={stage.id}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-gray-600 font-medium">{stage.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900">{stage.accumulated}</span>
+                        {i > 0 && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            convPct >= 50 ? 'bg-green-100 text-green-700' :
+                            convPct >= 25 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-600'
+                          }`}>
+                            {convPct.toFixed(0)}%
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-500 capitalize">{m.month}</span>
+                    <div className="w-full bg-gray-100 rounded-full h-5">
+                      <div
+                        className="h-full rounded-full transition-all duration-700 flex items-center justify-center"
+                        style={{
+                          width: `${widthPct}%`,
+                          backgroundColor: stage.id === 'won' ? '#22C55E' : '#3B82F6',
+                          minWidth: '24px',
+                        }}
+                      >
+                        <span className="text-[10px] font-bold text-white">{stage.accumulated}</span>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <div className="flex items-center gap-4 mt-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-blue-500" />
-                <span className="text-[10px] text-gray-400">Mensal</span>
+          </Card>
+
+          {/* Monthly chart */}
+          <div className="lg:col-span-2">
+            <Card padding="md">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Vendas por mês</h3>
+              <div className="flex items-end gap-3 h-52">
+                {monthlyTrend.map((m, i) => {
+                  const total = m.totalMonthly + m.totalSetup;
+                  const heightPct = maxMonthly > 0 ? (total / maxMonthly) * 100 : 0;
+                  const monthlyPctBar = total > 0 ? (m.totalMonthly / total) * 100 : 100;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <span className="text-[10px] text-gray-500 font-medium">
+                        {total > 0 ? formatCurrency(total) : "—"}
+                      </span>
+                      <div className="w-full flex flex-col justify-end" style={{ height: '180px' }}>
+                        <div className="w-full rounded-t-md overflow-hidden transition-all duration-700"
+                          style={{ height: `${Math.max(heightPct, 3)}%` }}>
+                          <div className="bg-blue-500 w-full" style={{ height: `${monthlyPctBar}%` }} />
+                          <div className="bg-orange-400 w-full" style={{ height: `${100 - monthlyPctBar}%` }} />
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-gray-500 capitalize">{m.month}</span>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-orange-400" />
-                <span className="text-[10px] text-gray-400">Setup</span>
+              <div className="flex items-center gap-4 mt-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-blue-500" />
+                  <span className="text-[10px] text-gray-400">Mensal</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-orange-400" />
+                  <span className="text-[10px] text-gray-400">Setup</span>
+                </div>
               </div>
-            </div>
+            </Card>
           </div>
         </div>
 
-        {/* ── Row 2: Four summary cards ────────────────────────────────── */}
+        {/* ── Row 2: 4 Metric cards with meta ────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: "Vendas Perdidas", value: formatCurrency(summary.lostValue), count: `${summary.lostCount} negociações`, pct: lostPct, color: "#EF4444", icon: TrendingDown },
-            { label: "Vendas Fechadas", value: formatCurrency(summary.wonTotalValue), count: `${summary.wonCount} negociações`, pct: wonPct, color: "#22C55E", icon: Trophy },
-            { label: "Mensal Contratado", value: formatCurrency(summary.wonMonthlyValue), count: `${summary.wonCount} contratos`, pct: monthlyPct, color: "#3B82F6", icon: DollarSign },
-            { label: "Setup", value: formatCurrency(summary.wonSetupValue), count: `receita única`, pct: setupPct, color: "#F59E0B", icon: Wrench },
-          ].map((card) => {
-            const Icon = card.icon;
+          {cards.map((card) => {
+            const pct = card.meta > 0 ? (card.value / card.meta) * 100 : 0;
             return (
-              <div key={card.label} className="bg-gray-900 rounded-xl p-4 flex items-center gap-4">
-                <DonutChart percentage={card.pct} color={card.color} />
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400">{card.label}</p>
-                  <p className="text-lg font-bold text-white truncate">{card.value}</p>
-                  <p className="text-[10px] text-gray-500">{card.count}</p>
+              <Card key={card.key} padding="md">
+                <div className="flex items-center gap-3">
+                  <DonutChart percentage={pct} color={card.color} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-gray-500 mb-0.5">{card.label}</p>
+                    <p className="text-lg font-bold text-gray-900 truncate">{formatCurrency(card.value)}</p>
+                    <p className="text-[10px] text-gray-400 mb-1">{card.sub}</p>
+                    <MetaInput metaKey={card.key} defaultValue={card.meta}
+                      onSave={(v) => updateMeta(card.key, v)} />
+                  </div>
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>
 
         {/* ── Row 3: Ticket Médio por Produto ─────────────────────────── */}
         {ticketMedio.length > 0 && (
-          <div className="bg-gray-900 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Ticket médio</h3>
+          <Card padding="md">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Ticket médio por produto</h3>
             <div className="space-y-4">
               {ticketMedio.map((t) => {
                 const barPct = maxTicket > 0 ? Math.max((t.currentAvg / maxTicket) * 100, 3) : 0;
@@ -238,18 +308,16 @@ export default function ReportsPage() {
                   <div key={t.product}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white">{t.product}</span>
-                        <span className="text-sm text-blue-400 font-bold">{formatCurrency(t.currentAvg)}</span>
+                        <span className="text-sm font-semibold text-gray-800">{t.product}</span>
+                        <span className="text-sm text-blue-600 font-bold">{formatCurrency(t.currentAvg)}</span>
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-400">
                         Mês anterior: {formatCurrency(t.lastMonthAvg)}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-6 relative overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full flex items-center justify-center transition-all duration-700"
-                        style={{ width: `${barPct}%`, minWidth: '60px' }}
-                      >
+                    <div className="w-full bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full flex items-center justify-center transition-all duration-700"
+                        style={{ width: `${barPct}%`, minWidth: '60px' }}>
                         <span className="text-[10px] font-bold text-white">{formatCurrency(t.currentAvg)}</span>
                       </div>
                     </div>
@@ -257,38 +325,38 @@ export default function ReportsPage() {
                 );
               })}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* ── Row 4: Vendas por Cliente ────────────────────────────────── */}
         {salesByClient.length > 0 && (
-          <div className="bg-gray-900 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Vendas por Cliente</h3>
+          <Card padding="md">
+            <h3 className="text-sm font-semibold text-gray-900 mb-4">Vendas por Cliente</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400">Nome</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400">Produto</th>
-                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Mensal</th>
-                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Setup</th>
-                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400">Total</th>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Nome</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Produto</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Mensal</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Setup</th>
+                    <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {salesByClient.map((sale, i) => (
-                    <tr key={sale.dealId} className="border-b border-gray-800 hover:bg-gray-800/50 transition-colors">
-                      <td className="py-2.5 px-3 text-gray-200">{sale.clientName}</td>
-                      <td className="py-2.5 px-3 text-gray-400">{sale.products}</td>
-                      <td className="py-2.5 px-3 text-right text-gray-200">{formatCurrency(sale.monthlyValue)}</td>
+                  {salesByClient.map((sale) => (
+                    <tr key={sale.dealId} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-2.5 px-3 text-gray-800">{sale.clientName}</td>
+                      <td className="py-2.5 px-3 text-gray-500">{sale.products}</td>
+                      <td className="py-2.5 px-3 text-right text-gray-800">{formatCurrency(sale.monthlyValue)}</td>
                       <td className="py-2.5 px-3 text-right text-gray-400">{sale.setupValue > 0 ? formatCurrency(sale.setupValue) : "—"}</td>
-                      <td className="py-2.5 px-3 text-right font-semibold text-white">{formatCurrency(sale.totalValue)}</td>
+                      <td className="py-2.5 px-3 text-right font-semibold text-gray-900">{formatCurrency(sale.totalValue)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         )}
       </main>
     </div>
