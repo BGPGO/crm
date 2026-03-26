@@ -218,7 +218,7 @@ export async function getAIResponse(
   const context = await getCurrentContext();
   let systemMessage = basePrompt + context;
   if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
-  if (meetingLink) systemMessage += `\nLink para agendamento: ${meetingLink} — Quando o cliente aceitar agendar, envie este link em uma mensagem separada.`;
+  if (meetingLink) systemMessage += `\n\nLINK DE AGENDAMENTO (use exatamente este): ${meetingLink}\nREGRA ABSOLUTA: quando enviar o link, cole EXATAMENTE "${meetingLink}" sozinho em uma mensagem. NUNCA use markdown [texto](url). NUNCA escreva "calendly.com" genérico. SEMPRE o link completo acima.`;
   else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
   if (extraContext) {
     systemMessage += '\n\n' + extraContext;
@@ -235,7 +235,21 @@ export async function getAIResponse(
     temperature: 0.7,
   });
 
-  return completion.choices[0].message.content || '';
+  let reply = completion.choices[0].message.content || '';
+
+  // Sanitize: replace markdown links [text](url) with just the URL
+  // Also replace generic "calendly.com" with the actual meeting link
+  if (meetingLink) {
+    reply = reply.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, _text, url) => {
+      // If the URL contains "calendly", use the real meeting link
+      if (url.toLowerCase().includes('calendly')) return meetingLink;
+      return url; // For non-calendly links, just use the raw URL
+    });
+    // Replace bare "calendly.com" references that aren't the full link
+    reply = reply.replace(/(?<!\S)calendly\.com(?!\S)/gi, meetingLink);
+  }
+
+  return reply;
 }
 
 // ─── Debounce Map ──────────────────────────────────────────────────────────
