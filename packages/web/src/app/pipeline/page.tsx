@@ -941,7 +941,7 @@ export default function PipelinePage() {
                   initialDeals={batchDeals[stage.id]?.deals}
                   initialTotal={batchDeals[stage.id]?.total}
                   injectedDeals={injectedDeals[stage.id]}
-                  showTicketMedio={["Proposta Enviada", "Aguardando Dados", "Aguardando Assinatura", "Ganho Fechado"].includes(stage.name)}
+                  showTicketMedio
                   onAddDeal={() => setIsModalOpen(true)}
                   onDealsLoaded={handleDealsLoaded}
                 />

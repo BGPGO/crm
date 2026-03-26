@@ -210,7 +210,7 @@ export default function ReunioesPage() {
 
   const fetchCalendarMeetings = useCallback(async () => {
     try {
-      const url = `/calendly/config/meetings?period=all${hostFilter !== 'all' ? `&hostName=${encodeURIComponent(hostFilter)}` : ''}`;
+      const url = `/calendly/config/meetings?period=all&limit=200${hostFilter !== 'all' ? `&hostName=${encodeURIComponent(hostFilter)}` : ''}`;
       const res = await api.get<{ data: Meeting[] }>(url);
       setCalendarMeetings(res.data || []);
     } catch { /* silent */ }
