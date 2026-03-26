@@ -1,5 +1,11 @@
 import prisma from '../lib/prisma';
 import { executeAction } from './automationActions';
+import { canSend } from './dailyLimitService';
+
+// ─── Throttle config for WhatsApp sends ─────────────────────────────────────
+const WHATSAPP_MAX_PER_CYCLE = 10; // max WhatsApp messages per cron tick
+const WHATSAPP_MIN_DELAY_S = 30;   // min seconds between sends
+const WHATSAPP_MAX_DELAY_S = 90;   // max seconds between sends
 
 // ─── Trigger Evaluation ──────────────────────────────────────────────────────
 
@@ -156,6 +162,7 @@ export async function processEnrollments(): Promise<{ processed: number }> {
   });
 
   let processed = 0;
+  let whatsappSentThisCycle = 0;
 
   for (const enrollment of enrollments) {
     try {
@@ -248,6 +255,7 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
       // Cadence automations: check feature flag + business hours for WhatsApp
       const isCadence = (enrollment.automation.triggerConfig as any)?.isCadence === true;
+      const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI';
 
       if (isCadence) {
         // Check if cadences are enabled globally
@@ -269,7 +277,6 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         }
 
         // WhatsApp actions respect business hours; emails don't
-        const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI';
         if (isWhatsAppAction) {
           const { isBusinessHours, msUntilNextBusinessHour } = await import('../utils/sendingWindow');
           if (!isBusinessHours()) {
@@ -286,10 +293,55 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         }
       }
 
+      // ── WhatsApp throttle: daily limit + per-cycle cap ─────────────────
+      if (isWhatsAppAction) {
+        // Check daily limit
+        const allowed = await canSend();
+        if (!allowed) {
+          // Reschedule to midnight Brasília (next day's quota)
+          const nowBrasilia = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+          const tomorrow = new Date(nowBrasilia);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(8, 0, 0, 0); // 8h next day
+          const nextDay = new Date(tomorrow.toISOString());
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: { nextActionAt: nextDay },
+          });
+          console.log(`[AutomationEngine] Limite diário atingido — reagendado para ${nextDay.toISOString()} (enrollment ${enrollment.id})`);
+          continue;
+        }
+
+        // Per-cycle cap: stagger remaining WhatsApp sends with random delay
+        if (whatsappSentThisCycle >= WHATSAPP_MAX_PER_CYCLE) {
+          const delaySec = WHATSAPP_MIN_DELAY_S + Math.random() * (WHATSAPP_MAX_DELAY_S - WHATSAPP_MIN_DELAY_S);
+          const staggeredAt = new Date(Date.now() + delaySec * 1000);
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: { nextActionAt: staggeredAt },
+          });
+          console.log(`[AutomationEngine] Throttle: máx ${WHATSAPP_MAX_PER_CYCLE} WhatsApp/ciclo — reagendado em ${Math.round(delaySec)}s (enrollment ${enrollment.id})`);
+          continue;
+        }
+
+        // Add random delay between sends within the cycle (sleep before sending)
+        if (whatsappSentThisCycle > 0) {
+          const delaySec = WHATSAPP_MIN_DELAY_S + Math.random() * (WHATSAPP_MAX_DELAY_S - WHATSAPP_MIN_DELAY_S);
+          console.log(`[AutomationEngine] Throttle: aguardando ${Math.round(delaySec)}s antes do próximo WhatsApp...`);
+          await new Promise((resolve) => setTimeout(resolve, delaySec * 1000));
+        }
+      }
+
       // Execute the action
       const result = await executeAction(enrollment, step, {
         generalContext: (enrollment.automation.triggerConfig as any)?.generalContext || '',
       });
+
+      // Track WhatsApp sends for per-cycle throttle (volume is registered inside the actions themselves)
+      if (isWhatsAppAction && result.success) {
+        whatsappSentThisCycle++;
+        console.log(`[AutomationEngine] WhatsApp enviado (${whatsappSentThisCycle}/${WHATSAPP_MAX_PER_CYCLE} neste ciclo) — enrollment ${enrollment.id}`);
+      }
 
       // Create log entry
       await prisma.automationLog.create({
@@ -371,6 +423,10 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
       processed++;
     }
+  }
+
+  if (whatsappSentThisCycle > 0) {
+    console.log(`[AutomationEngine] Ciclo concluído: ${whatsappSentThisCycle} WhatsApp enviados, ${processed} enrollments processados`);
   }
 
   return { processed };

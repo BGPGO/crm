@@ -63,6 +63,16 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       }
     }
 
+    // Auto-ativar warmup quando cadências ou follow-ups são ligados sem warmup prévio
+    if (
+      (updateData.cadenceEnabled === true || updateData.followUpEnabled === true) &&
+      !config.warmupEnabled && !config.warmupStartDate
+    ) {
+      updateData.warmupEnabled = true;
+      updateData.warmupStartDate = new Date();
+      console.log('[whatsapp-config] Warmup ativado automaticamente ao habilitar cadências/follow-ups');
+    }
+
     const updated = await prisma.whatsAppConfig.update({
       where: { id: config.id },
       data: updateData,

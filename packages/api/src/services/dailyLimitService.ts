@@ -36,11 +36,14 @@ async function getConfig() {
 // ─── Warmup Logic ────────────────────────────────────────────────────────────
 
 function calculateWarmupLimit(daysSinceStart: number): number {
-  if (daysSinceStart <= 3) return 20;
-  if (daysSinceStart <= 7) return 50;
-  if (daysSinceStart <= 14) return 100;
-  if (daysSinceStart <= 21) return 200;
-  if (daysSinceStart <= 30) return 400;
+  // Limites conservadores para evitar ban do WhatsApp
+  // Referência: contas novas devem subir devagar (Meta recomenda < 50/dia no início)
+  if (daysSinceStart <= 3) return 10;
+  if (daysSinceStart <= 7) return 25;
+  if (daysSinceStart <= 14) return 50;
+  if (daysSinceStart <= 21) return 80;
+  if (daysSinceStart <= 30) return 120;
+  if (daysSinceStart <= 45) return 160;
   return -1; // signal to use configured limit
 }
 
@@ -61,7 +64,7 @@ export async function getDailyLimit(): Promise<number> {
   const diffMs = now.getTime() - config.warmupStartDate.getTime();
   const daysSinceStart = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (daysSinceStart < 1) return 20; // same day as start
+  if (daysSinceStart < 1) return 10; // same day as start
 
   const warmupLimit = calculateWarmupLimit(daysSinceStart);
 

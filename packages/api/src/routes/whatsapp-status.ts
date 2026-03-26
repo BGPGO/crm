@@ -36,11 +36,13 @@ function getWarmupPhase(day: number): string {
 
 /** Faixas discretas idênticas ao dailyLimitService.calculateWarmupLimit */
 function calculateWarmupLimit(daysSinceStart: number): number {
-  if (daysSinceStart <= 3) return 20;
-  if (daysSinceStart <= 7) return 50;
-  if (daysSinceStart <= 14) return 100;
-  if (daysSinceStart <= 21) return 200;
-  if (daysSinceStart <= 30) return 400;
+  // Limites conservadores para evitar ban do WhatsApp
+  if (daysSinceStart <= 3) return 10;
+  if (daysSinceStart <= 7) return 25;
+  if (daysSinceStart <= 14) return 50;
+  if (daysSinceStart <= 21) return 80;
+  if (daysSinceStart <= 30) return 120;
+  if (daysSinceStart <= 45) return 160;
   return -1; // usar limite configurado
 }
 

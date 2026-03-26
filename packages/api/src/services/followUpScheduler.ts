@@ -141,6 +141,22 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     return;
   }
 
+  // Check contato frio: se nunca respondeu, limitar a 5 mensagens de bot
+  const hasEverReplied = await prisma.whatsAppMessage.findFirst({
+    where: { conversationId, sender: 'CLIENT' },
+    select: { id: true },
+  });
+  if (!hasEverReplied) {
+    const botMsgCount = await prisma.whatsAppMessage.count({
+      where: { conversationId, sender: { in: ['BOT', 'HUMAN'] } },
+    });
+    if (botMsgCount >= 5) {
+      console.log(`[follow-up] Contato frio: ${botMsgCount} msgs sem resposta para ${conversationId} — cancelando follow-ups`);
+      await cancelFollowUp(conversationId);
+      return;
+    }
+  }
+
   // Verificar horário comercial — follow-ups proativos respeitam 9h–18h seg–sex
   if (!isBusinessHours()) {
     const msUntil = msUntilNextBusinessHour();

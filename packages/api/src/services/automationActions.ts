@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { isUnsubscribed } from './unsubscribeManager';
 import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
+import { canSend, registerSent } from './dailyLimitService';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -307,6 +308,11 @@ async function sendWhatsApp(
   contactId: string,
   config: { messageTemplateId?: string; customMessage?: string }
 ): Promise<ActionResult> {
+  // Defesa em profundidade: checar limite diário dentro da action também
+  if (!await canSend()) {
+    return { success: false, output: 'Daily WhatsApp limit reached' };
+  }
+
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
     include: { organization: { select: { name: true } } },
@@ -316,13 +322,34 @@ async function sendWhatsApp(
     return { success: false, output: 'Contact has no phone number' };
   }
 
+  const normalizedPhone = normalizePhone(contact.phone);
+
   // Verificar opt-out antes de enviar WhatsApp
-  const optOutCheck = await prisma.whatsAppConversation.findUnique({
-    where: { phone: normalizePhone(contact.phone) },
-    select: { optedOut: true },
+  const conversation = await prisma.whatsAppConversation.findUnique({
+    where: { phone: normalizedPhone },
+    select: { optedOut: true, id: true },
   });
-  if (optOutCheck?.optedOut) {
+  if (conversation?.optedOut) {
     return { success: false, output: 'Contact opted out of WhatsApp messages' };
+  }
+
+  // Check contato frio: se já existe conversa, verificar se o contato já respondeu alguma vez
+  if (conversation) {
+    const hasEverReplied = await prisma.whatsAppMessage.findFirst({
+      where: { conversationId: conversation.id, sender: 'CLIENT' },
+      select: { id: true },
+    });
+    if (!hasEverReplied) {
+      // Contato frio: contar quantas msgs de bot já foram enviadas sem resposta
+      const botMsgCount = await prisma.whatsAppMessage.count({
+        where: { conversationId: conversation.id, sender: { in: ['BOT', 'HUMAN'] } },
+      });
+      // Máximo 5 mensagens para contato que nunca respondeu
+      if (botMsgCount >= 5) {
+        console.log(`[sendWhatsApp] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhone} — pulando`);
+        return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
+      }
+    }
   }
 
   let messageText: string;
@@ -358,21 +385,20 @@ async function sendWhatsApp(
 
   // Reopen conversation if closed + update lastMessageAt
   await prisma.whatsAppConversation.updateMany({
-    where: { phone: normalizePhone(contact.phone) },
+    where: { phone: normalizedPhone },
     data: { status: 'open', isActive: true, lastMessageAt: new Date() },
   }).catch(() => {});
 
   // Save message to conversation history
-  const normalizedPhone = normalizePhone(contact.phone);
-  let conversation = await prisma.whatsAppConversation.findUnique({ where: { phone: normalizedPhone } });
-  if (!conversation) {
-    conversation = await prisma.whatsAppConversation.create({
+  let conv = await prisma.whatsAppConversation.findUnique({ where: { phone: normalizedPhone } });
+  if (!conv) {
+    conv = await prisma.whatsAppConversation.create({
       data: { phone: normalizedPhone, contactId, isActive: true, status: 'open' },
     });
   }
   await prisma.whatsAppMessage.create({
     data: {
-      conversationId: conversation.id,
+      conversationId: conv.id,
       sender: 'BOT',
       text: messageText,
     },
@@ -383,11 +409,14 @@ async function sendWhatsApp(
   const client = await EvolutionApiClient.fromConfig();
   await client.sendText(normalizedPhone, messageText);
 
+  // Registrar envio no controle de volume diário
+  await registerSent('followUp');
+
   return {
     success: true,
     output: {
       phone: contact.phone,
-      conversationId: conversation.id,
+      conversationId: conv.id,
       messageLength: messageText.length,
       templateId: config.messageTemplateId || null,
     },
@@ -666,6 +695,11 @@ async function sendWhatsAppAI(
   config: { prompt: string; objective: string },
   generalContext?: string
 ): Promise<ActionResult> {
+  // Defesa em profundidade: checar limite diário dentro da action também
+  if (!await canSend()) {
+    return { success: false, output: 'Daily WhatsApp limit reached' };
+  }
+
   // 1. Find the contact's phone
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: enrollment.contactId },
@@ -676,24 +710,43 @@ async function sendWhatsAppAI(
     return { success: false, output: 'Contact has no phone number' };
   }
 
+  const normalizedPhoneAI = normalizePhone(contact.phone);
+
   // Verificar opt-out antes de enviar WhatsApp IA
   const optOutCheckAI = await prisma.whatsAppConversation.findUnique({
-    where: { phone: normalizePhone(contact.phone) },
-    select: { optedOut: true },
+    where: { phone: normalizedPhoneAI },
+    select: { optedOut: true, id: true },
   });
   if (optOutCheckAI?.optedOut) {
     return { success: false, output: 'Contact opted out of WhatsApp messages' };
   }
 
+  // Check contato frio: se já existe conversa, verificar se o contato já respondeu alguma vez
+  if (optOutCheckAI) {
+    const hasEverReplied = await prisma.whatsAppMessage.findFirst({
+      where: { conversationId: optOutCheckAI.id, sender: 'CLIENT' },
+      select: { id: true },
+    });
+    if (!hasEverReplied) {
+      const botMsgCount = await prisma.whatsAppMessage.count({
+        where: { conversationId: optOutCheckAI.id, sender: { in: ['BOT', 'HUMAN'] } },
+      });
+      if (botMsgCount >= 5) {
+        console.log(`[sendWhatsAppAI] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhoneAI} — pulando`);
+        return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
+      }
+    }
+  }
+
   // 2. Find or create WhatsAppConversation for this phone
   let conversation = await prisma.whatsAppConversation.findUnique({
-    where: { phone: normalizePhone(contact.phone) },
+    where: { phone: normalizedPhoneAI },
   });
 
   if (!conversation) {
     conversation = await prisma.whatsAppConversation.create({
       data: {
-        phone: normalizePhone(contact.phone),
+        phone: normalizedPhoneAI,
         contactId: contact.id,
         isActive: true,
         status: 'open',
@@ -751,10 +804,9 @@ async function sendWhatsAppAI(
     return { success: false, output: 'AI failed to generate message' };
   }
 
-  // 5. Send via ZApiClient (normalize phone)
-  const normalizedPhone = normalizePhone(contact.phone);
+  // 5. Send via ZApiClient
   const zapiClient = await ZApiClient.fromConfig();
-  const sendResult = await zapiClient.sendText(normalizedPhone, messageText);
+  const sendResult = await zapiClient.sendText(normalizedPhoneAI, messageText);
 
   // 6. Save the message as a WhatsAppMessage with sender: 'BOT'
   await prisma.whatsAppMessage.create({
@@ -777,6 +829,9 @@ async function sendWhatsAppAI(
     where: { id: conversation.id },
     data: { lastMessageAt: new Date() },
   });
+
+  // Registrar envio no controle de volume diário
+  await registerSent('followUp');
 
   return {
     success: true,
