@@ -47,8 +47,8 @@ export default function NewCampaignPage() {
   // Step 1 - Basic
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
-  const [fromName, setFromName] = useState("");
-  const [fromEmail, setFromEmail] = useState("");
+  const [fromName, setFromName] = useState("Vítor Bertuzzi");
+  const [fromEmail, setFromEmail] = useState("vitor@bertuzzipatrimonial.app.br");
 
   // Error states
   const [templateError, setTemplateError] = useState<string | null>(null);

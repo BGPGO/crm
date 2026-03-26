@@ -188,7 +188,7 @@ export async function sendCampaignEmails(campaignId: string): Promise<void> {
           const result = await resend.emails.send({
             from: fromAddress,
             to: send.contact.email,
-            replyTo: campaign.fromEmail,
+            replyTo: 'vitor@bertuzzipatrimonial.com.br',
             subject: campaign.subject,
             html: finalHtml,
             text: plainText,
