@@ -214,6 +214,8 @@ export default function ReunioesPage() {
     createdAt: string;
   }>>([]);
   const [readAiLoading, setReadAiLoading] = useState(false);
+  const [readAiTab, setReadAiTab] = useState<'agenda' | 'readai'>('agenda');
+  const [readAiFilter, setReadAiFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [linkingMeetingId, setLinkingMeetingId] = useState<string | null>(null);
   const [dealSearch, setDealSearch] = useState('');
   const [dealResults, setDealResults] = useState<Array<{ id: string; title: string; contact?: { name: string } | null; organization?: { name: string } | null }>>([]);
@@ -377,7 +379,35 @@ export default function ReunioesPage() {
     <div className="flex flex-col h-full overflow-hidden">
       <Header title="Reunioes" breadcrumb={["Reunioes"]} />
 
+      {/* ── Tab bar ──────────────────────────────────────────────────── */}
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center gap-0">
+        {([
+          { key: 'agenda' as const, label: 'Agenda' },
+          { key: 'readai' as const, label: 'Read.ai', badge: readAiMeetings.filter(m => !m.dealId).length },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setReadAiTab(tab.key)}
+            className={clsx(
+              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors relative",
+              readAiTab === tab.key
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            )}
+          >
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="ml-1.5 text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div className="px-4 sm:px-6 py-6 flex-1 overflow-y-auto">
+
+        {readAiTab === 'agenda' && (<>
         {/* Stats cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -602,18 +632,36 @@ export default function ReunioesPage() {
           </div>
         </div>
 
-        {/* ── Read.ai Recordings ─────────────────────────────────────── */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-900">Gravações Read.ai</h2>
-            <span className="text-xs text-gray-400">
-              {readAiMeetings.filter(m => !m.dealId).length > 0 && (
-                <span className="text-amber-600 font-medium">
-                  {readAiMeetings.filter(m => !m.dealId).length} sem vínculo
-                </span>
+        </>)}
+
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {/* ── Read.ai Tab ──────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════════════ */}
+        {readAiTab === 'readai' && (<>
+
+        {/* Filter pills */}
+        <div className="flex items-center gap-2 mb-4">
+          {([
+            { key: 'all' as const, label: 'Todas', count: readAiMeetings.length },
+            { key: 'unlinked' as const, label: 'Sem vínculo', count: readAiMeetings.filter(m => !m.dealId).length },
+            { key: 'linked' as const, label: 'Vinculadas', count: readAiMeetings.filter(m => !!m.dealId).length },
+          ]).map(f => (
+            <button
+              key={f.key}
+              onClick={() => setReadAiFilter(f.key)}
+              className={clsx(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                readAiFilter === f.key
+                  ? f.key === 'unlinked' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               )}
-            </span>
-          </div>
+            >
+              {f.label} <span className="text-[10px] opacity-70">({f.count})</span>
+            </button>
+          ))}
+        </div>
+
+        <div>
 
           {readAiLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -627,7 +675,9 @@ export default function ReunioesPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {readAiMeetings.map((meeting) => {
+              {readAiMeetings
+                .filter(m => readAiFilter === 'all' ? true : readAiFilter === 'linked' ? !!m.dealId : !m.dealId)
+                .map((meeting) => {
                 const isLinked = !!meeting.dealId;
                 const isLinking = linkingMeetingId === meeting.id;
                 return (
@@ -759,6 +809,8 @@ export default function ReunioesPage() {
             </div>
           )}
         </div>
+
+        </>)}
       </div>
     </div>
   );
