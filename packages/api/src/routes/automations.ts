@@ -245,9 +245,14 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
         select: { id: true, currentStepId: true },
       });
 
-      // Clear references before deleting steps (keep logs — they're history)
+      // Clear references before deleting steps
       await tx.automationEnrollment.updateMany({ where: { automationId }, data: { currentStepId: null } });
       await tx.automationStep.updateMany({ where: { automationId }, data: { nextStepId: null, trueStepId: null, falseStepId: null } });
+      // Delete logs that reference old steps (FK constraint blocks step deletion otherwise)
+      const oldStepIds = oldSteps.map((s) => s.id);
+      if (oldStepIds.length > 0) {
+        await tx.automationLog.deleteMany({ where: { stepId: { in: oldStepIds } } });
+      }
       await tx.automationStep.deleteMany({ where: { automationId } });
 
       // Phase 1: Create all steps WITHOUT references (to get new IDs)
