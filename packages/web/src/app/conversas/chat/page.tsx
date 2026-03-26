@@ -495,7 +495,7 @@ export default function ConversasChatPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline justify-between gap-2">
                         <p className={clsx("text-sm truncate", (conv.unreadCount ?? 0) > 0 ? "font-bold text-gray-900" : "font-medium text-gray-900")}>
-                          {conv.pushName || conv.phone}
+                          {conv.contact?.name || conv.pushName || conv.phone}
                         </p>
                         <span className={clsx("text-[11px] flex-shrink-0 whitespace-nowrap leading-none", (conv.unreadCount ?? 0) > 0 ? "text-green-600 font-semibold" : "text-gray-400")}>
                           {formatConvTimestamp(conv.lastMessageAt) || formatConvTimestamp(conv.messages?.[0]?.createdAt ?? null)}
@@ -567,7 +567,7 @@ export default function ConversasChatPage() {
                     )}
                     <div>
                       <p className="text-sm font-semibold text-gray-900">
-                        {selectedConv?.pushName || selectedConv?.phone || ""}
+                        {selectedConv?.contact?.name || selectedConv?.pushName || selectedConv?.phone || ""}
                       </p>
                       <p className="text-xs text-gray-500">{selectedConv?.phone} {selectedConv?.contact?.email ? `· ${selectedConv.contact.email}` : ''}</p>
                     </div>
