@@ -38,7 +38,7 @@ export function wrapInBrandTemplate(bodyHtml: string, unsubscribeUrl?: string): 
 
 <!-- ═══ HEADER: Logo ═══ -->
 <table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;border-radius:0;color:#000;width:605px;margin:0 auto" width="605">
-<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:8px;padding-right:8px;padding-top:48px;vertical-align:top">
+<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:8px;padding-right:8px;padding-top:48px;padding-bottom:24px;vertical-align:top">
 <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0">
 <tbody><tr><td style="width:100%;padding:0"><div align="center"><div style="max-width:206px">
 <a href="https://bertuzzipatrimonial.com.br" target="_blank"><img src="${LOGO_URL}" style="display:block;height:auto;border:0;width:100%" width="206" alt="BGP" title="BGP" height="auto"></a>

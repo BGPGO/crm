@@ -17,7 +17,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const where: Record<string, unknown> = {};
     if (status) where.status = status as string;
 
-    const [total, data] = await Promise.all([
+    const [total, campaigns] = await Promise.all([
       prisma.emailCampaign.count({ where }),
       prisma.emailCampaign.findMany({
         where,
@@ -26,11 +26,44 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { createdAt: 'desc' },
         include: {
           template: { select: { name: true } },
-          segment: { select: { name: true } },
+          segment: { select: { id: true, name: true, contactCount: true } },
           _count: { select: { sends: true } },
         },
       }),
     ]);
+
+    // Compute cumulative metrics for each campaign
+    const campaignIds = campaigns.map(c => c.id);
+    const allSends = campaignIds.length > 0
+      ? await prisma.emailSend.groupBy({
+          by: ['emailCampaignId', 'status'],
+          where: { emailCampaignId: { in: campaignIds } },
+          _count: { status: true },
+        })
+      : [];
+
+    const metricsMap = new Map<string, { sent: number; opened: number; clicked: number }>();
+    for (const row of allSends) {
+      const m = metricsMap.get(row.emailCampaignId) || { sent: 0, opened: 0, clicked: 0 };
+      const count = row._count.status;
+      // "sent" = all emails that left the server (SENT + DELIVERED + OPENED + CLICKED)
+      // "opened" and "clicked" are cumulative up the chain
+      if (row.status === 'SENT') m.sent += count;
+      if (row.status === 'DELIVERED') m.sent += count;
+      if (row.status === 'OPENED') { m.sent += count; m.opened += count; }
+      if (row.status === 'CLICKED') { m.sent += count; m.opened += count; m.clicked += count; }
+      metricsMap.set(row.emailCampaignId, m);
+    }
+
+    const data = campaigns.map(c => {
+      const m = metricsMap.get(c.id) || { sent: 0, opened: 0, clicked: 0 };
+      return {
+        ...c,
+        recipientCount: c.totalRecipients || c._count?.sends || 0,
+        openRate: m.sent > 0 ? m.opened / m.sent : null,
+        clickRate: m.opened > 0 ? m.clicked / m.opened : null,
+      };
+    });
 
     res.json({
       data,
@@ -202,8 +235,9 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
       },
     });
 
+    const sendTeamCopy = req.body.sendTeamCopy !== false; // default true
     const { sendCampaignEmails } = await import('../services/emailSender');
-    sendCampaignEmails(campaign.id).catch(async (error) => {
+    sendCampaignEmails(campaign.id, { sendTeamCopy }).catch(async (error) => {
       console.error(`Failed to send campaign ${campaign.id}:`, error);
       await prisma.emailCampaign.update({
         where: { id: campaign.id },
@@ -279,6 +313,7 @@ router.get('/:id/stats', async (req: Request, res: Response, next: NextFunction)
     const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return next(createError('Email campaign not found', 404));
 
+    // Count by current status
     const sends = await prisma.emailSend.groupBy({
       by: ['status'],
       where: { emailCampaignId: req.params.id },
@@ -291,15 +326,25 @@ router.get('/:id/stats', async (req: Request, res: Response, next: NextFunction)
     }
 
     const total = Object.values(statusCounts).reduce((sum, c) => sum + c, 0);
-    const sent = statusCounts['SENT'] || 0;
-    const delivered = statusCounts['DELIVERED'] || 0;
-    const opened = statusCounts['OPENED'] || 0;
-    const clicked = statusCounts['CLICKED'] || 0;
+
+    // Status is a progression: QUEUED → SENT → DELIVERED → OPENED → CLICKED
+    // A "CLICKED" email was also opened and delivered, so stats must be cumulative.
+    const rawClicked = statusCounts['CLICKED'] || 0;
+    const rawOpened = statusCounts['OPENED'] || 0;
+    const rawDelivered = statusCounts['DELIVERED'] || 0;
+    const rawSent = statusCounts['SENT'] || 0;
     const bounced = statusCounts['BOUNCED'] || 0;
     const spam = statusCounts['SPAM'] || 0;
     const unsubscribed = statusCounts['UNSUBSCRIBED'] || 0;
 
-    const openRate = delivered > 0 ? opened / delivered : 0;
+    // Cumulative: each higher status implies all previous ones
+    const clicked = rawClicked;
+    const opened = rawOpened + rawClicked;
+    const delivered = rawDelivered + rawOpened + rawClicked;
+    const sent = rawSent + rawDelivered + rawOpened + rawClicked;
+
+    // Open rate based on all successfully sent (not just "delivered" which depends on webhooks)
+    const openRate = sent > 0 ? opened / sent : 0;
     const clickRate = opened > 0 ? clicked / opened : 0;
     const bounceRate = total > 0 ? bounced / total : 0;
 

@@ -28,6 +28,8 @@ interface Campaign {
   sentAt: string | null;
   createdAt: string;
   updatedAt: string;
+  segment?: { id: string; name: string; contactCount: number } | null;
+  totalRecipients?: number;
 }
 
 const statusConfig: Record<
@@ -179,6 +181,18 @@ export default function CampaignDetailPage() {
                   {campaign.fromName} &lt;{campaign.fromEmail}&gt;
                 </span>
               </p>
+              <p className="text-sm text-gray-500">
+                Audiência:{" "}
+                <span className="text-gray-700">
+                  {campaign.segment
+                    ? `${campaign.segment.name} (${campaign.segment.contactCount} contatos)`
+                    : "Todos os contatos"}
+                </span>
+                {" — "}
+                <span className="text-gray-700 font-medium">
+                  {campaign.recipientCount} destinatários
+                </span>
+              </p>
             </div>
             <div className="text-right space-y-1 text-sm text-gray-500">
               <p>
@@ -223,6 +237,7 @@ export default function CampaignDetailPage() {
           <EmailPreview
             html={campaign.htmlContent || "<p style='color:#999;text-align:center;padding:40px;'>Sem conteúdo</p>"}
             className="h-[500px]"
+            branded
           />
         </div>
       </main>

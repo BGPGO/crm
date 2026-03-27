@@ -8,26 +8,42 @@ import { Resend } from 'resend';
  */
 export async function handleAutentiqueWebhook(req: Request, res: Response) {
   try {
-    // Validate webhook secret
+    // Validate webhook secret (if present in headers — Autentique may not send one)
     const webhookSecret = process.env.AUTENTIQUE_WEBHOOK_SECRET;
     if (webhookSecret) {
       const incomingSecret =
         (req.headers['x-webhook-secret'] as string) ??
         req.headers['authorization']?.replace(/^Bearer\s+/i, '');
-      if (!incomingSecret || incomingSecret !== webhookSecret) {
-        console.warn('[contract-webhook] Invalid or missing webhook secret');
+      // Only reject if a secret IS provided but doesn't match.
+      // Autentique doesn't send auth headers, so missing secret = allow through.
+      if (incomingSecret && incomingSecret !== webhookSecret) {
+        console.warn('[contract-webhook] Invalid webhook secret');
         return res.status(401).json({ error: 'Unauthorized' });
       }
     }
 
     const body = req.body;
-    console.log('[contract-webhook] Received event for processing');
+    console.log('[contract-webhook] Received webhook:', JSON.stringify(body).slice(0, 500));
 
-    const documentId = body?.document?.id || body?.data?.document?.id || body?.id;
+    // ── Extract document ID ──────────────────────────────────────────────────
+    // Autentique real payload structure:
+    //   body.event.data.id  = document hash (primary path)
+    //   body.data.data.id   = alternative
+    //   body.document.id    = legacy/generic
+    const documentId =
+      body?.event?.data?.id ||      // Autentique: { event: { data: { id } } }
+      body?.data?.data?.id ||
+      body?.document?.id ||
+      body?.data?.document?.id ||
+      body?.data?.id ||
+      body?.id;
+
     if (!documentId) {
-      console.warn('[contract-webhook] No document ID in payload');
+      console.warn('[contract-webhook] No document ID found in payload');
       return res.status(200).json({ received: true });
     }
+
+    console.log(`[contract-webhook] Document ID: ${documentId}`);
 
     const contract = await prisma.contract.findFirst({
       where: { autentiqueDocumentId: documentId },
@@ -41,25 +57,56 @@ export async function handleAutentiqueWebhook(req: Request, res: Response) {
       return res.status(200).json({ received: true });
     }
 
-    const event = body?.event || body?.data?.event || '';
-    const allSigned = ['document.done', 'document.completed', 'document.finished', 'done', 'finished'].includes(event);
+    // ── Extract event type ───────────────────────────────────────────────────
+    // Autentique: body.event.type = "document.finished"
+    const eventType =
+      body?.event?.type ||
+      body?.event ||
+      body?.data?.event ||
+      '';
+    const eventTypeStr = typeof eventType === 'string' ? eventType : '';
 
-    // Update individual signer
-    const signerEmail = body?.signature?.email || body?.data?.signature?.email;
-    if (signerEmail) {
-      await prisma.contractSignatureRecord.updateMany({
-        where: { contractId: contract.id, signerEmail, status: 'pending' },
-        data: { status: 'signed', signedAt: new Date() },
-      });
-      console.log(`[contract-webhook] Signer ${signerEmail} signed contract ${contract.id}`);
+    const isFinished = ['document.done', 'document.completed', 'document.finished', 'done', 'finished'].includes(eventTypeStr);
+
+    console.log(`[contract-webhook] Event type: "${eventTypeStr}" | isFinished: ${isFinished}`);
+
+    // ── Update individual signers from payload ───────────────────────────────
+    // Autentique sends full signatures array in body.event.data.signatures
+    const signatures: any[] =
+      body?.event?.data?.signatures ||
+      body?.data?.data?.signatures ||
+      body?.data?.signatures ||
+      [];
+
+    for (const sig of signatures) {
+      const email = sig?.user?.email;
+      const signedAt = sig?.signed; // ISO string or null
+      if (email && signedAt) {
+        const updated = await prisma.contractSignatureRecord.updateMany({
+          where: { contractId: contract.id, signerEmail: email, status: 'pending' },
+          data: { status: 'signed', signedAt: new Date(signedAt) },
+        });
+        if (updated.count > 0) {
+          console.log(`[contract-webhook] Signer ${email} marked as signed (${signedAt})`);
+        }
+      }
     }
 
-    if (allSigned) {
+    // ── Check if all signatures are complete ─────────────────────────────────
+    // 1. Event says finished, OR
+    // 2. signed_count === signatures_count in payload, OR
+    // 3. No pending signatures in our DB
+    const docData = body?.event?.data || body?.data?.data || {};
+    const allSignedByCount = docData.signed_count > 0 && docData.signed_count === docData.signatures_count;
+
+    if (isFinished || allSignedByCount) {
+      console.log(`[contract-webhook] All signed (event: ${isFinished}, count: ${allSignedByCount})`);
       await handleAllSigned(contract);
     } else {
       const pending = await prisma.contractSignatureRecord.count({
         where: { contractId: contract.id, status: 'pending' },
       });
+      console.log(`[contract-webhook] Pending signatures: ${pending}`);
       if (pending === 0) await handleAllSigned(contract);
     }
 

@@ -68,6 +68,9 @@ export default function NewCampaignPage() {
     null
   );
 
+  // Team copy
+  const [sendTeamCopy, setSendTeamCopy] = useState(true);
+
   // Schedule
   const [scheduleDate, setScheduleDate] = useState("");
   const [showScheduleInput, setShowScheduleInput] = useState(false);
@@ -123,7 +126,7 @@ export default function NewCampaignPage() {
         templateId: useCustomHtml ? undefined : selectedTemplateId,
         segmentId: selectedSegmentId,
       });
-      await api.post(`/email-campaigns/${campaign.data.id}/send`, {});
+      await api.post(`/email-campaigns/${campaign.data.id}/send`, { sendTeamCopy });
       router.push(`/marketing/emails/${campaign.data.id}`);
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
@@ -387,6 +390,7 @@ export default function NewCampaignPage() {
                     <EmailPreview
                       html={customHtml || "<p style='color:#999;text-align:center;padding:40px;'>Digite o HTML para ver o preview</p>"}
                       className="h-[400px]"
+                      branded
                     />
                   </div>
                 </div>
@@ -464,6 +468,29 @@ export default function NewCampaignPage() {
                     </div>
                   </div>
 
+                  {/* Team copy toggle */}
+                  <div className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Enviar cópia para o time</p>
+                      <p className="text-xs text-gray-500">TIME BGP recebe uma cópia com [TIME] no assunto</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={sendTeamCopy}
+                      onClick={() => setSendTeamCopy(!sendTeamCopy)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        sendTeamCopy ? "bg-blue-600" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          sendTeamCopy ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   {/* Send/Schedule Error */}
                   {sendError && (
                     <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
@@ -538,6 +565,7 @@ export default function NewCampaignPage() {
                   <EmailPreview
                     html={getHtmlContent() || "<p style='color:#999;text-align:center;padding:40px;'>Sem conteúdo</p>"}
                     className="h-[450px]"
+                    branded
                   />
                 </div>
               </div>
