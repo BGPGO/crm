@@ -81,13 +81,28 @@ interface EmailPreviewProps {
   branded?: boolean;
 }
 
+// Script injected into preview iframe to open all links in a new tab
+const LINK_INTERCEPT_SCRIPT = `<script>
+document.addEventListener('click', function(e) {
+  var a = e.target.closest('a');
+  if (a && a.href) {
+    e.preventDefault();
+    window.open(a.href, '_blank', 'noopener');
+  }
+});
+</script>`;
+
 export default function EmailPreview({ html, className, branded }: EmailPreviewProps) {
-  const srcDoc = branded ? wrapInBrandPreview(html) : html;
+  const base = branded ? wrapInBrandPreview(html) : html;
+  // Inject link interceptor before </body> or at the end
+  const srcDoc = base.includes('</body>')
+    ? base.replace('</body>', LINK_INTERCEPT_SCRIPT + '</body>')
+    : base + LINK_INTERCEPT_SCRIPT;
 
   return (
     <iframe
       srcDoc={srcDoc}
-      sandbox=""
+      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
       className={clsx(
         "w-full border border-gray-200 rounded-xl bg-white",
         className
