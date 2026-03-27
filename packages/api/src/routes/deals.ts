@@ -454,22 +454,31 @@ router.get('/:id/whatsapp-conversation', async (req, res, next) => {
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: req.params.id },
-      include: { contact: { select: { id: true, phone: true } } },
+      include: {
+        contact: { select: { id: true, phone: true } },
+        dealContacts: { include: { contact: { select: { id: true, phone: true } } } },
+      },
     });
     if (!deal) return res.status(404).json({ error: 'Deal not found' });
-    if (!deal.contactId || !deal.contact?.phone) {
+
+    // Resolve contact: primary or first dealContact with phone
+    const contact = deal.contact?.phone
+      ? deal.contact
+      : deal.dealContacts?.find((dc) => dc.contact.phone)?.contact ?? null;
+
+    if (!contact?.phone) {
       return res.json({ data: null });
     }
 
     // Try by contactId first
     let conversation = await prisma.whatsAppConversation.findFirst({
-      where: { contactId: deal.contactId },
+      where: { contactId: contact.id },
       include: { _count: { select: { messages: true } } },
     });
 
     // Fallback: try by normalized phone
     if (!conversation) {
-      const normalized = normalizePhone(deal.contact.phone);
+      const normalized = normalizePhone(contact.phone);
       conversation = await prisma.whatsAppConversation.findUnique({
         where: { phone: normalized },
         include: { _count: { select: { messages: true } } },
@@ -498,13 +507,21 @@ router.post('/:id/start-conversation', async (req, res, next) => {
   try {
     const deal = await prisma.deal.findUnique({
       where: { id: req.params.id },
-      include: { contact: { select: { id: true, name: true, phone: true } } },
+      include: {
+        contact: { select: { id: true, name: true, phone: true } },
+        dealContacts: { include: { contact: { select: { id: true, name: true, phone: true } } } },
+      },
     });
     if (!deal) return res.status(404).json({ error: 'Deal not found' });
-    if (!deal.contactId) return res.status(400).json({ error: 'Deal has no contact' });
-    if (!deal.contact?.phone) return res.status(400).json({ error: 'Contact has no phone number' });
 
-    const normalized = normalizePhone(deal.contact.phone);
+    // Resolve contact: primary contact or first dealContact with phone
+    const contact = deal.contact?.phone
+      ? deal.contact
+      : deal.dealContacts?.find((dc) => dc.contact.phone)?.contact ?? null;
+
+    if (!contact?.phone) return res.status(400).json({ error: 'Nenhum contato com telefone vinculado a esta negociação' });
+
+    const normalized = normalizePhone(contact.phone);
 
     // Find or create conversation (empty — no messages sent)
     let conversation = await prisma.whatsAppConversation.findUnique({
@@ -515,8 +532,8 @@ router.post('/:id/start-conversation', async (req, res, next) => {
       conversation = await prisma.whatsAppConversation.create({
         data: {
           phone: normalized,
-          pushName: deal.contact.name || null,
-          contactId: deal.contactId,
+          pushName: contact.name || null,
+          contactId: contact.id,
         },
       });
     }

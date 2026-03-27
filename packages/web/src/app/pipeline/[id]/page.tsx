@@ -766,6 +766,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   }, [loadDeal, loadTimeline, loadWhatsAppConversation]);
 
   // ── Derived values ────────────────────────────────────────────────────────
+  // Resolve contact phone: deal.contact (primary) or first dealContact with phone
+  const contactWithPhone = deal?.contact?.phone
+    ? deal.contact
+    : deal?.dealContacts?.find((dc) => dc.contact.phone)?.contact ?? null;
+
   const totalRecurrence = (deal?.dealProducts ?? []).reduce(
     (sum, p) => sum + (p.recurrenceValue ?? p.unitPrice) * p.quantity,
     0
@@ -1272,7 +1277,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
           {/* Action buttons */}
           <div className="flex gap-2 flex-shrink-0 flex-wrap">
-            {deal?.contact?.phone && (
+            {contactWithPhone?.phone && (
               whatsappConv ? (
                 <button
                   onClick={() => setShowWhatsappSidebar(true)}
