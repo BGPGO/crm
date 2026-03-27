@@ -36,15 +36,12 @@ async function getConfig() {
 // ─── Warmup Logic ────────────────────────────────────────────────────────────
 
 function calculateWarmupLimit(daysSinceStart: number): number {
-  // Limites conservadores para evitar ban do WhatsApp
-  // Referência: contas novas devem subir devagar (Meta recomenda < 50/dia no início)
-  if (daysSinceStart <= 3) return 10;
-  if (daysSinceStart <= 7) return 25;
-  if (daysSinceStart <= 14) return 50;
-  if (daysSinceStart <= 21) return 80;
-  if (daysSinceStart <= 30) return 120;
-  if (daysSinceStart <= 45) return 160;
-  return -1; // signal to use configured limit
+  // Warmup progressivo — conta já teve uso anterior, escala mais agressiva
+  if (daysSinceStart <= 3) return 30;
+  if (daysSinceStart <= 7) return 60;
+  if (daysSinceStart <= 14) return 100;
+  if (daysSinceStart <= 21) return 150;
+  return -1; // signal to use configured limit (200)
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
