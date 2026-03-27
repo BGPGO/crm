@@ -5,6 +5,7 @@ import { EvolutionApiClient } from './evolutionApiClient';
 import { transcribeAudio } from './audioTranscriber';
 import { MessageSender } from '@prisma/client';
 import { scheduleNextFollowUp, cancelFollowUp } from './followUpScheduler';
+import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -321,15 +322,20 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     phone = remoteJid.replace('@s.whatsapp.net', '');
   }
 
-  if (botPhone && phone === botPhone) return;
+  // Normalize to canonical format (55 + DDD + 9 + 8 digits)
+  phone = normalizePhone(phone);
+
+  if (botPhone && phone === normalizePhone(botPhone)) return;
 
   console.log(`[Bot] Mensagem de ${phone} (${pushName}): "${text}"`);
 
   // ── ALWAYS save client message, even if bot is disabled ──────────────
 
-  // Get or create conversation
-  let conversation = await prisma.whatsAppConversation.findUnique({
-    where: { phone },
+  // Get or create conversation — search both phone variants (with/without 9)
+  // to find existing conversations that may have been stored in the old format
+  const variants = phoneVariants(phone);
+  let conversation = await prisma.whatsAppConversation.findFirst({
+    where: { phone: { in: variants } },
     include: { followUpState: true },
   });
 
@@ -338,12 +344,18 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
       data: { phone, pushName: pushName || null },
       include: { followUpState: true },
     });
-  } else if (pushName && conversation.pushName !== pushName) {
-    conversation = await prisma.whatsAppConversation.update({
-      where: { id: conversation.id },
-      data: { pushName },
-      include: { followUpState: true },
-    });
+  } else {
+    // Migrate phone to normalized format if stored in old format
+    const updates: Record<string, unknown> = {};
+    if (conversation.phone !== phone) updates.phone = phone;
+    if (pushName && conversation.pushName !== pushName) updates.pushName = pushName;
+    if (Object.keys(updates).length > 0) {
+      conversation = await prisma.whatsAppConversation.update({
+        where: { id: conversation.id },
+        data: updates,
+        include: { followUpState: true },
+      });
+    }
   }
   if (!conversation) throw new Error('Unexpected: conversation is null');
 
