@@ -441,7 +441,19 @@ router.post('/', async (req: Request, res: Response) => {
             where: { contactId: contact.id, status: 'ACTIVE' },
             data: { status: 'PAUSED' },
           });
-          console.log(`[calendly-webhook] Paused active cadences for contact ${contact.id}`);
+
+          // Remove cadence tags (they won't be cleaned by the paused cadence)
+          const cadenceTags = await prisma.tag.findMany({
+            where: { name: { startsWith: 'Cadência Etapa' } },
+            select: { id: true },
+          });
+          if (cadenceTags.length > 0) {
+            await prisma.contactTag.deleteMany({
+              where: { contactId: contact.id, tagId: { in: cadenceTags.map(t => t.id) } },
+            });
+          }
+
+          console.log(`[calendly-webhook] Paused cadences + removed cadence tags for contact ${contact.id}`);
 
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);
         } else {
