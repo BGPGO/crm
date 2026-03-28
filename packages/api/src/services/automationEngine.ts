@@ -373,12 +373,28 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         // Advance to next step
         // Use nextActionAt from the action result (e.g. WAIT sets a future date),
         // otherwise default to "now" so the next step runs immediately.
+        const updateData: Record<string, unknown> = {
+          currentStepId: nextStepId,
+          nextActionAt: result.nextActionAt ?? new Date(),
+        };
+
+        // If the NEXT step is WAIT_FOR_RESPONSE, pre-set awaitingResponse metadata
+        // so checkAndCancelWaitForResponse can detect it when the lead responds
+        const nextStep = enrollment.automation.steps.find(s => s.id === nextStepId);
+        if (nextStep?.actionType === 'WAIT_FOR_RESPONSE') {
+          const waitConfig = nextStep.config as Record<string, unknown>;
+          updateData.metadata = {
+            ...((enrollment.metadata as Record<string, unknown>) || {}),
+            awaitingResponse: true,
+            awaitingSince: new Date().toISOString(),
+            channel: waitConfig?.channel || 'any',
+            responseReceived: false,
+          };
+        }
+
         await prisma.automationEnrollment.update({
           where: { id: enrollment.id },
-          data: {
-            currentStepId: nextStepId,
-            nextActionAt: result.nextActionAt ?? new Date(),
-          },
+          data: updateData,
         });
       } else {
         // No next step — enrollment is completed
