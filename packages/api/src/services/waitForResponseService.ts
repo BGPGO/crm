@@ -1,9 +1,9 @@
 import prisma from '../lib/prisma';
+import { phoneVariants } from '../utils/phoneNormalize';
 
 /**
  * Resolve all contactIds that share the same phone number.
- * Handles duplicate contacts so wait-for-response works even when
- * the conversation points to a different contact than the enrollment.
+ * Uses phoneVariants for exact matching, avoiding false positives.
  */
 async function resolveAllContactIds(contactId: string): Promise<string[]> {
   const contact = await prisma.contact.findUnique({
@@ -12,16 +12,16 @@ async function resolveAllContactIds(contactId: string): Promise<string[]> {
   });
   if (!contact?.phone) return [contactId];
 
-  const digits = contact.phone.replace(/\D/g, '');
-  const suffix = digits.slice(-8);
-  if (suffix.length < 8) return [contactId];
+  const variants = phoneVariants(contact.phone);
 
   const allContacts = await prisma.contact.findMany({
-    where: { phone: { contains: suffix } },
+    where: { phone: { in: variants } },
     select: { id: true },
   });
 
-  return allContacts.length > 0 ? allContacts.map(c => c.id) : [contactId];
+  const ids = new Set(allContacts.map(c => c.id));
+  ids.add(contactId);
+  return [...ids];
 }
 
 /**

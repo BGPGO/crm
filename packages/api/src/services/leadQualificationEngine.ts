@@ -2,21 +2,14 @@ import prisma from '../lib/prisma';
 import { getAIResponse, sendBotMessages, ensureMeetingLink } from './whatsappBot';
 import { EvolutionApiClient } from './evolutionApiClient';
 import { MessageSender } from '@prisma/client';
+import { normalizePhone } from '../utils/phoneNormalize';
+
+// Re-export for existing consumers
+export { normalizePhone };
 
 // ─── Idempotency Map ─────────────────────────────────────────────────────────
 
 const pendingTimers = new Map<string, NodeJS.Timeout>();
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  // If 10-11 digits (BR without country code), prepend 55
-  if (digits.length === 10 || digits.length === 11) {
-    return `55${digits}`;
-  }
-  return digits;
-}
 
 function buildCampaignContext(params: {
   contactName: string;

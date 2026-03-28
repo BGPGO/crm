@@ -5,6 +5,7 @@ import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onLeadCreated } from '../services/leadQualificationEngine';
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
+import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 
 const router = Router();
 
@@ -73,7 +74,8 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
 
     const contactName = resolveField(['name', 'nome', 'full_name', 'fullName', 'lead_name']) ?? 'Contato sem nome';
     const contactEmail = resolveField(['email', 'e_mail', 'email_address', 'lead_email']);
-    const contactPhone = resolveField(['phone', 'telefone', 'celular', 'whatsapp', 'phone_number', 'lead_phone']);
+    const contactPhoneRaw = resolveField(['phone', 'telefone', 'celular', 'whatsapp', 'phone_number', 'lead_phone']);
+    const contactPhone = contactPhoneRaw ? normalizePhone(contactPhoneRaw) : null;
     const contactPosition = resolveField(['position', 'cargo', 'job_title']);
     const contactInstagram = resolveField(['instagram', 'ig']);
 
@@ -186,76 +188,59 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    // 10. Create or find Contact (upsert by email, then by phone)
-    let contact;
-    if (contactEmail) {
-      const existing = await prisma.contact.findFirst({
-        where: { email: { equals: contactEmail, mode: 'insensitive' } },
-      });
-      if (existing) {
-        contact = await prisma.contact.update({
-          where: { id: existing.id },
-          data: {
-            ...(contactPhone && !existing.phone ? { phone: contactPhone } : {}),
-            ...(contactPosition && !existing.position ? { position: contactPosition } : {}),
-            ...(contactInstagram && !existing.instagram ? { instagram: contactInstagram } : {}),
-            ...(organizationId && !existing.organizationId ? { organizationId } : {}),
-          },
+    // 10. Create or find Contact (dedup by email, then by normalized phone, inside transaction)
+    const phoneSearchVariants = contactPhone ? phoneVariants(contactPhone) : [];
+
+    const contact = await prisma.$transaction(async (tx) => {
+      // Step 1: Try to find by email
+      if (contactEmail) {
+        const byEmail = await tx.contact.findFirst({
+          where: { email: { equals: contactEmail, mode: 'insensitive' } },
         });
-      } else {
-        // Email not found — check if a contact with this phone already exists (avoid duplicates)
-        const byPhone = contactPhone
-          ? await prisma.contact.findFirst({
-              where: { phone: { contains: contactPhone.replace(/\D/g, '').slice(-8) } },
-            })
-          : null;
+        if (byEmail) {
+          return tx.contact.update({
+            where: { id: byEmail.id },
+            data: {
+              ...(contactPhone && !byEmail.phone ? { phone: contactPhone } : {}),
+              ...(contactPosition && !byEmail.position ? { position: contactPosition } : {}),
+              ...(contactInstagram && !byEmail.instagram ? { instagram: contactInstagram } : {}),
+              ...(organizationId && !byEmail.organizationId ? { organizationId } : {}),
+            },
+          });
+        }
+      }
+
+      // Step 2: Try to find by normalized phone (exact match via phoneVariants)
+      if (phoneSearchVariants.length > 0) {
+        const byPhone = await tx.contact.findFirst({
+          where: { phone: { in: phoneSearchVariants } },
+        });
         if (byPhone) {
-          contact = await prisma.contact.update({
+          console.log(`[webhook] Contato existente encontrado por telefone (${contactPhone}) — reutilizando ${byPhone.id}`);
+          return tx.contact.update({
             where: { id: byPhone.id },
             data: {
-              ...(!byPhone.email ? { email: contactEmail } : {}),
+              ...(contactEmail && !byPhone.email ? { email: contactEmail } : {}),
               ...(contactPosition && !byPhone.position ? { position: contactPosition } : {}),
               ...(contactInstagram && !byPhone.instagram ? { instagram: contactInstagram } : {}),
               ...(organizationId && !byPhone.organizationId ? { organizationId } : {}),
             },
           });
-          console.log(`[webhook] Contato existente encontrado por telefone (${contactPhone}) — reutilizando ${byPhone.id} em vez de criar duplicata`);
-        } else {
-          contact = await prisma.contact.create({
-            data: {
-              name: contactName,
-              email: contactEmail,
-              phone: contactPhone ?? null,
-              position: contactPosition ?? null,
-              instagram: contactInstagram ?? null,
-              organizationId,
-            },
-          });
         }
       }
-    } else {
-      // No email — check phone before creating
-      const byPhone = contactPhone
-        ? await prisma.contact.findFirst({
-            where: { phone: { contains: contactPhone.replace(/\D/g, '').slice(-8) } },
-          })
-        : null;
-      if (byPhone) {
-        contact = byPhone;
-        console.log(`[webhook] Contato existente encontrado por telefone (${contactPhone}) — reutilizando ${byPhone.id}`);
-      } else {
-        contact = await prisma.contact.create({
-          data: {
-            name: contactName,
-            email: null,
-            phone: contactPhone ?? null,
-            position: contactPosition ?? null,
-            instagram: contactInstagram ?? null,
-            organizationId,
-          },
-        });
-      }
-    }
+
+      // Step 3: No match — create new contact
+      return tx.contact.create({
+        data: {
+          name: contactName,
+          email: contactEmail ?? null,
+          phone: contactPhone ?? null,
+          position: contactPosition ?? null,
+          instagram: contactInstagram ?? null,
+          organizationId,
+        },
+      });
+    });
 
     // 11. Create LeadTracking
     await prisma.leadTracking.create({

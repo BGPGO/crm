@@ -4,15 +4,9 @@ import { isUnsubscribed } from './unsubscribeManager';
 import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
+import { normalizePhone } from '../utils/phoneNormalize';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-/** Normalize phone: strip non-digits, prepend 55 if needed */
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 10 || digits.length === 11) return '55' + digits;
-  return digits;
-}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

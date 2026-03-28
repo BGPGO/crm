@@ -4,13 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
 import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
 import { processMessageTemplate, ContactData } from '../utils/messageTemplate';
-
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  // If 10-11 digits (BR without country code), prepend 55
-  if (digits.length === 10 || digits.length === 11) return '55' + digits;
-  return digits;
-}
+import { normalizePhone } from '../utils/phoneNormalize';
 
 /** Delay não-uniforme (log-normal aproximado) — simula comportamento humano */
 function randomDelay(): Promise<void> {

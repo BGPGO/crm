@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma';
+import { phoneVariants } from '../utils/phoneNormalize';
 
 /** Remove all cadence tags from a contact (and all duplicate contacts with same phone) */
 async function removeCadenceTags(contactIds: string[]): Promise<void> {
@@ -14,8 +15,8 @@ async function removeCadenceTags(contactIds: string[]): Promise<void> {
 
 /**
  * Resolve all contactIds that share the same phone number.
- * Handles duplicate contacts so cadence interruption works even when
- * the conversation points to a different contact than the enrollment.
+ * Uses phoneVariants (normalized + without-9 variant) for exact matching,
+ * avoiding false positives from substring matching.
  */
 async function resolveAllContactIds(contactId: string): Promise<string[]> {
   const contact = await prisma.contact.findUnique({
@@ -24,17 +25,17 @@ async function resolveAllContactIds(contactId: string): Promise<string[]> {
   });
   if (!contact?.phone) return [contactId];
 
-  // Find all contacts with the same phone (last 8 digits match)
-  const digits = contact.phone.replace(/\D/g, '');
-  const suffix = digits.slice(-8);
-  if (suffix.length < 8) return [contactId];
+  const variants = phoneVariants(contact.phone);
 
   const allContacts = await prisma.contact.findMany({
-    where: { phone: { contains: suffix } },
+    where: { phone: { in: variants } },
     select: { id: true },
   });
 
-  return allContacts.length > 0 ? allContacts.map(c => c.id) : [contactId];
+  // Always include the original contactId even if phone format didn't match
+  const ids = new Set(allContacts.map(c => c.id));
+  ids.add(contactId);
+  return [...ids];
 }
 
 /**

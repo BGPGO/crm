@@ -242,6 +242,16 @@ export async function getAIResponse(
   const basePrompt = await getSystemPrompt();
   const context = await getCurrentContext();
   let systemMessage = basePrompt + context;
+
+  // If there's already conversation history (prior assistant messages),
+  // override the "always introduce yourself" instruction to avoid re-introductions
+  const hasAssistantHistory = history.some(m => m.role === 'assistant');
+  if (hasAssistantHistory) {
+    systemMessage = systemMessage.replace(
+      /SEMPRE se apresente como Bia na primeira mensagem\.?/i,
+      'Você já está em contato com este lead. NÃO se apresente novamente. NÃO diga "sou a Bia" ou "aqui é a Bia". Continue a conversa de forma natural.'
+    );
+  }
   if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
   if (meetingLink) systemMessage += `\n\nLINK DE AGENDAMENTO (use exatamente este): ${meetingLink}\nREGRA ABSOLUTA: quando enviar o link, cole EXATAMENTE "${meetingLink}" sozinho em uma mensagem. NUNCA use markdown [texto](url). NUNCA escreva "calendly.com" genérico. SEMPRE o link completo acima.`;
   else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
