@@ -11,9 +11,28 @@
  */
 
 const TIMEZONE = 'America/Sao_Paulo';
-const START_HOUR = 8;
-const END_HOUR_WEEKDAY = 18;
-const END_HOUR_SATURDAY = 12;
+
+// Defaults (fallback when DB config is not available or not overridden)
+export const DEFAULT_START_HOUR = 8;
+export const DEFAULT_END_HOUR_WEEKDAY = 18;
+export const DEFAULT_END_HOUR_SATURDAY = 12;
+
+// Runtime overrides set from DB config on server startup / config save
+let START_HOUR = DEFAULT_START_HOUR;
+let END_HOUR_WEEKDAY = DEFAULT_END_HOUR_WEEKDAY;
+let END_HOUR_SATURDAY = DEFAULT_END_HOUR_SATURDAY;
+
+/** Called once on startup and whenever config is saved to keep hours in sync */
+export function setBusinessHours(start: number, endWeekday: number, endSaturday: number): void {
+  START_HOUR = Math.max(0, Math.min(23, start));
+  END_HOUR_WEEKDAY = Math.max(0, Math.min(23, endWeekday));
+  END_HOUR_SATURDAY = Math.max(0, Math.min(23, endSaturday));
+  console.log(`[sendingWindow] Horário atualizado: ${START_HOUR}h–${END_HOUR_WEEKDAY}h (seg-sex), sáb até ${END_HOUR_SATURDAY}h`);
+}
+
+export function getBusinessHours() {
+  return { start: START_HOUR, endWeekday: END_HOUR_WEEKDAY, endSaturday: END_HOUR_SATURDAY };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers de timezone — usa Intl.DateTimeFormat para toda conversão

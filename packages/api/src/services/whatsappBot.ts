@@ -125,9 +125,92 @@ async function getOpenAIClient(): Promise<OpenAI> {
   return new OpenAI({ apiKey: key });
 }
 
+// ─── Default blocks (used when DB fields are empty) ──────────────────────────
+
+const DEFAULT_CONVERSATION_RULES = `REGRAS DE OURO:
+- Mensagens CURTAS. Máximo 1 linha por mensagem. Escreva como quem digita rápido no WhatsApp.
+- Seja DIRETA. Entenda a dor do lead e encaminhe pra reunião. Sem enrolação.
+- A partir da 2ª troca, já direcione para o agendamento.
+- NUNCA mande parágrafos longos. Se a mensagem tem mais de 2 linhas, quebre com ---.
+
+ESCRITA:
+- Máximo 1 linha por mensagem entre ---
+- Máximo 1 emoji por mensagem, esporádico
+- Sem listas, sem bullets, sem blocos de texto
+- Nunca invente informações`;
+
+const DEFAULT_FUNNEL = `FUNIL:
+1. Cumprimente + pergunte sobre a empresa/dor (1 mensagem curta)
+2. Entendeu a dor? Conecte com o produto certo e proponha reunião
+3. Envie o link do Calendly
+
+AGENDAMENTO:
+- Envie o link do Calendly em mensagem SEPARADA (entre ---), SOZINHO, sem texto antes ou depois, SEM markdown
+- NUNCA use formato [texto](url). Mande APENAS a URL pura.
+- NUNCA sugira horários. O lead escolhe pelo link.
+- O link é enviado NO MÁXIMO 1 VEZ. Depois, vire suporte — responda dúvidas sem reenviar.
+- Se o lead pedir o link de novo → mande. Senão, não repita.`;
+
+const DEFAULT_OBJECTIONS = `OBJEÇÕES (respostas curtas):
+- "Não tenho tempo" → "São 45 minutinhos! Te mando o link pra encaixar na agenda"
+- "Já tenho solução" → "Qual usam hoje?" + diferencial rápido
+- "Manda info" → 1 dado concreto + "fica mais claro ao vivo, 45 min"
+- "Quanto custa?" → Range + "depende do cenário, na reunião definimos certinho"
+- "Não quero" → Agradeça e encerre. NÃO insista.`;
+
+// ─── Dynamic prompt builder ───────────────────────────────────────────────────
+
+async function buildPromptFromBlocks(): Promise<string> {
+  const config = await prisma.whatsAppConfig.findFirst({
+    include: {
+      botProducts: { where: { isActive: true }, orderBy: { order: 'asc' } },
+      botObjections: { orderBy: { order: 'asc' } },
+    },
+  });
+
+  const botName = config?.botName || 'Bia';
+  const botCompany = config?.botCompany || 'Bertuzzi Patrimonial';
+
+  let prompt = `Você é a ${botName}, SDR da ${botCompany}. SEMPRE se apresente como ${botName} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro.\n\n`;
+  prompt += `FORMATO: Separe mensagens com ---. Cada bloco entre --- vira uma mensagem separada no WhatsApp. Mande 2-3 mensagens curtas por vez.\n\n`;
+  prompt += (config?.conversationRules?.trim() || DEFAULT_CONVERSATION_RULES) + '\n\n';
+  prompt += (config?.funnelInstructions?.trim() || DEFAULT_FUNNEL) + '\n\n';
+
+  if (config?.botObjections && config.botObjections.length > 0) {
+    prompt += `OBJEÇÕES (respostas curtas):\n`;
+    for (const o of config.botObjections) {
+      prompt += `- "${o.objection}" → "${o.response}"\n`;
+    }
+    prompt += '\n';
+  } else {
+    prompt += DEFAULT_OBJECTIONS + '\n\n';
+  }
+
+  if (config?.botProducts && config.botProducts.length > 0) {
+    prompt += `EMPRESA:\n- ${botCompany} — soluções financeiras para empresas\n`;
+    for (const p of config.botProducts) {
+      let line = `- ${p.name}`;
+      if (p.priceRange) line += ` — ${p.priceRange}`;
+      prompt += line + '\n';
+      if (p.description) prompt += `  ${p.description}\n`;
+      if (p.differentials) prompt += `  Diferenciais: ${p.differentials}\n`;
+      if (p.targetAudience) prompt += `  Para: ${p.targetAudience}\n`;
+    }
+    prompt += '\n';
+  } else {
+    prompt += `EMPRESA:\n- ${botCompany} — soluções financeiras para empresas\n- GoBI: BI financeiro, dashboards, integra ERPs — a partir de R$397/mês\n- GoControladoria: controladoria, DRE, compliance — a partir de R$1.997/mês\n- Valores variam — direcione pra demo\n\n`;
+  }
+
+  prompt += `KPI: reunião agendada. Seja prática, rápida e humana.`;
+  return prompt;
+}
+
 async function getSystemPrompt(): Promise<string> {
   const config = await prisma.whatsAppConfig.findFirst();
-  return config?.botSystemPrompt || DEFAULT_SYSTEM_PROMPT;
+  // Modo avançado: botSystemPrompt preenchido → usa diretamente
+  if (config?.botSystemPrompt?.trim()) return config.botSystemPrompt;
+  // Modo estruturado: monta dos blocos configurados
+  return buildPromptFromBlocks();
 }
 
 export async function getCurrentContext(): Promise<string> {
@@ -373,6 +456,8 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     include: { followUpState: true },
   });
 
+  const isNewConversation = !conversation;
+
   if (!conversation) {
     // Try to link to an existing contact by phone — prefer one with OPEN deal
     const linkedContact = await findBestContactByPhone(variants);
@@ -429,6 +514,20 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   if (!config || !config.botEnabled) return;
 
   if (conversation.needsHumanAttention) return;
+
+  // ── Send welcome message on brand-new conversations ──────────────────────
+  if (isNewConversation && config.welcomeMessage?.trim()) {
+    try {
+      const welcomeClient = await EvolutionApiClient.fromDB();
+      await sendBotMessages(welcomeClient, phone, config.welcomeMessage.trim());
+      await prisma.whatsAppMessage.create({
+        data: { conversationId: conversation.id, sender: MessageSender.BOT, text: config.welcomeMessage.trim() },
+      });
+      console.log(`[Bot] Mensagem de boas-vindas enviada para ${phone}`);
+    } catch (err) {
+      console.error('[Bot] Erro ao enviar boas-vindas:', err instanceof Error ? err.message : err);
+    }
+  }
 
   // Update follow-up state: client responded
   if (conversation.followUpState) {

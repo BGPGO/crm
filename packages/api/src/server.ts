@@ -100,8 +100,17 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 // ─── Start server ─────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[api] Server running on http://localhost:${PORT}`);
+  // Sync business hours from DB config into sendingWindow module
+  try {
+    const { default: prisma } = await import('./lib/prisma');
+    const { setBusinessHours } = await import('./utils/sendingWindow');
+    const cfg = await prisma.whatsAppConfig.findFirst({
+      select: { businessHoursStart: true, businessHoursEndWeekday: true, businessHoursEndSaturday: true },
+    });
+    if (cfg) setBusinessHours(cfg.businessHoursStart, cfg.businessHoursEndWeekday, cfg.businessHoursEndSaturday);
+  } catch { /* non-fatal */ }
   startAllJobs();
 });
 

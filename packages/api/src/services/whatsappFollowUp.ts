@@ -76,6 +76,23 @@ NÃO use ---. Mande apenas 1 mensagem curta.`,
   return tones[tone] || tones.CASUAL;
 }
 
+// Versão que aceita textos customizados vindos do banco (config.followUpTone*)
+export function getFollowUpInstructionWithCustom(
+  tone: FollowUpTone | string,
+  stepNumber: number,
+  totalSteps: number,
+  pushName: string,
+  customTones?: { CASUAL?: string | null; REFORCO?: string | null; ENCERRAMENTO?: string | null },
+): string {
+  const customText = customTones?.[tone as keyof typeof customTones];
+  if (customText?.trim()) {
+    const nameRef = pushName ? `O nome do cliente é ${pushName}. Use o nome dele.` : '';
+    const noReintro = 'IMPORTANTE: Você JÁ se apresentou em mensagens anteriores. NÃO se apresente novamente. Vá direto ao ponto.';
+    return `${nameRef}\n${noReintro}\nCONTEXTO: Follow-up #${stepNumber} de ${totalSteps}.\n\n${customText.trim()}\n\nNÃO use ---. Mande apenas 1 mensagem curta.`;
+  }
+  return getFollowUpInstruction(tone, stepNumber, totalSteps, pushName);
+}
+
 // ─── Send Follow-Up ─────────────────────────────────────────────────────────
 
 export async function sendFollowUp(
@@ -89,7 +106,11 @@ export async function sendFollowUp(
 
   const pushName = conversation.pushName || '';
   const tone = stepConfig.tone;
-  const instruction = getFollowUpInstruction(tone, stepNumber, totalSteps, pushName);
+  const instruction = getFollowUpInstructionWithCustom(tone, stepNumber, totalSteps, pushName, {
+    CASUAL: config.followUpToneCasual,
+    REFORCO: config.followUpToneReforco,
+    ENCERRAMENTO: config.followUpToneEncerramento,
+  });
 
   try {
     // Load recent AI history for context

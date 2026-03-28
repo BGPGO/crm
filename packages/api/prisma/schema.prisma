@@ -1053,10 +1053,69 @@ model WhatsAppConfig {
   warmupEnabled       Boolean  @default(false)
   warmupStartDate     DateTime?
 
+  // SDR Identity
+  botName    String @default("Bia")
+  botCompany String @default("Bertuzzi Patrimonial")
+
+  // Conversation behavior
+  conversationRules  String? @db.Text
+  funnelInstructions String? @db.Text
+
+  // Follow-up tone instructions (null = usa texto padrão do código)
+  followUpToneCasual       String? @db.Text
+  followUpToneReforco      String? @db.Text
+  followUpToneEncerramento String? @db.Text
+
+  // Cold contact limit (stop follow-ups after N messages with no reply)
+  coldContactMaxMessages Int @default(2)
+
+  // Business hours (Brasília)
+  businessHoursStart         Int @default(8)
+  businessHoursEndWeekday    Int @default(18)
+  businessHoursEndSaturday   Int @default(12)
+
   followUpSteps WhatsAppFollowUpStep[]
+  botProducts   BotProduct[]
+  botObjections BotObjection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model BotProduct {
+  id             String  @id @default(cuid())
+  name           String
+  description    String? @db.Text
+  priceRange     String?
+  targetAudience String? @db.Text
+  differentials  String? @db.Text
+  order          Int     @default(0)
+  isActive       Boolean @default(true)
+
+  configId String
+  config   WhatsAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId])
+  @@index([configId, order])
+}
+
+model BotObjection {
+  id        String @id @default(cuid())
+  objection String @db.Text
+  response  String @db.Text
+  order     Int    @default(0)
+
+  configId String
+  config   WhatsAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId])
+  @@index([configId, order])
 }
 
 model WhatsAppDailyVolume {

@@ -56,6 +56,40 @@ interface BotConfig {
   sdrAutoMessageEnabled: boolean;
   meetingReminderEnabled: boolean;
   cadenceEnabled: boolean;
+  // Identidade SDR
+  botName: string;
+  botCompany: string;
+  // Comportamento
+  conversationRules: string;
+  funnelInstructions: string;
+  // Tons de follow-up
+  followUpToneCasual: string;
+  followUpToneReforco: string;
+  followUpToneEncerramento: string;
+  // Limites
+  coldContactMaxMessages: number;
+  // Horário comercial
+  businessHoursStart: number;
+  businessHoursEndWeekday: number;
+  businessHoursEndSaturday: number;
+}
+
+interface BotProduct {
+  id: string;
+  name: string;
+  description: string;
+  priceRange: string;
+  targetAudience: string;
+  differentials: string;
+  order: number;
+  isActive: boolean;
+}
+
+interface BotObjection {
+  id: string;
+  objection: string;
+  response: string;
+  order: number;
 }
 
 interface CampaignInfo {
@@ -101,14 +135,29 @@ const defaultConfig: BotConfig = {
   sdrAutoMessageEnabled: true,
   meetingReminderEnabled: true,
   cadenceEnabled: false,
+  botName: "Bia",
+  botCompany: "",
+  conversationRules: "",
+  funnelInstructions: "",
+  followUpToneCasual: "",
+  followUpToneReforco: "",
+  followUpToneEncerramento: "",
+  coldContactMaxMessages: 2,
+  businessHoursStart: 8,
+  businessHoursEndWeekday: 18,
+  businessHoursEndSaturday: 12,
 };
 
 const TABS = [
   { key: "conexao", label: "Conexão" },
-  { key: "sdr", label: "SDR IA" },
+  { key: "identidade", label: "Identidade" },
+  { key: "produtos", label: "Produtos" },
+  { key: "objecoes", label: "Objeções" },
+  { key: "followup", label: "Follow-up" },
+  { key: "horarios", label: "Horários" },
   { key: "contextos", label: "Contextos" },
-  { key: "lembretes", label: "Lembretes e Follow-up" },
   { key: "testar", label: "Testar IA" },
+  { key: "avancado", label: "Avançado" },
   { key: "credenciais", label: "Credenciais" },
 ] as const;
 
@@ -216,7 +265,7 @@ export default function ConversasConfiguracaoPage() {
     }
   };
 
-  const updateField = (field: keyof BotConfig, value: string | boolean) => {
+  const updateField = (field: keyof BotConfig, value: string | boolean | number) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -290,8 +339,32 @@ export default function ConversasConfiguracaoPage() {
           />
         )}
 
-        {activeTab === "sdr" && (
-          <TabSdrIa
+        {activeTab === "identidade" && (
+          <TabIdentidade
+            config={config}
+            configLoading={configLoading}
+            saving={saving}
+            updateField={updateField}
+            saveConfig={saveConfig}
+          />
+        )}
+
+        {activeTab === "produtos" && <TabProdutos />}
+
+        {activeTab === "objecoes" && <TabObjecoes />}
+
+        {activeTab === "followup" && (
+          <TabFollowup
+            config={config}
+            configLoading={configLoading}
+            saving={saving}
+            updateField={updateField}
+            saveConfig={saveConfig}
+          />
+        )}
+
+        {activeTab === "horarios" && (
+          <TabHorarios
             config={config}
             configLoading={configLoading}
             saving={saving}
@@ -302,8 +375,10 @@ export default function ConversasConfiguracaoPage() {
 
         {activeTab === "contextos" && <TabContextos />}
 
-        {activeTab === "lembretes" && (
-          <TabLembretes
+        {activeTab === "testar" && <TabTestarIA />}
+
+        {activeTab === "avancado" && (
+          <TabAvancado
             config={config}
             configLoading={configLoading}
             saving={saving}
@@ -311,8 +386,6 @@ export default function ConversasConfiguracaoPage() {
             saveConfig={saveConfig}
           />
         )}
-
-        {activeTab === "testar" && <TabTestarIA />}
 
         {activeTab === "credenciais" && (
           <TabCredenciais
@@ -415,10 +488,10 @@ function TabConexao({
 }
 
 // ─────────────────────────────────────────────
-// Tab: SDR IA
+// Tab: Identidade
 // ─────────────────────────────────────────────
 
-function TabSdrIa({
+function TabIdentidade({
   config,
   configLoading,
   saving,
@@ -428,62 +501,71 @@ function TabSdrIa({
   config: BotConfig;
   configLoading: boolean;
   saving: boolean;
-  updateField: (field: keyof BotConfig, value: string | boolean) => void;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => void;
 }) {
   return (
     <Card padding="lg">
-      <h2 className="text-sm font-semibold text-gray-900 mb-1">SDR IA — Comportamento do Bot</h2>
+      <h2 className="text-sm font-semibold text-gray-900 mb-1">Identidade da SDR</h2>
       <p className="text-xs text-gray-500 mb-6">
-        Configure a personalidade e as regras da Bia (SDR IA) sem precisar mexer no código.
+        Nome, empresa, boas-vindas e link de reunião — o que define quem é a Bia para o lead.
       </p>
 
       {configLoading ? (
         <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
           ))}
         </div>
       ) : (
         <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Prompt do Sistema (personalidade e regras do bot)
-            </label>
-            <p className="text-xs text-gray-400 mb-2">
-              Este prompt define como a Bia (SDR IA) se comporta. Edite aqui para mudar tom, regras, produtos,
-              objeções, etc.
-            </p>
-            <textarea
-              value={config.botSystemPrompt}
-              onChange={(e) => updateField("botSystemPrompt", e.target.value)}
-              placeholder="Você é um assistente de vendas da BGPGO..."
-              rows={22}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome da SDR</label>
+              <p className="text-xs text-gray-400 mb-1.5">Como a IA se apresenta para o lead.</p>
+              <input
+                type="text"
+                value={config.botName}
+                onChange={(e) => updateField("botName", e.target.value)}
+                placeholder="Bia"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+              <p className="text-xs text-gray-400 mb-1.5">Nome da empresa que a SDR representa.</p>
+              <input
+                type="text"
+                value={config.botCompany}
+                onChange={(e) => updateField("botCompany", e.target.value)}
+                placeholder="Bertuzzi Patrimonial"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Link de Reunião</label>
+            <p className="text-xs text-gray-400 mb-1.5">Link que a Bia envia quando o lead quer agendar.</p>
             <input
               type="text"
               value={config.meetingLink}
               onChange={(e) => updateField("meetingLink", e.target.value)}
-              placeholder="https://calendly.com/xxx ou https://meet.google.com/xxx"
+              placeholder="https://calendly.com/xxx"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de Boas-vindas</label>
-            <p className="text-xs text-gray-400 mb-2">
-              Primeira mensagem enviada quando um novo lead entra pelo WhatsApp.
+            <p className="text-xs text-gray-400 mb-1.5">
+              Enviada automaticamente quando um novo lead manda a primeira mensagem no WhatsApp.
             </p>
             <textarea
               value={config.welcomeMessage}
               onChange={(e) => updateField("welcomeMessage", e.target.value)}
-              placeholder="Olá! Bem-vindo à BGPGO..."
-              rows={5}
+              placeholder={"Olá! Sou a Bia, da Bertuzzi Patrimonial. Como posso te ajudar?"}
+              rows={4}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
@@ -494,11 +576,397 @@ function TabSdrIa({
             className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Save size={16} />
-            {saving ? "Salvando..." : "Salvar SDR IA"}
+            {saving ? "Salvando..." : "Salvar Identidade"}
           </button>
         </div>
       )}
     </Card>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Tab: Produtos
+// ─────────────────────────────────────────────
+
+function TabProdutos() {
+  const [products, setProducts] = useState<BotProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<BotProduct>>({});
+  const [showNew, setShowNew] = useState(false);
+  const [newDraft, setNewDraft] = useState<Partial<BotProduct>>({ name: "", description: "", priceRange: "", targetAudience: "", differentials: "" });
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: BotProduct[] }>("/whatsapp/bot-products");
+      setProducts((res as any).data || []);
+    } catch {
+      setError("Erro ao carregar produtos.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  const startEdit = (p: BotProduct) => {
+    setEditingId(p.id);
+    setDraft({ ...p });
+    setShowNew(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSaving(editingId);
+    try {
+      await api.put(`/whatsapp/bot-products/${editingId}`, draft);
+      await fetchProducts();
+      setEditingId(null);
+      setDraft({});
+    } catch {
+      setError("Erro ao salvar produto.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const createProduct = async () => {
+    if (!newDraft.name?.trim()) return;
+    setSaving("new");
+    try {
+      await api.post("/whatsapp/bot-products", newDraft);
+      await fetchProducts();
+      setShowNew(false);
+      setNewDraft({ name: "", description: "", priceRange: "", targetAudience: "", differentials: "" });
+    } catch {
+      setError("Erro ao criar produto.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!confirm("Remover este produto?")) return;
+    setDeleting(id);
+    try {
+      await api.delete(`/whatsapp/bot-products/${id}`);
+      await fetchProducts();
+    } catch {
+      setError("Erro ao remover produto.");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const toggleActive = async (p: BotProduct) => {
+    try {
+      await api.put(`/whatsapp/bot-products/${p.id}`, { isActive: !p.isActive });
+      await fetchProducts();
+    } catch {
+      setError("Erro ao alterar produto.");
+    }
+  };
+
+  const ProductForm = ({ data, setData, onSave, onCancel, saveLabel, isSaving }: {
+    data: Partial<BotProduct>;
+    setData: (d: Partial<BotProduct>) => void;
+    onSave: () => void;
+    onCancel: () => void;
+    saveLabel: string;
+    isSaving: boolean;
+  }) => (
+    <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Nome do Produto <span className="text-red-500">*</span></label>
+        <input type="text" value={data.name || ""} onChange={(e) => setData({ ...data, name: e.target.value })} placeholder="Ex: Fundo GoBI" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
+        <textarea value={data.description || ""} onChange={(e) => setData({ ...data, description: e.target.value })} placeholder="Descreva o produto de forma clara para a IA usar na conversa..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Faixa de Preço / Aporte mínimo</label>
+          <input type="text" value={data.priceRange || ""} onChange={(e) => setData({ ...data, priceRange: e.target.value })} placeholder="Ex: A partir de R$ 10.000" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Público-alvo</label>
+          <input type="text" value={data.targetAudience || ""} onChange={(e) => setData({ ...data, targetAudience: e.target.value })} placeholder="Ex: Investidores pessoa física acima de 30 anos" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Diferenciais</label>
+        <textarea value={data.differentials || ""} onChange={(e) => setData({ ...data, differentials: e.target.value })} placeholder="Liste os principais diferenciais que a Bia deve mencionar..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onSave} disabled={isSaving || !data.name?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <Save size={14} />
+          {isSaving ? "Salvando..." : saveLabel}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card padding="lg">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Produtos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">A Bia usa esses dados para falar sobre seus produtos com os leads.</p>
+          </div>
+          {!showNew && (
+            <button onClick={() => { setShowNew(true); setEditingId(null); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+              <Plus size={12} />
+              Novo Produto
+            </button>
+          )}
+        </div>
+
+        {error && <p className="text-xs text-red-600 mt-2 mb-2">{error}</p>}
+
+        {showNew && (
+          <div className="mt-4">
+            <ProductForm
+              data={newDraft}
+              setData={setNewDraft}
+              onSave={createProduct}
+              onCancel={() => setShowNew(false)}
+              saveLabel="Criar Produto"
+              isSaving={saving === "new"}
+            />
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-3 mt-4">
+            {[1, 2].map((i) => <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />)}
+          </div>
+        ) : products.length === 0 && !showNew ? (
+          <div className="mt-6 text-center py-8 text-gray-400 text-sm">
+            Nenhum produto cadastrado. Clique em &quot;Novo Produto&quot; para adicionar.
+          </div>
+        ) : (
+          <div className="space-y-3 mt-4">
+            {products.map((p) => (
+              <div key={p.id}>
+                {editingId === p.id ? (
+                  <ProductForm
+                    data={draft}
+                    setData={setDraft}
+                    onSave={saveEdit}
+                    onCancel={() => { setEditingId(null); setDraft({}); }}
+                    saveLabel="Salvar"
+                    isSaving={saving === p.id}
+                  />
+                ) : (
+                  <div className={clsx("flex items-start gap-3 p-3 border rounded-lg", p.isActive ? "border-gray-200 bg-white" : "border-gray-200 bg-gray-50 opacity-60")}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900 truncate">{p.name}</span>
+                        {p.priceRange && <span className="text-xs text-gray-400 flex-shrink-0">{p.priceRange}</span>}
+                        {!p.isActive && <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 text-gray-500 rounded-full">Inativo</span>}
+                      </div>
+                      {p.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{p.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => toggleActive(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title={p.isActive ? "Desativar" : "Ativar"}>
+                        {p.isActive ? <Eye size={14} /> : <EyeOff size={14} />}
+                      </button>
+                      <button onClick={() => startEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
+                        <FileText size={14} />
+                      </button>
+                      <button onClick={() => deleteProduct(p.id)} disabled={deleting === p.id} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Tab: Objeções
+// ─────────────────────────────────────────────
+
+function TabObjecoes() {
+  const [objections, setObjections] = useState<BotObjection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Partial<BotObjection>>({});
+  const [showNew, setShowNew] = useState(false);
+  const [newDraft, setNewDraft] = useState<Partial<BotObjection>>({ objection: "", response: "" });
+
+  const fetchObjections = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: BotObjection[] }>("/whatsapp/bot-objections");
+      setObjections((res as any).data || []);
+    } catch {
+      setError("Erro ao carregar objeções.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchObjections(); }, [fetchObjections]);
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSaving(editingId);
+    try {
+      await api.put(`/whatsapp/bot-objections/${editingId}`, draft);
+      await fetchObjections();
+      setEditingId(null);
+      setDraft({});
+    } catch {
+      setError("Erro ao salvar objeção.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const createObjection = async () => {
+    if (!newDraft.objection?.trim() || !newDraft.response?.trim()) return;
+    setSaving("new");
+    try {
+      await api.post("/whatsapp/bot-objections", newDraft);
+      await fetchObjections();
+      setShowNew(false);
+      setNewDraft({ objection: "", response: "" });
+    } catch {
+      setError("Erro ao criar objeção.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const deleteObjection = async (id: string) => {
+    if (!confirm("Remover esta objeção?")) return;
+    setDeleting(id);
+    try {
+      await api.delete(`/whatsapp/bot-objections/${id}`);
+      await fetchObjections();
+    } catch {
+      setError("Erro ao remover objeção.");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const ObjectionForm = ({ data, setData, onSave, onCancel, saveLabel, isSaving }: {
+    data: Partial<BotObjection>;
+    setData: (d: Partial<BotObjection>) => void;
+    onSave: () => void;
+    onCancel: () => void;
+    saveLabel: string;
+    isSaving: boolean;
+  }) => (
+    <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Objeção do Lead <span className="text-red-500">*</span></label>
+        <input type="text" value={data.objection || ""} onChange={(e) => setData({ ...data, objection: e.target.value })} placeholder="Ex: Está muito caro" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Como a Bia deve responder <span className="text-red-500">*</span></label>
+        <textarea value={data.response || ""} onChange={(e) => setData({ ...data, response: e.target.value })} placeholder="Ex: Entendo sua preocupação. O investimento mínimo é de R$10.000, mas o retorno esperado é..." rows={4} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onSave} disabled={isSaving || !data.objection?.trim() || !data.response?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
+          <Save size={14} />
+          {isSaving ? "Salvando..." : saveLabel}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card padding="lg">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Objeções e Respostas</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Ensine a Bia como contornar as objeções mais comuns dos leads.</p>
+          </div>
+          {!showNew && (
+            <button onClick={() => { setShowNew(true); setEditingId(null); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors">
+              <Plus size={12} />
+              Nova Objeção
+            </button>
+          )}
+        </div>
+
+        {error && <p className="text-xs text-red-600 mt-2 mb-2">{error}</p>}
+
+        {showNew && (
+          <div className="mt-4">
+            <ObjectionForm
+              data={newDraft}
+              setData={setNewDraft}
+              onSave={createObjection}
+              onCancel={() => setShowNew(false)}
+              saveLabel="Criar Objeção"
+              isSaving={saving === "new"}
+            />
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-3 mt-4">
+            {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />)}
+          </div>
+        ) : objections.length === 0 && !showNew ? (
+          <div className="mt-6 text-center py-8 text-gray-400 text-sm">
+            Nenhuma objeção cadastrada. Clique em &quot;Nova Objeção&quot; para adicionar.
+          </div>
+        ) : (
+          <div className="space-y-3 mt-4">
+            {objections.map((o) => (
+              <div key={o.id}>
+                {editingId === o.id ? (
+                  <ObjectionForm
+                    data={draft}
+                    setData={setDraft}
+                    onSave={saveEdit}
+                    onCancel={() => { setEditingId(null); setDraft({}); }}
+                    saveLabel="Salvar"
+                    isSaving={saving === o.id}
+                  />
+                ) : (
+                  <div className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{o.objection}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{o.response}</p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => { setEditingId(o.id); setDraft({ ...o }); setShowNew(false); }} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
+                        <FileText size={14} />
+                      </button>
+                      <button onClick={() => deleteObjection(o.id)} disabled={deleting === o.id} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 
@@ -925,7 +1393,7 @@ function TabFollowup({
   config: BotConfig;
   configLoading: boolean;
   saving: boolean;
-  updateField: (field: keyof BotConfig, value: string | boolean) => void;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => void;
 }) {
   const [steps, setSteps] = useState<FollowUpStep[]>([]);
@@ -1100,7 +1568,305 @@ function TabFollowup({
           </p>
         </div>
       </Card>
+
+      {/* Tone Texts */}
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Textos dos Tons (Opcional)</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Personalize o que a Bia diz em cada tom de follow-up. Deixe em branco para usar o padrão automático.
+        </p>
+        {configLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-gray-100 rounded animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {[
+              { field: "followUpToneCasual" as keyof BotConfig, label: "Casual", hint: "Tom leve, apenas verificando se o lead viu a mensagem anterior." },
+              { field: "followUpToneReforco" as keyof BotConfig, label: "Reforço", hint: "Reforça o valor do produto e propõe uma demonstração rápida." },
+              { field: "followUpToneEncerramento" as keyof BotConfig, label: "Encerramento", hint: "Último contato — agradece e encerra a abordagem de forma educada." },
+            ].map(({ field, label, hint }) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                <p className="text-xs text-gray-400 mb-1.5">{hint}</p>
+                <textarea
+                  value={(config[field] as string) || ""}
+                  onChange={(e) => updateField(field, e.target.value)}
+                  placeholder="Deixe em branco para usar o texto padrão da IA..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+            ))}
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar Tons"}
+            </button>
+          </div>
+        )}
+      </Card>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Tab: Horários
+// ─────────────────────────────────────────────
+
+function TabHorarios({
+  config,
+  configLoading,
+  saving,
+  updateField,
+  saveConfig,
+}: {
+  config: BotConfig;
+  configLoading: boolean;
+  saving: boolean;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
+  saveConfig: () => void;
+}) {
+  // Meeting reminder steps
+  const [reminderSteps, setReminderSteps] = useState<
+    Array<{ id: string; minutesBefore: number; message: string; enabled: boolean }>
+  >([]);
+  const [reminderLoading, setReminderLoading] = useState(true);
+  const [reminderSaving, setReminderSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get<{ data: typeof reminderSteps }>("/meeting-reminders")
+      .then((res) => setReminderSteps((res as any).data || []))
+      .catch(() => {})
+      .finally(() => setReminderLoading(false));
+  }, []);
+
+  const saveReminderStep = async (id: string, data: { enabled?: boolean; message?: string }) => {
+    setReminderSaving(id);
+    try { await api.put(`/meeting-reminders/${id}`, data); }
+    catch { /* silent */ }
+    finally { setReminderSaving(null); }
+  };
+
+  const formatMinutes = (m: number) => {
+    if (m >= 1440) return `${Math.floor(m / 1440)} dia(s) antes`;
+    if (m >= 60) return `${Math.floor(m / 60)} hora(s) antes`;
+    return `${m} min antes`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Horário Comercial */}
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Horário Comercial</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Follow-ups e mensagens proativas só são enviados dentro deste horário (fuso de Brasília).
+        </p>
+        {configLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Abertura (h)</label>
+                <p className="text-xs text-gray-400 mb-1">Seg–Sáb</p>
+                <input
+                  type="number" min={0} max={23}
+                  value={config.businessHoursStart}
+                  onChange={(e) => updateField("businessHoursStart", parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fechamento Seg–Sex (h)</label>
+                <p className="text-xs text-gray-400 mb-1">Segunda a Sexta</p>
+                <input
+                  type="number" min={0} max={23}
+                  value={config.businessHoursEndWeekday}
+                  onChange={(e) => updateField("businessHoursEndWeekday", parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fechamento Sábado (h)</label>
+                <p className="text-xs text-gray-400 mb-1">Sábado (Domingo bloqueado)</p>
+                <input
+                  type="number" min={0} max={23}
+                  value={config.businessHoursEndSaturday}
+                  onChange={(e) => updateField("businessHoursEndSaturday", parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                Padrão: 8h–18h seg–sex, 8h–12h sáb. Feriados nacionais são bloqueados automaticamente.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Limite de mensagens — Contato Frio</label>
+              <p className="text-xs text-gray-400 mb-1.5">
+                Máximo de mensagens do bot para leads que nunca responderam. Após esse limite, o follow-up é cancelado.
+              </p>
+              <input
+                type="number" min={1} max={20}
+                value={config.coldContactMaxMessages}
+                onChange={(e) => updateField("coldContactMaxMessages", parseInt(e.target.value) || 1)}
+                className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <Save size={16} />
+              {saving ? "Salvando..." : "Salvar Horários"}
+            </button>
+          </div>
+        )}
+      </Card>
+
+      {/* Meeting Reminders */}
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Lembretes de Reunião</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Mensagens enviadas automaticamente antes de reuniões agendadas via Calendly.
+        </p>
+
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-4">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Lembretes ativados</p>
+            <p className="text-xs text-gray-400">Envia mensagens WhatsApp antes das reuniões</p>
+          </div>
+          <button
+            onClick={() => { updateField("meetingReminderEnabled", !config.meetingReminderEnabled); saveConfig(); }}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.meetingReminderEnabled ? "bg-green-500" : "bg-gray-300"}`}
+          >
+            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${config.meetingReminderEnabled ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        {reminderLoading ? (
+          <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded-lg animate-pulse" />)}</div>
+        ) : (
+          <div className="space-y-3">
+            {reminderSteps.map((step) => (
+              <div key={step.id} className={`border rounded-lg p-3 ${step.enabled ? "border-green-200 bg-green-50/30" : "border-gray-200 bg-gray-50/50 opacity-60"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">{formatMinutes(step.minutesBefore)}</span>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xs text-gray-400">{step.enabled ? "Ativo" : "Inativo"}</span>
+                    <input type="checkbox" checked={step.enabled}
+                      onChange={(e) => {
+                        const newEnabled = e.target.checked;
+                        setReminderSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, enabled: newEnabled } : s));
+                        saveReminderStep(step.id, { enabled: newEnabled });
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                  </label>
+                </div>
+                <textarea value={step.message}
+                  onChange={(e) => setReminderSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, message: e.target.value } : s))}
+                  rows={3} className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-green-400"
+                />
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[10px] text-gray-400">{"Variáveis: {{nome}} {{data}} {{hora}} {{falta}}"}</span>
+                  <button onClick={() => saveReminderStep(step.id, { message: step.message })} disabled={reminderSaving === step.id} className="text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50">
+                    {reminderSaving === step.id ? "Salvando..." : "Salvar"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Tab: Avançado
+// ─────────────────────────────────────────────
+
+function TabAvancado({
+  config,
+  configLoading,
+  saving,
+  updateField,
+  saveConfig,
+}: {
+  config: BotConfig;
+  configLoading: boolean;
+  saving: boolean;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
+  saveConfig: () => void;
+}) {
+  return (
+    <Card padding="lg">
+      <h2 className="text-sm font-semibold text-gray-900 mb-1">Configurações Avançadas</h2>
+      <p className="text-xs text-gray-500 mb-6">
+        Regras de conversa, instruções de funil e override do prompt completo. Use com cuidado.
+      </p>
+
+      {configLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded animate-pulse" />)}
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Regras de Conversa</label>
+            <p className="text-xs text-gray-400 mb-1.5">
+              Regras que a Bia sempre segue: tom, limites, o que não fazer, etc.
+            </p>
+            <textarea
+              value={config.conversationRules}
+              onChange={(e) => updateField("conversationRules", e.target.value)}
+              placeholder={"Sempre seja educado.\nNunca prometa retornos garantidos.\nSe o lead pedir para falar com humano, transfira imediatamente."}
+              rows={6}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Instruções de Funil</label>
+            <p className="text-xs text-gray-400 mb-1.5">
+              Como a Bia deve conduzir a conversa da qualificação até o agendamento.
+            </p>
+            <textarea
+              value={config.funnelInstructions}
+              onChange={(e) => updateField("funnelInstructions", e.target.value)}
+              placeholder={"1. Entender o perfil do investidor.\n2. Apresentar o produto mais adequado.\n3. Superar objeções.\n4. Propor agendamento de reunião."}
+              rows={6}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+            />
+          </div>
+
+          <div className="border-t border-gray-200 pt-5">
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-sm font-medium text-gray-700">Prompt Bruto (Override Total)</label>
+              <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">Avançado</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-1.5">
+              Se preenchido, substitui completamente os campos acima (Identidade, Produtos, Objeções, Regras). Use apenas se precisar de controle total do prompt.
+            </p>
+            <textarea
+              value={config.botSystemPrompt}
+              onChange={(e) => updateField("botSystemPrompt", e.target.value)}
+              placeholder="Deixe em branco para usar o sistema de blocos (Identidade + Produtos + Objeções + Regras)..."
+              rows={18}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 resize-y font-mono"
+            />
+          </div>
+
+          <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <Save size={16} />
+            {saving ? "Salvando..." : "Salvar Avançado"}
+          </button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -1406,7 +2172,7 @@ function TabCredenciais({
   config: BotConfig;
   configLoading: boolean;
   saving: boolean;
-  updateField: (field: keyof BotConfig, value: string | boolean) => void;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => void;
 }) {
   const [showTokens, setShowTokens] = useState(false);
@@ -1562,7 +2328,7 @@ function TabLembretes({
   config: BotConfig;
   configLoading: boolean;
   saving: boolean;
-  updateField: (field: keyof BotConfig, value: string | boolean) => void;
+  updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => Promise<void>;
 }) {
   // Meeting reminder steps state

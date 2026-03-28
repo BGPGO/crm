@@ -40,12 +40,24 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const allowedFields = [
+      // Credenciais / conexão
       'zapiInstanceId', 'zapiToken', 'zapiClientToken', 'baseUrl',
-      'companyName', 'companyPhone', 'botPhoneNumber', 'meetingLink', 'openaiApiKey',
-      'botEnabled', 'botSystemPrompt', 'welcomeMessage', 'followUpEnabled',
-      'leadQualificationEnabled', 'sdrAutoMessageEnabled', 'meetingReminderEnabled',
-      'cadenceEnabled',
-      'readAiApiKey',
+      'companyName', 'companyPhone', 'botPhoneNumber', 'meetingLink', 'openaiApiKey', 'readAiApiKey',
+      // Feature flags
+      'botEnabled', 'followUpEnabled', 'leadQualificationEnabled',
+      'sdrAutoMessageEnabled', 'meetingReminderEnabled', 'cadenceEnabled',
+      // Identidade SDR
+      'botName', 'botCompany',
+      // Comportamento da conversa
+      'conversationRules', 'funnelInstructions', 'welcomeMessage',
+      // Modo avançado (prompt bruto — override)
+      'botSystemPrompt',
+      // Tons de follow-up customizados
+      'followUpToneCasual', 'followUpToneReforco', 'followUpToneEncerramento',
+      // Contato frio
+      'coldContactMaxMessages',
+      // Horário comercial
+      'businessHoursStart', 'businessHoursEndWeekday', 'businessHoursEndSaturday',
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -78,6 +90,20 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       where: { id: config.id },
       data: updateData,
     });
+
+    // Sync business hours into sendingWindow module when changed
+    if (
+      updateData.businessHoursStart !== undefined ||
+      updateData.businessHoursEndWeekday !== undefined ||
+      updateData.businessHoursEndSaturday !== undefined
+    ) {
+      const { setBusinessHours } = await import('../utils/sendingWindow');
+      setBusinessHours(
+        updated.businessHoursStart,
+        updated.businessHoursEndWeekday,
+        updated.businessHoursEndSaturday,
+      );
+    }
 
     // Mask sensitive fields in response
     const maskSecret = (val: string | null) =>
