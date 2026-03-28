@@ -1,6 +1,5 @@
 import prisma from '../lib/prisma';
 import { executeAction } from './automationActions';
-import { canSend } from './dailyLimitService';
 
 // ─── Throttle config for WhatsApp sends ─────────────────────────────────────
 const WHATSAPP_MAX_PER_CYCLE = 10; // max WhatsApp messages per cron tick
@@ -295,25 +294,11 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         }
       }
 
-      // ── WhatsApp throttle: daily limit + per-cycle cap ─────────────────
+      // ── WhatsApp throttle: per-cycle cap + delay entre envios ───────────
+      // O limite diário por fonte é verificado dentro de cada action individualmente,
+      // pois só lá é conhecido o tipo (followUp, sdrFirstContact, etc.).
+      // Aqui mantemos apenas o throttle de velocidade, que é a proteção real anti-ban.
       if (isWhatsAppAction) {
-        // Check daily limit
-        const allowed = await canSend();
-        if (!allowed) {
-          // Reschedule to midnight Brasília (next day's quota)
-          const nowBrasilia = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
-          const tomorrow = new Date(nowBrasilia);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          tomorrow.setHours(8, 0, 0, 0); // 8h next day
-          const nextDay = new Date(tomorrow.toISOString());
-          await prisma.automationEnrollment.update({
-            where: { id: enrollment.id },
-            data: { nextActionAt: nextDay },
-          });
-          console.log(`[AutomationEngine] Limite diário atingido — reagendado para ${nextDay.toISOString()} (enrollment ${enrollment.id})`);
-          continue;
-        }
-
         // Per-cycle cap: stagger remaining WhatsApp sends with random delay
         if (whatsappSentThisCycle >= WHATSAPP_MAX_PER_CYCLE) {
           const delaySec = WHATSAPP_MIN_DELAY_S + Math.random() * (WHATSAPP_MAX_DELAY_S - WHATSAPP_MIN_DELAY_S);

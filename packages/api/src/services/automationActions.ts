@@ -313,8 +313,9 @@ async function sendWhatsApp(
   contactId: string,
   config: { messageTemplateId?: string; customMessage?: string }
 ): Promise<ActionResult> {
-  // Defesa em profundidade: checar limite diário dentro da action também
-  if (!await canSend()) {
+  // Follow-ups de cadência são para contatos já cadastrados — risco baixo de ban.
+  // Hard block só se aplica a sdrFirstContact (cold outreach), verificado em canSend().
+  if (!await canSend('followUp')) {
     return { success: false, output: 'Daily WhatsApp limit reached' };
   }
 
@@ -349,8 +350,8 @@ async function sendWhatsApp(
       const botMsgCount = await prisma.whatsAppMessage.count({
         where: { conversationId: conversation.id, sender: { in: ['BOT', 'HUMAN'] } },
       });
-      // Máximo 5 mensagens para contato que nunca respondeu
-      if (botMsgCount >= 2) {
+      // Máximo 5 mensagens para contato que nunca respondeu (enviadas em dias diferentes com delays)
+      if (botMsgCount >= 5) {
         console.log(`[sendWhatsApp] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhone} — pulando`);
         return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
       }
@@ -700,8 +701,9 @@ async function sendWhatsAppAI(
   config: { prompt: string; objective: string },
   generalContext?: string
 ): Promise<ActionResult> {
-  // Defesa em profundidade: checar limite diário dentro da action também
-  if (!await canSend()) {
+  // IA de cadência responde a leads já captados — risco baixo de ban.
+  // Hard block só se aplica a sdrFirstContact (cold outreach), verificado em canSend().
+  if (!await canSend('followUp')) {
     return { success: false, output: 'Daily WhatsApp limit reached' };
   }
 
@@ -736,7 +738,8 @@ async function sendWhatsAppAI(
       const botMsgCount = await prisma.whatsAppMessage.count({
         where: { conversationId: optOutCheckAI.id, sender: { in: ['BOT', 'HUMAN'] } },
       });
-      if (botMsgCount >= 2) {
+      // Máximo 5 mensagens para contato que nunca respondeu (enviadas em dias diferentes com delays)
+      if (botMsgCount >= 5) {
         console.log(`[sendWhatsAppAI] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhoneAI} — pulando`);
         return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
       }

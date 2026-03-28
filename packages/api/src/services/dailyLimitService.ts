@@ -91,18 +91,20 @@ export async function getFirstContactLimit(): Promise<number> {
 
 /**
  * Verifica se ainda pode enviar hoje.
- * Para first-contact (SDR IA, cadência first msg), checa limite separado.
+ *
+ * Lógica de bloqueio por fonte:
+ * - sdrFirstContact: hard block com limite diário conservador (maior gatilho de ban).
+ * - Todos os outros canais (followUp, campaign, reminder, botResponse): retornam true.
+ *   A proteção real para esses canais é o throttle de velocidade (delays 30-90s),
+ *   não um contador diário. Leads que já interagiram têm risco muito baixo de gerar ban.
  */
 export async function canSend(source?: SendSource): Promise<boolean> {
-  const volume = await getOrCreateTodayVolume();
-  const limit = await getDailyLimit();
+  // Canais de contato quente: nunca bloquear por volume diário
+  if (source && source !== 'sdrFirstContact') return true;
 
-  if (volume.total >= limit) return false;
-
-  // First-contact tem limite próprio, muito mais restritivo
+  // sdrFirstContact (cold outreach): aplicar hard block — principal gatilho de ban
   if (source === 'sdrFirstContact') {
     const firstContactLimit = await getFirstContactLimit();
-    // Count first-contacts from today's activities
     const today = getTodayBrasilia();
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     const firstContactCount = await prisma.activity.count({
@@ -116,9 +118,13 @@ export async function canSend(source?: SendSource): Promise<boolean> {
       console.log(`[DailyLimit] Limite de first-contact atingido: ${firstContactCount}/${firstContactLimit}`);
       return false;
     }
+    return true;
   }
 
-  return true;
+  // Fallback sem source: checa limite geral (compatibilidade com chamadas legadas)
+  const volume = await getOrCreateTodayVolume();
+  const limit = await getDailyLimit();
+  return volume.total < limit;
 }
 
 /**
