@@ -63,13 +63,19 @@ export async function sendSaleNotifications(data: SaleNotificationData): Promise
         } catch { connected = false; }
 
         if (connected) {
-          const message = waFormat
-            .replace(/\{\{valor\}\}/gi, data.monthlyValue ? data.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00')
-            .replace(/\{\{produto\}\}/gi, data.productName || 'N/A')
-            .replace(/\{\{cliente\}\}/gi, data.clientName || 'Cliente');
+          const { canSend: canSendNow, registerSent: regSent } = await import('./dailyLimitService');
+          if (!await canSendNow()) {
+            console.warn('[sale-notification] Limite diário atingido — WhatsApp não enviado');
+          } else {
+            const message = waFormat
+              .replace(/\{\{valor\}\}/gi, data.monthlyValue ? data.monthlyValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00')
+              .replace(/\{\{produto\}\}/gi, data.productName || 'N/A')
+              .replace(/\{\{cliente\}\}/gi, data.clientName || 'Cliente');
 
-          await client.sendText(waPhone, message);
-          console.log(`[sale-notification] WhatsApp sent to ${waPhone}`);
+            await client.sendText(waPhone, message);
+            await regSent('reminder');
+            console.log(`[sale-notification] WhatsApp sent to ${waPhone}`);
+          }
         } else {
           console.warn('[sale-notification] WhatsApp not connected');
         }

@@ -175,7 +175,7 @@ async function executeFollowUp(conversationId: string, step: any, stepIndex: num
     const botMsgCount = await prisma.whatsAppMessage.count({
       where: { conversationId, sender: { in: ['BOT', 'HUMAN'] } },
     });
-    if (botMsgCount >= 5) {
+    if (botMsgCount >= 2) {
       console.log(`[follow-up] Contato frio: ${botMsgCount} msgs sem resposta para ${conversationId} — cancelando follow-ups`);
       await cancelFollowUp(conversationId);
       return;

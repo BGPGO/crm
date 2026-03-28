@@ -350,7 +350,7 @@ async function sendWhatsApp(
         where: { conversationId: conversation.id, sender: { in: ['BOT', 'HUMAN'] } },
       });
       // Máximo 5 mensagens para contato que nunca respondeu
-      if (botMsgCount >= 5) {
+      if (botMsgCount >= 2) {
         console.log(`[sendWhatsApp] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhone} — pulando`);
         return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
       }
@@ -736,7 +736,7 @@ async function sendWhatsAppAI(
       const botMsgCount = await prisma.whatsAppMessage.count({
         where: { conversationId: optOutCheckAI.id, sender: { in: ['BOT', 'HUMAN'] } },
       });
-      if (botMsgCount >= 5) {
+      if (botMsgCount >= 2) {
         console.log(`[sendWhatsAppAI] Contato frio: ${botMsgCount} msgs enviadas sem resposta para ${normalizedPhoneAI} — pulando`);
         return { success: false, output: `Cold contact: ${botMsgCount} messages sent without any reply, skipping` };
       }

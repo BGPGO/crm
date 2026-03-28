@@ -634,6 +634,10 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
     // Send
     await sendBotMessages(client, phone, reply);
     await ensureMeetingLink(client, phone, reply);
+
+    // Register bot response in daily volume — WhatsApp counts ALL messages, not just proactive
+    const { registerSent: regSent } = await import('./dailyLimitService');
+    await regSent('botResponse').catch(() => {});
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error(`[Bot] Erro:`, errMsg);

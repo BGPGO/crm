@@ -3,6 +3,8 @@ import { getAIResponse, sendBotMessages, ensureMeetingLink } from './whatsappBot
 import { EvolutionApiClient } from './evolutionApiClient';
 import { MessageSender } from '@prisma/client';
 import { normalizePhone } from '../utils/phoneNormalize';
+import { canSend, registerSent } from './dailyLimitService';
+import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
 
 // Re-export for existing consumers
 export { normalizePhone };
@@ -129,6 +131,18 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
   // 6b. Check if SDR auto message is enabled
   if (!config.sdrAutoMessageEnabled) {
     console.log('[LeadQualification] Mensagem automática SDR desabilitada — SDR IA não ativada');
+    return;
+  }
+
+  // 6c. Check business hours — SDR IA não manda msg de madrugada
+  if (!isBusinessHours()) {
+    console.log('[LeadQualification] Fora do horário comercial — SDR IA adiada');
+    return;
+  }
+
+  // 6d. Check daily limit (first-contact has its own stricter limit)
+  if (!await canSend('sdrFirstContact')) {
+    console.log('[LeadQualification] Limite diário de first-contact atingido — SDR IA não ativada');
     return;
   }
 
@@ -326,6 +340,7 @@ ${campaignContext.context}
 
     await sendBotMessages(client, normalizedPhone, aiReply);
     await ensureMeetingLink(client, normalizedPhone, aiReply);
+    await registerSent('sdrFirstContact');
     console.log(`[LeadQualification] Mensagem enviada via Z-API para ${normalizedPhone}`);
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);

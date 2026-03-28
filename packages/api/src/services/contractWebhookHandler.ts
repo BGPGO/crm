@@ -224,12 +224,18 @@ async function handleAllSigned(contract: any) {
       } catch { connected = false; }
 
       if (connected) {
-        const msg = waFormat
-          .replace(/\{\{valor\}\}/gi, String(contract.valorMensal || '—'))
-          .replace(/\{\{produto\}\}/gi, contract.produto || '—')
-          .replace(/\{\{cliente\}\}/gi, clientName);
-        await client.sendText(waPhone, msg);
-        console.log(`[contract-webhook] WhatsApp sent to ${waPhone}`);
+        const { canSend: canSendNow, registerSent: regSent } = await import('./dailyLimitService');
+        if (!await canSendNow()) {
+          console.warn('[contract-webhook] Limite diário atingido — WhatsApp não enviado');
+        } else {
+          const msg = waFormat
+            .replace(/\{\{valor\}\}/gi, String(contract.valorMensal || '—'))
+            .replace(/\{\{produto\}\}/gi, contract.produto || '—')
+            .replace(/\{\{cliente\}\}/gi, clientName);
+          await client.sendText(waPhone, msg);
+          await regSent('reminder');
+          console.log(`[contract-webhook] WhatsApp sent to ${waPhone}`);
+        }
       }
     }
   } catch (err) {

@@ -280,14 +280,16 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         if (isWhatsAppAction) {
           const { isBusinessHours, msUntilNextBusinessHour } = await import('../utils/sendingWindow');
           if (!isBusinessHours()) {
-            // Schedule for next business hour instead of retrying every minute
+            // Schedule for next business hour + random jitter (0-120 min)
+            // to SPREAD messages throughout the day instead of bursting at 8am
             const msUntil = msUntilNextBusinessHour();
-            const nextBH = new Date(Date.now() + msUntil);
+            const jitterMs = Math.floor(Math.random() * 120 * 60 * 1000); // 0-2 hours
+            const nextBH = new Date(Date.now() + msUntil + jitterMs);
             await prisma.automationEnrollment.update({
               where: { id: enrollment.id },
               data: { nextActionAt: nextBH },
             });
-            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário — reagendado para ${nextBH.toISOString()} (enrollment ${enrollment.id})`);
+            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário — reagendado para ${nextBH.toISOString()} com jitter +${Math.round(jitterMs / 60000)}min (enrollment ${enrollment.id})`);
             continue;
           }
         }
