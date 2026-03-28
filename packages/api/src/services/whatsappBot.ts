@@ -7,6 +7,30 @@ import { MessageSender } from '@prisma/client';
 import { scheduleNextFollowUp, cancelFollowUp } from './followUpScheduler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Find the best contact for a phone number.
+ * Prefers contact with an OPEN deal; falls back to any contact with that phone.
+ */
+async function findBestContactByPhone(phoneVariants: string[]): Promise<{ id: string } | null> {
+  const contacts = await prisma.contact.findMany({
+    where: { phone: { in: phoneVariants } },
+    select: { id: true },
+  });
+  if (contacts.length === 0) return null;
+  if (contacts.length === 1) return contacts[0];
+
+  // Multiple contacts with same phone — prefer the one with an OPEN deal
+  const withOpenDeal = await prisma.deal.findFirst({
+    where: { contactId: { in: contacts.map(c => c.id) }, status: 'OPEN' },
+    select: { contactId: true },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  return withOpenDeal ? { id: withOpenDeal.contactId! } : contacts[0];
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface WhatsAppPayload {
@@ -340,11 +364,8 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   });
 
   if (!conversation) {
-    // Try to link to an existing contact by phone
-    const linkedContact = await prisma.contact.findFirst({
-      where: { phone: { in: variants } },
-      select: { id: true },
-    });
+    // Try to link to an existing contact by phone — prefer one with OPEN deal
+    const linkedContact = await findBestContactByPhone(variants);
     conversation = await prisma.whatsAppConversation.create({
       data: { phone, pushName: pushName || null, contactId: linkedContact?.id || null },
       include: { followUpState: true },
@@ -354,13 +375,23 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     const updates: Record<string, unknown> = {};
     if (conversation.phone !== phone) updates.phone = phone;
     if (pushName && conversation.pushName !== pushName) updates.pushName = pushName;
-    // Link to contact if not already linked
+    // Link to contact if not already linked, or re-link if current contact has no OPEN deal
     if (!conversation.contactId) {
-      const linkedContact = await prisma.contact.findFirst({
-        where: { phone: { in: variants } },
+      const linkedContact = await findBestContactByPhone(variants);
+      if (linkedContact) updates.contactId = linkedContact.id;
+    } else {
+      // Check if current contact still has an OPEN deal, otherwise find a better one
+      const currentDeal = await prisma.deal.findFirst({
+        where: { contactId: conversation.contactId, status: 'OPEN' },
         select: { id: true },
       });
-      if (linkedContact) updates.contactId = linkedContact.id;
+      if (!currentDeal) {
+        const betterContact = await findBestContactByPhone(variants);
+        if (betterContact && betterContact.id !== conversation.contactId) {
+          updates.contactId = betterContact.id;
+          console.log(`[Bot] Re-linking conversa ${conversation.id} de contato ${conversation.contactId} para ${betterContact.id} (deal ativo)`);
+        }
+      }
     }
     if (Object.keys(updates).length > 0) {
       conversation = await prisma.whatsAppConversation.update({

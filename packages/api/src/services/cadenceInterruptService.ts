@@ -1,26 +1,42 @@
 import prisma from '../lib/prisma';
 
-/** Remove all cadence tags from a contact */
-async function removeCadenceTags(contactId: string): Promise<void> {
+/** Remove all cadence tags from a contact (and all duplicate contacts with same phone) */
+async function removeCadenceTags(contactIds: string[]): Promise<void> {
   const cadenceTags = await prisma.tag.findMany({
     where: { name: { startsWith: 'Cadência Etapa' } },
     select: { id: true },
   });
   if (cadenceTags.length === 0) return;
   await prisma.contactTag.deleteMany({
-    where: { contactId, tagId: { in: cadenceTags.map(t => t.id) } },
+    where: { contactId: { in: contactIds }, tagId: { in: cadenceTags.map(t => t.id) } },
   }).catch(() => {});
 }
 
 /**
- * When a lead responds on WhatsApp, cancel all ACTIVE automation enrollments
- * that have triggerType STAGE_CHANGED (cadence automations).
- * This implements the rule: "Qualquer resposta do lead cancela os próximos follows
- * agendados e devolve o controle para a IA conversacional."
- *
- * Only cancels enrollments for automations with triggerConfig containing
- * isCadence: true (set when creating cadence automations).
+ * Resolve all contactIds that share the same phone number.
+ * Handles duplicate contacts so cadence interruption works even when
+ * the conversation points to a different contact than the enrollment.
  */
+async function resolveAllContactIds(contactId: string): Promise<string[]> {
+  const contact = await prisma.contact.findUnique({
+    where: { id: contactId },
+    select: { phone: true },
+  });
+  if (!contact?.phone) return [contactId];
+
+  // Find all contacts with the same phone (last 8 digits match)
+  const digits = contact.phone.replace(/\D/g, '');
+  const suffix = digits.slice(-8);
+  if (suffix.length < 8) return [contactId];
+
+  const allContacts = await prisma.contact.findMany({
+    where: { phone: { contains: suffix } },
+    select: { id: true },
+  });
+
+  return allContacts.length > 0 ? allContacts.map(c => c.id) : [contactId];
+}
+
 /**
  * When a deal changes stage, cancel all ACTIVE cadence enrollments for that contact
  * EXCEPT the one that matches the new stage. This prevents two cadences running in parallel.
@@ -31,9 +47,11 @@ async function removeCadenceTags(contactId: string): Promise<void> {
  */
 export async function interruptCadenceOnStageChange(contactId: string, newStageId: string): Promise<number> {
   try {
+    const allContactIds = await resolveAllContactIds(contactId);
+
     const enrollments = await prisma.automationEnrollment.findMany({
       where: {
-        contactId,
+        contactId: { in: allContactIds },
         status: 'ACTIVE',
         automation: { status: 'ACTIVE' },
       },
@@ -71,8 +89,7 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
     }
 
     if (cancelled > 0) {
-      // Remove cadence tags — new cadence will add its own tag
-      await removeCadenceTags(contactId);
+      await removeCadenceTags(allContactIds);
       console.log(`[cadence-interrupt] ${cancelled} cadência(s) antiga(s) canceladas para contato ${contactId} (nova etapa: ${newStageId})`);
     }
 
@@ -85,10 +102,12 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
 
 export async function interruptCadenceOnResponse(contactId: string): Promise<number> {
   try {
-    // Find all ACTIVE enrollments for this contact in cadence automations
+    const allContactIds = await resolveAllContactIds(contactId);
+
+    // Find all ACTIVE enrollments across all duplicate contacts
     const enrollments = await prisma.automationEnrollment.findMany({
       where: {
-        contactId,
+        contactId: { in: allContactIds },
         status: 'ACTIVE',
         automation: {
           status: 'ACTIVE',
@@ -126,9 +145,8 @@ export async function interruptCadenceOnResponse(contactId: string): Promise<num
     }
 
     if (cancelled > 0) {
-      // Remove cadence tags — lead responded, bot takes over
-      await removeCadenceTags(contactId);
-      console.log(`[cadence-interrupt] ${cancelled} enrollment(s) de cadência cancelados para contato ${contactId}`);
+      await removeCadenceTags(allContactIds);
+      console.log(`[cadence-interrupt] ${cancelled} enrollment(s) de cadência cancelados para contato(s) ${allContactIds.join(', ')}`);
     }
 
     return cancelled;

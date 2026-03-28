@@ -186,7 +186,7 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       }
     }
 
-    // 10. Create or find Contact (upsert by email)
+    // 10. Create or find Contact (upsert by email, then by phone)
     let contact;
     if (contactEmail) {
       const existing = await prisma.contact.findFirst({
@@ -203,10 +203,51 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
           },
         });
       } else {
+        // Email not found — check if a contact with this phone already exists (avoid duplicates)
+        const byPhone = contactPhone
+          ? await prisma.contact.findFirst({
+              where: { phone: { contains: contactPhone.replace(/\D/g, '').slice(-8) } },
+            })
+          : null;
+        if (byPhone) {
+          contact = await prisma.contact.update({
+            where: { id: byPhone.id },
+            data: {
+              ...(!byPhone.email ? { email: contactEmail } : {}),
+              ...(contactPosition && !byPhone.position ? { position: contactPosition } : {}),
+              ...(contactInstagram && !byPhone.instagram ? { instagram: contactInstagram } : {}),
+              ...(organizationId && !byPhone.organizationId ? { organizationId } : {}),
+            },
+          });
+          console.log(`[webhook] Contato existente encontrado por telefone (${contactPhone}) — reutilizando ${byPhone.id} em vez de criar duplicata`);
+        } else {
+          contact = await prisma.contact.create({
+            data: {
+              name: contactName,
+              email: contactEmail,
+              phone: contactPhone ?? null,
+              position: contactPosition ?? null,
+              instagram: contactInstagram ?? null,
+              organizationId,
+            },
+          });
+        }
+      }
+    } else {
+      // No email — check phone before creating
+      const byPhone = contactPhone
+        ? await prisma.contact.findFirst({
+            where: { phone: { contains: contactPhone.replace(/\D/g, '').slice(-8) } },
+          })
+        : null;
+      if (byPhone) {
+        contact = byPhone;
+        console.log(`[webhook] Contato existente encontrado por telefone (${contactPhone}) — reutilizando ${byPhone.id}`);
+      } else {
         contact = await prisma.contact.create({
           data: {
             name: contactName,
-            email: contactEmail,
+            email: null,
             phone: contactPhone ?? null,
             position: contactPosition ?? null,
             instagram: contactInstagram ?? null,
@@ -214,17 +255,6 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
           },
         });
       }
-    } else {
-      contact = await prisma.contact.create({
-        data: {
-          name: contactName,
-          email: null,
-          phone: contactPhone ?? null,
-          position: contactPosition ?? null,
-          instagram: contactInstagram ?? null,
-          organizationId,
-        },
-      });
     }
 
     // 11. Create LeadTracking
