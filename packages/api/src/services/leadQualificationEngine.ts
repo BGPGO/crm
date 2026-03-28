@@ -69,10 +69,20 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
   // 2b. Check if already has a conversation with bot messages (idempotency guard)
   const existingConv = await prisma.whatsAppConversation.findFirst({
     where: { contactId },
-    include: { _count: { select: { messages: { where: { sender: 'BOT' } } } } },
+    select: { id: true, needsHumanAttention: true, optedOut: true, meetingBooked: true, _count: { select: { messages: { where: { sender: 'BOT' } } } } },
   });
   if (existingConv && existingConv._count.messages > 0) {
     console.log(`[LeadQualification] Contato ${contactId} já tem conversa com mensagens do bot — SDR IA não reativada`);
+    return;
+  }
+
+  // 2c. Don't activate if conversation has needsHumanAttention or optedOut
+  if (existingConv?.needsHumanAttention) {
+    console.log(`[LeadQualification] Contato ${contactId} marcado como atendimento humano — SDR IA não ativada`);
+    return;
+  }
+  if (existingConv?.optedOut) {
+    console.log(`[LeadQualification] Contato ${contactId} optou por não receber mensagens — SDR IA não ativada`);
     return;
   }
 
@@ -220,8 +230,25 @@ ${campaignContext.context}
     return;
   }
 
-  // 10. Call getAIResponse with context (empty history = first message)
-  console.log(`[LeadQualification] Gerando resposta IA para ${contact.name}...`);
+  // 10. Build deal stage context so the AI adapts its tone
+  if (deal.stage) {
+    contextString += `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
+    contextString += `\nEmpresa: ${deal.title || 'Não identificada'}`;
+    contextString += `\nEtapa atual: ${deal.stage.name}`;
+
+    if (conversation.meetingBooked || deal.stage.name.toLowerCase().includes('reunião agendada')) {
+      contextString += `\nREUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião.`;
+    } else if (deal.stage.name.toLowerCase().includes('proposta')) {
+      contextString += `\nProposta já foi enviada. Pergunte se o lead tem dúvidas sobre a proposta e reforce o valor do serviço.`;
+    } else if (deal.stage.name.toLowerCase().includes('aguardando dados')) {
+      contextString += `\nO lead está na fase de aguardando dados/documentos. Pergunte se precisa de ajuda para enviar os dados pendentes.`;
+    } else if (deal.stage.name.toLowerCase().includes('aguardando assinatura')) {
+      contextString += `\nO contrato já foi enviado. Pergunte se precisa de alguma orientação para assinar o documento.`;
+    }
+  }
+
+  // Call getAIResponse with context (empty history = first message)
+  console.log(`[LeadQualification] Gerando resposta IA para ${contact.name} (etapa: ${deal.stage?.name})...`);
   const aiReply = await getAIResponse([], contact.name || 'Lead', config.meetingLink, contextString);
   console.log(`[LeadQualification] Resposta IA gerada (${aiReply.length} chars)`);
 

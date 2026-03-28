@@ -514,11 +514,19 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
         },
       });
       if (deal) {
+        const stageName = deal.stage?.name || 'Desconhecida';
         dealContext += `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
         dealContext += `\nEmpresa: ${deal.organization?.name || deal.title}`;
-        dealContext += `\nEtapa atual: ${deal.stage?.name || 'Desconhecida'}`;
-        if (conversation.meetingBooked) {
+        dealContext += `\nEtapa atual: ${stageName}`;
+
+        if (conversation.meetingBooked || stageName.toLowerCase().includes('reunião agendada')) {
           dealContext += `\nREUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião. Seja cordial e tire dúvidas se o lead perguntar algo.`;
+        } else if (stageName.toLowerCase().includes('proposta')) {
+          dealContext += `\nProposta já foi enviada. Pergunte se o lead tem dúvidas sobre a proposta e reforce o valor do serviço.`;
+        } else if (stageName.toLowerCase().includes('aguardando dados')) {
+          dealContext += `\nO lead está na fase de aguardando dados/documentos. Pergunte se precisa de ajuda para enviar os dados pendentes.`;
+        } else if (stageName.toLowerCase().includes('aguardando assinatura')) {
+          dealContext += `\nO contrato já foi enviado. Pergunte se precisa de alguma orientação para assinar o documento.`;
         }
       }
     }
