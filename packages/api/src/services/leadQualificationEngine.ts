@@ -67,8 +67,15 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
   }
 
   // 2b. Check if already has a conversation with bot messages (idempotency guard)
+  // Search by contactId AND by phone to catch conversations created before linking
+  const normalizedPhoneGuard = normalizePhone(contact.phone);
   const existingConv = await prisma.whatsAppConversation.findFirst({
-    where: { contactId },
+    where: {
+      OR: [
+        { contactId },
+        { phone: normalizedPhoneGuard },
+      ],
+    },
     select: { id: true, needsHumanAttention: true, optedOut: true, meetingBooked: true, _count: { select: { messages: { where: { sender: 'BOT' } } } } },
   });
   if (existingConv && existingConv._count.messages > 0) {

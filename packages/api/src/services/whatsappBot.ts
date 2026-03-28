@@ -340,8 +340,13 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
   });
 
   if (!conversation) {
+    // Try to link to an existing contact by phone
+    const linkedContact = await prisma.contact.findFirst({
+      where: { phone: { in: variants } },
+      select: { id: true },
+    });
     conversation = await prisma.whatsAppConversation.create({
-      data: { phone, pushName: pushName || null },
+      data: { phone, pushName: pushName || null, contactId: linkedContact?.id || null },
       include: { followUpState: true },
     });
   } else {
@@ -349,6 +354,14 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     const updates: Record<string, unknown> = {};
     if (conversation.phone !== phone) updates.phone = phone;
     if (pushName && conversation.pushName !== pushName) updates.pushName = pushName;
+    // Link to contact if not already linked
+    if (!conversation.contactId) {
+      const linkedContact = await prisma.contact.findFirst({
+        where: { phone: { in: variants } },
+        select: { id: true },
+      });
+      if (linkedContact) updates.contactId = linkedContact.id;
+    }
     if (Object.keys(updates).length > 0) {
       conversation = await prisma.whatsAppConversation.update({
         where: { id: conversation.id },

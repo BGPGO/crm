@@ -835,6 +835,15 @@ async function sendWhatsAppAI(
     },
   });
 
+  // Save to AIHistory so the bot has continuity when the lead replies
+  await prisma.whatsAppAIHistory.create({
+    data: {
+      conversationId: conversation.id,
+      role: 'assistant',
+      content: messageText,
+    },
+  });
+
   // Update conversation's lastMessageAt
   await prisma.whatsAppConversation.update({
     where: { id: conversation.id },
