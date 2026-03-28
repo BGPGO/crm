@@ -502,7 +502,28 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
   }
 
   try {
-    const reply = await getAIResponse(history, pushName, config.meetingLink);
+    // ── Build deal context for the AI ──────────────────────────────────────
+    let dealContext = '';
+    if (conversation.contactId) {
+      const deal = await prisma.deal.findFirst({
+        where: { contactId: conversation.contactId, status: 'OPEN' },
+        include: {
+          stage: { select: { name: true } },
+          organization: { select: { name: true } },
+          contact: { select: { name: true } },
+        },
+      });
+      if (deal) {
+        dealContext += `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
+        dealContext += `\nEmpresa: ${deal.organization?.name || deal.title}`;
+        dealContext += `\nEtapa atual: ${deal.stage?.name || 'Desconhecida'}`;
+        if (conversation.meetingBooked) {
+          dealContext += `\nREUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião. Seja cordial e tire dúvidas se o lead perguntar algo.`;
+        }
+      }
+    }
+
+    const reply = await getAIResponse(history, pushName, config.meetingLink, dealContext || undefined);
 
     // Save bot message
     await prisma.whatsAppMessage.create({

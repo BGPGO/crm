@@ -424,6 +424,25 @@ router.post('/', async (req: Request, res: Response) => {
             console.log(`[calendly-webhook] Task created for meeting at ${startTime}`);
           }
 
+          // Mark conversation as meetingBooked and pause active cadences
+          const conv = await prisma.whatsAppConversation.findFirst({
+            where: { contactId: contact.id },
+          });
+          if (conv) {
+            await prisma.whatsAppConversation.update({
+              where: { id: conv.id },
+              data: { meetingBooked: true },
+            });
+            console.log(`[calendly-webhook] meetingBooked=true for conversation ${conv.id}`);
+          }
+
+          // Pause all active automation enrollments for this contact
+          await prisma.automationEnrollment.updateMany({
+            where: { contactId: contact.id, status: 'ACTIVE' },
+            data: { status: 'PAUSED' },
+          });
+          console.log(`[calendly-webhook] Paused active cadences for contact ${contact.id}`);
+
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);
         } else {
           console.log(`[calendly-webhook] Contact found/created (${contact.id}) but could not find or create deal`);
