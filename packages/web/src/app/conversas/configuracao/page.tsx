@@ -137,8 +137,28 @@ const defaultConfig: BotConfig = {
   cadenceEnabled: false,
   botName: "Bia",
   botCompany: "",
-  conversationRules: "",
-  funnelInstructions: "",
+  conversationRules: `REGRAS DE OURO:
+- Mensagens CURTAS. Máximo 1 linha por mensagem. Escreva como quem digita rápido no WhatsApp.
+- Seja DIRETA. Entenda a dor do lead e encaminhe pra reunião. Sem enrolação.
+- A partir da 2ª troca, já direcione para o agendamento.
+- NUNCA mande parágrafos longos. Se a mensagem tem mais de 2 linhas, quebre com ---.
+
+ESCRITA:
+- Máximo 1 linha por mensagem entre ---
+- Máximo 1 emoji por mensagem, esporádico
+- Sem listas, sem bullets, sem blocos de texto
+- Nunca invente informações`,
+  funnelInstructions: `FUNIL:
+1. Cumprimente + pergunte sobre a empresa/dor (1 mensagem curta)
+2. Entendeu a dor? Conecte com o produto certo e proponha reunião
+3. Envie o link do Calendly
+
+AGENDAMENTO:
+- Envie o link do Calendly em mensagem SEPARADA (entre ---), SOZINHO, sem texto antes ou depois, SEM markdown
+- NUNCA use formato [texto](url). Mande APENAS a URL pura.
+- NUNCA sugira horários. O lead escolhe pelo link.
+- O link é enviado NO MÁXIMO 1 VEZ. Depois, vire suporte — responda dúvidas sem reenviar.
+- Se o lead pedir o link de novo → mande. Senão, não repita.`,
   followUpToneCasual: "",
   followUpToneReforco: "",
   followUpToneEncerramento: "",
@@ -203,7 +223,13 @@ export default function ConversasConfiguracaoPage() {
     try {
       const res = await api.get<{ data: BotConfig }>("/whatsapp/config");
       if (res.data) {
-        setConfig({ ...defaultConfig, ...res.data });
+        setConfig({
+          ...defaultConfig,
+          ...res.data,
+          // Preserve defaults when fields come empty from DB
+          conversationRules: res.data.conversationRules?.trim() || defaultConfig.conversationRules,
+          funnelInstructions: res.data.funnelInstructions?.trim() || defaultConfig.funnelInstructions,
+        });
       }
     } catch {
       // Config might not exist yet
@@ -799,6 +825,35 @@ function TabProdutos() {
 // Tab: Objeções
 // ─────────────────────────────────────────────
 
+function ObjectionForm({ data, setData, onSave, onCancel, saveLabel, isSaving }: {
+  data: Partial<BotObjection>;
+  setData: (d: Partial<BotObjection>) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saveLabel: string;
+  isSaving: boolean;
+}) {
+  return (
+    <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Objeção do Lead <span className="text-red-500">*</span></label>
+        <input type="text" value={data.objection || ""} onChange={(e) => setData({ ...data, objection: e.target.value })} placeholder="Ex: Está muito caro" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Como a Bia deve responder <span className="text-red-500">*</span></label>
+        <textarea value={data.response || ""} onChange={(e) => setData({ ...data, response: e.target.value })} placeholder="Ex: Entendo sua preocupação. O investimento mínimo é de R$10.000, mas o retorno esperado é..." rows={4} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={onSave} disabled={isSaving || !data.objection?.trim() || !data.response?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
+          <Save size={14} />
+          {isSaving ? "Salvando..." : saveLabel}
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
 function TabObjecoes() {
   const [objections, setObjections] = useState<BotObjection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -865,33 +920,6 @@ function TabObjecoes() {
       setDeleting(null);
     }
   };
-
-  const ObjectionForm = ({ data, setData, onSave, onCancel, saveLabel, isSaving }: {
-    data: Partial<BotObjection>;
-    setData: (d: Partial<BotObjection>) => void;
-    onSave: () => void;
-    onCancel: () => void;
-    saveLabel: string;
-    isSaving: boolean;
-  }) => (
-    <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Objeção do Lead <span className="text-red-500">*</span></label>
-        <input type="text" value={data.objection || ""} onChange={(e) => setData({ ...data, objection: e.target.value })} placeholder="Ex: Está muito caro" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400" />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Como a Bia deve responder <span className="text-red-500">*</span></label>
-        <textarea value={data.response || ""} onChange={(e) => setData({ ...data, response: e.target.value })} placeholder="Ex: Entendo sua preocupação. O investimento mínimo é de R$10.000, mas o retorno esperado é..." rows={4} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none" />
-      </div>
-      <div className="flex items-center gap-2">
-        <button onClick={onSave} disabled={isSaving || !data.objection?.trim() || !data.response?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors">
-          <Save size={14} />
-          {isSaving ? "Salvando..." : saveLabel}
-        </button>
-        <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">Cancelar</button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-4">
