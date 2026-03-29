@@ -1396,58 +1396,6 @@ function TabFollowup({
   updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => void;
 }) {
-  const [steps, setSteps] = useState<FollowUpStep[]>([]);
-  const [stepsLoading, setStepsLoading] = useState(true);
-  const [stepsSaving, setStepsSaving] = useState(false);
-  const [stepsMsg, setStepsMsg] = useState("");
-
-  useEffect(() => {
-    api.get<{ data: FollowUpStep[] }>("/whatsapp/config/follow-up-steps")
-      .then((res) => {
-        const loaded = (res as { data: FollowUpStep[] }).data || [];
-        setSteps(loaded.length > 0 ? loaded : [
-          { order: 1, delayMinutes: 30, tone: "CASUAL" },
-          { order: 2, delayMinutes: 60, tone: "REFORCO" },
-          { order: 3, delayMinutes: 120, tone: "ENCERRAMENTO" },
-        ]);
-      })
-      .catch(() => {
-        setSteps([
-          { order: 1, delayMinutes: 30, tone: "CASUAL" },
-          { order: 2, delayMinutes: 60, tone: "REFORCO" },
-          { order: 3, delayMinutes: 120, tone: "ENCERRAMENTO" },
-        ]);
-      })
-      .finally(() => setStepsLoading(false));
-  }, []);
-
-  const updateStep = (index: number, field: keyof FollowUpStep, value: string | number) => {
-    setSteps((prev) => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
-  };
-
-  const addStep = () => {
-    const nextOrder = steps.length + 1;
-    setSteps((prev) => [...prev, { order: nextOrder, delayMinutes: 60, tone: "CASUAL" }]);
-  };
-
-  const removeStep = (index: number) => {
-    setSteps((prev) => prev.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i + 1 })));
-  };
-
-  const saveSteps = async () => {
-    setStepsSaving(true);
-    setStepsMsg("");
-    try {
-      await api.put("/whatsapp/config/follow-up-steps", { steps });
-      setStepsMsg("Steps salvos!");
-      setTimeout(() => setStepsMsg(""), 3000);
-    } catch {
-      setStepsMsg("Erro ao salvar steps");
-    } finally {
-      setStepsSaving(false);
-    }
-  };
-
   const toggles: Array<{ field: keyof BotConfig; label: string; description: string }> = [
     { field: "botEnabled", label: "Bot SDR IA", description: "Ativa/desativa o bot que responde mensagens no WhatsApp" },
     { field: "leadQualificationEnabled", label: "Qualificação de Leads", description: "Verifica Calendly e ativa SDR IA quando lead entra pela LP" },
@@ -1494,80 +1442,17 @@ function TabFollowup({
         )}
       </Card>
 
-      {/* Follow-up Steps */}
-      <Card padding="lg">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Etapas de Follow-up</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Quando o lead não responde, o bot envia follow-ups automáticos nesta sequência</p>
-          </div>
-          <button onClick={addStep} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-            <Plus size={12} />
-            Adicionar
-          </button>
+      {/* Etapas → link para Automações */}
+      <a
+        href="/conversas/automacoes"
+        className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors group"
+      >
+        <div>
+          <p className="text-sm font-semibold text-blue-800">Etapas de Follow-up</p>
+          <p className="text-xs text-blue-600 mt-0.5">Gerencie a sequência de etapas, delays e tons na aba Automações.</p>
         </div>
-
-        {stepsLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
-            ))}
-          </div>
-        ) : steps.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">Nenhuma etapa configurada. O follow-up automático não será enviado.</p>
-        ) : (
-          <div className="space-y-3">
-            {steps.map((step, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <span className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-                  {step.order}
-                </span>
-                <div className="flex-1 grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-500 uppercase">Delay (minutos)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={step.delayMinutes}
-                      onChange={(e) => updateStep(idx, "delayMinutes", parseInt(e.target.value) || 1)}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-gray-500 uppercase">Tom</label>
-                    <select
-                      value={step.tone}
-                      onChange={(e) => updateStep(idx, "tone", e.target.value)}
-                      className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {TONE_OPTIONS.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <button onClick={() => removeStep(idx)} className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Remover">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 mt-4">
-          <button onClick={saveSteps} disabled={stepsSaving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            <Save size={16} />
-            {stepsSaving ? "Salvando..." : "Salvar Steps"}
-          </button>
-          {stepsMsg && <span className={clsx("text-xs font-medium", stepsMsg.includes("Erro") ? "text-red-600" : "text-green-600")}>{stepsMsg}</span>}
-        </div>
-
-        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-xs text-amber-700">
-            <strong>Como funciona:</strong> Se o lead não responder após a última mensagem do bot, o sistema espera o delay configurado e envia o follow-up com o tom escolhido. O ciclo para se o lead responder em qualquer momento.
-          </p>
-        </div>
-      </Card>
+        <ExternalLink size={16} className="text-blue-400 group-hover:text-blue-600 flex-shrink-0" />
+      </a>
 
       {/* Tone Texts */}
       <Card padding="lg">
@@ -1626,33 +1511,6 @@ function TabHorarios({
   updateField: (field: keyof BotConfig, value: string | boolean | number) => void;
   saveConfig: () => void;
 }) {
-  // Meeting reminder steps
-  const [reminderSteps, setReminderSteps] = useState<
-    Array<{ id: string; minutesBefore: number; message: string; enabled: boolean }>
-  >([]);
-  const [reminderLoading, setReminderLoading] = useState(true);
-  const [reminderSaving, setReminderSaving] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.get<{ data: typeof reminderSteps }>("/meeting-reminders")
-      .then((res) => setReminderSteps((res as any).data || []))
-      .catch(() => {})
-      .finally(() => setReminderLoading(false));
-  }, []);
-
-  const saveReminderStep = async (id: string, data: { enabled?: boolean; message?: string }) => {
-    setReminderSaving(id);
-    try { await api.put(`/meeting-reminders/${id}`, data); }
-    catch { /* silent */ }
-    finally { setReminderSaving(null); }
-  };
-
-  const formatMinutes = (m: number) => {
-    if (m >= 1440) return `${Math.floor(m / 1440)} dia(s) antes`;
-    if (m >= 60) return `${Math.floor(m / 60)} hora(s) antes`;
-    return `${m} min antes`;
-  };
-
   return (
     <div className="space-y-6">
       {/* Horário Comercial */}
@@ -1726,61 +1584,17 @@ function TabHorarios({
         )}
       </Card>
 
-      {/* Meeting Reminders */}
-      <Card padding="lg">
-        <h2 className="text-sm font-semibold text-gray-900 mb-1">Lembretes de Reunião</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Mensagens enviadas automaticamente antes de reuniões agendadas via Calendly.
-        </p>
-
-        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg mb-4">
-          <div>
-            <p className="text-sm font-medium text-gray-700">Lembretes ativados</p>
-            <p className="text-xs text-gray-400">Envia mensagens WhatsApp antes das reuniões</p>
-          </div>
-          <button
-            onClick={() => { updateField("meetingReminderEnabled", !config.meetingReminderEnabled); saveConfig(); }}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.meetingReminderEnabled ? "bg-green-500" : "bg-gray-300"}`}
-          >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${config.meetingReminderEnabled ? "translate-x-6" : "translate-x-1"}`} />
-          </button>
+      {/* Lembretes → link para Automações */}
+      <a
+        href="/conversas/automacoes"
+        className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl hover:bg-green-100 transition-colors group"
+      >
+        <div>
+          <p className="text-sm font-semibold text-green-800">Lembretes de Reunião</p>
+          <p className="text-xs text-green-600 mt-0.5">Gerencie os lembretes, mensagens e timing na aba Automações.</p>
         </div>
-
-        {reminderLoading ? (
-          <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-24 bg-gray-100 rounded-lg animate-pulse" />)}</div>
-        ) : (
-          <div className="space-y-3">
-            {reminderSteps.map((step) => (
-              <div key={step.id} className={`border rounded-lg p-3 ${step.enabled ? "border-green-200 bg-green-50/30" : "border-gray-200 bg-gray-50/50 opacity-60"}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">{formatMinutes(step.minutesBefore)}</span>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <span className="text-xs text-gray-400">{step.enabled ? "Ativo" : "Inativo"}</span>
-                    <input type="checkbox" checked={step.enabled}
-                      onChange={(e) => {
-                        const newEnabled = e.target.checked;
-                        setReminderSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, enabled: newEnabled } : s));
-                        saveReminderStep(step.id, { enabled: newEnabled });
-                      }}
-                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                    />
-                  </label>
-                </div>
-                <textarea value={step.message}
-                  onChange={(e) => setReminderSteps((prev) => prev.map((s) => s.id === step.id ? { ...s, message: e.target.value } : s))}
-                  rows={3} className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 font-mono resize-none focus:outline-none focus:ring-1 focus:ring-green-400"
-                />
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[10px] text-gray-400">{"Variáveis: {{nome}} {{data}} {{hora}} {{falta}}"}</span>
-                  <button onClick={() => saveReminderStep(step.id, { message: step.message })} disabled={reminderSaving === step.id} className="text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50">
-                    {reminderSaving === step.id ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+        <ExternalLink size={16} className="text-green-400 group-hover:text-green-600 flex-shrink-0" />
+      </a>
     </div>
   );
 }
