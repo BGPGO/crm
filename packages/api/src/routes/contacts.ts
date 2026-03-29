@@ -53,6 +53,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           organization: { select: { id: true, name: true } },
           tags: { include: { tag: true } },
           leadScore: true,
+          deals: {
+            select: { id: true, status: true, stage: { select: { id: true, name: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
       }),
     ]);

@@ -21,11 +21,18 @@ import { Search, ChevronLeft, ChevronRight, Upload, Tag } from "lucide-react";
 import { api } from "@/lib/api";
 
 type EngagementLevel = "ENGAGED" | "INTERMEDIATE" | "DISENGAGED";
+type DealStatus = "OPEN" | "WON" | "LOST";
 
 interface ContactTag {
   id: string;
   name: string;
   color: string;
+}
+
+interface DealInfo {
+  id: string;
+  status: DealStatus;
+  stage: { id: string; name: string };
 }
 
 interface Lead {
@@ -36,6 +43,7 @@ interface Lead {
   tags: ContactTag[];
   score: number | null;
   engagementLevel: EngagementLevel | null;
+  deal: DealInfo | null;
 }
 
 interface Meta {
@@ -90,10 +98,20 @@ export default function LeadsPage() {
         if (filterTagIdsRef.current.length > 0) params.set("tags", filterTagIdsRef.current.join(","));
         if (filterEngagementRef.current) params.set("engagementLevel", filterEngagementRef.current);
 
-        const result = await api.get<LeadsResponse>(
+        const result = await api.get<{ data: any[]; meta: Meta }>(
           `/contacts?${params.toString()}`
         );
-        setLeads(result.data);
+        const mapped: Lead[] = result.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          tags: c.tags?.map((t: any) => t.tag || t) || [],
+          score: c.leadScore?.score ?? null,
+          engagementLevel: c.leadScore?.engagementLevel ?? null,
+          deal: c.deals?.[0] ? { id: c.deals[0].id, status: c.deals[0].status, stage: c.deals[0].stage } : null,
+        }));
+        setLeads(mapped);
         setMeta(result.meta);
       } catch (err) {
         console.error("Erro ao buscar leads:", err);
@@ -257,6 +275,8 @@ export default function LeadsPage() {
               <TableHeader className="hidden md:table-cell">Tags</TableHeader>
               <TableHeader className="hidden lg:table-cell">Score</TableHeader>
               <TableHeader className="hidden sm:table-cell">Engajamento</TableHeader>
+              <TableHeader className="hidden md:table-cell">Fase do Funil</TableHeader>
+              <TableHeader className="hidden sm:table-cell">Status</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
           </TableHead>
@@ -264,7 +284,7 @@ export default function LeadsPage() {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <TableCell key={j}>
                       <div className="h-4 bg-gray-100 rounded animate-pulse" />
                     </TableCell>
@@ -273,7 +293,7 @@ export default function LeadsPage() {
               ))
             ) : leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={9}>
                   <div className="py-10 text-center text-gray-400 text-sm">
                     Nenhum lead encontrado.
                   </div>
@@ -331,6 +351,26 @@ export default function LeadsPage() {
                       <EngagementBadge level={lead.engagementLevel} />
                     ) : (
                       <span className="text-gray-400 text-xs">\u2014</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {lead.deal ? (
+                      <span className="text-sm text-gray-700">{lead.deal.stage.name}</span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">{"\u2014"}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {lead.deal ? (
+                      lead.deal.status === "WON" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Venda</span>
+                      ) : lead.deal.status === "LOST" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Perda</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Em andamento</span>
+                      )
+                    ) : (
+                      <span className="text-gray-400 text-xs">{"\u2014"}</span>
                     )}
                   </TableCell>
                   <TableCell>
