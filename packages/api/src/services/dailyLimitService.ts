@@ -45,8 +45,9 @@ function calculateWarmupLimit(daysSinceStart: number): number {
 }
 
 // Limite SEPARADO para first-contact (cold outreach) — o maior trigger de ban
+// TEMPORÁRIO: limite elevado para 6 para chamar leads pendentes — reverter após uso
 function calculateFirstContactLimit(daysSinceStart: number): number {
-  if (daysSinceStart <= 5) return 2;    // Quase zero cold outreach
+  if (daysSinceStart <= 5) return 6;    // Quase zero cold outreach
   if (daysSinceStart <= 10) return 3;
   if (daysSinceStart <= 15) return 5;
   if (daysSinceStart <= 21) return 8;
