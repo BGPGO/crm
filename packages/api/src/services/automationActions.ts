@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 import { isUnsubscribed } from './unsubscribeManager';
+import { wrapInBrandTemplate } from './emailTemplate';
 import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
@@ -209,14 +210,19 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
 
     // Convert plain text paragraphs to HTML
     const paragraphs = rawContent.split(/\n\n+/).map(p => p.trim()).filter(p => p);
-    const bodyHtml = paragraphs.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${p.replace(/\n/g, '<br>')}</p>`).join('');
-
-    // Wrap in branded template
     const firstName = (contact.name || '').split(' ')[0] || '';
-    htmlContent = buildBrandedEmail(firstName, bodyHtml);
+    const greeting = firstName ? `<p style="margin:0 0 20px;font-size:16px;color:#1e3a5f;font-weight:600;">Olá, ${firstName}!</p>` : '';
+    const bodyHtml = greeting + paragraphs.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${p.replace(/\n/g, '<br>')}</p>`).join('');
+
+    // Build unsubscribe URL for branded template
+    const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';
+    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe?email=${encodeURIComponent(contact.email)}`;
+
+    // Wrap in the same branded template used by campaigns
+    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
     subject = config.subject || 'BGPGO — Informações para você';
   } else if (config.templateId) {
-    // Template-based email
+    // Template-based email — already wrapped if created via the template editor
     const template = await prisma.emailTemplate.findUniqueOrThrow({
       where: { id: config.templateId },
     });

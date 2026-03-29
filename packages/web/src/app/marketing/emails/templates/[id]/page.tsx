@@ -11,6 +11,7 @@ import EmailDesignPanel, {
 import EmailContentPanel from "@/components/marketing/EmailContentPanel";
 import {
   ArrowLeft,
+  ArrowRight,
   Save,
   Loader2,
   Sparkles,
@@ -115,6 +116,7 @@ export default function TemplateEditorPage() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [showCampaignPrompt, setShowCampaignPrompt] = useState(false);
 
   // AI state
   const [aiTopic, setAiTopic] = useState("");
@@ -282,6 +284,38 @@ ${htmlContent}
         await api.put(`/email-templates/${id}`, payload);
         showToast("Template salvo!");
       }
+      setShowCampaignPrompt(true);
+    } catch {
+      showToast("Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveAndCampaign() {
+    if (!name.trim() || !subject.trim()) {
+      showToast("Preencha nome e assunto");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        subject: subject.trim(),
+        htmlContent: compileFullHtml(),
+        jsonContent: JSON.stringify({ design, bodyHtml: htmlContent }),
+      };
+
+      if (isNew) {
+        const res = await api.post<{ data: { id: string } }>(
+          "/email-templates",
+          payload
+        );
+        router.push(`/marketing/emails/new?templateId=${res.data.id}`);
+      } else {
+        await api.put(`/email-templates/${id}`, payload);
+        router.push(`/marketing/emails/new?templateId=${id}`);
+      }
     } catch {
       showToast("Erro ao salvar");
     } finally {
@@ -402,18 +436,32 @@ ${htmlContent}
               className="text-sm font-medium text-gray-900 bg-transparent border-none outline-none w-64 placeholder:text-gray-400"
             />
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || !name.trim() || !subject.trim()}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Save size={14} />
-            )}
-            Salvar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving || !name.trim() || !subject.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Save size={14} />
+              )}
+              Salvar
+            </button>
+            <button
+              onClick={handleSaveAndCampaign}
+              disabled={saving || !name.trim() || !subject.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <ArrowRight size={14} />
+              )}
+              Criar Campanha
+            </button>
+          </div>
         </div>
 
         {/* Row 2: Subject */}
@@ -430,6 +478,22 @@ ${htmlContent}
           />
         </div>
       </div>
+
+      {/* Post-save campaign prompt banner */}
+      {showCampaignPrompt && (
+        <div className="shrink-0 px-6 py-2.5 bg-green-50 border-b border-green-200 flex items-center justify-between">
+          <span className="text-sm text-green-800">
+            Template salvo! Deseja criar uma campanha com este template?
+          </span>
+          <button
+            onClick={() => router.push(`/marketing/emails/new?templateId=${id}`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Criar Campanha
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Main area: sidebar + preview */}
       <div className="flex-1 flex overflow-hidden">
