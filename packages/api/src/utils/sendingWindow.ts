@@ -261,8 +261,15 @@ function checkWindow(date: Date): WindowCheck {
   };
 }
 
+// BYPASS TEMPORÁRIO — remover após chamar os leads pendentes
+export const BYPASS_BUSINESS_HOURS = true;
+
 /** Retorna true se agora está dentro da janela comercial */
 export function isBusinessHours(): boolean {
+  if (BYPASS_BUSINESS_HOURS) {
+    console.log('[sendingWindow] BYPASS ativo — ignorando restrição de horário comercial');
+    return true;
+  }
   const now = new Date();
   const result = checkWindow(now);
   if (!result.inWindow && result.reason) {
