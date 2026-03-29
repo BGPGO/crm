@@ -570,6 +570,9 @@ router.post('/:id/activate-bot', async (req, res, next) => {
 
 // POST /api/deals/trigger-pending-sdr — dispara SDR IA para todos os leads ainda não chamados
 // TEMPORÁRIO — remover após chamar os leads pendentes
+// NOTA: busca por ausência de mensagem BOT (não por sdrActivatedAt) porque o guard
+// de idempotência grava sdrActivatedAt ANTES da checagem de horário, então leads
+// bloqueados pelo horário já têm sdrActivatedAt preenchido mas nunca receberam msg.
 router.post('/trigger-pending-sdr', async (req, res, next) => {
   try {
     const defaultPipeline = await prisma.pipeline.findFirst({
@@ -583,30 +586,48 @@ router.post('/trigger-pending-sdr', async (req, res, next) => {
 
     const firstStageId = defaultPipeline.stages[0].id;
 
-    const pendingDeals = await prisma.deal.findMany({
+    // Busca deals na 1ª etapa sem mensagem BOT enviada ao contato
+    const dealsInFirstStage = await prisma.deal.findMany({
       where: {
         stageId: firstStageId,
         status: 'OPEN',
-        sdrActivatedAt: null,
         contact: { phone: { not: null } },
       },
       include: { contact: { select: { id: true, phone: true } } },
     });
 
-    const results: { dealId: string; status: string }[] = [];
+    const results: { dealId: string; phone: string; status: string }[] = [];
 
-    for (const deal of pendingDeals) {
-      if (!deal.contactId) continue;
+    for (const deal of dealsInFirstStage) {
+      if (!deal.contactId || !deal.contact?.phone) continue;
+
+      const { normalizePhone } = await import('../services/leadQualificationEngine');
+      const normalized = normalizePhone(deal.contact.phone);
+
+      // Verifica se já existe mensagem BOT para esse contato
+      const botMsg = await prisma.whatsAppMessage.findFirst({
+        where: { conversation: { phone: normalized }, sender: 'BOT' },
+      });
+
+      if (botMsg) {
+        results.push({ dealId: deal.id, phone: normalized, status: 'já chamado — pulado' });
+        continue;
+      }
+
+      // Reseta sdrActivatedAt para permitir re-disparo pelo guard de idempotência
+      await prisma.deal.update({ where: { id: deal.id }, data: { sdrActivatedAt: null } });
+
       try {
         await activateSdrIa(deal.contactId, deal.id);
-        results.push({ dealId: deal.id, status: 'triggered' });
+        results.push({ dealId: deal.id, phone: normalized, status: 'triggered' });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        results.push({ dealId: deal.id, status: `error: ${msg}` });
+        results.push({ dealId: deal.id, phone: normalized, status: `error: ${msg}` });
       }
     }
 
-    res.json({ total: pendingDeals.length, results });
+    const triggered = results.filter(r => r.status === 'triggered').length;
+    res.json({ total: dealsInFirstStage.length, triggered, results });
   } catch (err) {
     next(err);
   }
