@@ -14,6 +14,10 @@ import {
   Shield,
   Clock,
   TrendingUp,
+  Zap,
+  Users,
+  AlertTriangle,
+  CheckCircle2,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -64,6 +68,12 @@ interface StatusData {
   followUps: {
     pending: number;
     sentToday: number;
+  };
+  automations: {
+    active: number;
+    enrollmentsActive: number;
+    executionsToday: number;
+    errorsToday: number;
   };
   protections: {
     businessHours: boolean;
@@ -631,6 +641,93 @@ export default function WhatsAppStatusPage() {
                 </div>
               </Card>
             </div>
+
+            {/* ── Automations ──────────────────────────────────────────── */}
+            <Card padding="md">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className="text-gray-500" />
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Automacoes
+                  </h3>
+                </div>
+                <a
+                  href="/conversas/automacoes"
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Gerenciar
+                </a>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 bg-blue-50 rounded-lg text-center">
+                  <div className="flex justify-center mb-1">
+                    <Zap size={18} className="text-blue-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {data.automations.active}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-0.5">Ativas</p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg text-center">
+                  <div className="flex justify-center mb-1">
+                    <Users size={18} className="text-purple-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {data.automations.enrollmentsActive}
+                  </p>
+                  <p className="text-xs text-purple-600 mt-0.5">Leads em fluxo</p>
+                </div>
+                <div className="p-4 bg-green-50 rounded-lg text-center">
+                  <div className="flex justify-center mb-1">
+                    <CheckCircle2 size={18} className="text-green-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-green-700">
+                    {data.automations.executionsToday}
+                  </p>
+                  <p className="text-xs text-green-600 mt-0.5">Execucoes hoje</p>
+                </div>
+                <div
+                  className={clsx(
+                    "p-4 rounded-lg text-center",
+                    data.automations.errorsToday > 0
+                      ? "bg-red-50"
+                      : "bg-gray-50"
+                  )}
+                >
+                  <div className="flex justify-center mb-1">
+                    <AlertTriangle
+                      size={18}
+                      className={
+                        data.automations.errorsToday > 0
+                          ? "text-red-500"
+                          : "text-gray-400"
+                      }
+                    />
+                  </div>
+                  <p
+                    className={clsx(
+                      "text-2xl font-bold",
+                      data.automations.errorsToday > 0
+                        ? "text-red-700"
+                        : "text-gray-400"
+                    )}
+                  >
+                    {data.automations.errorsToday}
+                  </p>
+                  <p
+                    className={clsx(
+                      "text-xs mt-0.5",
+                      data.automations.errorsToday > 0
+                        ? "text-red-600"
+                        : "text-gray-400"
+                    )}
+                  >
+                    Erros hoje
+                  </p>
+                </div>
+              </div>
+            </Card>
 
             {/* ── Protections ──────────────────────────────────────────── */}
             <Card padding="md">

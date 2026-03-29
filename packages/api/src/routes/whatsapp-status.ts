@@ -105,6 +105,20 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
     const remaining = Math.max(0, effectiveLimit - used);
     const usedPercent = effectiveLimit > 0 ? Math.round((used / effectiveLimit) * 100) : 0;
 
+    // Compute next midnight BRT (UTC-3) reset time
+    const nowMs = Date.now();
+    const nowBRT = new Date(nowMs - 3 * 3600000); // shift to BRT
+    const tomorrowBRT = new Date(nowBRT);
+    tomorrowBRT.setUTCDate(tomorrowBRT.getUTCDate() + 1);
+    tomorrowBRT.setUTCHours(0, 0, 0, 0);
+    const resetsAtUTC = new Date(tomorrowBRT.getTime() + 3 * 3600000); // shift back to UTC
+    const resetsAtMs = resetsAtUTC.getTime() - nowMs;
+    const resetsInHours = Math.floor(resetsAtMs / 3600000);
+    const resetsInMinutes = Math.floor((resetsAtMs % 3600000) / 60000);
+    const resetsAtLabel = resetsInHours > 0
+      ? `em ${resetsInHours}h ${resetsInMinutes}min (meia-noite BRT)`
+      : `em ${resetsInMinutes}min (meia-noite BRT)`;
+
     const daily = {
       limit: effectiveLimit,
       used,
@@ -115,7 +129,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
         followUp: todayVolume?.followUp ?? 0,
         reminder: todayVolume?.reminder ?? 0,
       },
-      resetsAt: '09:00 de amanhã',
+      resetsAt: resetsAtLabel,
     };
 
     const warmup = {
@@ -216,6 +230,33 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       sentToday: sentTodayFollowUps,
     };
 
+    // ── Automations ─────────────────────────────────────────────────────────
+    const todayStart = todayKey; // reuse the same midnight key
+
+    const [
+      activeAutomationsRows,
+      enrollmentsActiveRows,
+      executionsTodayRows,
+      errorsTodayRows,
+    ] = await Promise.all([
+      prisma.automation.count({ where: { active: true } }),
+      prisma.automationEnrollment.count({ where: { status: 'ACTIVE' } }),
+      prisma.automationLog.count({ where: { executedAt: { gte: todayStart } } }),
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*)::bigint as count
+        FROM "AutomationLog"
+        WHERE "executedAt" >= ${todayStart}
+          AND (result->>'success')::boolean = false
+      `,
+    ]);
+
+    const automations = {
+      active: activeAutomationsRows,
+      enrollmentsActive: enrollmentsActiveRows,
+      executionsToday: executionsTodayRows,
+      errorsToday: Number(errorsTodayRows[0]?.count ?? 0),
+    };
+
     // ── Protections ─────────────────────────────────────────────────────────
     const protections = {
       businessHours: true, // Always enforced by the system
@@ -234,6 +275,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       campaigns,
       volumeHistory,
       followUps,
+      automations,
       protections,
     });
   } catch (err) {
