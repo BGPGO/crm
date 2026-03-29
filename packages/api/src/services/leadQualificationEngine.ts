@@ -4,7 +4,7 @@ import { EvolutionApiClient } from './evolutionApiClient';
 import { MessageSender } from '@prisma/client';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { canSend, registerSent } from './dailyLimitService';
-import { isBusinessHours, msUntilNextBusinessHour } from '../utils/sendingWindow';
+import { isBusinessHours, msUntilNextBusinessHour, BYPASS_SDR_BUSINESS_HOURS } from '../utils/sendingWindow';
 
 // Re-export for existing consumers
 export { normalizePhone };
@@ -135,7 +135,8 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
   }
 
   // 6c. Check business hours — SDR IA não manda msg de madrugada
-  if (!isBusinessHours()) {
+  // BYPASS_SDR_BUSINESS_HOURS: temporário para chamar leads pendentes — remover após uso
+  if (!BYPASS_SDR_BUSINESS_HOURS && !isBusinessHours()) {
     console.log('[LeadQualification] Fora do horário comercial — SDR IA adiada');
     return;
   }
