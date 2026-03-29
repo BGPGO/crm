@@ -6,6 +6,32 @@ import { validate } from '../middleware/validate';
 
 const router = Router();
 
+// GET /api/automations/stats/global
+router.get('/stats/global', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [activeAutomations, enrollmentsActive, executionsToday] = await Promise.all([
+      prisma.automation.count({ where: { status: 'ACTIVE' } }),
+      prisma.automationEnrollment.count({ where: { status: 'ACTIVE' } }),
+      prisma.automationLog.count({ where: { executedAt: { gte: todayStart } } }),
+    ]);
+
+    const errorsRows = await prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*)::bigint as count
+      FROM "AutomationLog"
+      WHERE "executedAt" >= ${todayStart}
+        AND (result->>'success')::boolean = false
+    `;
+    const errorsToday = Number(errorsRows[0]?.count ?? 0);
+
+    res.json({ data: { activeAutomations, enrollmentsActive, executionsToday, errorsToday } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/automations
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
