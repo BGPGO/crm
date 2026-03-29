@@ -20,7 +20,7 @@ export async function logActivity(params: LogActivityParams): Promise<Activity> 
       userId,
       dealId: dealId ?? null,
       contactId: contactId ?? null,
-      metadata: metadata ?? undefined,
+      metadata: (metadata ?? undefined) as any,
     },
   });
 }

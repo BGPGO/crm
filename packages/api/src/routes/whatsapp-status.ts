@@ -239,7 +239,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       executionsTodayRows,
       errorsTodayRows,
     ] = await Promise.all([
-      prisma.automation.count({ where: { active: true } }),
+      prisma.automation.count({ where: { status: 'ACTIVE' } }),
       prisma.automationEnrollment.count({ where: { status: 'ACTIVE' } }),
       prisma.automationLog.count({ where: { executedAt: { gte: todayStart } } }),
       prisma.$queryRaw<[{ count: bigint }]>`
