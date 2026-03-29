@@ -93,6 +93,52 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// GET /api/deals/sdr-diagnostics — mostra o que está bloqueando o SDR IA
+router.get('/sdr-diagnostics', async (req, res, next) => {
+  try {
+    const { getFirstContactLimit } = await import('../services/dailyLimitService');
+    const { BYPASS_SDR_BUSINESS_HOURS, isBusinessHours } = await import('../utils/sendingWindow');
+
+    const config = await prisma.whatsAppConfig.findFirst();
+
+    const today = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0] + 'T00:00:00.000Z');
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    const firstContactToday = await prisma.activity.count({
+      where: { type: 'NOTE', content: { contains: 'SDR IA ativada' }, createdAt: { gte: today, lt: tomorrow } },
+    });
+    const firstContactLimit = config ? await getFirstContactLimit() : 2;
+
+    const defaultPipeline = await prisma.pipeline.findFirst({
+      where: { isDefault: true },
+      include: { stages: { orderBy: { order: 'asc' }, take: 1 } },
+    });
+    const firstStageId = defaultPipeline?.stages[0]?.id;
+    const leadsTotal = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN' } }) : 0;
+    const leadsNaoAtivados = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN', sdrActivatedAt: null } }) : 0;
+
+    res.json({
+      bloqueios: {
+        configNaoEncontrada: !config,
+        botDesabilitado: config ? !config.botEnabled : true,
+        sdrAutoMessageDesabilitado: config ? !config.sdrAutoMessageEnabled : true,
+        leadQualificationDesabilitado: config ? !config.leadQualificationEnabled : true,
+        foraDaJanela: !BYPASS_SDR_BUSINESS_HOURS && !isBusinessHours(),
+        limiteDiarioAtingido: firstContactToday >= firstContactLimit,
+      },
+      limites: {
+        firstContactHoje: firstContactToday,
+        firstContactLimite: firstContactLimit,
+        warmupAtivo: config?.warmupEnabled ?? false,
+        warmupInicio: config?.warmupStartDate ?? null,
+      },
+      bypassHorarioAtivo: BYPASS_SDR_BUSINESS_HOURS,
+      leads: { total: leadsTotal, semSdrAtivado: leadsNaoAtivados },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/deals/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -568,51 +614,6 @@ router.post('/:id/activate-bot', async (req, res, next) => {
   }
 });
 
-// GET /api/deals/sdr-diagnostics — mostra o que está bloqueando o SDR IA
-router.get('/sdr-diagnostics', async (req, res, next) => {
-  try {
-    const { getFirstContactLimit } = await import('../services/dailyLimitService');
-    const { BYPASS_SDR_BUSINESS_HOURS, isBusinessHours } = await import('../utils/sendingWindow');
-
-    const config = await prisma.whatsAppConfig.findFirst();
-
-    const today = new Date(new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0] + 'T00:00:00.000Z');
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    const firstContactToday = await prisma.activity.count({
-      where: { type: 'NOTE', content: { contains: 'SDR IA ativada' }, createdAt: { gte: today, lt: tomorrow } },
-    });
-    const firstContactLimit = config ? await getFirstContactLimit() : 2;
-
-    const defaultPipeline = await prisma.pipeline.findFirst({
-      where: { isDefault: true },
-      include: { stages: { orderBy: { order: 'asc' }, take: 1 } },
-    });
-    const firstStageId = defaultPipeline?.stages[0]?.id;
-    const leadsTotal = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN' } }) : 0;
-    const leadsNaoAtivados = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN', sdrActivatedAt: null } }) : 0;
-
-    res.json({
-      bloqueios: {
-        configNaoEncontrada: !config,
-        botDesabilitado: config ? !config.botEnabled : true,
-        sdrAutoMessageDesabilitado: config ? !config.sdrAutoMessageEnabled : true,
-        leadQualificationDesabilitado: config ? !config.leadQualificationEnabled : true,
-        foraDaJanela: !BYPASS_SDR_BUSINESS_HOURS && !isBusinessHours(),
-        limiteDiarioAtingido: firstContactToday >= firstContactLimit,
-      },
-      limites: {
-        firstContactHoje: firstContactToday,
-        firstContactLimite: firstContactLimit,
-        warmupAtivo: config?.warmupEnabled ?? false,
-        warmupInicio: config?.warmupStartDate ?? null,
-      },
-      bypassHorarioAtivo: BYPASS_SDR_BUSINESS_HOURS,
-      leads: { total: leadsTotal, semSdrAtivado: leadsNaoAtivados },
-    });
-  } catch (err) {
-    next(err);
-  }
-});
 
 // POST /api/deals/trigger-pending-sdr — dispara SDR IA para todos os leads ainda não chamados
 // TEMPORÁRIO — remover após chamar os leads pendentes
