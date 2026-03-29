@@ -568,6 +568,50 @@ router.post('/:id/activate-bot', async (req, res, next) => {
   }
 });
 
+// POST /api/deals/trigger-pending-sdr — dispara SDR IA para todos os leads ainda não chamados
+// TEMPORÁRIO — remover após chamar os leads pendentes
+router.post('/trigger-pending-sdr', async (req, res, next) => {
+  try {
+    const defaultPipeline = await prisma.pipeline.findFirst({
+      where: { isDefault: true },
+      include: { stages: { orderBy: { order: 'asc' }, take: 1 } },
+    });
+
+    if (!defaultPipeline || defaultPipeline.stages.length === 0) {
+      return res.status(400).json({ error: 'Nenhum pipeline padrão encontrado' });
+    }
+
+    const firstStageId = defaultPipeline.stages[0].id;
+
+    const pendingDeals = await prisma.deal.findMany({
+      where: {
+        stageId: firstStageId,
+        status: 'OPEN',
+        sdrActivatedAt: null,
+        contact: { phone: { not: null } },
+      },
+      include: { contact: { select: { id: true, phone: true } } },
+    });
+
+    const results: { dealId: string; status: string }[] = [];
+
+    for (const deal of pendingDeals) {
+      if (!deal.contactId) continue;
+      try {
+        await activateSdrIa(deal.contactId, deal.id);
+        results.push({ dealId: deal.id, status: 'triggered' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ dealId: deal.id, status: `error: ${msg}` });
+      }
+    }
+
+    res.json({ total: pendingDeals.length, results });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/deals/:id/manual-meeting — create a manual meeting for a deal
 router.post('/:id/manual-meeting', async (req: Request, res: Response, next: NextFunction) => {
   try {
