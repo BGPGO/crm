@@ -139,6 +139,10 @@ router.post('/test-whatsapp', async (req: Request, res: Response, next: NextFunc
       .replace(/\{\{cliente\}\}/gi, 'Cliente Teste');
     await client.sendText(phone, msg);
 
+    // Registrar no volume diário (testes também contam para proteção anti-ban)
+    const { registerSent } = await import('../services/dailyLimitService');
+    await registerSent('reminder').catch(() => {});
+
     res.json({ success: true, sentTo: phone });
   } catch (err) {
     next(err);

@@ -45,9 +45,9 @@ function calculateWarmupLimit(daysSinceStart: number): number {
 }
 
 // Limite SEPARADO para first-contact (cold outreach) — o maior trigger de ban
-// TEMPORÁRIO: limite elevado para 6 para chamar leads pendentes — reverter após uso
+// Conta já foi banida 2x — valores ultra-conservadores
 function calculateFirstContactLimit(daysSinceStart: number): number {
-  if (daysSinceStart <= 5) return 6;    // Quase zero cold outreach
+  if (daysSinceStart <= 5) return 2;    // Primeiros 5 dias: quase nada
   if (daysSinceStart <= 10) return 3;
   if (daysSinceStart <= 15) return 5;
   if (daysSinceStart <= 21) return 8;
@@ -67,7 +67,7 @@ export async function getDailyLimit(): Promise<number> {
 
   const now = new Date();
   const diffMs = now.getTime() - config.warmupStartDate.getTime();
-  const daysSinceStart = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const daysSinceStart = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   if (daysSinceStart < 1) return 3; // mesmo dia do start
 
@@ -86,7 +86,7 @@ export async function getFirstContactLimit(): Promise<number> {
 
   const now = new Date();
   const diffMs = now.getTime() - config.warmupStartDate.getTime();
-  const daysSinceStart = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const daysSinceStart = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   return calculateFirstContactLimit(daysSinceStart);
 }
 
@@ -94,16 +94,33 @@ export async function getFirstContactLimit(): Promise<number> {
  * Verifica se ainda pode enviar hoje.
  *
  * Lógica de bloqueio por fonte:
- * - sdrFirstContact: hard block com limite diário conservador (maior gatilho de ban).
- * - Todos os outros canais (followUp, campaign, reminder, botResponse): retornam true.
- *   A proteção real para esses canais é o throttle de velocidade (delays 30-90s),
- *   não um contador diário. Leads que já interagiram têm risco muito baixo de gerar ban.
+ * - botResponse: contato quente (lead mandou msg, bot responde) — só bloqueia no limite geral.
+ *   Não aplicar limite restritivo porque o lead iniciou a conversa.
+ * - sdrFirstContact: hard block com limite diário ultra-conservador (maior gatilho de ban).
+ * - followUp, campaign, reminder: respeitam limite diário geral.
  */
 export async function canSend(source?: SendSource): Promise<boolean> {
-  // Canais de contato quente: nunca bloquear por volume diário
-  if (source && source !== 'sdrFirstContact') return true;
+  // 1. Limite geral diário — TODOS os canais respeitam (exceto botResponse que tem margem)
+  const volume = await getOrCreateTodayVolume();
+  const limit = await getDailyLimit();
 
-  // sdrFirstContact (cold outreach): aplicar hard block — principal gatilho de ban
+  // botResponse: contato quente — permite até 150% do limite (lead iniciou a conversa)
+  if (source === 'botResponse') {
+    const softLimit = Math.ceil(limit * 1.5);
+    if (volume.total >= softLimit) {
+      console.log(`[DailyLimit] Limite soft de botResponse atingido: ${volume.total}/${softLimit}`);
+      return false;
+    }
+    return true;
+  }
+
+  // Limite geral: todos os canais proativos
+  if (volume.total >= limit) {
+    console.log(`[DailyLimit] Limite diário atingido: ${volume.total}/${limit} (source: ${source || 'none'})`);
+    return false;
+  }
+
+  // 2. sdrFirstContact: limite EXTRA restritivo (cold outreach = maior gatilho de ban)
   if (source === 'sdrFirstContact') {
     const firstContactLimit = await getFirstContactLimit();
     const today = getTodayBrasilia();
@@ -119,13 +136,9 @@ export async function canSend(source?: SendSource): Promise<boolean> {
       console.log(`[DailyLimit] Limite de first-contact atingido: ${firstContactCount}/${firstContactLimit}`);
       return false;
     }
-    return true;
   }
 
-  // Fallback sem source: checa limite geral (compatibilidade com chamadas legadas)
-  const volume = await getOrCreateTodayVolume();
-  const limit = await getDailyLimit();
-  return volume.total < limit;
+  return true;
 }
 
 /**

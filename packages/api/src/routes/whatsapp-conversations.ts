@@ -276,6 +276,10 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
     const client = await EvolutionApiClient.fromConfig();
     await client.sendText(conversation.phone, content);
 
+    // Registrar no volume diário (mensagens manuais também contam para proteção anti-ban)
+    const { registerSent } = await import('../services/dailyLimitService');
+    await registerSent('botResponse').catch(() => {});
+
     // Save message as HUMAN sender with userId
     const message = await prisma.whatsAppMessage.create({
       data: {

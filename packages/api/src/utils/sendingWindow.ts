@@ -261,8 +261,8 @@ function checkWindow(date: Date): WindowCheck {
   };
 }
 
-// BYPASS TEMPORÁRIO (só SDR IA) — remover após chamar os leads pendentes
-export const BYPASS_SDR_BUSINESS_HOURS = true;
+// Bypass de horário comercial para SDR IA — DESATIVADO (era temporário, causava envios 24/7)
+export const BYPASS_SDR_BUSINESS_HOURS = false;
 
 /** Retorna true se agora está dentro da janela comercial */
 export function isBusinessHours(): boolean {
