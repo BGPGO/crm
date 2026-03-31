@@ -88,6 +88,10 @@ const CATEGORY_CONFIG: Record<
   AUTHENTICATION: { label: "Autenticacao", variant: "gray" },
 };
 
+const VARIABLE_HINTS: Record<string, string> = {
+  "{{1}}": "Nome do contato",
+};
+
 const LANGUAGE_OPTIONS = [
   { value: "pt_BR", label: "Portugues (BR)" },
   { value: "en_US", label: "English (US)" },
@@ -1156,6 +1160,11 @@ export default function TemplatesPage() {
                           <div key={v} className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                               {v}
+                              {VARIABLE_HINTS[v] && (
+                                <span className="ml-1 text-gray-400 dark:text-gray-500 font-normal">
+                                  ({VARIABLE_HINTS[v]})
+                                </span>
+                              )}
                             </label>
                             <input
                               type="text"
@@ -1346,7 +1355,8 @@ function highlightVariables(text: string): React.ReactNode {
     /\{\{\d+\}\}/.test(part) ? (
       <span
         key={i}
-        className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-mono font-medium"
+        className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-mono font-medium cursor-help"
+        title={VARIABLE_HINTS[part] || `Variavel ${part}`}
       >
         {part}
       </span>
