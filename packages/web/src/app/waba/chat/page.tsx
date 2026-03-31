@@ -19,6 +19,17 @@ import {
   Bot,
   User,
   UserCheck,
+  Info,
+  ExternalLink,
+  Tag,
+  Archive,
+  XCircle,
+  RefreshCw,
+  Mail,
+  Phone,
+  DollarSign,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -110,6 +121,22 @@ interface WaTemplate {
 interface WaUser {
   id: string;
   name: string;
+}
+
+interface ContactDetail {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string;
+  tags?: { id: string; name: string; color: string | null }[];
+}
+
+interface DealSummary {
+  id: string;
+  title: string;
+  value: number | null;
+  stage?: { name: string; color: string | null } | null;
+  status: string;
 }
 
 // ─── Filter type ──────────────────────────────────────────────────────────────
@@ -441,6 +468,10 @@ export default function WabaChatPage() {
   const [templates, setTemplates] = useState<WaTemplate[]>([]);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [showDetails, setShowDetails] = useState(true);
+  const [contactDetail, setContactDetail] = useState<ContactDetail | null>(null);
+  const [dealSummary, setDealSummary] = useState<DealSummary | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // ── Refs ──
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -543,6 +574,41 @@ export default function WabaChatPage() {
     }
   }, [selectedId, fetchMessages]);
 
+  // ── Fetch contact details + deal when conversation changes ──
+  useEffect(() => {
+    if (!selectedId || !selectedConv) {
+      setContactDetail(null);
+      setDealSummary(null);
+      return;
+    }
+    const contactId = selectedConv.contact?.id;
+    if (!contactId) {
+      setContactDetail(null);
+      setDealSummary(null);
+      return;
+    }
+
+    setDetailLoading(true);
+
+    // Fetch contact with tags
+    api
+      .get<{ data: ContactDetail } | ContactDetail>(`/contacts/${contactId}`)
+      .then((res: any) => {
+        setContactDetail(res.data ?? res);
+      })
+      .catch(() => setContactDetail(null));
+
+    // Fetch open deal
+    api
+      .get<{ data: DealSummary[] }>(`/deals?contactId=${contactId}&status=OPEN&limit=1`)
+      .then((res: any) => {
+        const deals = res.data ?? [];
+        setDealSummary(deals.length > 0 ? deals[0] : null);
+      })
+      .catch(() => setDealSummary(null))
+      .finally(() => setDetailLoading(false));
+  }, [selectedId, selectedConv]);
+
   // ── Auto-scroll to bottom ──
   useEffect(() => {
     const container = messagesContainerRef.current;
@@ -595,8 +661,10 @@ export default function WabaChatPage() {
         textareaRef.current.style.height = "auto";
       }
       await fetchMessages(selectedId);
-    } catch {
-      setError("Erro ao enviar mensagem.");
+    } catch (err: any) {
+      const msg = err?.message || err?.toString() || "Erro desconhecido";
+      setError(`Erro ao enviar: ${msg}`);
+      console.error("[waba/chat] handleSend error:", err);
     } finally {
       setSending(false);
     }
@@ -648,6 +716,26 @@ export default function WabaChatPage() {
     setSearchQuery(value);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     searchTimeoutRef.current = setTimeout(() => fetchConversations(value), 300);
+  };
+
+  const handleCloseConversation = async () => {
+    if (!selectedId) return;
+    try {
+      await api.patch(`/wa/conversations/${selectedId}`, { status: "WA_CLOSED" });
+      await fetchConversations();
+    } catch {
+      setError("Erro ao fechar conversa.");
+    }
+  };
+
+  const handleArchiveConversation = async () => {
+    if (!selectedId) return;
+    try {
+      await api.patch(`/wa/conversations/${selectedId}`, { status: "WA_ARCHIVED" });
+      await fetchConversations();
+    } catch {
+      setError("Erro ao arquivar conversa.");
+    }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -858,13 +946,15 @@ export default function WabaChatPage() {
         </div>
       </div>
 
-      {/* ═══════════════════ RIGHT PANEL — CHAT ═══════════════════════════════ */}
+      {/* ═══════════════════ RIGHT AREA — CHAT + DETAILS ═══════════════════ */}
       <div
         className={clsx(
-          "flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 min-w-0",
+          "flex-1 flex min-w-0",
           !mobileShowChat && !selectedId ? "hidden md:flex" : "flex"
         )}
       >
+      {/* ── Chat column ── */}
+      <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-950 min-w-0">
         {!selectedId ? (
           /* Empty state */
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 gap-4">
@@ -992,6 +1082,20 @@ export default function WabaChatPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Toggle details panel */}
+                  <button
+                    onClick={() => setShowDetails(!showDetails)}
+                    className={clsx(
+                      "p-1.5 rounded-lg transition-colors",
+                      showDetails
+                        ? "bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-400"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
+                    )}
+                    title={showDetails ? "Ocultar detalhes" : "Ver detalhes"}
+                  >
+                    {showDetails ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1231,6 +1335,276 @@ export default function WabaChatPage() {
           </>
         )}
       </div>
+
+      {/* ═══════════════════ DETAILS PANEL ═══════════════════════════════════ */}
+      {selectedId && selectedConv && showDetails && (
+        <div
+          className={clsx(
+            "relative border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0 overflow-y-auto",
+            "w-[320px] hidden lg:block",
+            // Mobile: overlay
+            "max-lg:fixed max-lg:right-0 max-lg:top-0 max-lg:bottom-0 max-lg:z-40 max-lg:block max-lg:shadow-2xl max-lg:w-[300px]"
+          )}
+        >
+          {/* Close on mobile */}
+          <button
+            onClick={() => setShowDetails(false)}
+            className="lg:hidden absolute top-3 right-3 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 z-10"
+          >
+            <X size={16} className="text-gray-500" />
+          </button>
+
+          {/* ── Contact Card ── */}
+          <div className="p-4 border-b border-gray-100 dark:border-gray-700 text-center">
+            <div
+              className={clsx(
+                "w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold mx-auto",
+                getAvatarColor(selectedConv.contact?.name || "?")
+              )}
+            >
+              {getInitials(selectedConv.contact?.name)}
+            </div>
+            <h3 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {selectedConv.contact?.name || "Sem nome"}
+            </h3>
+            {selectedConv.contact?.phone && (
+              <div className="flex items-center justify-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <Phone size={12} />
+                <span>{selectedConv.contact.phone}</span>
+              </div>
+            )}
+            {(contactDetail?.email || selectedConv.contact?.email) && (
+              <div className="flex items-center justify-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <Mail size={12} />
+                <span className="truncate">{contactDetail?.email || selectedConv.contact?.email}</span>
+              </div>
+            )}
+          </div>
+
+          {/* ── Conversation Info ── */}
+          <div className="p-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+            <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              Conversa
+            </h4>
+
+            {/* Status */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Status</span>
+              <span
+                className={clsx(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium",
+                  selectedConv.status === "WA_OPEN"
+                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    : selectedConv.status === "WA_CLOSED"
+                    ? "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                )}
+              >
+                <span
+                  className={clsx(
+                    "w-1.5 h-1.5 rounded-full",
+                    selectedConv.status === "WA_OPEN"
+                      ? "bg-green-500"
+                      : selectedConv.status === "WA_CLOSED"
+                      ? "bg-gray-400"
+                      : "bg-red-500"
+                  )}
+                />
+                {selectedConv.status === "WA_OPEN"
+                  ? "Aberta"
+                  : selectedConv.status === "WA_CLOSED"
+                  ? "Fechada"
+                  : "Arquivada"}
+              </span>
+            </div>
+
+            {/* Window */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Janela 24h</span>
+              {selectedConv.windowOpen ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  {windowTimeRemaining(selectedConv.windowExpiresAt)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  Expirada
+                </span>
+              )}
+            </div>
+
+            {/* Assigned user */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Responsavel</span>
+              <select
+                value={selectedConv.assignedUser?.id || ""}
+                onChange={(e) => handleAssign(e.target.value || null)}
+                className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[140px]"
+              >
+                <option value="">Nenhum</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mode */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Modo</span>
+              <button
+                onClick={toggleHumanAttention}
+                className={clsx(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors",
+                  selectedConv.needsHumanAttention
+                    ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400"
+                )}
+              >
+                {selectedConv.needsHumanAttention ? (
+                  <>
+                    <User size={12} />
+                    Humano
+                  </>
+                ) : (
+                  <>
+                    <Bot size={12} />
+                    Bot
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Tags ── */}
+          {contactDetail?.tags && contactDetail.tags.length > 0 && (
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                Tags
+              </h4>
+              <div className="flex flex-wrap gap-1.5">
+                {contactDetail.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                    style={
+                      tag.color
+                        ? {
+                            backgroundColor: `${tag.color}15`,
+                            color: tag.color,
+                            borderColor: `${tag.color}40`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <Tag size={10} />
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Deal Info ── */}
+          {dealSummary && (
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                Negociacao
+              </h4>
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 space-y-2">
+                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  {dealSummary.title}
+                </p>
+                {dealSummary.stage && (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: dealSummary.stage.color || "#6B7280" }}
+                    />
+                    <span className="text-xs text-gray-600 dark:text-gray-300">
+                      {dealSummary.stage.name}
+                    </span>
+                  </div>
+                )}
+                {dealSummary.value != null && (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+                    <DollarSign size={12} />
+                    <span className="font-medium">
+                      {new Intl.NumberFormat("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      }).format(dealSummary.value)}
+                    </span>
+                  </div>
+                )}
+                <a
+                  href="/pipeline"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                >
+                  <ExternalLink size={11} />
+                  Ver no pipeline
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* ── Quick Actions ── */}
+          <div className="p-4 space-y-2">
+            <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+              Acoes rapidas
+            </h4>
+
+            {selectedConv.status === "WA_OPEN" && (
+              <button
+                onClick={handleCloseConversation}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <XCircle size={14} className="text-gray-400" />
+                Fechar conversa
+              </button>
+            )}
+
+            {selectedConv.status !== "WA_ARCHIVED" && (
+              <button
+                onClick={handleArchiveConversation}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Archive size={14} className="text-gray-400" />
+                Arquivar
+              </button>
+            )}
+
+            <button
+              onClick={toggleHumanAttention}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <RefreshCw size={14} className="text-gray-400" />
+              {selectedConv.needsHumanAttention
+                ? "Devolver ao bot"
+                : "Transferir para humano"}
+            </button>
+          </div>
+
+          {/* Loading overlay */}
+          {detailLoading && (
+            <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 flex items-center justify-center">
+              <Loader2 size={20} className="animate-spin text-blue-500" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile overlay backdrop */}
+      {selectedId && showDetails && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/30 z-30"
+          onClick={() => setShowDetails(false)}
+        />
+      )}
+
+      </div>{/* end RIGHT AREA wrapper */}
 
       {/* ── Error toast ── */}
       {error && (

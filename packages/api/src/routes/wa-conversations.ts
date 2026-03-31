@@ -323,7 +323,8 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
     });
 
     res.status(201).json({ data: result });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[wa-conversations] Erro ao enviar mensagem:', err?.message || err);
     next(err);
   }
 });

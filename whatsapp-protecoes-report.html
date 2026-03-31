@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Protecoes Anti-Ban WhatsApp - BGPGO CRM</title>
+<style>
+  @page { margin: 1.5cm 2cm; size: A4; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1a1a2e; line-height: 1.6; padding: 40px 50px; max-width: 900px; margin: 0 auto; }
+
+  .header { border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+  .header h1 { font-size: 24px; color: #1e293b; margin-bottom: 4px; }
+  .header .subtitle { font-size: 13px; color: #64748b; }
+  .header .badge { display: inline-block; background: #dc2626; color: white; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 12px; margin-left: 8px; }
+  .header .date { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  .logo { font-size: 14px; font-weight: 700; color: #2563eb; letter-spacing: -0.5px; }
+
+  h2 { font-size: 16px; color: #1e40af; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+  h3 { font-size: 14px; color: #334155; margin: 16px 0 8px; }
+  p { font-size: 13px; margin-bottom: 8px; }
+
+  .context-box { background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 6px; padding: 14px 16px; margin-bottom: 24px; }
+  .context-box strong { color: #991b1b; }
+  .context-box p { font-size: 12px; color: #7f1d1d; margin: 0; }
+
+  .solution-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; border-radius: 6px; padding: 14px 16px; margin: 12px 0; }
+  .solution-box p { font-size: 12px; color: #166534; margin: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 12px; }
+  th { background: #f1f5f9; color: #475569; font-weight: 600; text-align: left; padding: 8px 10px; border: 1px solid #e2e8f0; }
+  td { padding: 7px 10px; border: 1px solid #e2e8f0; color: #334155; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  .check { color: #16a34a; font-weight: 700; }
+  .cross { color: #dc2626; }
+  .na { color: #94a3b8; font-style: italic; }
+
+  ul, ol { font-size: 13px; margin: 8px 0 12px 20px; }
+  li { margin-bottom: 4px; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+  .metric-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center; }
+  .metric-card .value { font-size: 22px; font-weight: 700; color: #1e40af; }
+  .metric-card .label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  .timeline { margin: 16px 0; }
+  .timeline-item { display: flex; gap: 12px; margin-bottom: 12px; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: #2563eb; margin-top: 5px; flex-shrink: 0; }
+  .timeline-dot.red { background: #dc2626; }
+  .timeline-dot.green { background: #16a34a; }
+  .timeline-content { flex: 1; }
+  .timeline-content .title { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .timeline-content .desc { font-size: 12px; color: #64748b; }
+
+  .warmup-table td:first-child { font-weight: 600; }
+  .old-value { text-decoration: line-through; color: #dc2626; font-size: 11px; }
+  .new-value { color: #16a34a; font-weight: 600; }
+
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center; }
+
+  .page-break { page-break-before: always; }
+
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #7c3aed; font-family: 'Consolas', 'Courier New', monospace; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+    <div>
+      <span class="logo">BGPGO</span>
+      <h1>Protecoes Anti-Ban WhatsApp <span class="badge">INCIDENTE</span></h1>
+      <div class="subtitle">Relatorio de seguranca — Medidas implementadas apos ban da conta</div>
+      <div class="date">Data do incidente: 26/03/2026 &nbsp;|&nbsp; Implementacao: 26/03/2026 &nbsp;|&nbsp; Status: Ativo em producao</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXTO -->
+<div class="context-box">
+  <strong>O que aconteceu:</strong>
+  <p>A conta WhatsApp (Z-API) foi banida apos rodar cadencias automatizadas sem throttling. O motor de automacao processava TODOS os enrollments pendentes a cada 60 segundos — se 50 leads tinham mensagens agendadas no mesmo momento, os 50 disparavam em menos de 1 segundo. O WhatsApp detectou como spam e baniu a conta.</p>
+</div>
+
+<div class="solution-box">
+  <strong>Resultado:</strong>
+  <p>Foram implementadas 8 camadas de protecao cobrindo todos os 5 canais de envio. O sistema agora tem limite diario progressivo (warmup), throttle por ciclo, protecao de contato frio, business hours e anti-duplicacao.</p>
+</div>
+
+<!-- METRICAS RESUMO -->
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="value">5</div>
+    <div class="label">Canais protegidos</div>
+  </div>
+  <div class="metric-card">
+    <div class="value">8</div>
+    <div class="label">Camadas de protecao</div>
+  </div>
+  <div class="metric-card">
+    <div class="value">~60%</div>
+    <div class="label">Reducao nos limites</div>
+  </div>
+</div>
+
+<!-- CANAIS DE ENVIO -->
+<h2>1. Canais de Envio WhatsApp</h2>
+<p>O CRM tem 5 canais que enviam mensagens proativas. Todos agora compartilham o mesmo controle de volume diario.</p>
+
+<table>
+  <tr>
+    <th>Canal</th>
+    <th>Quando dispara</th>
+    <th>Tipo</th>
+  </tr>
+  <tr>
+    <td><strong>Cadencias</strong></td>
+    <td>Cron a cada 60s processa enrollments pendentes</td>
+    <td>Automatico</td>
+  </tr>
+  <tr>
+    <td><strong>Follow-up do bot</strong></td>
+    <td>Event-driven apos bot enviar mensagem</td>
+    <td>Automatico</td>
+  </tr>
+  <tr>
+    <td><strong>Campanhas</strong></td>
+    <td>Operador clica "Iniciar" manualmente</td>
+    <td>Manual</td>
+  </tr>
+  <tr>
+    <td><strong>Lembretes de reuniao</strong></td>
+    <td>X minutos antes da reuniao</td>
+    <td>Agendado</td>
+  </tr>
+  <tr>
+    <td><strong>Lembretes backup</strong></td>
+    <td>Cron a cada 60s (rede de seguranca)</td>
+    <td>Automatico</td>
+  </tr>
+</table>
+
+<!-- MATRIZ DE PROTECOES -->
+<h2>2. Matriz de Protecoes por Canal</h2>
+
+<table>
+  <tr>
+    <th>Protecao</th>
+    <th>Cadencias</th>
+    <th>Follow-up</th>
+    <th>Campanhas</th>
+    <th>Lembretes</th>
+  </tr>
+  <tr>
+    <td>Limite diario (<code>canSend()</code>)</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+  </tr>
+  <tr>
+    <td>Contagem (<code>registerSent()</code>)</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+  </tr>
+  <tr>
+    <td>Horario comercial (8h-18h)</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="na">N/A*</td>
+  </tr>
+  <tr>
+    <td>Opt-out check</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+  </tr>
+  <tr>
+    <td>Contato frio (max 5 msgs)</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="na">Operador</td>
+    <td class="na">N/A</td>
+  </tr>
+  <tr>
+    <td>Delay entre envios</td>
+    <td>30-90s</td>
+    <td>Event-driven</td>
+    <td>25-120s</td>
+    <td class="na">N/A</td>
+  </tr>
+  <tr>
+    <td>Cap por lote/ciclo</td>
+    <td>Max 10</td>
+    <td>1 por vez</td>
+    <td>12-25</td>
+    <td class="na">N/A</td>
+  </tr>
+  <tr>
+    <td>Anti-duplicacao</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+    <td class="check">&#10003;</td>
+  </tr>
+</table>
+<p style="font-size: 11px; color: #64748b;">* Lembretes de reuniao nao checam horario comercial de proposito — um lembrete as 7h da manha e legitimo.</p>
+
+<!-- WARMUP -->
+<div class="page-break"></div>
+<h2>3. Warmup Progressivo</h2>
+
+<p>O warmup controla o volume maximo de mensagens por dia, aumentando gradualmente ao longo de 46 dias. Os limites foram reduzidos em ~60% apos o incidente.</p>
+
+<table class="warmup-table">
+  <tr>
+    <th>Periodo</th>
+    <th>Limite anterior</th>
+    <th>Novo limite</th>
+    <th>Reducao</th>
+  </tr>
+  <tr>
+    <td>Dias 0-3</td>
+    <td class="old-value">20/dia</td>
+    <td class="new-value">10/dia</td>
+    <td>-50%</td>
+  </tr>
+  <tr>
+    <td>Dias 4-7</td>
+    <td class="old-value">50/dia</td>
+    <td class="new-value">25/dia</td>
+    <td>-50%</td>
+  </tr>
+  <tr>
+    <td>Dias 8-14</td>
+    <td class="old-value">100/dia</td>
+    <td class="new-value">50/dia</td>
+    <td>-50%</td>
+  </tr>
+  <tr>
+    <td>Dias 15-21</td>
+    <td class="old-value">200/dia</td>
+    <td class="new-value">80/dia</td>
+    <td>-60%</td>
+  </tr>
+  <tr>
+    <td>Dias 22-30</td>
+    <td class="old-value">400/dia</td>
+    <td class="new-value">120/dia</td>
+    <td>-70%</td>
+  </tr>
+  <tr>
+    <td>Dias 31-45</td>
+    <td class="old-value">—</td>
+    <td class="new-value">160/dia</td>
+    <td>Novo</td>
+  </tr>
+  <tr>
+    <td>Dia 46+</td>
+    <td>Config (200)</td>
+    <td>Config (200)</td>
+    <td>—</td>
+  </tr>
+</table>
+
+<p>O warmup e ativado automaticamente quando <code>cadenceEnabled</code> ou <code>followUpEnabled</code> sao ligados pela primeira vez.</p>
+
+<!-- THROTTLE -->
+<h2>4. Throttle no Motor de Cadencias</h2>
+
+<h3>Antes (causa do ban)</h3>
+<div class="context-box">
+  <p>O motor processava TODOS os enrollments pendentes a cada tick (60s). 50 leads com mensagem agendada = 50 mensagens em &lt;1 segundo. WhatsApp detectou rajada como spam.</p>
+</div>
+
+<h3>Depois (implementado)</h3>
+<div class="solution-box">
+  <p><strong>Max 10 WhatsApp por ciclo</strong> com delay aleatorio de <strong>30-90 segundos</strong> entre cada envio. Se o limite diario esgotou, reagenda para 8h do dia seguinte.</p>
+</div>
+
+<p>Fluxo por ciclo do cron:</p>
+<ol>
+  <li>Busca enrollments com <code>nextActionAt &lt;= now</code></li>
+  <li>Claim atomico: empurra <code>nextActionAt</code> 5min pro futuro</li>
+  <li>Para cada WhatsApp: checa <code>canSend()</code>, respeita cap de 10/ciclo, aplica delay 30-90s</li>
+  <li>Acoes nao-WhatsApp (email, tarefa) executam sem delay</li>
+</ol>
+
+<!-- CONTATO FRIO -->
+<h2>5. Protecao de Contato Frio</h2>
+
+<p>Enviar mensagens para contatos que <strong>nunca responderam</strong> e o maior fator de ban. O sistema agora bloqueia envios apos 5 mensagens sem resposta.</p>
+
+<div class="metric-grid" style="grid-template-columns: repeat(2, 1fr);">
+  <div class="metric-card">
+    <div class="value">5</div>
+    <div class="label">Mensagens max sem resposta</div>
+  </div>
+  <div class="metric-card">
+    <div class="value">3</div>
+    <div class="label">Pontos de checagem</div>
+  </div>
+</div>
+
+<p>Implementado em 3 pontos:</p>
+<ul>
+  <li><strong>Cadencias</strong> — <code>sendWhatsApp()</code> e <code>sendWhatsAppAI()</code> verificam antes de enviar</li>
+  <li><strong>Follow-ups</strong> — se contato frio, cancela todos os follow-ups pendentes</li>
+</ul>
+<p>Excecoes intencionais: lembretes de reuniao (contexto diferente) e campanhas (decisao do operador).</p>
+
+<!-- BUSINESS HOURS -->
+<h2>6. Horario Comercial</h2>
+
+<table>
+  <tr><th>Dia</th><th>Horario permitido</th></tr>
+  <tr><td>Segunda a Sexta</td><td>08:00 - 18:00</td></tr>
+  <tr><td>Sabado</td><td>08:00 - 12:00</td></tr>
+  <tr><td>Domingo e Feriados</td><td>Bloqueado</td></tr>
+</table>
+<p>Feriados nacionais brasileiros sao reconhecidos automaticamente.</p>
+
+<!-- CAMPANHAS -->
+<h2>7. Protecoes de Campanhas</h2>
+<ul>
+  <li><strong>Delay aleatorio</strong>: 25-45s (60%), 45-75s (30%), 75-120s (10%)</li>
+  <li><strong>Pausa por lote</strong>: 3-10 minutos apos cada lote de 12-25 mensagens</li>
+  <li><strong>Circuit breaker</strong>: 5 erros consecutivos = pausa automatica</li>
+  <li><strong>Personalizacao</strong>: templates com variaveis evitam mensagens identicas</li>
+  <li>Respeita limite diario, business hours e opt-out</li>
+</ul>
+
+<!-- DASHBOARD -->
+<div class="page-break"></div>
+<h2>8. Dashboard de Monitoramento</h2>
+
+<p>Endpoint <code>GET /api/whatsapp/status</code> retorna metricas em tempo real:</p>
+
+<div class="metric-grid">
+  <div class="metric-card" style="border-color: #bbf7d0;">
+    <div class="value" style="color: #16a34a;">Volume Diario</div>
+    <div class="label">Limite, usado, restante + breakdown por canal</div>
+  </div>
+  <div class="metric-card" style="border-color: #bfdbfe;">
+    <div class="value" style="color: #2563eb;">Status Warmup</div>
+    <div class="label">Dia atual, fase, limite corrente</div>
+  </div>
+  <div class="metric-card" style="border-color: #e9d5ff;">
+    <div class="value" style="color: #7c3aed;">Protecoes</div>
+    <div class="label">Status de cada camada de seguranca</div>
+  </div>
+</div>
+
+<!-- CHECKLIST -->
+<h2>9. Checklist para Nova Conta WhatsApp</h2>
+
+<table>
+  <tr><th>#</th><th>Acao</th><th>Quando</th></tr>
+  <tr><td>1</td><td>Verificar warmup ativo + data de inicio = hoje</td><td>Ao conectar</td></tr>
+  <tr><td>2</td><td>Manter cadencias desativadas</td><td>Primeiros 3 dias</td></tr>
+  <tr><td>3</td><td>Enviar apenas para contatos que ja responderam</td><td>Primeira semana</td></tr>
+  <tr><td>4</td><td>Maximo 10-25 mensagens/dia</td><td>Primeira semana</td></tr>
+  <tr><td>5</td><td>Monitorar denuncias no Z-API</td><td>Sempre</td></tr>
+  <tr><td>6</td><td>Ativar cadencias automaticas</td><td>Apos dia 7+</td></tr>
+  <tr><td>7</td><td>Preferir mensagens IA (variadas) sobre templates fixos</td><td>Sempre</td></tr>
+</table>
+
+<!-- TIMELINE -->
+<h2>10. Timeline do Incidente e Correcao</h2>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-dot red"></div>
+    <div class="timeline-content">
+      <div class="title">26/03/2026 — Conta banida</div>
+      <div class="desc">WhatsApp baniu a conta Z-API apos cadencias automatizadas sem throttling</div>
+    </div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-dot"></div>
+    <div class="timeline-content">
+      <div class="title">26/03/2026 — Investigacao + implementacao</div>
+      <div class="desc">Identificada causa raiz (rajadas no automationEngine). Implementadas 8 camadas de protecao em todos os 5 canais</div>
+    </div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-dot"></div>
+    <div class="timeline-content">
+      <div class="title">26/03/2026 — Warmup ativado</div>
+      <div class="desc">Limites progressivos ajustados (~60% menores) e warmup ativado no banco de producao</div>
+    </div>
+  </div>
+  <div class="timeline-item">
+    <div class="timeline-dot green"></div>
+    <div class="timeline-content">
+      <div class="title">26/03/2026 — Deploy em producao</div>
+      <div class="desc">4 commits pushados para main: protecoes anti-ban, fix FK, reminders, documentacao</div>
+    </div>
+  </div>
+</div>
+
+<!-- COMMITS -->
+<h2>11. Commits Relacionados</h2>
+<table>
+  <tr><th>Hash</th><th>Descricao</th></tr>
+  <tr><td><code>cc1abf0</code></td><td>Protecoes anti-ban WhatsApp — throttle, limites, contatos frios</td></tr>
+  <tr><td><code>9ec4dca</code></td><td>Fix: salvar steps da automacao falhava com FK constraint nos logs</td></tr>
+  <tr><td><code>7523332</code></td><td>Fix: reminders de reuniao agora respeitam limite diario de WhatsApp</td></tr>
+  <tr><td><code>2166035</code></td><td>Docs: documenta protecoes anti-ban WhatsApp</td></tr>
+</table>
+
+<div class="footer">
+  BGPGO — Relatorio de Seguranca WhatsApp &nbsp;|&nbsp; Gerado em 26/03/2026 &nbsp;|&nbsp; Documento interno
+</div>
+
+</body>
+</html>
