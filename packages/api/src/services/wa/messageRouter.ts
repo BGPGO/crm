@@ -87,15 +87,9 @@ function mapMessageType(type: string): string {
 export class WaMessageRouter {
   /**
    * Process inbound messages from Meta webhook payload.
-   * Expects a single entry from body.entry[].
+   * Expects `change.value` object (with messages[], contacts[], metadata).
    */
-  static async handleInbound(entry: any): Promise<void> {
-    const changes = entry.changes || [];
-
-    for (const change of changes) {
-      if (change.field !== 'messages') continue;
-      const value = change.value || {};
-
+  static async handleInbound(value: any): Promise<void> {
       const contactInfo = value.contacts?.[0];
       const pushName = contactInfo?.profile?.name || null;
 
@@ -207,19 +201,13 @@ export class WaMessageRouter {
           console.error(`[WaMessageRouter] Erro ao processar mensagem ${messageId}:`, err);
         }
       }
-    }
   }
 
   /**
    * Process delivery status updates from Meta webhook payload.
-   * Expects a single entry from body.entry[].
+   * Expects `change.value` object (with statuses[]).
    */
-  static async handleStatusUpdate(entry: any): Promise<void> {
-    const changes = entry.changes || [];
-
-    for (const change of changes) {
-      if (change.field !== 'messages') continue;
-      const value = change.value || {};
+  static async handleStatusUpdate(value: any): Promise<void> {
 
       const statuses = value.statuses || [];
       for (const status of statuses) {
@@ -284,6 +272,5 @@ export class WaMessageRouter {
           console.error(`[WaMessageRouter] Erro ao processar status ${statusType} para ${messageId}:`, err);
         }
       }
-    }
   }
 }

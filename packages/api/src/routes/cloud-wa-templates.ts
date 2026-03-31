@@ -136,8 +136,14 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Body (obrigatório)
     const bodyComponent: any = { type: 'BODY', text: body };
-    if (bodyExamples && Array.isArray(bodyExamples)) {
-      bodyComponent.example = { body_text: [bodyExamples] };
+    if (bodyExamples && Array.isArray(bodyExamples) && bodyExamples.length > 0) {
+      // bodyExamples from frontend: [["val1","val2"]] or ["val1","val2"]
+      // Meta expects: body_text: [["val1","val2"]]
+      const first = bodyExamples[0];
+      const normalized = Array.isArray(first)
+        ? bodyExamples.map((row: any) => (Array.isArray(row) ? row.map(String) : [String(row)]))
+        : [bodyExamples.map(String)];
+      bodyComponent.example = { body_text: normalized };
     }
     components.push(bodyComponent);
 
@@ -257,8 +263,12 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const bodyComponent: any = { type: 'BODY', text: newBody };
-    if (bodyExamples) {
-      bodyComponent.example = { body_text: [bodyExamples] };
+    if (bodyExamples && Array.isArray(bodyExamples) && bodyExamples.length > 0) {
+      const first = bodyExamples[0];
+      const normalized = Array.isArray(first)
+        ? bodyExamples.map((row: any) => (Array.isArray(row) ? row.map(String) : [String(row)]))
+        : [bodyExamples.map(String)];
+      bodyComponent.example = { body_text: normalized };
     }
     components.push(bodyComponent);
 
