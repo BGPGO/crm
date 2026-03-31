@@ -60,7 +60,8 @@ type StatusFilter = "ALL" | "APPROVED" | "PENDING" | "REJECTED";
 type CategoryFilter = "ALL" | "MARKETING" | "UTILITY";
 type SourceTab = "ALL" | "MINE" | "LEGACY";
 
-const LEGACY_CUTOFF = new Date("2026-03-31T00:00:00Z");
+// Todos os templates existentes antes da nova plataforma são legado
+const LEGACY_CUTOFF = new Date("2026-04-01T00:00:00Z");
 
 function isLegacyTemplate(tpl: WhatsAppTemplate): boolean {
   return new Date(tpl.createdAt) < LEGACY_CUTOFF;

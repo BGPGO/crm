@@ -115,6 +115,87 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// ─── POST /api/wa/conversations — Create new conversation from contact ──────
+
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { contactId, phone: rawPhone } = req.body;
+
+    if (!contactId && !rawPhone) {
+      return next(createError('contactId ou phone é obrigatório', 400));
+    }
+
+    let phone = rawPhone;
+    let linkContactId = contactId || null;
+
+    // If contactId provided, get phone from contact
+    if (contactId && !phone) {
+      const contact = await prisma.contact.findUnique({
+        where: { id: contactId },
+        select: { id: true, name: true, phone: true },
+      });
+      if (!contact) return next(createError('Contato não encontrado', 404));
+      if (!contact.phone) return next(createError('Contato não tem telefone cadastrado', 400));
+      phone = contact.phone.replace(/\D/g, ''); // normalize: only digits
+      linkContactId = contact.id;
+    } else if (phone) {
+      phone = phone.replace(/\D/g, '');
+    }
+
+    // Check if conversation already exists for this phone
+    // Try exact match and BR variations (with/without 9)
+    const variations = [phone];
+    if (phone.startsWith('55') && phone.length === 13) {
+      variations.push(`55${phone.substring(2, 4)}${phone.substring(5)}`); // without 9
+    }
+    if (phone.startsWith('55') && phone.length === 12) {
+      variations.push(`55${phone.substring(2, 4)}9${phone.substring(4)}`); // with 9
+    }
+
+    let conversation = await prisma.waConversation.findFirst({
+      where: { phone: { in: variations } },
+      include: {
+        contact: { select: { id: true, name: true, email: true, phone: true } },
+        assignedUser: { select: { id: true, name: true } },
+      },
+    });
+
+    if (conversation) {
+      // Reopen if closed
+      if (conversation.status !== 'WA_OPEN') {
+        conversation = await prisma.waConversation.update({
+          where: { id: conversation.id },
+          data: { status: 'WA_OPEN' },
+          include: {
+            contact: { select: { id: true, name: true, email: true, phone: true } },
+            assignedUser: { select: { id: true, name: true } },
+          },
+        });
+      }
+      return res.json({ data: conversation, created: false });
+    }
+
+    // Create new conversation
+    const userId = (req as any).user?.id;
+    conversation = await prisma.waConversation.create({
+      data: {
+        phone,
+        status: 'WA_OPEN',
+        contactId: linkContactId,
+        assignedUserId: userId || null,
+      },
+      include: {
+        contact: { select: { id: true, name: true, email: true, phone: true } },
+        assignedUser: { select: { id: true, name: true } },
+      },
+    });
+
+    res.status(201).json({ data: conversation, created: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/wa/conversations/stats — Conversation counts ──────────────────
 
 router.get('/stats', async (req: Request, res: Response, next: NextFunction) => {

@@ -30,6 +30,8 @@ import {
   DollarSign,
   PanelRightClose,
   PanelRightOpen,
+  Plus,
+  Building2,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -472,6 +474,10 @@ export default function WabaChatPage() {
   const [contactDetail, setContactDetail] = useState<ContactDetail | null>(null);
   const [dealSummary, setDealSummary] = useState<DealSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [newConvSearch, setNewConvSearch] = useState("");
+  const [newConvContacts, setNewConvContacts] = useState<Array<{ id: string; name: string; phone: string | null; organization?: { name: string } | null }>>([]);
+  const [newConvLoading, setNewConvLoading] = useState(false);
 
   // ── Refs ──
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -654,6 +660,34 @@ export default function WabaChatPage() {
     setMobileShowChat(false);
   };
 
+  // ── New conversation ──
+  const searchContacts = useCallback(async (q: string) => {
+    setNewConvSearch(q);
+    if (q.length < 2) { setNewConvContacts([]); return; }
+    setNewConvLoading(true);
+    try {
+      const res = await api.get<{ data: any[] }>(`/contacts?search=${encodeURIComponent(q)}&limit=20`);
+      setNewConvContacts((res.data || []).filter((c: any) => c.phone));
+    } catch { /* silent */ }
+    finally { setNewConvLoading(false); }
+  }, []);
+
+  const handleStartConversation = async (contactId: string) => {
+    try {
+      const res = await api.post<{ data: any }>("/wa/conversations", { contactId });
+      setShowNewConv(false);
+      setNewConvSearch("");
+      setNewConvContacts([]);
+      await fetchConversations();
+      if (res.data?.id) {
+        setSelectedId(res.data.id);
+        setMobileShowChat(true);
+      }
+    } catch (err: any) {
+      setError(err?.message || "Erro ao criar conversa");
+    }
+  };
+
   const handleSend = async () => {
     if (!inputText.trim() || !selectedId || sending) return;
     setSending(true);
@@ -756,6 +790,17 @@ export default function WabaChatPage() {
           mobileShowChat ? "hidden md:flex" : "flex"
         )}
       >
+        {/* Header + New conv button */}
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Conversas</span>
+          <button
+            onClick={() => setShowNewConv(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <Plus size={14} /> Nova
+          </button>
+        </div>
+
         {/* Search */}
         <div className="p-3 border-b border-gray-100 dark:border-gray-800 space-y-2">
           <div className="relative">
@@ -1623,6 +1668,64 @@ export default function WabaChatPage() {
             >
               <X size={14} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ MODAL — NOVA CONVERSA ═══════════════════ */}
+      {showNewConv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowNewConv(false)}>
+          <div
+            className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Nova conversa</h3>
+              <button onClick={() => setShowNewConv(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={newConvSearch}
+                  onChange={(e) => searchContacts(e.target.value)}
+                  placeholder="Buscar contato por nome, telefone..."
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+              {newConvLoading ? (
+                <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
+              ) : newConvContacts.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-6">
+                  {newConvSearch.length < 2 ? "Digite ao menos 2 caracteres para buscar" : "Nenhum contato com telefone encontrado"}
+                </p>
+              ) : (
+                newConvContacts.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handleStartConversation(c.id)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 text-left transition-colors"
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(c.name)}`}>
+                      {(c.name || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{c.name}</p>
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1"><Phone size={10} />{c.phone}</span>
+                        {c.organization && <span className="flex items-center gap-1"><Building2 size={10} />{c.organization.name}</span>}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
