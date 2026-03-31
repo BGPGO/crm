@@ -131,18 +131,19 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
         },
       });
 
-      // Contar mensagens hoje (tabela nova WaMessage + legada CloudWaMessageLog)
+      // Contar conversas iniciadas pela empresa hoje (business-initiated)
+      // = templates enviados FORA da janela de 24h (contatos sem conversa ativa)
+      // Respostas dentro da janela são gratuitas e não contam no limite
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const [waCount, legacyCount] = await Promise.all([
-        prisma.waMessage.count({
-          where: { direction: 'OUTBOUND', createdAt: { gte: today } },
-        }),
-        prisma.cloudWaMessageLog.count({
-          where: { direction: 'OUTBOUND', createdAt: { gte: today } },
-        }),
-      ]);
-      const todayCount = waCount + legacyCount;
+      const businessInitiated = await prisma.waMessage.count({
+        where: {
+          direction: 'OUTBOUND',
+          type: 'TEMPLATE',
+          createdAt: { gte: today },
+        },
+      });
+      const todayCount = businessInitiated;
 
       // Contar templates por status
       const templateStats = await prisma.cloudWaTemplate.groupBy({
