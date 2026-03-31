@@ -12,6 +12,8 @@ import {
   Save,
   Phone,
   Shield,
+  ShieldCheck,
+  ShieldAlert,
   Wifi,
   WifiOff,
   AlertTriangle,
@@ -21,6 +23,12 @@ import {
   EyeOff,
   MessageSquare,
   Zap,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  Ban,
+  Info,
+  TrendingUp,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -89,6 +97,398 @@ function connectionVariant(status: string | null, configured: boolean): { label:
   }
 }
 
+function tierMaxMessages(tier: string | null): number {
+  switch (tier?.toUpperCase()) {
+    case "TIER_1": return 250;
+    case "TIER_2": return 1000;
+    case "TIER_3": return 10000;
+    default: return 250;
+  }
+}
+
+function tierLabel(tier: string | null): string {
+  switch (tier?.toUpperCase()) {
+    case "TIER_1": return "Tier 1 — 250/dia";
+    case "TIER_2": return "Tier 2 — 1.000/dia";
+    case "TIER_3": return "Tier 3 — 10.000/dia";
+    default: return tier || "---";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Security Dashboard
+// ---------------------------------------------------------------------------
+
+function SecurityDashboard({
+  status,
+  loading,
+}: {
+  status: WabaStatus | null;
+  loading: boolean;
+}) {
+  if (loading || !status) {
+    return (
+      <Card padding="lg">
+        <div className="flex items-center justify-center py-6">
+          <Spinner />
+        </div>
+      </Card>
+    );
+  }
+
+  const quality = status.phone?.qualityRating?.toUpperCase() ?? null;
+  const tier = status.phone?.messagingTier ?? null;
+  const { messagesSent, dailyLimit } = status.today;
+  const usagePct = dailyLimit > 0 ? Math.min((messagesSent / dailyLimit) * 100, 100) : 0;
+
+  const qualityInfo = (() => {
+    switch (quality) {
+      case "GREEN":
+        return {
+          label: "Saudavel",
+          icon: <ShieldCheck size={28} />,
+          bg: "bg-green-50 dark:bg-green-950",
+          border: "border-green-300 dark:border-green-700",
+          text: "text-green-700 dark:text-green-300",
+          badgeBg: "bg-green-500",
+          pulse: false,
+          description: null,
+        };
+      case "YELLOW":
+        return {
+          label: "Atencao — Risco de restricao",
+          icon: <ShieldAlert size={28} />,
+          bg: "bg-yellow-50 dark:bg-yellow-950",
+          border: "border-yellow-300 dark:border-yellow-700",
+          text: "text-yellow-700 dark:text-yellow-300",
+          badgeBg: "bg-yellow-500",
+          pulse: false,
+          description: "Qualidade em queda. Reduza o volume de envios e verifique se contatos estao marcando como spam.",
+        };
+      case "RED":
+        return {
+          label: "CRITICO — Envios pausados automaticamente",
+          icon: <ShieldAlert size={28} />,
+          bg: "bg-red-50 dark:bg-red-950",
+          border: "border-red-400 dark:border-red-700",
+          text: "text-red-700 dark:text-red-300",
+          badgeBg: "bg-red-500",
+          pulse: true,
+          description: "Todos os envios foram pausados automaticamente. Aguarde a qualidade melhorar antes de retomar.",
+        };
+      default:
+        return {
+          label: "Sem dados",
+          icon: <Shield size={28} />,
+          bg: "bg-gray-50 dark:bg-gray-800",
+          border: "border-gray-200 dark:border-gray-700",
+          text: "text-gray-500 dark:text-gray-400",
+          badgeBg: "bg-gray-400",
+          pulse: false,
+          description: null,
+        };
+    }
+  })();
+
+  const usageColor =
+    usagePct > 80 ? "bg-red-500" : usagePct > 50 ? "bg-yellow-500" : "bg-blue-500";
+  const usageBorder =
+    usagePct > 80
+      ? "border-red-300 dark:border-red-700"
+      : usagePct > 50
+      ? "border-yellow-300 dark:border-yellow-700"
+      : "border-blue-200 dark:border-blue-700";
+  const usageBg =
+    usagePct > 80
+      ? "bg-red-50 dark:bg-red-950"
+      : usagePct > 50
+      ? "bg-yellow-50 dark:bg-yellow-950"
+      : "bg-blue-50 dark:bg-blue-950";
+
+  const tiers = [
+    { key: "TIER_1", label: "Tier 1", limit: "250/dia" },
+    { key: "TIER_2", label: "Tier 2", limit: "1.000/dia" },
+    { key: "TIER_3", label: "Tier 3", limit: "10.000/dia" },
+  ];
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+        <Shield size={16} />
+        Seguranca e Conformidade
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Quality Rating */}
+        <div
+          className={clsx(
+            "rounded-xl border-2 p-4 flex flex-col gap-3",
+            qualityInfo.bg,
+            qualityInfo.border
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className={clsx(
+                "w-10 h-10 rounded-full flex items-center justify-center text-white",
+                qualityInfo.badgeBg,
+                qualityInfo.pulse && "animate-pulse"
+              )}
+            >
+              {qualityInfo.icon}
+            </div>
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
+                Quality Rating
+              </p>
+              <p className={clsx("text-sm font-bold", qualityInfo.text)}>
+                {quality || "---"}
+              </p>
+            </div>
+          </div>
+          <p className={clsx("text-xs font-semibold", qualityInfo.text)}>
+            {qualityInfo.label}
+          </p>
+          {qualityInfo.description && (
+            <p className="text-[11px] text-gray-600 dark:text-gray-400">
+              {qualityInfo.description}
+            </p>
+          )}
+        </div>
+
+        {/* 24h Window */}
+        <div className="rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+              <Clock size={22} />
+            </div>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
+              Janela de 24h
+            </p>
+          </div>
+          <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+            Mensagens de texto livre: apenas dentro de <strong>24h</strong> apos ultima msg do cliente.
+          </p>
+          <p className="text-[11px] text-blue-600 dark:text-blue-400">
+            Fora da janela: obrigatorio usar template aprovado.
+          </p>
+        </div>
+
+        {/* Daily Limit */}
+        <div
+          className={clsx(
+            "rounded-xl border-2 p-4 flex flex-col gap-3",
+            usageBg,
+            usageBorder
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center text-white", usageColor)}>
+              <TrendingUp size={22} />
+            </div>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
+              Limite Diario
+            </p>
+          </div>
+          <div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-semibold text-gray-700 dark:text-gray-300">
+                {messagesSent} de {dailyLimit}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">{Math.round(usagePct)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+              <div
+                className={clsx("h-2.5 rounded-full transition-all duration-300", usageColor)}
+                style={{ width: `${usagePct}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-600 dark:text-gray-400">
+            {messagesSent} mensagens enviadas hoje de {dailyLimit} permitidas
+          </p>
+        </div>
+
+        {/* Tier da Meta */}
+        <div className="rounded-xl border-2 border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-950 p-4 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white">
+              <Zap size={22} />
+            </div>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
+              Tier da Meta
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {tiers.map((t) => (
+              <div
+                key={t.key}
+                className={clsx(
+                  "text-xs px-2 py-1 rounded-md",
+                  tier?.toUpperCase() === t.key
+                    ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 font-bold"
+                    : "text-gray-500 dark:text-gray-400"
+                )}
+              >
+                {t.label}: {t.limit}
+                {tier?.toUpperCase() === t.key && " (atual)"}
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            Tier aumenta automaticamente com qualidade alta.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Best Practices
+// ---------------------------------------------------------------------------
+
+function BestPractices() {
+  const [open, setOpen] = useState(false);
+
+  const practices = [
+    {
+      icon: <Clock size={16} />,
+      title: "Rate limit por contato",
+      text: "Maximo 1 mensagem a cada 6 segundos para o mesmo numero.",
+      color: "text-blue-600 bg-blue-50 dark:bg-blue-950",
+    },
+    {
+      icon: <Ban size={16} />,
+      title: "Opt-out automatico",
+      text: "Quando um contato enviar SAIR, STOP ou PARAR, o sistema para de enviar automaticamente.",
+      color: "text-orange-600 bg-orange-50 dark:bg-orange-950",
+    },
+    {
+      icon: <AlertTriangle size={16} />,
+      title: "Templates Marketing",
+      text: "Precisam de metodo de pagamento configurado na Meta Business.",
+      color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-950",
+    },
+    {
+      icon: <Info size={16} />,
+      title: "Quality Score",
+      text: "Baseado nos ultimos 7 dias. Se muitos contatos marcarem como spam, o score cai.",
+      color: "text-purple-600 bg-purple-50 dark:bg-purple-950",
+    },
+    {
+      icon: <ShieldAlert size={16} />,
+      title: "Envio RED",
+      text: "Se quality chegar a RED, todos os envios sao pausados automaticamente ate melhorar.",
+      color: "text-red-600 bg-red-50 dark:bg-red-950",
+    },
+  ];
+
+  return (
+    <Card padding="lg">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+          <CheckCircle2 size={16} className="text-green-600" />
+          Boas Praticas
+        </h2>
+        {open ? (
+          <ChevronUp size={16} className="text-gray-400" />
+        ) : (
+          <ChevronDown size={16} className="text-gray-400" />
+        )}
+      </button>
+
+      {open && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+          {practices.map((p, i) => (
+            <div
+              key={i}
+              className={clsx(
+                "rounded-lg border border-gray-200 dark:border-gray-700 p-3 flex items-start gap-3",
+                p.color.split(" ").slice(1).join(" ")
+              )}
+            >
+              <div className={clsx("mt-0.5 flex-shrink-0", p.color.split(" ")[0])}>
+                {p.icon}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{p.title}</p>
+                <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5 leading-relaxed">
+                  {p.text}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Daily Limit Card (standalone)
+// ---------------------------------------------------------------------------
+
+function DailyLimitCard({
+  config,
+  status,
+}: {
+  config: WabaConfig | null;
+  status: WabaStatus | null;
+}) {
+  const tier = status?.phone?.messagingTier ?? null;
+  const tierMax = tierMaxMessages(tier);
+  const configuredLimit = config?.dailyMessageLimit ?? 250;
+  const overTier = configuredLimit > tierMax;
+
+  return (
+    <Card padding="lg">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+        <TrendingUp size={16} />
+        Limite Diario de Mensagens
+      </h2>
+
+      <div className="flex items-center gap-6 flex-wrap">
+        <div>
+          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            {configuredLimit}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Configurado</p>
+        </div>
+        <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
+        <div>
+          <p className="text-2xl font-bold text-purple-600">
+            {tierMax.toLocaleString("pt-BR")}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Maximo do {tierLabel(tier)}
+          </p>
+        </div>
+      </div>
+
+      {overTier && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-3">
+          <AlertTriangle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-red-700 dark:text-red-300">
+            O limite configurado ({configuredLimit}) excede o maximo do seu tier ({tierMax}).
+            O Meta ira bloquear mensagens acima do limite do tier.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
+        <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          Recomendamos comecar conservador (250) e aumentar gradualmente conforme a qualidade se mantem alta.
+          Altere o valor na secao de Credenciais abaixo.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Status Card
 // ---------------------------------------------------------------------------
@@ -97,10 +497,12 @@ function StatusCard({
   status,
   loading,
   onRefresh,
+  lastFetched,
 }: {
   status: WabaStatus | null;
   loading: boolean;
   onRefresh: () => void;
+  lastFetched: Date | null;
 }) {
   if (loading || !status) {
     return (
@@ -114,28 +516,50 @@ function StatusCard({
 
   const conn = connectionVariant(status.phone?.status ?? null, status.configured);
   const quality = status.phone?.qualityRating ?? null;
+  const isRed = quality?.toUpperCase() === "RED";
   const tier = status.phone?.messagingTier ?? "---";
   const { messagesSent, dailyLimit, remaining } = status.today;
   const usagePct = dailyLimit > 0 ? Math.min((messagesSent / dailyLimit) * 100, 100) : 0;
 
   return (
     <Card padding="lg">
+      {/* RED quality banner */}
+      {isRed && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-red-600 text-white px-4 py-3 animate-pulse">
+          <ShieldAlert size={20} />
+          <div>
+            <p className="text-sm font-bold">ENVIOS PAUSADOS</p>
+            <p className="text-xs opacity-90">
+              Quality rating RED — todos os envios foram pausados automaticamente ate a qualidade melhorar.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-gray-900">Status do Canal</h2>
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
-          <RefreshCw size={14} />
-        </Button>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Status do Canal</h2>
+        <div className="flex items-center gap-3">
+          {lastFetched && (
+            <span className="text-[10px] text-gray-400">
+              Ultimo check: {lastFetched.toLocaleTimeString("pt-BR")}
+            </span>
+          )}
+          <Button variant="ghost" size="sm" onClick={onRefresh}>
+            <RefreshCw size={14} className={clsx(loading && "animate-spin")} />
+            <span className="ml-1 text-xs">Atualizar</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Phone */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 flex items-center justify-center">
             <Phone size={18} />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Telefone</p>
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Telefone</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
               {status.phone?.displayPhone || "Nao configurado"}
             </p>
           </div>
@@ -145,46 +569,54 @@ function StatusCard({
         <div className="flex items-center gap-3">
           <div className={clsx(
             "w-9 h-9 rounded-lg flex items-center justify-center",
-            conn.variant === "green" ? "bg-green-50 text-green-600" :
-            conn.variant === "yellow" ? "bg-yellow-50 text-yellow-600" :
-            conn.variant === "red" ? "bg-red-50 text-red-600" :
-            "bg-gray-50 text-gray-400"
+            conn.variant === "green" ? "bg-green-50 dark:bg-green-950 text-green-600" :
+            conn.variant === "yellow" ? "bg-yellow-50 dark:bg-yellow-950 text-yellow-600" :
+            conn.variant === "red" ? "bg-red-50 dark:bg-red-950 text-red-600" :
+            "bg-gray-50 dark:bg-gray-800 text-gray-400"
           )}>
             {conn.variant === "green" ? <Wifi size={18} /> : <WifiOff size={18} />}
           </div>
           <div>
-            <p className="text-xs text-gray-500">Conexao</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Conexao</p>
             <Badge variant={conn.variant}>{conn.label}</Badge>
           </div>
         </div>
 
-        {/* Quality */}
+        {/* Quality — enhanced with background color & pulse */}
         <div className="flex items-center gap-3">
           <div className={clsx(
             "w-9 h-9 rounded-lg flex items-center justify-center",
-            qualityColor(quality) === "green" ? "bg-green-50 text-green-600" :
-            qualityColor(quality) === "yellow" ? "bg-yellow-50 text-yellow-600" :
-            qualityColor(quality) === "red" ? "bg-red-50 text-red-600" :
-            "bg-gray-50 text-gray-400"
+            qualityColor(quality) === "green" ? "bg-green-500 text-white" :
+            qualityColor(quality) === "yellow" ? "bg-yellow-500 text-white" :
+            qualityColor(quality) === "red" ? "bg-red-500 text-white animate-pulse" :
+            "bg-gray-50 dark:bg-gray-800 text-gray-400"
           )}>
-            <Shield size={18} />
+            {qualityColor(quality) === "green" ? <ShieldCheck size={18} /> :
+             qualityColor(quality) === "red" ? <ShieldAlert size={18} /> :
+             <Shield size={18} />}
           </div>
           <div>
-            <p className="text-xs text-gray-500">Qualidade</p>
-            <Badge variant={qualityColor(quality)}>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Qualidade</p>
+            <span className={clsx(
+              "inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full",
+              qualityColor(quality) === "green" ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300" :
+              qualityColor(quality) === "yellow" ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300" :
+              qualityColor(quality) === "red" ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 animate-pulse" :
+              "bg-gray-100 dark:bg-gray-800 text-gray-500"
+            )}>
               {quality || "---"}
-            </Badge>
+            </span>
           </div>
         </div>
 
         {/* Tier */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 flex items-center justify-center">
             <Zap size={18} />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Tier</p>
-            <p className="text-sm font-medium text-gray-900">{tier}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Tier</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{tierLabel(tier === "---" ? null : tier)}</p>
           </div>
         </div>
       </div>
@@ -192,12 +624,12 @@ function StatusCard({
       {/* Usage */}
       <div className="mt-5">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-medium text-gray-500">Uso hoje</p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Uso hoje</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             {messagesSent}/{dailyLimit} enviados &middot; {remaining} restantes
           </p>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2.5">
+        <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5">
           <div
             className={clsx(
               "h-2.5 rounded-full transition-all duration-300",
@@ -475,6 +907,7 @@ export default function WabaConfigPage() {
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
   const fetchConfig = useCallback(async () => {
     setLoadingConfig(true);
@@ -493,6 +926,7 @@ export default function WabaConfigPage() {
     try {
       const res = await api.get<{ data: WabaStatus }>("/whatsapp/cloud/config/status");
       setStatus(res.data);
+      setLastFetched(new Date());
     } catch {
       // Status might not be available if not configured — not critical
     } finally {
@@ -548,11 +982,18 @@ export default function WabaConfigPage() {
         </p>
       </div>
 
+      <SecurityDashboard status={status} loading={loadingStatus} />
+
       <StatusCard
         status={status}
         loading={loadingStatus}
         onRefresh={fetchStatus}
+        lastFetched={lastFetched}
       />
+
+      <BestPractices />
+
+      <DailyLimitCard config={config} status={status} />
 
       <ChannelToggle
         isActive={config?.isActive ?? false}

@@ -12,7 +12,77 @@ interface SendOpts {
   metadata?: any;
 }
 
+// ─── Pair rate limit: max 1 msg per 6s per phone ────────────────────────────
+const lastSentMap = new Map<string, number>(); // phone -> timestamp ms
+
+async function enforcePairRateLimit(phone: string): Promise<void> {
+  const now = Date.now();
+  const lastSent = lastSentMap.get(phone) || 0;
+  const elapsed = now - lastSent;
+  if (elapsed < 6000) {
+    await new Promise(resolve => setTimeout(resolve, 6000 - elapsed));
+  }
+  lastSentMap.set(phone, Date.now());
+  // Cleanup old entries every 1000 entries
+  if (lastSentMap.size > 1000) {
+    const cutoff = now - 60000;
+    for (const [k, v] of lastSentMap) {
+      if (v < cutoff) lastSentMap.delete(k);
+    }
+  }
+}
+
+// ─── Meta error handling helper ─────────────────────────────────────────────
+function handleMetaSendError(err: any, conversationId: string): never {
+  const metaCode = (err as any)?.metaCode;
+  if (metaCode === 131047) {
+    // Outside 24h window — clear window and suggest template
+    prisma.waConversation.update({
+      where: { id: conversationId },
+      data: { windowExpiresAt: null },
+    }).catch(() => {}); // fire-and-forget
+    throw new Error('[WA] Mensagem fora da janela de 24h. Use um template aprovado.');
+  }
+  if (metaCode === 131051) {
+    throw new Error('[WA] Este numero nao possui WhatsApp.');
+  }
+  if (metaCode === 131056) {
+    throw new Error('[WA] Limite de envio atingido para este numero. Aguarde alguns segundos.');
+  }
+  throw err;
+}
+
 export class WaMessageService {
+  /** Check quality gate — block sends if quality is RED */
+  private static async checkQualityGate(): Promise<void> {
+    const config = await prisma.cloudWaConfig.findFirst({ select: { qualityRating: true } });
+    if (config?.qualityRating === 'RED') {
+      throw new Error('[WA] Envios pausados — quality rating RED. Verifique a qualidade das mensagens no painel da Meta.');
+    }
+  }
+
+  /** Check daily volume limit */
+  private static async checkDailyVolume(senderType: string): Promise<void> {
+    const config = await prisma.cloudWaConfig.findFirst({
+      select: { dailyMessageLimit: true },
+    });
+    const baseLimit = config?.dailyMessageLimit || 250;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCount = await prisma.waMessage.count({
+      where: { direction: 'OUTBOUND', createdAt: { gte: today } },
+    });
+
+    // Bot responses get soft limit (150%), human/system get hard limit
+    const effectiveLimit = senderType === 'WA_BOT'
+      ? Math.floor(baseLimit * 1.5)
+      : baseLimit;
+
+    if (todayCount >= effectiveLimit) {
+      throw new Error(`[WA] Limite diario atingido (${todayCount}/${effectiveLimit}). Aguarde ate amanha.`);
+    }
+  }
   private static async getClient(): Promise<WhatsAppCloudClient> {
     return WhatsAppCloudClient.fromDB();
   }
@@ -76,9 +146,10 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    // Cloud API (WABA) has its own tier-based limits managed by Meta.
-    // The dailyLimitService tracks Z-API volume (post-ban warmup) — skip it for Cloud API sends.
-    // Meta enforces: TIER_1=250/day, TIER_2=1000/day, etc.
+    // ── Security gates ──
+    await this.checkQualityGate();
+    await this.checkDailyVolume(senderType);
+    await enforcePairRateLimit(conv.phone);
 
     const client = await this.getClient();
     console.log(`[WaMessageService] sendText to=${conv.phone} phoneNumberId=${(client as any).phoneNumberId}`);
@@ -88,7 +159,7 @@ export class WaMessageService {
       console.log(`[WaMessageService] sendText response:`, JSON.stringify(response));
     } catch (sendErr: any) {
       console.error(`[WaMessageService] sendText FAILED:`, sendErr?.response?.data || sendErr?.message || sendErr);
-      throw sendErr;
+      handleMetaSendError(sendErr, conversationId);
     }
     const waMessageId = response.messages?.[0]?.id;
 
@@ -101,8 +172,6 @@ export class WaMessageService {
       followUpStep: opts.followUpStep,
       metadata: opts.metadata,
     });
-
-    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -118,7 +187,10 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    // Cloud API limits managed by Meta (tier-based), not by local dailyLimitService
+    // ── Security gates ──
+    await this.checkQualityGate();
+    await this.checkDailyVolume(senderType);
+    await enforcePairRateLimit(conv.phone);
 
     // Fetch template body from DB for display
     const tplRecord = await prisma.cloudWaTemplate.findFirst({
@@ -138,7 +210,13 @@ export class WaMessageService {
     }
 
     const client = await this.getClient();
-    const response = await client.sendTemplate(conv.phone, templateName, language, components);
+    let response: any;
+    try {
+      response = await client.sendTemplate(conv.phone, templateName, language, components);
+    } catch (sendErr: any) {
+      console.error(`[WaMessageService] sendTemplate FAILED:`, sendErr?.message || sendErr);
+      handleMetaSendError(sendErr, conversationId);
+    }
     const waMessageId = response.messages?.[0]?.id;
 
     const message = await this.saveOutbound(conversationId, conv.phone, waMessageId, {
@@ -153,8 +231,6 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    // Meta manages rate limits via tier system
-
     return message;
   }
 
@@ -168,13 +244,28 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_BOT';
 
-    // Meta manages rate limits via tier system
+    // ── Security gates ──
+    await this.checkQualityGate();
+    await this.checkDailyVolume(senderType);
+    await enforcePairRateLimit(conv.phone);
+
+    // ── Validate interactive buttons (Meta limits) ──
+    const validatedButtons = buttons.slice(0, 3).map(b => ({
+      ...b,
+      title: b.title.substring(0, 20),
+    }));
 
     const client = await this.getClient();
-    const response = await client.sendButtons(conv.phone, bodyText, buttons);
+    let response: any;
+    try {
+      response = await client.sendButtons(conv.phone, bodyText, validatedButtons);
+    } catch (sendErr: any) {
+      console.error(`[WaMessageService] sendInteractiveButtons FAILED:`, sendErr?.message || sendErr);
+      handleMetaSendError(sendErr, conversationId);
+    }
     const waMessageId = response.messages?.[0]?.id;
 
-    const interactiveData = { type: 'button', bodyText, buttons };
+    const interactiveData = { type: 'button', bodyText, buttons: validatedButtons };
 
     const message = await this.saveOutbound(conversationId, conv.phone, waMessageId, {
       type: 'INTERACTIVE_BUTTONS',
@@ -186,8 +277,6 @@ export class WaMessageService {
       followUpStep: opts.followUpStep,
       metadata: opts.metadata,
     });
-
-    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -203,13 +292,35 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_BOT';
 
-    // Meta manages rate limits via tier system
+    // ── Security gates ──
+    await this.checkQualityGate();
+    await this.checkDailyVolume(senderType);
+    await enforcePairRateLimit(conv.phone);
+
+    // ── Validate interactive list (Meta limits) ──
+    let totalRows = 0;
+    const validatedSections = sections.map(section => ({
+      ...section,
+      rows: section.rows
+        .filter(() => { totalRows++; return totalRows <= 10; })
+        .map((row: any) => ({
+          ...row,
+          title: row.title?.substring(0, 24) || row.title,
+          description: row.description?.substring(0, 72) || row.description,
+        })),
+    }));
 
     const client = await this.getClient();
-    const response = await client.sendList(conv.phone, bodyText, buttonText, sections);
+    let response: any;
+    try {
+      response = await client.sendList(conv.phone, bodyText, buttonText, validatedSections);
+    } catch (sendErr: any) {
+      console.error(`[WaMessageService] sendInteractiveList FAILED:`, sendErr?.message || sendErr);
+      handleMetaSendError(sendErr, conversationId);
+    }
     const waMessageId = response.messages?.[0]?.id;
 
-    const interactiveData = { type: 'list', bodyText, buttonText, sections };
+    const interactiveData = { type: 'list', bodyText, buttonText, sections: validatedSections };
 
     const message = await this.saveOutbound(conversationId, conv.phone, waMessageId, {
       type: 'INTERACTIVE_LIST',
@@ -221,8 +332,6 @@ export class WaMessageService {
       followUpStep: opts.followUpStep,
       metadata: opts.metadata,
     });
-
-    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -238,24 +347,32 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    // Meta manages rate limits via tier system
+    // ── Security gates ──
+    await this.checkQualityGate();
+    await this.checkDailyVolume(senderType);
+    await enforcePairRateLimit(conv.phone);
 
     const client = await this.getClient();
     let response: any;
 
-    switch (mediaType) {
-      case 'IMAGE':
-        response = await client.sendImage(conv.phone, url, caption);
-        break;
-      case 'VIDEO':
-        response = await client.sendVideo(conv.phone, url, caption);
-        break;
-      case 'AUDIO':
-        response = await client.sendAudio(conv.phone, url);
-        break;
-      case 'DOCUMENT':
-        response = await client.sendDocument(conv.phone, url, caption || 'documento', caption);
-        break;
+    try {
+      switch (mediaType) {
+        case 'IMAGE':
+          response = await client.sendImage(conv.phone, url, caption);
+          break;
+        case 'VIDEO':
+          response = await client.sendVideo(conv.phone, url, caption);
+          break;
+        case 'AUDIO':
+          response = await client.sendAudio(conv.phone, url);
+          break;
+        case 'DOCUMENT':
+          response = await client.sendDocument(conv.phone, url, caption || 'documento', caption);
+          break;
+      }
+    } catch (sendErr: any) {
+      console.error(`[WaMessageService] sendMedia FAILED:`, sendErr?.message || sendErr);
+      handleMetaSendError(sendErr, conversationId);
     }
 
     const waMessageId = response.messages?.[0]?.id;
@@ -270,8 +387,6 @@ export class WaMessageService {
       followUpStep: opts.followUpStep,
       metadata: opts.metadata,
     });
-
-    // Meta manages rate limits via tier system
 
     return message;
   }
