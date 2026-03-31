@@ -120,13 +120,30 @@ export class WaMessageService {
       }
     }
 
+    // Fetch template body from DB for display
+    const tplRecord = await prisma.cloudWaTemplate.findFirst({
+      where: { name: templateName },
+      select: { body: true },
+    });
+    const templateBody = tplRecord?.body || `[template: ${templateName}]`;
+    // Replace {{N}} placeholders with actual params if provided
+    let displayBody = templateBody;
+    if (components && Array.isArray(components)) {
+      const bodyComp = components.find((c: any) => c.type === 'body');
+      if (bodyComp?.parameters) {
+        bodyComp.parameters.forEach((p: any, i: number) => {
+          displayBody = displayBody.replace(`{{${i + 1}}}`, p.text || p.value || `{{${i + 1}}}`);
+        });
+      }
+    }
+
     const client = await this.getClient();
     const response = await client.sendTemplate(conv.phone, templateName, language, components);
     const waMessageId = response.messages?.[0]?.id;
 
     const message = await this.saveOutbound(conversationId, conv.phone, waMessageId, {
       type: 'TEMPLATE',
-      body: `[template: ${templateName}]`,
+      body: displayBody,
       templateName,
       templateParams: components || null,
       senderType,
