@@ -136,6 +136,8 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
     const intFields = new Set(['diaVencimento', 'implementacaoParcelas', 'descontoMeses']);
     const decimalFields = new Set(['valorMensal', 'valorImplementacao', 'descontoPercentual']);
+    // Required numeric fields cannot be null — default to 0 instead
+    const requiredNumeric = new Set(['valorMensal', 'diaVencimento']);
 
     const data: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -144,9 +146,11 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         if (field === 'dataInicio') {
           data[field] = new Date(val);
         } else if (intFields.has(field)) {
-          data[field] = val ? parseInt(val) : null;
+          const parsed = val !== null && val !== '' ? parseInt(val) : NaN;
+          data[field] = Number.isNaN(parsed) || parsed === null ? (requiredNumeric.has(field) ? 0 : null) : parsed;
         } else if (decimalFields.has(field)) {
-          data[field] = val ? parseFloat(val) : null;
+          const parsed = val !== null && val !== '' ? parseFloat(val) : NaN;
+          data[field] = Number.isNaN(parsed) || parsed === null ? (requiredNumeric.has(field) ? 0 : null) : parsed;
         } else {
           data[field] = val;
         }
