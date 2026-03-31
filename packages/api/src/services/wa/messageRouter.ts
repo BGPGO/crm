@@ -114,9 +114,25 @@ export class WaMessageRouter {
           });
 
           if (!conversation) {
-            // 3. Try to link to existing Contact by phone
+            // 3. Try to link to existing Contact by phone (with normalization)
+            // WhatsApp sends without the extra 9 digit for some BR numbers
+            // Contact DB may have 5551981375218, WhatsApp sends 555181375218
+            const phoneVariations = [from];
+            // If BR number (55) and has 12 digits (55+DDD+8digits), try adding 9 after DDD
+            if (from.startsWith('55') && from.length === 12) {
+              const ddd = from.substring(2, 4);
+              const number = from.substring(4);
+              phoneVariations.push(`55${ddd}9${number}`);
+            }
+            // If BR number with 13 digits (55+DDD+9+8digits), try without the 9
+            if (from.startsWith('55') && from.length === 13) {
+              const ddd = from.substring(2, 4);
+              const number = from.substring(5); // skip the 9
+              phoneVariations.push(`55${ddd}${number}`);
+            }
+
             const contact = await prisma.contact.findFirst({
-              where: { phone: from },
+              where: { phone: { in: phoneVariations } },
               select: { id: true },
             });
 
@@ -128,12 +144,33 @@ export class WaMessageRouter {
                 contactId: contact?.id || null,
               },
             });
-          } else if (pushName && pushName !== conversation.pushName) {
-            // Update pushName if changed
-            await prisma.waConversation.update({
-              where: { id: conversation.id },
-              data: { pushName },
-            });
+          } else {
+            // Update pushName if changed, and try to link contact if missing
+            const updates: Record<string, any> = {};
+            if (pushName && pushName !== conversation.pushName) {
+              updates.pushName = pushName;
+            }
+            if (!conversation.contactId) {
+              const phoneVariations = [from];
+              if (from.startsWith('55') && from.length === 12) {
+                phoneVariations.push(`55${from.substring(2, 4)}9${from.substring(4)}`);
+              }
+              if (from.startsWith('55') && from.length === 13) {
+                phoneVariations.push(`55${from.substring(2, 4)}${from.substring(5)}`);
+              }
+              const contact = await prisma.contact.findFirst({
+                where: { phone: { in: phoneVariations } },
+                select: { id: true },
+              });
+              if (contact) updates.contactId = contact.id;
+            }
+            if (Object.keys(updates).length > 0) {
+              await prisma.waConversation.update({
+                where: { id: conversation.id },
+                data: updates,
+              });
+              if (updates.contactId) conversation.contactId = updates.contactId;
+            }
           }
 
           // 4. Save WaMessage (INBOUND, WA_CLIENT)
