@@ -1,6 +1,7 @@
 import prisma from '../../lib/prisma';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
-import { canSend, registerSent } from '../dailyLimitService';
+// Cloud API limits are managed by Meta (tier-based: 250/1000/10000/unlimited per day).
+// Local dailyLimitService is for Z-API warmup only — not used here.
 import { WindowService } from './windowService';
 
 interface SendOpts {
@@ -75,13 +76,9 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    // Skip daily limit check for human agents (manual sends)
-    if (senderType !== 'WA_HUMAN') {
-      const allowed = await canSend(opts.isFollowUp ? 'followUp' : 'botResponse');
-      if (!allowed) {
-        throw new Error('[WaMessageService] Limite diário de mensagens atingido');
-      }
-    }
+    // Cloud API (WABA) has its own tier-based limits managed by Meta.
+    // The dailyLimitService tracks Z-API volume (post-ban warmup) — skip it for Cloud API sends.
+    // Meta enforces: TIER_1=250/day, TIER_2=1000/day, etc.
 
     const client = await this.getClient();
     console.log(`[WaMessageService] sendText to=${conv.phone} phoneNumberId=${(client as any).phoneNumberId}`);
@@ -105,7 +102,7 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    await registerSent(opts.isFollowUp ? 'followUp' : 'botResponse');
+    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -121,12 +118,7 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    if (senderType !== 'WA_HUMAN') {
-      const allowed = await canSend(opts.isFollowUp ? 'followUp' : 'botResponse');
-      if (!allowed) {
-        throw new Error('[WaMessageService] Limite diário de mensagens atingido');
-      }
-    }
+    // Cloud API limits managed by Meta (tier-based), not by local dailyLimitService
 
     // Fetch template body from DB for display
     const tplRecord = await prisma.cloudWaTemplate.findFirst({
@@ -161,7 +153,7 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    await registerSent(opts.isFollowUp ? 'followUp' : 'botResponse');
+    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -176,10 +168,7 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_BOT';
 
-    const allowed = await canSend('botResponse');
-    if (!allowed) {
-      throw new Error('[WaMessageService] Limite diário de mensagens atingido');
-    }
+    // Meta manages rate limits via tier system
 
     const client = await this.getClient();
     const response = await client.sendButtons(conv.phone, bodyText, buttons);
@@ -198,7 +187,7 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    await registerSent('botResponse');
+    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -214,10 +203,7 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_BOT';
 
-    const allowed = await canSend('botResponse');
-    if (!allowed) {
-      throw new Error('[WaMessageService] Limite diário de mensagens atingido');
-    }
+    // Meta manages rate limits via tier system
 
     const client = await this.getClient();
     const response = await client.sendList(conv.phone, bodyText, buttonText, sections);
@@ -236,7 +222,7 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    await registerSent('botResponse');
+    // Meta manages rate limits via tier system
 
     return message;
   }
@@ -252,10 +238,7 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    const allowed = await canSend('botResponse');
-    if (!allowed) {
-      throw new Error('[WaMessageService] Limite diário de mensagens atingido');
-    }
+    // Meta manages rate limits via tier system
 
     const client = await this.getClient();
     let response: any;
@@ -288,7 +271,7 @@ export class WaMessageService {
       metadata: opts.metadata,
     });
 
-    await registerSent('botResponse');
+    // Meta manages rate limits via tier system
 
     return message;
   }
