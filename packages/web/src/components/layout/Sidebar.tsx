@@ -12,6 +12,7 @@ import {
   BarChart3,
   Megaphone,
   MessageSquare,
+  MessageCircle,
   Bell,
   Search,
   ChevronDown,
@@ -43,6 +44,7 @@ const navItems = [
   { href: "/reports", label: "Análises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
   { href: "/conversas", label: "Conversas", icon: MessageSquare },
+  { href: "/waba", label: "WhatsApp", icon: MessageCircle },
   { href: "/reunioes", label: "Reuniões", icon: Calendar },
 ];
 
