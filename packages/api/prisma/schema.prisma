@@ -186,6 +186,7 @@ model User {
 
   assignedConversations WhatsAppConversation[] @relation("WhatsAppConversationAssignee")
   sentWhatsAppMessages  WhatsAppMessage[]      @relation("WhatsAppMessageSender")
+  cloudWaMessages       CloudWaMessageLog[]    @relation("CloudWaMessageSender")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -332,18 +333,18 @@ model CampaignContext {
 }
 
 model Deal {
-  id                String     @id @default(cuid())
-  title             String
-  value             Decimal?   @db.Decimal(15, 2)
+  id                 String     @id @default(cuid())
+  title              String
+  value              Decimal?   @db.Decimal(15, 2)
   expectedCloseDate  DateTime?
   expectedReturnDate DateTime?
   closedAt           DateTime?
-  sdrActivatedAt    DateTime?
-  status            DealStatus @default(OPEN)
-  classification    String?
-  contaAzulCode     String?
-  lostAtStage       String?
-  recurrence        String?
+  sdrActivatedAt     DateTime?
+  status             DealStatus @default(OPEN)
+  classification     String?
+  contaAzulCode      String?
+  lostAtStage        String?
+  recurrence         String?
 
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id])
@@ -410,14 +411,14 @@ model Product {
 }
 
 model DealProduct {
-  id        String  @id @default(cuid())
-  quantity  Int     @default(1)
-  unitPrice Decimal @db.Decimal(15, 2)
-  discount  Decimal @default(0) @db.Decimal(5, 2)
-  discountMonths  Int?
-  setupPrice      Decimal? @db.Decimal(15, 2)
+  id                String   @id @default(cuid())
+  quantity          Int      @default(1)
+  unitPrice         Decimal  @db.Decimal(15, 2)
+  discount          Decimal  @default(0) @db.Decimal(5, 2)
+  discountMonths    Int?
+  setupPrice        Decimal? @db.Decimal(15, 2)
   setupInstallments Int?
-  recurrenceValue Decimal? @db.Decimal(15, 2)
+  recurrenceValue   Decimal? @db.Decimal(15, 2)
 
   dealId String
   deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
@@ -869,9 +870,9 @@ model AutomationLog {
 // ─── Notification Config ────────────────────────────────────────────────────
 
 model NotificationConfig {
-  id        String  @id @default(cuid())
-  key       String  @unique   // e.g. "deal_won_emails", "deal_won_enabled"
-  value     String  @db.Text  // JSON or plain text
+  id    String @id @default(cuid())
+  key   String @unique // e.g. "deal_won_emails", "deal_won_enabled"
+  value String @db.Text // JSON or plain text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1049,9 +1050,9 @@ model WhatsAppConfig {
   botPhoneNumber           String?
   readAiApiKey             String?
 
-  dailyMessageLimit   Int      @default(200)
-  warmupEnabled       Boolean  @default(false)
-  warmupStartDate     DateTime?
+  dailyMessageLimit Int       @default(200)
+  warmupEnabled     Boolean   @default(false)
+  warmupStartDate   DateTime?
 
   // SDR Identity
   botName    String @default("Bia")
@@ -1070,9 +1071,9 @@ model WhatsAppConfig {
   coldContactMaxMessages Int @default(2)
 
   // Business hours (Brasília)
-  businessHoursStart         Int @default(8)
-  businessHoursEndWeekday    Int @default(18)
-  businessHoursEndSaturday   Int @default(12)
+  businessHoursStart       Int @default(8)
+  businessHoursEndWeekday  Int @default(18)
+  businessHoursEndSaturday Int @default(12)
 
   followUpSteps WhatsAppFollowUpStep[]
   botProducts   BotProduct[]
@@ -1119,13 +1120,13 @@ model BotObjection {
 }
 
 model WhatsAppDailyVolume {
-  id         String   @id @default(cuid())
-  date       DateTime @unique
-  campaign   Int      @default(0)
-  followUp   Int      @default(0)
-  reminder   Int      @default(0)
-  total      Int      @default(0)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  campaign  Int      @default(0)
+  followUp  Int      @default(0)
+  reminder  Int      @default(0)
+  total     Int      @default(0)
+  createdAt DateTime @default(now())
 
   @@index([date])
 }
@@ -1159,16 +1160,20 @@ model WhatsAppConversation {
   optedOut            Boolean   @default(false)
   optedOutAt          DateTime?
 
+  // Cloud API: janela de 24h para mensagens livres (expira 24h após última msg do cliente)
+  cloudWindowExpiresAt DateTime?
+
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
 
   assignedUserId String?
-  assignedUser   User?    @relation("WhatsAppConversationAssignee", fields: [assignedUserId], references: [id])
+  assignedUser   User?   @relation("WhatsAppConversationAssignee", fields: [assignedUserId], references: [id])
 
-  messages      WhatsAppMessage[]
-  aiHistory     WhatsAppAIHistory[]
-  followUpState WhatsAppFollowUpState?
+  messages           WhatsAppMessage[]
+  aiHistory          WhatsAppAIHistory[]
+  followUpState      WhatsAppFollowUpState?
   scheduledFollowUps ScheduledFollowUp[]
+  cloudMessages      CloudWaMessageLog[]    @relation("CloudMessages")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1239,28 +1244,28 @@ model WhatsAppFollowUpState {
 }
 
 model ScheduledFollowUp {
-  id              String   @id @default(cuid())
-  type            String   @default("FOLLOW_UP") // FOLLOW_UP, MEETING_REMINDER
-  conversationId  String?
-  conversation    WhatsAppConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  dealId          String?
-  deal            Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  meetingId       String?  // CalendlyEvent ID for meeting reminders
-  stepNumber      Int      // 1, 2, 3...
-  label           String?  // "4 horas antes", "Follow-up #1 Casual", etc.
-  tone            String?  // CASUAL, REFORCO, ENCERRAMENTO (for follow-ups)
-  delayMinutes    Int
-  scheduledAt     DateTime // When this will fire
-  status          String   @default("PENDING") // PENDING, SENT, CANCELLED
-  sentAt          DateTime?
-  cancelledAt     DateTime?
-  createdAt       DateTime @default(now())
+  id             String                @id @default(cuid())
+  type           String                @default("FOLLOW_UP") // FOLLOW_UP, MEETING_REMINDER
+  conversationId String?
+  conversation   WhatsAppConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  dealId         String?
+  deal           Deal?                 @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  meetingId      String? // CalendlyEvent ID for meeting reminders
+  stepNumber     Int // 1, 2, 3...
+  label          String? // "4 horas antes", "Follow-up #1 Casual", etc.
+  tone           String? // CASUAL, REFORCO, ENCERRAMENTO (for follow-ups)
+  delayMinutes   Int
+  scheduledAt    DateTime // When this will fire
+  status         String                @default("PENDING") // PENDING, SENT, CANCELLED
+  sentAt         DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime              @default(now())
 
+  @@unique([conversationId, stepNumber, type])
   @@index([conversationId])
   @@index([dealId])
   @@index([meetingId])
   @@index([conversationId, status])
-  @@unique([conversationId, stepNumber, type])
   @@index([scheduledAt])
 }
 
@@ -1359,11 +1364,11 @@ model WhatsAppCampaignContact {
 // ─── Read.ai Integration ──────────────────────────────────────────────────
 
 model ReadAiMeeting {
-  id           String   @id @default(cuid())
-  sessionId    String   @unique
+  id           String    @id @default(cuid())
+  sessionId    String    @unique
   title        String?
-  summary      String?  @db.Text
-  transcript   String?  @db.Text
+  summary      String?   @db.Text
+  transcript   String?   @db.Text
   actionItems  Json?
   topics       Json?
   duration     Int?
@@ -1371,13 +1376,154 @@ model ReadAiMeeting {
   participants Json?
   rawData      Json?
 
-  dealId       String?
-  contactId    String?
+  dealId    String?
+  contactId String?
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([dealId])
   @@index([contactId])
   @@index([sessionId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHATSAPP CLOUD API (API OFICIAL)
+// Modelos separados do sistema Z-API legado. Prefixo "Cloud" em todos os nomes.
+// Quando a migração estiver completa, os modelos sem prefixo (Z-API) serão removidos.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum CloudWaTemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
+}
+
+enum CloudWaTemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+}
+
+enum CloudWaMessageStatus {
+  PENDING // Sent to Meta, waiting for callback
+  SENT // Meta accepted (single check)
+  DELIVERED // Reached device (double check)
+  READ // Read (blue checks)
+  FAILED // Delivery failed
+}
+
+model CloudWaConfig {
+  id String @id @default(cuid())
+
+  // ── Credenciais Cloud API ──
+  phoneNumberId String @default("") // ID do número no Meta (não é o número em si)
+  wabaId        String @default("") // WhatsApp Business Account ID
+  accessToken   String @default("") // System User token permanente
+  appSecret     String @default("") // Para verificar assinatura dos webhooks
+  verifyToken   String @default("") // Token customizado para setup do webhook
+  twoStepPin    String @default("") // PIN 2FA de 6 dígitos
+  displayPhone  String @default("") // Número de telefone legível (ex: +5511999999999)
+
+  // ── Status ──
+  isActive      Boolean @default(false) // true = Cloud API é o canal ativo
+  qualityRating String  @default("GREEN") // GREEN, YELLOW, RED
+  messagingTier String  @default("TIER_1") // TIER_1, TIER_2, TIER_3, UNLIMITED
+  phoneStatus   String  @default("PENDING_SETUP") // CONNECTED, FLAGGED, RESTRICTED, PENDING_SETUP
+
+  // ── Limites ──
+  dailyMessageLimit Int @default(250) // Limite por tier
+
+  // ── Webhook ──
+  webhookUrl String @default("") // URL configurada para receber callbacks
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CloudWaTemplate {
+  id String @id @default(cuid())
+
+  // ── Identificação ──
+  name     String // Nome do template (lowercase, underscores)
+  language String                  @default("pt_BR")
+  category CloudWaTemplateCategory
+  status   CloudWaTemplateStatus   @default(PENDING)
+
+  // ── IDs da Meta ──
+  metaTemplateId String? // ID retornado pela Meta após criação
+  qualityScore   String? // GREEN, YELLOW, RED (após aprovação)
+  rejectedReason String? // Motivo da rejeição (se houver)
+
+  // ── Conteúdo ──
+  headerType    String? // TEXT, IMAGE, VIDEO, DOCUMENT, null
+  headerContent String? @db.Text // Texto do header ou URL de exemplo
+  body          String  @db.Text // Corpo do template com {{1}}, {{2}}...
+  footer        String? // Texto do footer (estático)
+  buttons       Json? // Array de botões [{type, text, url?, payload?}]
+
+  // Payload completo de components enviado à Meta (para templates complexos: carousel, LTO, etc.)
+  components Json?
+
+  // ── Exemplos (exigidos pela Meta para aprovação) ──
+  bodyExamples  Json? // Ex: [["João", "previdência"]]
+  headerExample String? // Ex: URL da imagem de exemplo
+
+  // ── Controle ──
+  editsRemaining Int       @default(10) // Max 10 edições por 30 dias (APPROVED)
+  lastEditedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, language])
+  @@index([status])
+  @@index([category])
+  @@index([metaTemplateId])
+}
+
+model CloudWaMessageLog {
+  id String @id @default(cuid())
+
+  // ── Identificação ──
+  waMessageId String @unique // wamid.HBgN... (ID da Meta)
+  direction   String // INBOUND ou OUTBOUND
+  phone       String // Número do contato (sem @s.whatsapp.net)
+
+  // ── Conteúdo ──
+  type             String // text, template, image, video, audio, document, interactive, reaction
+  body             String? @db.Text // Texto da mensagem (ou caption)
+  mediaUrl         String? // URL da mídia (se houver)
+  mediaId          String? // Media ID da Meta (expira em 30 dias)
+  templateName     String? // Nome do template usado (se OUTBOUND template)
+  contextMessageId String? // ID da mensagem sendo respondida (reply/quote)
+  metadata         Json? // Payload completo para debug
+
+  // ── Status de entrega (atualizado via webhook) ──
+  status       CloudWaMessageStatus @default(PENDING)
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  errorCode    String? // Código de erro Meta (ex: 131047)
+  errorMessage String? // Mensagem de erro
+
+  // ── Vínculo com remetente (para mensagens OUTBOUND enviadas do inbox) ──
+  sentByUserId String?
+  sentByUser   User?   @relation("CloudWaMessageSender", fields: [sentByUserId], references: [id])
+
+  // ── Vínculo com conversa ──
+  conversationId String?
+  conversation   WhatsAppConversation? @relation("CloudMessages", fields: [conversationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone, createdAt])
+  @@index([conversationId])
+  @@index([status])
+  @@index([direction, createdAt])
+  @@index([sentByUserId])
 }

@@ -26,7 +26,13 @@ app.use(
   })
 );
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json({ limit: '5mb' }));
+// Captura raw body para verificação de assinatura do webhook Cloud API (X-Hub-Signature-256)
+app.use(express.json({
+  limit: '5mb',
+  verify: (req: any, _res, buf) => {
+    if (buf && buf.length) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // ─── Rate limiting ───────────────────────────────────────────────────────────
@@ -72,6 +78,7 @@ const webhookLimiter = rateLimit({
 });
 app.use('/api/webhooks', webhookLimiter);
 app.use('/api/whatsapp/webhook', webhookLimiter);
+app.use('/api/whatsapp/cloud/webhook', webhookLimiter);  // Cloud API (Meta oficial)
 app.use('/api/calendly/webhook', webhookLimiter);
 app.use('/api/contracts/webhook', webhookLimiter);
 
