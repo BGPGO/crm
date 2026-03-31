@@ -105,35 +105,49 @@ router.post('/', async (req: Request, res: Response) => {
     for (const entry of entries) {
       const changes = entry.changes || [];
       for (const change of changes) {
-        if (change.field !== 'messages') continue;
-
         const value = change.value;
         if (!value) continue;
 
-        try {
-          // ── Mensagens inbound ──
-          const messages = value.messages || [];
-          if (messages.length > 0) {
-            // Dedup por message ID
-            const hasNew = messages.some((m: any) => !processedEntries.has(m.id));
-            if (hasNew) {
-              for (const msg of messages) markProcessed(msg.id);
-              await WaMessageRouter.handleInbound(value);
+        // ── Messages field: inbound messages + status updates ──
+        if (change.field === 'messages') {
+          try {
+            // ── Mensagens inbound ──
+            const messages = value.messages || [];
+            if (messages.length > 0) {
+              // Dedup por message ID
+              const hasNew = messages.some((m: any) => !processedEntries.has(m.id));
+              if (hasNew) {
+                for (const msg of messages) markProcessed(msg.id);
+                await WaMessageRouter.handleInbound(value);
+              }
             }
-          }
 
-          // ── Status updates (sent/delivered/read/failed) ──
-          const statuses = value.statuses || [];
-          if (statuses.length > 0) {
-            // Dedup por messageId + status combo
-            const hasNew = statuses.some((s: any) => !processedEntries.has(`${s.id}_${s.status}`));
-            if (hasNew) {
-              for (const s of statuses) markProcessed(`${s.id}_${s.status}`);
-              await WaMessageRouter.handleStatusUpdate(value);
+            // ── Status updates (sent/delivered/read/failed) ──
+            const statuses = value.statuses || [];
+            if (statuses.length > 0) {
+              // Dedup por messageId + status combo
+              const hasNew = statuses.some((s: any) => !processedEntries.has(`${s.id}_${s.status}`));
+              if (hasNew) {
+                for (const s of statuses) markProcessed(`${s.id}_${s.status}`);
+                await WaMessageRouter.handleStatusUpdate(value);
+              }
             }
+          } catch (changeErr) {
+            console.error('[wa-webhook] Erro ao processar change:', changeErr);
           }
-        } catch (changeErr) {
-          console.error('[wa-webhook] Erro ao processar change:', changeErr);
+        }
+
+        // ── Phone number quality updates (separate field) ──
+        if (change.field === 'phone_number_quality_update' || change.field === 'account_update') {
+          try {
+            const qualityKey = `quality_${Date.now()}`;
+            if (!processedEntries.has(qualityKey)) {
+              markProcessed(qualityKey);
+              await WaMessageRouter.handleQualityUpdate(change.value);
+            }
+          } catch (qualityErr) {
+            console.error('[wa-webhook] Erro ao processar quality update:', qualityErr);
+          }
         }
       }
     }

@@ -241,6 +241,37 @@ export class WaMessageRouter {
   }
 
   /**
+   * Process phone number quality updates from Meta webhook.
+   * Automatically pauses sends when quality drops to RED.
+   */
+  static async handleQualityUpdate(value: any): Promise<void> {
+    try {
+      const currentLimit = value.current_limit;
+      const event = value.event; // e.g. "FLAGGED", "RESTRICTED"
+      // Derive quality from event: FLAGGED = YELLOW, RESTRICTED = RED
+      let quality = 'GREEN';
+      if (event === 'FLAGGED') quality = 'YELLOW';
+      if (event === 'RESTRICTED') quality = 'RED';
+
+      console.warn(`[WaMessageRouter] Quality update: event=${event}, limit=${currentLimit}, quality=${quality}`);
+
+      await prisma.cloudWaConfig.updateMany({
+        data: {
+          qualityRating: quality,
+          ...(event === 'RESTRICTED' ? { phoneStatus: 'RESTRICTED' } : {}),
+          ...(event === 'FLAGGED' ? { phoneStatus: 'FLAGGED' } : {}),
+        },
+      });
+
+      if (quality === 'RED') {
+        console.error('[WaMessageRouter] QUALITY RED — todos os envios serao pausados automaticamente.');
+      }
+    } catch (err) {
+      console.error('[WaMessageRouter] Erro ao processar quality update:', err);
+    }
+  }
+
+  /**
    * Process delivery status updates from Meta webhook payload.
    * Expects `change.value` object (with statuses[]).
    */
