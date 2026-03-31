@@ -596,28 +596,40 @@ export default function WabaChatPage() {
   useEffect(() => {
     if (!selectedContactId) {
       setContactDetail(null);
-      setDealSummary(null);
       return;
     }
 
     setDetailLoading(true);
 
-    // Single request — contact endpoint includes deals + tags
+    // Fetch contact details (tags, name, etc.) — still uses contactId
     api
       .get<any>(`/contacts/${selectedContactId}`)
       .then((res: any) => {
         const contact = res.data ?? res;
         setContactDetail(contact);
-        const deals = contact?.deals || [];
-        const openDeal = deals.find((d: any) => d.status === "OPEN") || deals[0] || null;
-        setDealSummary(openDeal);
       })
       .catch(() => {
         setContactDetail(null);
-        setDealSummary(null);
       })
       .finally(() => setDetailLoading(false));
-  }, [selectedContactId]); // only re-fetch when contact actually changes
+  }, [selectedContactId]);
+
+  // Fetch deals by phone (finds across all contacts with same number)
+  useEffect(() => {
+    if (!selectedId) {
+      setDealSummary(null);
+      return;
+    }
+
+    api
+      .get<{ data: any[] }>(`/wa/conversations/${selectedId}/deals`)
+      .then((res) => {
+        const deals = res.data || [];
+        const openDeal = deals.find((d: any) => d.status === "OPEN") || deals[0] || null;
+        setDealSummary(openDeal);
+      })
+      .catch(() => setDealSummary(null));
+  }, [selectedId]);
 
   // ── Auto-scroll to bottom ──
   useEffect(() => {

@@ -145,6 +145,7 @@ enum AutomationActionType {
   CONDITION
   MARK_LOST
   WAIT_FOR_RESPONSE
+  SEND_WA_TEMPLATE
 }
 
 enum AutomationEnrollmentStatus {

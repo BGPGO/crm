@@ -65,6 +65,9 @@ export async function executeAction(
       case 'WAIT_FOR_RESPONSE':
         return await waitForResponse(config);
 
+      case 'SEND_WA_TEMPLATE':
+        return await sendWaTemplate(enrollment.contactId, config);
+
       default:
         return { success: false, output: `Unknown action type: ${step.actionType}` };
     }
@@ -934,6 +937,78 @@ async function markLost(
       dealsMarkedLost: deals.length,
       dealIds: deals.map((d) => d.id),
       lostReasonId: config.lostReasonId || null,
+    },
+  };
+}
+
+async function sendWaTemplate(
+  contactId: string,
+  config: { templateName: string; language?: string }
+): Promise<ActionResult> {
+  if (!config.templateName) {
+    return { success: false, output: 'templateName is required in action config' };
+  }
+
+  const contact = await prisma.contact.findUniqueOrThrow({
+    where: { id: contactId },
+  });
+
+  if (!contact.phone) {
+    return { success: false, output: 'Contact has no phone number' };
+  }
+
+  const phone = normalizePhone(contact.phone);
+  const language = config.language || 'pt_BR';
+
+  // Check opt-out on WaConversation
+  const { phoneVariants } = await import('../utils/phoneNormalize');
+  const variants = phoneVariants(phone);
+
+  let conversation = await prisma.waConversation.findFirst({
+    where: { phone: { in: variants } },
+    select: { id: true, optedOut: true },
+  });
+
+  if (conversation?.optedOut) {
+    return { success: false, output: 'Contact opted out of WhatsApp messages' };
+  }
+
+  // Find or create WaConversation for this phone
+  if (!conversation) {
+    conversation = await prisma.waConversation.create({
+      data: {
+        phone,
+        status: 'WA_OPEN',
+        contactId,
+      },
+      select: { id: true, optedOut: true },
+    });
+  }
+
+  // Build template components with contact name
+  const contactName = contact.name || '';
+  const components = contactName
+    ? [{ type: 'body', parameters: [{ type: 'text', text: contactName }] }]
+    : [];
+
+  // Send template via WaMessageService
+  const { WaMessageService } = await import('./wa/messageService');
+  const result = await WaMessageService.sendTemplate(
+    conversation.id,
+    config.templateName,
+    language,
+    components,
+    { senderType: 'WA_BOT' },
+  );
+
+  return {
+    success: true,
+    output: {
+      phone,
+      conversationId: conversation.id,
+      templateName: config.templateName,
+      language,
+      messageId: result?.id || null,
     },
   };
 }

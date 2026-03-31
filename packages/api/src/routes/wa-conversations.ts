@@ -20,6 +20,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { phoneVariants } from '../utils/phoneNormalize';
 
 const router = Router();
 
@@ -261,6 +262,53 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ─── GET /api/wa/conversations/:id/deals — Deals by phone (BR normalization) ─
+
+router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const conv = await prisma.waConversation.findUnique({ where: { id: req.params.id } });
+    if (!conv) return next(createError('Conversation not found', 404));
+
+    const variants = phoneVariants(conv.phone);
+
+    // Find all contacts with this phone
+    const contacts = await prisma.contact.findMany({
+      where: { phone: { in: variants } },
+      select: { id: true },
+    });
+    const contactIds = contacts.map(c => c.id);
+    if (conv.contactId && !contactIds.includes(conv.contactId)) {
+      contactIds.push(conv.contactId);
+    }
+
+    if (contactIds.length === 0) return res.json({ data: [] });
+
+    // Find deals via primary contact + DealContact junction
+    const [primaryDeals, junctionDeals] = await Promise.all([
+      prisma.deal.findMany({
+        where: { contactId: { in: contactIds } },
+        include: { stage: true, contact: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.deal.findMany({
+        where: { dealContacts: { some: { contactId: { in: contactIds } } } },
+        include: { stage: true, contact: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    // Deduplicate
+    const seen = new Set<string>();
+    const allDeals = [...primaryDeals, ...junctionDeals].filter(d => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+
+    res.json({ data: allDeals });
+  } catch (err) { next(err); }
 });
 
 // ─── GET /api/wa/conversations/:id/messages — Paginated messages ────────────

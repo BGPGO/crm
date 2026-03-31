@@ -58,13 +58,8 @@ interface WhatsAppTemplate {
 
 type StatusFilter = "ALL" | "APPROVED" | "PENDING" | "REJECTED";
 type CategoryFilter = "ALL" | "MARKETING" | "UTILITY";
-type SourceTab = "ALL" | "MINE" | "LEGACY";
-
-// Todos os templates existentes antes da nova plataforma são legado
-const LEGACY_CUTOFF = new Date("2026-04-01T00:00:00Z");
-
-function isLegacyTemplate(tpl: WhatsAppTemplate): boolean {
-  return new Date(tpl.createdAt) < LEGACY_CUTOFF;
+function isAutomationTemplate(tpl: WhatsAppTemplate): boolean {
+  return tpl.name.startsWith("cadencia_");
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -312,7 +307,6 @@ export default function TemplatesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("ALL");
-  const [sourceTab, setSourceTab] = useState<SourceTab>("ALL");
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -382,8 +376,6 @@ export default function TemplatesPage() {
 
   const filtered = useMemo(() => {
     return templates.filter((t) => {
-      if (sourceTab === "MINE" && isLegacyTemplate(t)) return false;
-      if (sourceTab === "LEGACY" && !isLegacyTemplate(t)) return false;
       if (statusFilter !== "ALL" && t.status !== statusFilter) return false;
       if (categoryFilter !== "ALL" && t.category !== categoryFilter) return false;
       if (searchTerm) {
@@ -396,12 +388,8 @@ export default function TemplatesPage() {
       }
       return true;
     });
-  }, [templates, sourceTab, statusFilter, categoryFilter, searchTerm]);
+  }, [templates, statusFilter, categoryFilter, searchTerm]);
 
-  const sourceCounts = useMemo(() => {
-    const legacy = templates.filter(isLegacyTemplate).length;
-    return { total: templates.length, mine: templates.length - legacy, legacy };
-  }, [templates]);
 
   const stats = useMemo(() => {
     const approved = templates.filter((t) => t.status === "APPROVED").length;
@@ -669,37 +657,6 @@ export default function TemplatesPage() {
           </div>
         )}
 
-        {/* Source tabs: Todos / Meus / Legado */}
-        <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700">
-          {(
-            [
-              { key: "ALL" as SourceTab, label: "Todos", count: sourceCounts.total },
-              { key: "MINE" as SourceTab, label: "Meus Templates", count: sourceCounts.mine },
-              { key: "LEGACY" as SourceTab, label: "Legado", count: sourceCounts.legacy },
-            ]
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setSourceTab(tab.key)}
-              className={clsx(
-                "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px",
-                sourceTab === tab.key
-                  ? "border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
-                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
-              )}
-            >
-              {tab.label}
-              <span className={clsx(
-                "ml-1.5 px-1.5 py-0.5 text-xs rounded-full",
-                sourceTab === tab.key
-                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-              )}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
 
         {/* Filter/stats bar */}
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
@@ -874,9 +831,9 @@ export default function TemplatesPage() {
                         Q: {tpl.qualityScore}
                       </Badge>
                     )}
-                    {isLegacyTemplate(tpl) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600" title="Template importado de outro sistema">
-                        Legado
+                    {isAutomationTemplate(tpl) && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-700" title="Template usado em automacoes de cadencia">
+                        Automacao
                       </span>
                     )}
                   </div>
