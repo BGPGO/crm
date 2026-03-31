@@ -41,6 +41,10 @@ import whatsappStatusRouter from './whatsapp-status';
 import cloudWaWebhookRouter from './cloud-wa-webhook';
 import cloudWaConfigRouter from './cloud-wa-config';
 import cloudWaTemplatesRouter from './cloud-wa-templates';
+// ── WA v2 (módulo unificado Cloud API) ──────────────────────────────────────
+import waWebhookRouter from './wa-webhook';
+import waConversationsRouter from './wa-conversations';
+import waBroadcastsRouter from './wa-broadcasts';
 import botProductsRouter from './bot-products';
 import botObjectionsRouter from './bot-objections';
 import calendlyWebhookRouter from './calendly-webhook';
@@ -64,6 +68,7 @@ router.use('/email-tracking', emailTrackingRouter);  // /api/email-tracking/t/..
 router.use('/', emailTrackingRouter);               // /api/t/... (tracking pixels + webhook + unsubscribe)
 router.use('/whatsapp/webhook', whatsappWebhookRouter);
 router.use('/whatsapp/cloud/webhook', cloudWaWebhookRouter);  // Cloud API (Meta oficial)
+router.use('/wa/webhook', waWebhookRouter);  // WA v2 (módulo unificado)
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
 router.use('/readai', readaiRouter);
@@ -110,6 +115,9 @@ router.use('/whatsapp/status', whatsappStatusRouter);
 // ── Cloud API (API Oficial da Meta) — requer auth ───────────────────────────
 router.use('/whatsapp/cloud/config', cloudWaConfigRouter);
 router.use('/whatsapp/cloud/templates', cloudWaTemplatesRouter);
+// ── WA v2 (módulo unificado) — requer auth ─────────────────────────────────
+router.use('/wa/conversations', waConversationsRouter);
+router.use('/wa/broadcasts', waBroadcastsRouter);
 router.use('/whatsapp/bot-products', botProductsRouter);
 router.use('/whatsapp/bot-objections', botObjectionsRouter);
 router.use('/calendly/config', calendlyConfigRouter);

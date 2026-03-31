@@ -188,6 +188,10 @@ model User {
   sentWhatsAppMessages  WhatsAppMessage[]      @relation("WhatsAppMessageSender")
   cloudWaMessages       CloudWaMessageLog[]    @relation("CloudWaMessageSender")
 
+  // ── Wa (Cloud API v2) ──
+  waConversationsAssigned WaConversation[] @relation("WaConversationAssignee")
+  waMessagesSent          WaMessage[]      @relation("WaMessageSender")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -242,6 +246,7 @@ model Contact {
   emailSends            EmailSend[]
   automationEnrollments AutomationEnrollment[]
   whatsappConversations WhatsAppConversation[]
+  waConversations       WaConversation[]
   calendlyEvents        CalendlyEvent[]
 
   createdAt DateTime @default(now())
@@ -275,6 +280,7 @@ model PipelineStage {
 
   deals             Deal[]
   whatsappCampaigns WhatsAppCampaign[]
+  waBroadcasts      WaBroadcast[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -618,6 +624,7 @@ model Segment {
 
   emailCampaigns    EmailCampaign[]
   whatsappCampaigns WhatsAppCampaign[]
+  waBroadcasts      WaBroadcast[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1475,6 +1482,9 @@ model CloudWaTemplate {
   editsRemaining Int       @default(10) // Max 10 edições por 30 dias (APPROVED)
   lastEditedAt   DateTime?
 
+  // ── Relações v2 ──
+  waBroadcasts WaBroadcast[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1526,4 +1536,277 @@ model CloudWaMessageLog {
   @@index([status])
   @@index([direction, createdAt])
   @@index([sentByUserId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHATSAPP CLOUD API v2 — MÓDULO NOVO (independente do Z-API)
+// Prefixo "Wa" em todos os nomes. Quando a Z-API for desligada, estes ficam.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum WaMessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum WaMessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+  LOCATION
+  INTERACTIVE_BUTTONS
+  INTERACTIVE_LIST
+  TEMPLATE
+  REACTION
+  UNKNOWN
+}
+
+enum WaMessageStatus {
+  WA_PENDING
+  WA_SENT
+  WA_DELIVERED
+  WA_READ
+  WA_FAILED
+}
+
+enum WaMessageSender {
+  WA_CLIENT
+  WA_BOT
+  WA_HUMAN
+  WA_SYSTEM
+}
+
+enum WaConversationStatus {
+  WA_OPEN
+  WA_CLOSED
+  WA_ARCHIVED
+}
+
+enum WaBroadcastStatus {
+  WA_DRAFT
+  WA_SCHEDULED
+  WA_SENDING
+  WA_PAUSED
+  WA_COMPLETED
+}
+
+enum WaBroadcastContactStatus {
+  WA_BC_PENDING
+  WA_BC_SENT
+  WA_BC_DELIVERED
+  WA_BC_READ
+  WA_BC_FAILED
+  WA_BC_SKIPPED
+}
+
+// ── Conversa (independente de WhatsAppConversation) ──────────────────────────
+
+model WaConversation {
+  id    String @id @default(cuid())
+  phone String @unique
+
+  pushName String?
+  status   WaConversationStatus @default(WA_OPEN)
+
+  // ── Janela de 24h ──
+  windowExpiresAt     DateTime? // null = sem janela, só template
+  lastClientMessageAt DateTime? // última msg do cliente (para cálculo da janela)
+
+  // ── Roteamento bot/humano ──
+  isActive            Boolean @default(true)
+  needsHumanAttention Boolean @default(false)
+  meetingBooked       Boolean @default(false)
+
+  // ── Opt-out ──
+  optedOut   Boolean   @default(false)
+  optedOutAt DateTime?
+
+  // ── Timestamps ──
+  lastMessageAt DateTime? // última msg (qualquer direção)
+  lastReadAt    DateTime? // última vez que agente visualizou
+
+  // ── Relações ──
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+
+  assignedUserId String?
+  assignedUser   User? @relation("WaConversationAssignee", fields: [assignedUserId], references: [id])
+
+  messages   WaMessage[]
+  aiHistory  WaAIHistory[]
+  followUpState WaFollowUpState?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+  @@index([contactId])
+  @@index([assignedUserId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@index([windowExpiresAt])
+}
+
+// ── Mensagem unificada (inbound + outbound, todos os tipos) ─────────────────
+
+model WaMessage {
+  id String @id @default(cuid())
+
+  // ── Identificação Meta ──
+  waMessageId String? @unique // wamid.HBgN... (ID da Meta)
+  direction   WaMessageDirection
+  senderType  WaMessageSender
+
+  // ── Conteúdo ──
+  type          WaMessageType @default(TEXT)
+  body          String?       @db.Text
+  mediaUrl      String?
+  mediaId       String?       // Media ID da Meta (expira 30 dias)
+  mediaFileName String?
+  mediaMimeType String?
+
+  // ── Mensagens interativas ──
+  interactiveData Json? // OUTBOUND: definição botões/lista; INBOUND: opção selecionada
+
+  // ── Template ──
+  templateName   String?
+  templateParams Json?
+
+  // ── Reply context ──
+  replyToMessageId String? // waMessageId da msg sendo respondida
+
+  // ── Delivery tracking ──
+  status       WaMessageStatus @default(WA_PENDING)
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  failedAt     DateTime?
+  errorCode    String?
+  errorMessage String?
+
+  // ── Follow-up ──
+  isFollowUp   Boolean @default(false)
+  followUpStep Int?
+
+  // ── Debug ──
+  metadata Json?
+
+  // ── Relações ──
+  conversationId String
+  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderUserId String?
+  senderUser   User? @relation("WaMessageSender", fields: [senderUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId, createdAt])
+  @@index([conversationId, senderType, createdAt])
+  @@index([waMessageId])
+  @@index([status])
+  @@index([direction, createdAt])
+}
+
+// ── Histórico IA (contexto OpenAI) ──────────────────────────────────────────
+
+model WaAIHistory {
+  id      String @id @default(cuid())
+  role    String // system, user, assistant
+  content String @db.Text
+
+  conversationId String
+  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+}
+
+// ── Estado de follow-up ─────────────────────────────────────────────────────
+
+model WaFollowUpState {
+  id                    String    @id @default(cuid())
+  followUpCount         Int       @default(0)
+  lastFollowUpAt        DateTime?
+  lastBotMessageAt      DateTime?
+  respondedSinceLastBot Boolean   @default(false)
+  paused                Boolean   @default(false)
+
+  conversationId String         @unique
+  conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([conversationId])
+}
+
+// ── Broadcast (campanha via template aprovado) ──────────────────────────────
+
+model WaBroadcast {
+  id     String            @id @default(cuid())
+  name   String
+  status WaBroadcastStatus @default(WA_DRAFT)
+
+  // ── Template obrigatório (Meta exige para bulk) ──
+  templateId     String?
+  template       CloudWaTemplate? @relation(fields: [templateId], references: [id])
+  templateParams Json? // params default
+
+  // ── Targeting ──
+  segmentId String?
+  segment   Segment? @relation(fields: [segmentId], references: [id])
+
+  stageId String?
+  stage   PipelineStage? @relation(fields: [stageId], references: [id])
+
+  // ── Scheduling ──
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  pausedAt    DateTime?
+
+  // ── Stats (denormalizados) ──
+  totalContacts  Int @default(0)
+  sentCount      Int @default(0)
+  deliveredCount Int @default(0)
+  readCount      Int @default(0)
+  failedCount    Int @default(0)
+
+  contacts WaBroadcastContact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model WaBroadcastContact {
+  id        String                  @id @default(cuid())
+  phone     String
+  contactId String?
+  status    WaBroadcastContactStatus @default(WA_BC_PENDING)
+
+  waMessageId    String? // link para WaMessage após envio
+  templateParams Json?   // override por contato
+
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  readAt      DateTime?
+  failedAt    DateTime?
+  error       String?
+
+  broadcastId String
+  broadcast   WaBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([broadcastId])
+  @@index([broadcastId, status])
+  @@index([phone])
 }

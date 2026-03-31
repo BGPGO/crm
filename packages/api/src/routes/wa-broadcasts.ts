@@ -1,0 +1,459 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Broadcast API — WhatsApp Cloud API v2 (módulo WA unificado)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Rotas autenticadas para gerenciar broadcasts (campanhas via template).
+ * Usa modelos WaBroadcast / WaBroadcastContact + envio via WaMessageService.
+ *
+ *   GET    /                    — Listar broadcasts com paginacao
+ *   POST   /                    — Criar broadcast
+ *   GET    /:id                 — Broadcast individual com stats
+ *   POST   /:id/start           — Iniciar execucao do broadcast
+ *   POST   /:id/pause           — Pausar broadcast
+ *   GET    /:id/contacts        — Listar contatos com status
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+import { Router, Request, Response, NextFunction } from 'express';
+import prisma from '../lib/prisma';
+import { createError } from '../middleware/errorHandler';
+import { normalizePhone } from '../utils/phoneNormalize';
+
+const router = Router();
+
+/** Random delay between sends (30-90s) to simulate human behavior */
+function randomBroadcastDelay(): Promise<void> {
+  const delayMs = 30000 + Math.random() * 60000; // 30-90s
+  console.log(`[wa-broadcast] Aguardando ${Math.round(delayMs / 1000)}s ate proximo envio...`);
+  return new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
+/** Circuit breaker — pausa broadcast apos erros consecutivos */
+const MAX_CONSECUTIVE_ERRORS = 5;
+
+// ─── GET /api/wa/broadcasts — List broadcasts with pagination ───────────────
+
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const skip = (page - 1) * limit;
+
+    const { status } = req.query;
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status as string;
+
+    const [total, data] = await Promise.all([
+      prisma.waBroadcast.count({ where }),
+      prisma.waBroadcast.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          template: { select: { id: true, name: true, status: true, body: true } },
+          segment: { select: { id: true, name: true } },
+          stage: { select: { id: true, name: true } },
+          _count: { select: { contacts: true } },
+        },
+      }),
+    ]);
+
+    res.json({
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/wa/broadcasts — Create broadcast ────────────────────────────
+
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, templateId, templateParams, segmentId, stageId } = req.body;
+
+    if (!name) return next(createError('name is required', 400));
+    if (!templateId) return next(createError('templateId is required (Meta exige template para bulk)', 400));
+
+    // Validate template exists and is approved
+    const template = await prisma.cloudWaTemplate.findUnique({ where: { id: templateId } });
+    if (!template) return next(createError('Template not found', 404));
+    if (template.status !== 'APPROVED') {
+      return next(createError(`Template "${template.name}" nao esta aprovado (status: ${template.status})`, 400));
+    }
+
+    // Resolve contacts from segment or stage
+    let phoneNumbers: string[] = [];
+
+    if (segmentId) {
+      const segment = await prisma.segment.findUnique({ where: { id: segmentId } });
+      if (!segment) return next(createError('Segment not found', 404));
+
+      const { buildSegmentWhere } = await import('../services/segmentEngine');
+      const segmentWhere = buildSegmentWhere(segment.filters as any);
+
+      const contacts = await prisma.contact.findMany({
+        where: { ...segmentWhere, phone: { not: null } },
+        select: { phone: true, id: true },
+      });
+
+      phoneNumbers = contacts
+        .map(c => normalizePhone(c.phone!))
+        .filter(p => p.trim() !== '');
+    } else if (stageId) {
+      const deals = await prisma.deal.findMany({
+        where: { stageId, status: 'OPEN' },
+        include: { contact: { select: { phone: true, id: true } } },
+      });
+
+      phoneNumbers = deals
+        .map(d => d.contact?.phone)
+        .filter((p): p is string => !!p && p.trim() !== '')
+        .map(p => normalizePhone(p));
+    }
+
+    // Deduplicate
+    phoneNumbers = [...new Set(phoneNumbers)];
+
+    if (phoneNumbers.length === 0 && (segmentId || stageId)) {
+      return next(createError('Nenhum contato com telefone encontrado nos filtros selecionados', 422));
+    }
+
+    const broadcast = await prisma.waBroadcast.create({
+      data: {
+        name,
+        templateId,
+        templateParams: templateParams || null,
+        segmentId: segmentId || null,
+        stageId: stageId || null,
+        totalContacts: phoneNumbers.length,
+        contacts: {
+          create: phoneNumbers.map((phone: string) => ({ phone })),
+        },
+      },
+      include: {
+        template: { select: { id: true, name: true, status: true } },
+        _count: { select: { contacts: true } },
+      },
+    });
+
+    res.status(201).json({ data: broadcast });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/wa/broadcasts/:id — Single broadcast with stats ───────────────
+
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const broadcast = await prisma.waBroadcast.findUnique({
+      where: { id: req.params.id },
+      include: {
+        template: { select: { id: true, name: true, status: true, body: true, language: true } },
+        segment: { select: { id: true, name: true } },
+        stage: { select: { id: true, name: true } },
+        _count: { select: { contacts: true } },
+      },
+    });
+
+    if (!broadcast) return next(createError('Broadcast not found', 404));
+
+    // Aggregate contact statuses for live stats
+    const statusCounts = await prisma.waBroadcastContact.groupBy({
+      by: ['status'],
+      where: { broadcastId: broadcast.id },
+      _count: true,
+    });
+
+    const stats: Record<string, number> = {};
+    for (const row of statusCounts) {
+      stats[row.status] = row._count;
+    }
+
+    res.json({
+      data: {
+        ...broadcast,
+        stats,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/wa/broadcasts/:id/start — Start broadcast execution ─────────
+
+router.post('/:id/start', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const broadcast = await prisma.waBroadcast.findUnique({
+      where: { id: req.params.id },
+      include: {
+        contacts: true,
+        template: true,
+      },
+    });
+
+    if (!broadcast) return next(createError('Broadcast not found', 404));
+
+    if (broadcast.status === 'WA_SENDING') {
+      return next(createError('Broadcast ja esta em execucao', 400));
+    }
+
+    if (broadcast.status === 'WA_COMPLETED') {
+      return next(createError('Broadcast ja foi concluido', 400));
+    }
+
+    if (broadcast.contacts.length === 0) {
+      return next(createError('Broadcast nao tem contatos', 400));
+    }
+
+    if (!broadcast.template) {
+      return next(createError('Broadcast nao tem template vinculado', 400));
+    }
+
+    if (broadcast.template.status !== 'APPROVED') {
+      return next(createError(`Template "${broadcast.template.name}" nao esta aprovado`, 400));
+    }
+
+    // Optimistic lock: only mark SENDING if not already SENDING
+    const result = await prisma.waBroadcast.updateMany({
+      where: { id: broadcast.id, status: { not: 'WA_SENDING' } },
+      data: { status: 'WA_SENDING', startedAt: new Date() },
+    });
+
+    if (result.count === 0) {
+      return next(createError('Broadcast already started by another process', 409));
+    }
+
+    const updated = await prisma.waBroadcast.findUnique({ where: { id: broadcast.id } });
+
+    // Execute in background
+    (async () => {
+      try {
+        const { WaMessageService } = await import('../services/wa/messageService');
+
+        let sentCount = 0;
+        let consecutiveErrors = 0;
+
+        // Import daily limit service
+        let dailyLimit: {
+          canSend: () => Promise<boolean>;
+          registerSent: (source: 'campaign' | 'followUp' | 'reminder') => Promise<void>;
+        } | null = null;
+        try {
+          dailyLimit = await import('../services/dailyLimitService');
+        } catch {
+          console.log('[wa-broadcast] dailyLimitService nao disponivel — prosseguindo sem limite diario');
+        }
+
+        for (const contact of broadcast.contacts) {
+          if (contact.status !== 'WA_BC_PENDING') continue;
+
+          // Re-check broadcast status (might have been paused)
+          const current = await prisma.waBroadcast.findUnique({
+            where: { id: broadcast.id },
+            select: { status: true },
+          });
+          if (current?.status !== 'WA_SENDING') {
+            console.log(`[wa-broadcast] Broadcast ${broadcast.id} nao esta mais em SENDING — parando`);
+            break;
+          }
+
+          // Check daily limit
+          if (dailyLimit) {
+            if (!await dailyLimit.canSend()) {
+              console.log('[wa-broadcast] Limite diario atingido. Pausando broadcast.');
+              await prisma.waBroadcast.update({
+                where: { id: broadcast.id },
+                data: { status: 'WA_PAUSED', pausedAt: new Date() },
+              });
+              break;
+            }
+          }
+
+          // Check opt-out
+          const conv = await prisma.waConversation.findUnique({
+            where: { phone: contact.phone },
+            select: { optedOut: true },
+          });
+          if (conv?.optedOut) {
+            await prisma.waBroadcastContact.update({
+              where: { id: contact.id },
+              data: { status: 'WA_BC_SKIPPED' },
+            });
+            console.log(`[wa-broadcast] Pulando ${contact.phone} — opt-out`);
+            continue;
+          }
+
+          try {
+            // Find or create conversation for this contact
+            let conversation = await prisma.waConversation.findUnique({
+              where: { phone: contact.phone },
+            });
+
+            if (!conversation) {
+              conversation = await prisma.waConversation.create({
+                data: { phone: contact.phone },
+              });
+            }
+
+            // Send template
+            const templateParams = contact.templateParams || broadcast.templateParams;
+            const msg = await WaMessageService.sendTemplate(
+              conversation.id,
+              broadcast.template!.name,
+              broadcast.template!.language || 'pt_BR',
+              templateParams ? (Array.isArray(templateParams) ? templateParams : [templateParams]) : [],
+              { senderType: 'WA_SYSTEM' },
+            );
+
+            await prisma.waBroadcastContact.update({
+              where: { id: contact.id },
+              data: {
+                status: 'WA_BC_SENT',
+                sentAt: new Date(),
+                waMessageId: msg?.id || null,
+              },
+            });
+
+            // Update broadcast sent count
+            await prisma.waBroadcast.update({
+              where: { id: broadcast.id },
+              data: { sentCount: { increment: 1 } },
+            });
+
+            sentCount++;
+            consecutiveErrors = 0;
+
+            // Register in daily limit
+            if (dailyLimit) {
+              await dailyLimit.registerSent('campaign');
+            }
+          } catch (err: any) {
+            console.error(`[wa-broadcast] Falha ao enviar para ${contact.phone}:`, err);
+            await prisma.waBroadcastContact.update({
+              where: { id: contact.id },
+              data: {
+                status: 'WA_BC_FAILED',
+                failedAt: new Date(),
+                error: err.message || 'Unknown error',
+              },
+            });
+
+            await prisma.waBroadcast.update({
+              where: { id: broadcast.id },
+              data: { failedCount: { increment: 1 } },
+            });
+
+            consecutiveErrors++;
+
+            // Circuit breaker
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              console.log(`[wa-broadcast] Circuit breaker ativado apos ${MAX_CONSECUTIVE_ERRORS} erros consecutivos. Broadcast pausado.`);
+              await prisma.waBroadcast.update({
+                where: { id: broadcast.id },
+                data: { status: 'WA_PAUSED', pausedAt: new Date() },
+              });
+              break;
+            }
+          }
+
+          // Random delay between sends (30-90s)
+          await randomBroadcastDelay();
+        }
+
+        // Only mark COMPLETED if still in SENDING status
+        const finalStatus = await prisma.waBroadcast.findUnique({
+          where: { id: broadcast.id },
+          select: { status: true },
+        });
+        if (finalStatus?.status === 'WA_SENDING') {
+          await prisma.waBroadcast.update({
+            where: { id: broadcast.id },
+            data: { status: 'WA_COMPLETED', completedAt: new Date() },
+          });
+        }
+
+        console.log(`[wa-broadcast] Concluido: ${broadcast.id} — ${sentCount} enviadas`);
+      } catch (err) {
+        console.error(`[wa-broadcast] Broadcast ${broadcast.id} falhou:`, err);
+        await prisma.waBroadcast.update({
+          where: { id: broadcast.id },
+          data: { status: 'WA_PAUSED', pausedAt: new Date() },
+        });
+      }
+    })();
+
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── POST /api/wa/broadcasts/:id/pause — Pause broadcast ───────────────────
+
+router.post('/:id/pause', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const broadcast = await prisma.waBroadcast.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!broadcast) return next(createError('Broadcast not found', 404));
+
+    if (broadcast.status !== 'WA_SENDING') {
+      return next(createError('Broadcast nao esta em execucao', 400));
+    }
+
+    const updated = await prisma.waBroadcast.update({
+      where: { id: req.params.id },
+      data: { status: 'WA_PAUSED', pausedAt: new Date() },
+    });
+
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/wa/broadcasts/:id/contacts — List contacts with status ────────
+
+router.get('/:id/contacts', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const broadcast = await prisma.waBroadcast.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!broadcast) return next(createError('Broadcast not found', 404));
+
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const skip = (page - 1) * limit;
+
+    const { status } = req.query;
+    const where: Record<string, unknown> = { broadcastId: broadcast.id };
+    if (status) where.status = status as string;
+
+    const [total, data] = await Promise.all([
+      prisma.waBroadcastContact.count({ where }),
+      prisma.waBroadcastContact.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    res.json({
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+export default router;

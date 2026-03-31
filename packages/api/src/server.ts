@@ -79,6 +79,7 @@ const webhookLimiter = rateLimit({
 app.use('/api/webhooks', webhookLimiter);
 app.use('/api/whatsapp/webhook', webhookLimiter);
 app.use('/api/whatsapp/cloud/webhook', webhookLimiter);  // Cloud API (Meta oficial)
+app.use('/api/wa/webhook', webhookLimiter);  // WA v2 (módulo unificado)
 app.use('/api/calendly/webhook', webhookLimiter);
 app.use('/api/contracts/webhook', webhookLimiter);
 
