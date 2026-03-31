@@ -586,15 +586,11 @@ export default function WabaChatPage() {
     }
   }, [selectedId, fetchMessages]);
 
-  // ── Fetch contact details + deal when conversation changes ──
+  // ── Fetch contact details + deal when CONTACT changes (not on every poll) ──
+  const selectedContactId = selectedConv?.contact?.id ?? null;
+
   useEffect(() => {
-    if (!selectedId || !selectedConv) {
-      setContactDetail(null);
-      setDealSummary(null);
-      return;
-    }
-    const contactId = selectedConv.contact?.id;
-    if (!contactId) {
+    if (!selectedContactId) {
       setContactDetail(null);
       setDealSummary(null);
       return;
@@ -602,27 +598,22 @@ export default function WabaChatPage() {
 
     setDetailLoading(true);
 
-    // Fetch contact with tags
+    // Single request — contact endpoint includes deals + tags
     api
-      .get<{ data: ContactDetail } | ContactDetail>(`/contacts/${contactId}`)
-      .then((res: any) => {
-        setContactDetail(res.data ?? res);
-      })
-      .catch(() => setContactDetail(null));
-
-    // Fetch contact's deal via contact detail endpoint which includes deals
-    api
-      .get<any>(`/contacts/${contactId}`)
+      .get<any>(`/contacts/${selectedContactId}`)
       .then((res: any) => {
         const contact = res.data ?? res;
-        // Contact endpoint may include deals array
+        setContactDetail(contact);
         const deals = contact?.deals || [];
         const openDeal = deals.find((d: any) => d.status === "OPEN") || deals[0] || null;
         setDealSummary(openDeal);
       })
-      .catch(() => setDealSummary(null))
+      .catch(() => {
+        setContactDetail(null);
+        setDealSummary(null);
+      })
       .finally(() => setDetailLoading(false));
-  }, [selectedId, selectedConv]);
+  }, [selectedContactId]); // only re-fetch when contact actually changes
 
   // ── Auto-scroll to bottom ──
   useEffect(() => {
