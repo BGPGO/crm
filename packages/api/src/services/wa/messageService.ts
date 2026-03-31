@@ -113,9 +113,11 @@ export class WaMessageService {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
-    const allowed = await canSend(opts.isFollowUp ? 'followUp' : 'botResponse');
-    if (!allowed) {
-      throw new Error('[WaMessageService] Limite diário de mensagens atingido');
+    if (senderType !== 'WA_HUMAN') {
+      const allowed = await canSend(opts.isFollowUp ? 'followUp' : 'botResponse');
+      if (!allowed) {
+        throw new Error('[WaMessageService] Limite diário de mensagens atingido');
+      }
     }
 
     const client = await this.getClient();

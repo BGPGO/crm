@@ -714,15 +714,27 @@ export default function WabaChatPage() {
     if (!selectedId) return;
     setSending(true);
     try {
+      // Build components with contact name for {{1}} if template has variables
+      const contactName = selectedConv?.contact?.name || selectedConv?.pushName || "";
+      const bodyVars = (template.body || "").match(/\{\{\d+\}\}/g) || [];
+      const components = bodyVars.length > 0 ? [{
+        type: "body",
+        parameters: bodyVars.map((_, i) => ({
+          type: "text",
+          text: i === 0 ? (contactName || "Cliente") : `param${i + 1}`,
+        })),
+      }] : undefined;
+
       await api.post(`/wa/conversations/${selectedId}/messages`, {
         type: "template",
         templateName: template.name,
-        language: template.language || "pt_BR",
+        templateLanguage: template.language || "pt_BR",
+        components,
       });
       setShowTemplatePicker(false);
       await fetchMessages(selectedId);
-    } catch {
-      setError("Erro ao enviar template.");
+    } catch (err: any) {
+      setError(`Erro ao enviar template: ${err?.message || "erro desconhecido"}`);
     } finally {
       setSending(false);
     }
