@@ -554,16 +554,22 @@ export default function WabaChatPage() {
       .catch(() => {});
   }, []);
 
-  // ── 5-second polling ──
+  // ── Polling (10s, pausa quando tab inativa) ──
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchConversations();
-      fetchStats();
-      if (selectedId) {
-        fetchMessages(selectedId);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
+    let interval: NodeJS.Timeout;
+    const start = () => {
+      interval = setInterval(() => {
+        if (document.hidden) return; // skip when tab not visible
+        fetchConversations();
+        if (selectedId) fetchMessages(selectedId);
+      }, 10000);
+    };
+    start();
+    // Refresh stats less often (30s)
+    const statsInterval = setInterval(() => {
+      if (!document.hidden) fetchStats();
+    }, 30000);
+    return () => { clearInterval(interval); clearInterval(statsInterval); };
   }, [fetchConversations, fetchStats, fetchMessages, selectedId]);
 
   // ── Load messages on selection + mark read ──

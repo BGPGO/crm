@@ -84,22 +84,19 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       }),
     ]);
 
-    // Count unread CLIENT messages (after lastReadAt) for each conversation
-    const convIds = data.map((c) => c.id);
+    // Count unread CLIENT messages after lastReadAt
     const unreadCounts: Record<string, number> = {};
-    if (convIds.length > 0) {
-      const unreadRows = await prisma.$queryRaw<Array<{ conversationId: string; cnt: bigint }>>`
-        SELECT m."conversationId", COUNT(*) as cnt
-          FROM "WaMessage" m
-          JOIN "WaConversation" c ON c.id = m."conversationId"
-         WHERE m."conversationId" = ANY(${convIds}::text[])
-           AND m."senderType" = 'WA_CLIENT'
-           AND m."createdAt" > COALESCE(c."lastReadAt", '1970-01-01'::timestamp)
-         GROUP BY m."conversationId"`;
-      for (const row of unreadRows) {
-        unreadCounts[row.conversationId] = Number(row.cnt);
-      }
-    }
+    // Batch count in parallel (fast for small number of conversations)
+    await Promise.all(data.map(async (c) => {
+      const cnt = await prisma.waMessage.count({
+        where: {
+          conversationId: c.id,
+          senderType: 'WA_CLIENT',
+          createdAt: { gt: c.lastReadAt || new Date(0) },
+        },
+      });
+      if (cnt > 0) unreadCounts[c.id] = cnt;
+    }));
 
     // Compute window status and enrich response
     const now = new Date();
