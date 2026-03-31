@@ -90,6 +90,8 @@ interface WaMessage {
 
 interface WaConversation {
   id: string;
+  phone: string;
+  pushName: string | null;
   contact: WaContact | null;
   assignedUser: WaAssignedUser | null;
   status: "WA_OPEN" | "WA_CLOSED" | "WA_ARCHIVED";
@@ -98,6 +100,7 @@ interface WaConversation {
   unreadCount: number;
   windowOpen: boolean;
   windowExpiresAt: string | null;
+  lastMessageAt: string | null;
   messages: WaMessage[];
   createdAt: string;
   updatedAt: string;
@@ -117,6 +120,7 @@ interface WaTemplate {
   language: string;
   status: string;
   category: string;
+  body: string;
   components: any[];
 }
 
@@ -713,7 +717,7 @@ export default function WabaChatPage() {
       const bodyVars = (template.body || "").match(/\{\{\d+\}\}/g) || [];
       const components = bodyVars.length > 0 ? [{
         type: "body",
-        parameters: bodyVars.map((_, i) => ({
+        parameters: bodyVars.map((_: string, i: number) => ({
           type: "text",
           text: i === 0 ? (contactName || "Cliente") : `param${i + 1}`,
         })),
