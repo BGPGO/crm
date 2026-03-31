@@ -84,7 +84,15 @@ export class WaMessageService {
     }
 
     const client = await this.getClient();
-    const response = await client.sendText(conv.phone, text);
+    console.log(`[WaMessageService] sendText to=${conv.phone} phoneNumberId=${(client as any).phoneNumberId}`);
+    let response: any;
+    try {
+      response = await client.sendText(conv.phone, text);
+      console.log(`[WaMessageService] sendText response:`, JSON.stringify(response));
+    } catch (sendErr: any) {
+      console.error(`[WaMessageService] sendText FAILED:`, sendErr?.response?.data || sendErr?.message || sendErr);
+      throw sendErr;
+    }
     const waMessageId = response.messages?.[0]?.id;
 
     const message = await this.saveOutbound(conversationId, conv.phone, waMessageId, {
