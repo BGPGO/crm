@@ -142,6 +142,11 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       phone = phone.replace(/\D/g, '');
     }
 
+    // Ensure BR country code (55) is present — Meta requires international format
+    if (phone && !phone.startsWith('55') && phone.length >= 10 && phone.length <= 11) {
+      phone = '55' + phone;
+    }
+
     // Check if conversation already exists for this phone
     // Try exact match and BR variations (with/without 9)
     const variations = [phone];

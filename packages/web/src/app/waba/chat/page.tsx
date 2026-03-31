@@ -610,12 +610,15 @@ export default function WabaChatPage() {
       })
       .catch(() => setContactDetail(null));
 
-    // Fetch open deal
+    // Fetch contact's deal via contact detail endpoint which includes deals
     api
-      .get<{ data: DealSummary[] }>(`/deals?contactId=${contactId}&status=OPEN&limit=1`)
+      .get<any>(`/contacts/${contactId}`)
       .then((res: any) => {
-        const deals = res.data ?? [];
-        setDealSummary(deals.length > 0 ? deals[0] : null);
+        const contact = res.data ?? res;
+        // Contact endpoint may include deals array
+        const deals = contact?.deals || [];
+        const openDeal = deals.find((d: any) => d.status === "OPEN") || deals[0] || null;
+        setDealSummary(openDeal);
       })
       .catch(() => setDealSummary(null))
       .finally(() => setDetailLoading(false));
