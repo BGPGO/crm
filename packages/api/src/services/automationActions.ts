@@ -985,10 +985,22 @@ async function sendWaTemplate(
     });
   }
 
-  // Build template components with contact name
-  const contactName = contact.name || '';
-  const components = contactName
-    ? [{ type: 'body', parameters: [{ type: 'text', text: contactName }] }]
+  // Resolve variáveis do template usando o mapeamento configurado
+  const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
+
+  // Buscar mapeamento do template
+  const templateRecord = await prisma.cloudWaTemplate.findFirst({
+    where: { name: config.templateName, language: language },
+    select: { variableMapping: true },
+  });
+
+  const parameters = await resolveTemplateVariables(
+    templateRecord?.variableMapping as any,
+    { contactId, dealId: undefined }, // dealId será resolvido internamente pelo contactId
+  );
+
+  const components = parameters.length > 0
+    ? [{ type: 'body', parameters }]
     : [];
 
   // Send template via WaMessageService

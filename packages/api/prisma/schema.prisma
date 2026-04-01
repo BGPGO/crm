@@ -1482,6 +1482,9 @@ model CloudWaTemplate {
   bodyExamples  Json? // Ex: [["João", "previdência"]]
   headerExample String? // Ex: URL da imagem de exemplo
 
+  // ── Mapeamento de variáveis ──
+  variableMapping Json? // Ex: [{"var": "{{1}}", "source": "contact.name"}, {"var": "{{2}}", "source": "meeting.time"}]
+
   // ── Controle ──
   editsRemaining Int       @default(10) // Max 10 edições por 30 dias (APPROVED)
   lastEditedAt   DateTime?

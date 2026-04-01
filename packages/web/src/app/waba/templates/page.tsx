@@ -33,6 +33,11 @@ interface TemplateButton {
   payload?: string;
 }
 
+interface VariableMappingItem {
+  var: string;    // "{{1}}", "{{2}}", etc.
+  source: string; // "contact.name", "meeting.time", "custom.Texto", etc.
+}
+
 interface WhatsAppTemplate {
   id: string;
   name: string;
@@ -48,6 +53,7 @@ interface WhatsAppTemplate {
   components: unknown | null;
   bodyExamples: string[][] | null;
   headerExample: string | null;
+  variableMapping: VariableMappingItem[] | null;
   editsRemaining: number;
   lastEditedAt: string | null;
   rejectedReason: string | null;
@@ -101,6 +107,22 @@ const TEMPLATE_VARIABLE_HINTS: Record<string, Record<string, string>> = {
   },
 };
 
+const VARIABLE_SOURCES = [
+  { value: "contact.name", label: "Nome do contato" },
+  { value: "contact.email", label: "Email do contato" },
+  { value: "contact.phone", label: "Telefone do contato" },
+  { value: "contact.position", label: "Cargo do contato" },
+  { value: "organization.name", label: "Nome da empresa" },
+  { value: "deal.title", label: "Titulo da negociacao" },
+  { value: "deal.value", label: "Valor da negociacao" },
+  { value: "deal.stage", label: "Etapa do funil" },
+  { value: "user.name", label: "Nome do vendedor" },
+  { value: "meeting.date", label: "Data da reuniao" },
+  { value: "meeting.time", label: "Horario da reuniao" },
+  { value: "meeting.datetime", label: "Data e hora da reuniao" },
+  { value: "custom", label: "Texto fixo" },
+] as const;
+
 const LANGUAGE_OPTIONS = [
   { value: "pt_BR", label: "Portugues (BR)" },
   { value: "en_US", label: "English (US)" },
@@ -126,6 +148,7 @@ const EMPTY_FORM: FormState = {
   buttons: [],
   bodyExamples: [],
   headerExample: "",
+  variableMapping: [],
 };
 
 interface FormState {
@@ -139,6 +162,7 @@ interface FormState {
   buttons: TemplateButton[];
   bodyExamples: string[];
   headerExample: string;
+  variableMapping: VariableMappingItem[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -445,6 +469,23 @@ export default function TemplatesPage() {
     });
   }, [variables]);
 
+  // Keep variableMapping array in sync with variables (add new slots, remove stale ones)
+  useEffect(() => {
+    setForm((prev) => {
+      const currentMapping = prev.variableMapping;
+      // Check if anything needs changing
+      const hasAll = variables.every((v) => currentMapping.some((m) => m.var === v));
+      const noExtra = currentMapping.every((m) => variables.includes(m.var));
+      if (hasAll && noExtra) return prev;
+      // Rebuild: keep existing mappings for current variables, add empty for new ones
+      const next = variables.map((v) => {
+        const existing = currentMapping.find((m) => m.var === v);
+        return existing ?? { var: v, source: "contact.name" };
+      });
+      return { ...prev, variableMapping: next };
+    });
+  }, [variables]);
+
   const openCreateModal = () => {
     setEditingTemplate(null);
     setForm({ ...EMPTY_FORM });
@@ -470,6 +511,7 @@ export default function TemplatesPage() {
       buttons: tpl.buttons || [],
       bodyExamples: examples,
       headerExample: tpl.headerExample || "",
+      variableMapping: tpl.variableMapping || [],
     });
     setFormError(null);
     setShowModal(true);
@@ -505,6 +547,11 @@ export default function TemplatesPage() {
     setSaving(true);
     setFormError(null);
 
+    // Filter variableMapping to only include items for variables present in body
+    const filteredMapping = form.variableMapping.filter((m) =>
+      vars.includes(m.var)
+    );
+
     const payload = {
       name: formatTemplateName(form.name),
       language: form.language,
@@ -516,6 +563,7 @@ export default function TemplatesPage() {
       buttons: form.buttons.length > 0 ? form.buttons : null,
       bodyExamples: vars.length > 0 ? [form.bodyExamples] : null,
       headerExample: form.headerExample || null,
+      variableMapping: filteredMapping.length > 0 ? filteredMapping : null,
     };
 
     try {
@@ -611,6 +659,26 @@ export default function TemplatesPage() {
 
   const removeButton = (index: number) => {
     updateForm({ buttons: form.buttons.filter((_, i) => i !== index) });
+  };
+
+  // ── Variable mapping helpers ─────────────────────────────────────────────
+
+  const updateVariableSource = (varName: string, source: string) => {
+    setForm((prev) => ({
+      ...prev,
+      variableMapping: prev.variableMapping.map((m) =>
+        m.var === varName ? { ...m, source } : m
+      ),
+    }));
+  };
+
+  const updateVariableCustomText = (varName: string, text: string) => {
+    setForm((prev) => ({
+      ...prev,
+      variableMapping: prev.variableMapping.map((m) =>
+        m.var === varName ? { ...m, source: `custom.${text}` } : m
+      ),
+    }));
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -871,7 +939,7 @@ export default function TemplatesPage() {
 
                   {/* Body preview */}
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1 whitespace-pre-wrap">
-                    {highlightVariables(truncate(tpl.body, 160), tpl.name)}
+                    {highlightVariables(truncate(tpl.body, 160), tpl.name, tpl.variableMapping)}
                   </p>
 
                   {/* Buttons preview */}
@@ -1117,39 +1185,98 @@ export default function TemplatesPage() {
                     </button>
                   </div>
 
-                  {/* Body examples */}
+                  {/* Body examples + variable mapping */}
                   {variables.length > 0 && (
-                    <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Exemplos das variaveis
-                      </p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500">
-                        A Meta exige exemplos reais para aprovar o template.
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {variables.map((v, i) => (
-                          <div key={v} className="flex flex-col gap-1">
-                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              {v}
-                              {(getHintsForTemplate(form.name)[v] || VARIABLE_HINTS[v]) && (
-                                <span className="ml-1 text-gray-400 dark:text-gray-500 font-normal">
-                                  ({getHintsForTemplate(form.name)[v] || VARIABLE_HINTS[v]})
-                                </span>
-                              )}
-                            </label>
-                            <input
-                              type="text"
-                              value={form.bodyExamples[i] || ""}
-                              onChange={(e) => {
-                                const next = [...form.bodyExamples];
-                                next[i] = e.target.value;
-                                updateForm({ bodyExamples: next });
-                              }}
-                              placeholder={`Exemplo para ${v}`}
-                              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                        ))}
+                    <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Exemplos e mapeamento das variaveis
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                          A Meta exige exemplos reais para aprovar o template. O mapeamento define o que sera preenchido automaticamente no envio.
+                        </p>
+                      </div>
+                      <div className="space-y-4">
+                        {variables.map((v, i) => {
+                          const mapping = form.variableMapping.find((m) => m.var === v);
+                          const currentSource = mapping?.source ?? "contact.name";
+                          const isCustom = currentSource.startsWith("custom.");
+                          const customText = isCustom ? currentSource.slice("custom.".length) : "";
+                          const sourceForDropdown = isCustom ? "custom" : currentSource;
+                          // Determine label hint from mapping or fallback
+                          const mappingLabel = VARIABLE_SOURCES.find((s) => s.value === sourceForDropdown)?.label;
+                          const hintLabel = mappingLabel ?? getHintsForTemplate(form.name)[v] ?? VARIABLE_HINTS[v];
+                          return (
+                            <div key={v} className="flex flex-col gap-2 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                              {/* Variable label */}
+                              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-mono">
+                                {v}
+                                {hintLabel && (
+                                  <span className="ml-1.5 text-gray-400 dark:text-gray-500 font-normal font-sans">
+                                    — {hintLabel}
+                                  </span>
+                                )}
+                              </span>
+                              {/* Example input */}
+                              <div className="flex flex-col gap-1">
+                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                  Exemplo (para aprovacao Meta)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={form.bodyExamples[i] || ""}
+                                  onChange={(e) => {
+                                    const next = [...form.bodyExamples];
+                                    next[i] = e.target.value;
+                                    updateForm({ bodyExamples: next });
+                                  }}
+                                  placeholder={`Ex: ${isCustom && customText ? customText : hintLabel ?? v}`}
+                                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              {/* Source dropdown */}
+                              <div className="flex flex-col gap-1">
+                                <label className="text-xs text-gray-500 dark:text-gray-400">
+                                  Preencher automaticamente com
+                                </label>
+                                <div className="relative">
+                                  <select
+                                    value={sourceForDropdown}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === "custom") {
+                                        updateVariableSource(v, "custom.");
+                                      } else {
+                                        updateVariableSource(v, val);
+                                      }
+                                    }}
+                                    className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                  >
+                                    {VARIABLE_SOURCES.map((s) => (
+                                      <option key={s.value} value={s.value}>
+                                        {s.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown
+                                    size={12}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                                  />
+                                </div>
+                                {/* Custom text input */}
+                                {isCustom && (
+                                  <input
+                                    type="text"
+                                    value={customText}
+                                    onChange={(e) => updateVariableCustomText(v, e.target.value)}
+                                    placeholder="Digite o texto fixo..."
+                                    className="mt-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1319,7 +1446,23 @@ export default function TemplatesPage() {
 
 // ── Variable highlighting helper ─────────────────────────────────────────────
 
-function getHintsForTemplate(templateName?: string): Record<string, string> {
+function getHintsForTemplate(
+  templateName?: string,
+  variableMapping?: VariableMappingItem[] | null
+): Record<string, string> {
+  // If variableMapping is available, derive hints from it
+  if (variableMapping && variableMapping.length > 0) {
+    const hints: Record<string, string> = {};
+    for (const m of variableMapping) {
+      if (m.source.startsWith("custom.")) {
+        hints[m.var] = `Texto fixo: "${m.source.slice("custom.".length)}"`;
+      } else {
+        const found = VARIABLE_SOURCES.find((s) => s.value === m.source);
+        if (found) hints[m.var] = found.label;
+      }
+    }
+    return hints;
+  }
   if (!templateName) return VARIABLE_HINTS;
   const match = Object.entries(TEMPLATE_VARIABLE_HINTS).find(([prefix]) =>
     templateName.startsWith(prefix)
@@ -1327,8 +1470,12 @@ function getHintsForTemplate(templateName?: string): Record<string, string> {
   return match ? match[1] : VARIABLE_HINTS;
 }
 
-function highlightVariables(text: string, templateName?: string): React.ReactNode {
-  const hints = getHintsForTemplate(templateName);
+function highlightVariables(
+  text: string,
+  templateName?: string,
+  variableMapping?: VariableMappingItem[] | null
+): React.ReactNode {
+  const hints = getHintsForTemplate(templateName, variableMapping);
   const parts = text.split(/(\{\{\d+\}\})/g);
   if (parts.length === 1) return text;
   return parts.map((part, i) =>

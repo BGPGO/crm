@@ -82,6 +82,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       buttons,
       bodyExamples,
       headerExample,
+      variableMapping,
     } = req.body;
 
     // Validações
@@ -212,6 +213,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         buttons: buttons || null,
         bodyExamples: bodyExamples || null,
         headerExample: headerExample || null,
+        variableMapping: variableMapping || null,
         rejectedReason: submitError,
       },
     });
@@ -241,7 +243,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError('Limite de edições atingido (10 por 30 dias). Aguarde para editar novamente.', 429));
     }
 
-    const { headerType, headerContent, body, footer, buttons, bodyExamples, headerExample } = req.body;
+    const { headerType, headerContent, body, footer, buttons, bodyExamples, headerExample, variableMapping } = req.body;
 
     // Montar components atualizados
     const components: any[] = [];
@@ -308,6 +310,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (buttons !== undefined) updateData.buttons = buttons;
     if (bodyExamples !== undefined) updateData.bodyExamples = bodyExamples;
     if (headerExample !== undefined) updateData.headerExample = headerExample;
+    if (variableMapping !== undefined) updateData.variableMapping = variableMapping;
 
     // Se era APPROVED e foi editado, volta para PENDING (re-review)
     if (existing.status === 'APPROVED' && !editError) {
