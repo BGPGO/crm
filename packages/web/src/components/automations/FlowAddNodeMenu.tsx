@@ -36,6 +36,13 @@ const nodeOptions = [
     color: "text-green-600 bg-green-50",
   },
   {
+    actionType: "SEND_WA_TEMPLATE",
+    label: "Enviar Template WABA",
+    description: "Envia template aprovado pela Meta (API oficial)",
+    icon: MessageCircle,
+    color: "text-green-600 bg-green-50",
+  },
+  {
     actionType: "SEND_EMAIL",
     label: "Enviar Email",
     description: "Envia email (template ou gerado por IA)",

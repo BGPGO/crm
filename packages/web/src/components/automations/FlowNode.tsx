@@ -51,6 +51,13 @@ const nodeTypeConfig: Record<
     iconBg: "bg-green-50",
     iconColor: "text-green-600",
   },
+  SEND_WA_TEMPLATE: {
+    label: "Template WABA",
+    icon: MessageCircle,
+    borderColor: "border-l-green-500",
+    iconBg: "bg-green-50",
+    iconColor: "text-green-600",
+  },
   SEND_EMAIL: {
     label: "Enviar Email",
     icon: Mail,
@@ -148,7 +155,9 @@ export default function FlowNode({
           <Icon size={16} />
         </div>
         <span className="text-sm font-medium text-gray-900 flex-1 truncate">
-          {typeConfig.label}
+          {config._label && actionType === "SEND_WA_TEMPLATE"
+            ? config._label
+            : typeConfig.label}
         </span>
         <button
           onClick={() => setCollapsed(!collapsed)}

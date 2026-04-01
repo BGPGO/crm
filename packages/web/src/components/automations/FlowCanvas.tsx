@@ -15,6 +15,7 @@ import AddTagNode from "./nodes/AddTagNode";
 import RemoveTagNode from "./nodes/RemoveTagNode";
 import WaitForResponseNode from "./nodes/WaitForResponseNode";
 import SendEmailNode from "./nodes/SendEmailNode";
+import SendWaTemplateNode from "./nodes/SendWaTemplateNode";
 
 interface FlowStep {
   id: string;
@@ -62,6 +63,8 @@ function getNodeConfigComponent(
       return <SendWhatsAppTemplateNode config={config} onChange={onChange} />;
     case "SEND_EMAIL":
       return <SendEmailNode config={config} onChange={onChange} />;
+    case "SEND_WA_TEMPLATE":
+      return <SendWaTemplateNode config={config} onChange={onChange} />;
     case "WAIT":
       return <WaitNode config={config} onChange={onChange} />;
     case "CONDITION":
