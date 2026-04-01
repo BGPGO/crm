@@ -480,7 +480,7 @@ export default function TemplatesPage() {
       // Rebuild: keep existing mappings for current variables, add empty for new ones
       const next = variables.map((v) => {
         const existing = currentMapping.find((m) => m.var === v);
-        return existing ?? { var: v, source: "contact.name" };
+        return existing ?? { var: v, source: "" };
       });
       return { ...prev, variableMapping: next };
     });
@@ -1199,7 +1199,7 @@ export default function TemplatesPage() {
                       <div className="space-y-4">
                         {variables.map((v, i) => {
                           const mapping = form.variableMapping.find((m) => m.var === v);
-                          const currentSource = mapping?.source ?? "contact.name";
+                          const currentSource = mapping?.source ?? "";
                           const isCustom = currentSource.startsWith("custom.");
                           const customText = isCustom ? currentSource.slice("custom.".length) : "";
                           const sourceForDropdown = isCustom ? "custom" : currentSource;
@@ -1252,6 +1252,7 @@ export default function TemplatesPage() {
                                     }}
                                     className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                   >
+                                    <option value="">Selecione a fonte...</option>
                                     {VARIABLE_SOURCES.map((s) => (
                                       <option key={s.value} value={s.value}>
                                         {s.label}
