@@ -603,6 +603,7 @@ async function evaluateCondition(
   if (config.field === 'deal_stage') {
     const deal = await prisma.deal.findFirst({
       where: { contactId, status: 'OPEN' },
+      orderBy: { createdAt: 'desc' },
       include: { stage: { select: { id: true, name: true } } },
     });
     const stageId = deal?.stageId || '';
@@ -630,6 +631,7 @@ async function evaluateCondition(
   if (config.field === 'days_in_stage') {
     const deal = await prisma.deal.findFirst({
       where: { contactId, status: 'OPEN' },
+      orderBy: { createdAt: 'desc' },
       select: { updatedAt: true },
     });
     const daysInStage = deal ? Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
@@ -650,6 +652,7 @@ async function evaluateCondition(
   if (config.field === 'expected_return_date') {
     const deal = await prisma.deal.findFirst({
       where: { contactId, status: 'OPEN' },
+      orderBy: { createdAt: 'desc' },
       select: { expectedReturnDate: true },
     });
     const hasDate = !!deal?.expectedReturnDate;
