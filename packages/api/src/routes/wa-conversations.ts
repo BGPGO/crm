@@ -594,16 +594,38 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
         });
         break;
 
-      case 'template':
+      case 'template': {
         if (!templateName) return next(createError('templateName is required for template messages', 400));
+
+        // ── Auto-resolve variáveis do template se o frontend mandou placeholders ──
+        let resolvedComponents = components || [];
+        const hasPlaceholders = JSON.stringify(resolvedComponents).includes('"param');
+        if (hasPlaceholders && conversation.contactId) {
+          const templateRecord = await prisma.cloudWaTemplate.findFirst({
+            where: { name: templateName, language: templateLanguage || 'pt_BR' },
+            select: { variableMapping: true },
+          });
+          if (templateRecord?.variableMapping) {
+            const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
+            const resolved = await resolveTemplateVariables(
+              templateRecord.variableMapping as any,
+              { contactId: conversation.contactId, dealId: undefined },
+            );
+            if (resolved.parameters.length > 0 && resolved.missingVars.length === 0) {
+              resolvedComponents = [{ type: 'body', parameters: resolved.parameters }];
+            }
+          }
+        }
+
         result = await WaMessageService.sendTemplate(
           conversation.id,
           templateName,
           templateLanguage || 'pt_BR',
-          components || [],
+          resolvedComponents,
           { senderType: 'WA_HUMAN', senderUserId: userId },
         );
         break;
+      }
 
       case 'interactive_buttons':
         if (!buttons || !Array.isArray(buttons)) {
