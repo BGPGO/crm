@@ -44,6 +44,7 @@ interface WabaConfig {
   webhookUrl: string | null;
   displayPhone: string | null;
   dailyMessageLimit: number;
+  dailySpendLimitBRL: number;
   isActive: boolean;
 }
 
@@ -60,6 +61,14 @@ interface WabaStatus {
     messagesSent: number;
     dailyLimit: number;
     remaining: number;
+  };
+  spend?: {
+    totalCost: number;
+    limitBRL: number;
+    remaining: number;
+    exceeded: boolean;
+    marketingCount: number;
+    utilityCount: number;
   };
   templates: Record<string, unknown>;
 }
@@ -490,6 +499,121 @@ function DailyLimitCard({
 }
 
 // ---------------------------------------------------------------------------
+// Spend Limit Card
+// ---------------------------------------------------------------------------
+
+function SpendLimitCard({ status }: { status: WabaStatus | null }) {
+  const spend = status?.spend;
+  if (!spend) return null;
+
+  const pct = spend.limitBRL > 0 ? Math.min((spend.totalCost / spend.limitBRL) * 100, 100) : 0;
+  const barColor = spend.exceeded
+    ? "bg-red-500"
+    : pct > 80
+    ? "bg-yellow-500"
+    : "bg-emerald-500";
+  const borderColor = spend.exceeded
+    ? "border-red-300 dark:border-red-700"
+    : pct > 80
+    ? "border-yellow-300 dark:border-yellow-700"
+    : "border-emerald-200 dark:border-emerald-700";
+  const bgColor = spend.exceeded
+    ? "bg-red-50 dark:bg-red-950"
+    : pct > 80
+    ? "bg-yellow-50 dark:bg-yellow-950"
+    : "bg-emerald-50 dark:bg-emerald-950";
+
+  return (
+    <Card padding="lg">
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+        <span className="text-base">R$</span>
+        Gasto Diario WABA
+      </h2>
+
+      {spend.exceeded && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-red-600 text-white px-4 py-3 animate-pulse">
+          <AlertTriangle size={20} />
+          <div>
+            <p className="text-sm font-bold">AUTOMACOES CONGELADAS</p>
+            <p className="text-xs opacity-90">
+              Limite diario de R${spend.limitBRL.toFixed(2)} atingido. Templates de automacao estao pausados. BIA continua respondendo.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-end gap-6 flex-wrap mb-4">
+        <div>
+          <p className={clsx(
+            "text-3xl font-bold",
+            spend.exceeded ? "text-red-600" : "text-gray-900 dark:text-gray-100"
+          )}>
+            R${spend.totalCost.toFixed(2)}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">gasto hoje</p>
+        </div>
+        <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
+        <div>
+          <p className="text-2xl font-bold text-emerald-600">
+            R${spend.limitBRL > 0 ? spend.limitBRL.toFixed(2) : "∞"}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">limite diario</p>
+        </div>
+        <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
+        <div>
+          <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+            R${spend.remaining === Infinity ? "∞" : spend.remaining.toFixed(2)}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">restante</p>
+        </div>
+      </div>
+
+      {spend.limitBRL > 0 && (
+        <div className="mb-4">
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-600 dark:text-gray-400">{Math.round(pct)}% do limite</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              R${spend.totalCost.toFixed(2)} / R${spend.limitBRL.toFixed(2)}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+            <div
+              className={clsx("h-3 rounded-full transition-all duration-500", barColor)}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className={clsx("rounded-lg border p-3", bgColor, borderColor)}>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Templates Marketing</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{spend.marketingCount}</p>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            R${(spend.marketingCount * 0.375).toFixed(2)} (R$0,375/msg)
+          </p>
+        </div>
+        <div className={clsx("rounded-lg border p-3", bgColor, borderColor)}>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Templates Utility</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{spend.utilityCount}</p>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            R${(spend.utilityCount * 0.0477).toFixed(2)} (R$0,0477/msg)
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
+        <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          O limite congela apenas automacoes (templates). A BIA continua respondendo dentro das janelas de 24h (mensagens de servico sao gratuitas).
+          Altere o limite na secao Credenciais abaixo.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Status Card
 // ---------------------------------------------------------------------------
 
@@ -660,6 +784,7 @@ function CredentialsForm({
     verifyToken: "",
     displayPhone: "",
     dailyMessageLimit: 250,
+    dailySpendLimitBRL: 40,
   });
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -674,6 +799,7 @@ function CredentialsForm({
         verifyToken: config.verifyToken || "",
         displayPhone: config.displayPhone || "",
         dailyMessageLimit: config.dailyMessageLimit || 250,
+        dailySpendLimitBRL: config.dailySpendLimitBRL ?? 40,
       });
     }
   }, [config]);
@@ -787,6 +913,27 @@ function CredentialsForm({
           }
           placeholder="250"
         />
+
+        {/* Daily Spend Limit */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Limite Diario de Gasto (R$)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.dailySpendLimitBRL}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, dailySpendLimitBRL: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 dark:text-gray-100"
+            placeholder="40.00"
+          />
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            0 = sem limite. Ao atingir, automacoes sao congeladas (BIA continua ativa).
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mt-5">
@@ -992,6 +1139,8 @@ export default function WabaConfigPage() {
       />
 
       <BestPractices />
+
+      <SpendLimitCard status={status} />
 
       <DailyLimitCard config={config} status={status} />
 

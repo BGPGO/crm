@@ -987,6 +987,18 @@ async function sendWaTemplate(
     };
   }
 
+  // ── Verificar limite de gasto diário WABA ──
+  const { getDailySpend } = await import('../utils/wabaSpendLimit');
+  const spend = await getDailySpend();
+  if (spend.exceeded) {
+    console.log(`[sendWaTemplate] Limite diário WABA atingido: R$${spend.totalCost} / R$${spend.limitBRL} — congelando automação`);
+    return {
+      success: false,
+      retry: true, // reagenda — vai tentar de novo no próximo ciclo (amanhã o limite reseta)
+      output: `Limite diário WABA atingido (R$${spend.totalCost}/${spend.limitBRL}) — automação congelada`,
+    };
+  }
+
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
   });

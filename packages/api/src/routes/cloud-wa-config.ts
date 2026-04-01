@@ -58,7 +58,7 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
     const allowedFields = [
       'phoneNumberId', 'wabaId', 'accessToken', 'appSecret',
       'verifyToken', 'twoStepPin', 'displayPhone',
-      'isActive', 'dailyMessageLimit', 'webhookUrl',
+      'isActive', 'dailyMessageLimit', 'dailySpendLimitBRL', 'webhookUrl',
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -151,6 +151,10 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
         _count: { id: true },
       });
 
+      // Gasto diário WABA
+      const { getDailySpend } = await import('../utils/wabaSpendLimit');
+      const spend = await getDailySpend();
+
       res.json({
         data: {
           configured: true,
@@ -165,6 +169,14 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
             messagesSent: todayCount,
             dailyLimit: config.dailyMessageLimit,
             remaining: Math.max(0, config.dailyMessageLimit - todayCount),
+          },
+          spend: {
+            totalCost: spend.totalCost,
+            limitBRL: spend.limitBRL,
+            remaining: spend.remaining,
+            exceeded: spend.exceeded,
+            marketingCount: spend.marketingCount,
+            utilityCount: spend.utilityCount,
           },
           templates: templateStats.reduce((acc: Record<string, number>, s) => {
             acc[s.status] = s._count.id;

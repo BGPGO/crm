@@ -1442,7 +1442,8 @@ model CloudWaConfig {
   phoneStatus   String  @default("PENDING_SETUP") // CONNECTED, FLAGGED, RESTRICTED, PENDING_SETUP
 
   // ── Limites ──
-  dailyMessageLimit Int @default(250) // Limite por tier
+  dailyMessageLimit  Int   @default(250)  // Limite por tier
+  dailySpendLimitBRL Float @default(40.0) // Limite de gasto diário em R$ (0 = sem limite)
 
   // ── Webhook ──
   webhookUrl String @default("") // URL configurada para receber callbacks
