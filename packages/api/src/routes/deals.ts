@@ -30,15 +30,57 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { pipelineId, stageId, userId, status, period } = req.query;
+    const query = req.query as Record<string, unknown>;
+    const str = (key: string) => query[key] as string | undefined;
 
     const where: Record<string, unknown> = {};
 
-    if (pipelineId) where.pipelineId = pipelineId as string;
-    if (stageId) where.stageId = stageId as string;
-    if (userId) where.userId = userId as string;
-    if (status) where.status = status as string;
+    if (str('pipelineId')) where.pipelineId = str('pipelineId');
+    if (str('stageId')) where.stageId = str('stageId');
+    if (str('userId')) where.userId = str('userId');
+    if (str('status')) where.status = str('status');
+    if (str('sourceId')) where.sourceId = str('sourceId');
+    if (str('lostReasonId')) where.lostReasonId = str('lostReasonId');
+    if (str('contactId')) where.contactId = str('contactId');
+    if (str('organizationId')) where.organizationId = str('organizationId');
+    if (str('classification')) where.classification = str('classification');
 
+    // Campaign filter (supports comma-separated list or single id)
+    const campaignIds = str('campaignIds');
+    if (campaignIds) {
+      where.campaignId = { in: campaignIds.split(',').filter(Boolean) };
+    } else if (str('campaignId')) {
+      where.campaignId = str('campaignId');
+    }
+
+    // Product filter: deals that have this product
+    if (str('productId')) {
+      where.products = { some: { productId: str('productId') } };
+    }
+
+    // Value range
+    const valueMin = str('valueMin');
+    const valueMax = str('valueMax');
+    if (valueMin || valueMax) {
+      const valueFilter: Record<string, number> = {};
+      if (valueMin) valueFilter.gte = parseFloat(valueMin);
+      if (valueMax) valueFilter.lte = parseFloat(valueMax);
+      where.value = valueFilter;
+    }
+
+    // Overdue task filter
+    if (str('hasOverdueTask') === 'true') {
+      where.tasks = {
+        some: {
+          status: { not: 'COMPLETED' },
+          dueDate: { lt: new Date() },
+        },
+      };
+    }
+
+    // Period preset filter
+    const period = str('period');
+    const status = str('status');
     if (period) {
       const now = new Date();
       let from: Date;
@@ -71,6 +113,53 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       }
       const dateField = status === 'WON' ? 'closedAt' : 'createdAt';
       where[dateField] = { gte: from };
+    }
+
+    // Helper: parse date strings (date-only or datetime)
+    const parseFrom = (val: string): Date => new Date(val);
+    const parseTo = (val: string): Date => {
+      if (val.includes('T')) return new Date(val);
+      return new Date(val + 'T23:59:59.999Z');
+    };
+
+    // Created date range
+    const createdFrom = str('createdAtFrom');
+    const createdTo = str('createdAtTo');
+    if (createdFrom || createdTo) {
+      const createdFilter: Record<string, Date> = {};
+      if (createdFrom) createdFilter.gte = parseFrom(createdFrom);
+      if (createdTo) createdFilter.lte = parseTo(createdTo);
+      where.createdAt = { ...((where.createdAt as Record<string, Date>) || {}), ...createdFilter };
+    }
+
+    // Updated date range
+    const updatedFrom = str('updatedAtFrom');
+    const updatedTo = str('updatedAtTo');
+    if (updatedFrom || updatedTo) {
+      const updatedFilter: Record<string, Date> = {};
+      if (updatedFrom) updatedFilter.gte = parseFrom(updatedFrom);
+      if (updatedTo) updatedFilter.lte = parseTo(updatedTo);
+      where.updatedAt = updatedFilter;
+    }
+
+    // Closed date range
+    const closedFrom = str('closedAtFrom');
+    const closedTo = str('closedAtTo');
+    if (closedFrom || closedTo) {
+      const closedFilter: Record<string, Date> = {};
+      if (closedFrom) closedFilter.gte = parseFrom(closedFrom);
+      if (closedTo) closedFilter.lte = parseTo(closedTo);
+      where.closedAt = closedFilter;
+    }
+
+    // Expected close date range
+    const expectedFrom = str('expectedCloseDateFrom');
+    const expectedTo = str('expectedCloseDateTo');
+    if (expectedFrom || expectedTo) {
+      const expectedFilter: Record<string, Date> = {};
+      if (expectedFrom) expectedFilter.gte = parseFrom(expectedFrom);
+      if (expectedTo) expectedFilter.lte = parseTo(expectedTo);
+      where.expectedCloseDate = expectedFilter;
     }
 
     const [total, data] = await Promise.all([

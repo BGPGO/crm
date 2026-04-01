@@ -3,6 +3,7 @@ import { WindowService } from './windowService';
 import { WaBotService } from './botService';
 import { StageOrchestrator } from './stageOrchestrator';
 import { isOptOutMessage } from '../../utils/optOut';
+import { isReEngagementMessage } from '../../utils/reEngagement';
 
 // ─── Deduplication (in-memory Set with 5-min TTL) ────────────────────────────
 
@@ -200,13 +201,57 @@ export class WaMessageRouter {
           // 5. Open 24h window via WindowService
           await WindowService.openWindow(conversation.id, inboundAt);
 
-          // 5b. Mark responded in followUpState (reset cold contact counter)
+          // 5b. Re-engagement: se o contato está opted-out, verificar se é intenção real
+          //     Feito ANTES de disparar bot/orchestrator para evitar processamento desnecessário
+          if (conversation.optedOut) {
+            if (text && isReEngagementMessage(text)) {
+              // Reativar contato — ele demonstrou interesse real
+              await prisma.waConversation.update({
+                where: { id: conversation.id },
+                data: {
+                  optedOut: false,
+                  optedOutAt: null,
+                  status: 'WA_OPEN',
+                  isActive: true,
+                },
+              });
+              conversation.optedOut = false; // atualiza ref local para permitir o fluxo continuar
+
+              console.log(`[WaMessageRouter] Re-engagement detectado de ${from}: "${text}" — contato reativado`);
+
+              // Registrar atividade no deal (se existir)
+              if (conversation.contactId) {
+                const deal = await prisma.deal.findFirst({
+                  where: { contactId: conversation.contactId, status: 'OPEN' },
+                });
+                if (deal) {
+                  await prisma.activity.create({
+                    data: {
+                      type: 'NOTE',
+                      content: `Contato reativado automaticamente — enviou mensagem após opt-out: "${text?.substring(0, 100)}"`,
+                      dealId: deal.id,
+                      contactId: conversation.contactId,
+                      userId: deal.userId,
+                    },
+                  }).catch(err =>
+                    console.error(`[WaMessageRouter] Erro ao criar atividade de re-engagement:`, err)
+                  );
+                }
+              }
+            } else {
+              // Mensagem genérica de contato opted-out — salva (já foi salva acima) mas não processa
+              console.log(`[WaMessageRouter] Msg de contato opted-out ${from} ignorada (não é re-engagement): "${text || `[${type}]`}"`);
+              continue; // pula etapas 5c-8: não dispara bot nem stage orchestrator
+            }
+          }
+
+          // 5c. Mark responded in followUpState (reset cold contact counter)
           await prisma.waFollowUpState.updateMany({
             where: { conversationId: conversation.id },
             data: { respondedSinceLastBot: true },
           });
 
-          // 5c. Auto-advance stage: Lead/Contato Feito → Marcar Reunião
+          // 5d. Auto-advance stage: Lead/Contato Feito → Marcar Reunião
           StageOrchestrator.handleLeadResponse(conversation.id).catch(err =>
             console.error(`[WaMessageRouter] Erro no stage orchestrator:`, err)
           );

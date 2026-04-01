@@ -1447,6 +1447,9 @@ model CloudWaConfig {
   // ── Webhook ──
   webhookUrl String @default("") // URL configurada para receber callbacks
 
+  // ── Features ──
+  wabaMeetingReminderEnabled Boolean @default(false) // Lembretes de reunião via WABA (desativado por padrão)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -7,6 +7,7 @@ import { startWarmupJob } from './warmupJob';
 import { initMeetingReminders } from '../services/meetingReminderScheduler';
 import { initFollowUpScheduler } from '../services/followUpScheduler';
 import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
+import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 
 export function startAllJobs() {
   // Recovery: campanhas que ficaram RUNNING após restart
@@ -22,6 +23,9 @@ export function startAllJobs() {
   // Event-driven schedulers (replace old polling crons)
   initMeetingReminders().catch(console.error);
   initFollowUpScheduler();
+
+  // WABA meeting reminders (desativado por padrão — CloudWaConfig.wabaMeetingReminderEnabled)
+  startMeetingReminderWabaCron();
 
   console.log('[jobs] All cron jobs started');
 }

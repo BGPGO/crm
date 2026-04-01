@@ -360,6 +360,97 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// ─── POST /api/whatsapp/cloud/templates/seed-reminders — Criar templates de lembrete ──
+
+const REMINDER_TEMPLATES = [
+  {
+    name: 'lembrete_reuniao_1h',
+    body: 'Olá {{1}}, sua reunião está marcada para hoje às {{2}} (falta 1 hora). Te esperamos!',
+    footer: 'BGPGO',
+    bodyExamples: [['João', '15:00']],
+  },
+  {
+    name: 'lembrete_reuniao_15min',
+    body: '{{1}}, sua reunião começa em 15 minutos (às {{2}}). Estamos te aguardando!',
+    footer: 'BGPGO',
+    bodyExamples: [['João', '15:00']],
+  },
+];
+
+router.post('/seed-reminders', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const results: Array<{ name: string; action: string; status: string; error?: string }> = [];
+
+    const cloudConfig = await prisma.cloudWaConfig.findFirst();
+    const isCloudConfigured = cloudConfig?.accessToken && cloudConfig?.wabaId;
+    let client: WhatsAppCloudClient | null = null;
+    if (isCloudConfigured) {
+      try { client = await WhatsAppCloudClient.fromDB(); } catch { /* sem client */ }
+    }
+
+    for (const def of REMINDER_TEMPLATES) {
+      const existing = await prisma.cloudWaTemplate.findFirst({
+        where: { name: def.name, language: 'pt_BR' },
+      });
+
+      if (existing) {
+        results.push({ name: def.name, action: 'skip', status: existing.status });
+        continue;
+      }
+
+      // Montar components
+      const components: any[] = [
+        { type: 'BODY', text: def.body, example: { body_text: def.bodyExamples } },
+        { type: 'FOOTER', text: def.footer },
+      ];
+
+      let metaTemplateId: string | null = null;
+      let submitStatus = 'PENDING';
+      let submitError: string | null = null;
+
+      if (client) {
+        try {
+          const metaResult = await client.createTemplate({
+            name: def.name,
+            language: 'pt_BR',
+            category: 'UTILITY',
+            components,
+          });
+          metaTemplateId = metaResult.id;
+          submitStatus = metaResult.status || 'PENDING';
+        } catch (err: any) {
+          submitError = err.message || 'Erro ao submeter à Meta';
+          submitStatus = 'REJECTED';
+        }
+      }
+
+      await prisma.cloudWaTemplate.create({
+        data: {
+          name: def.name,
+          language: 'pt_BR',
+          category: 'UTILITY',
+          status: submitStatus as any,
+          metaTemplateId,
+          headerType: null,
+          headerContent: null,
+          body: def.body,
+          footer: def.footer,
+          buttons: null,
+          bodyExamples: def.bodyExamples,
+          headerExample: null,
+          rejectedReason: submitError,
+        },
+      });
+
+      results.push({ name: def.name, action: 'created', status: submitStatus, ...(submitError ? { error: submitError } : {}) });
+    }
+
+    res.json({ data: results });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── POST /api/whatsapp/cloud/templates/sync — Sincronizar com Meta ─────────
 
 router.post('/sync', async (req: Request, res: Response, next: NextFunction) => {
