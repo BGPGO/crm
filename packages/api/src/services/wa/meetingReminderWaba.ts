@@ -28,6 +28,7 @@ import { canSend, registerSent } from '../dailyLimitService';
 // ─── Mapeamento step (minutos antes) → template ──────────────────────────────
 
 const TEMPLATE_MAP: Record<number, string> = {
+  240: 'lembrete_reuniao_4h',
   60: 'lembrete_reuniao_1h',
   15: 'lembrete_reuniao_15min',
 };

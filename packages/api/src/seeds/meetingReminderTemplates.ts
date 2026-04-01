@@ -29,7 +29,7 @@ const TEMPLATES: TemplateDef[] = [
   },
   {
     name: 'lembrete_reuniao_15min',
-    body: '{{1}}, sua reunião começa em 15 minutos (às {{2}}). Estamos te aguardando!',
+    body: 'Olá {{1}}, sua reunião começa em 15 minutos (às {{2}}). Estamos te aguardando!',
     footer: 'BGPGO',
     bodyExamples: [['João', '15:00']],
   },
