@@ -311,6 +311,39 @@ export class WhatsAppCloudClient {
   }
 
   /**
+   * Envia botão CTA com URL (dentro da janela de 24h)
+   * O usuário clica e abre o link no navegador.
+   */
+  async sendCtaUrl(
+    to: string,
+    bodyText: string,
+    buttonText: string,
+    url: string,
+    headerText?: string,
+    footerText?: string,
+  ): Promise<SendMessageResponse> {
+    const interactive: any = {
+      type: 'cta_url',
+      body: { text: bodyText },
+      action: {
+        name: 'cta_url',
+        parameters: { display_text: buttonText, url },
+      },
+    };
+    if (headerText) interactive.header = { type: 'text', text: headerText };
+    if (footerText) interactive.footer = { text: footerText };
+
+    const res = await this.client.post(`/${this.phoneNumberId}/messages`, {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'interactive',
+      interactive,
+    });
+    return res.data;
+  }
+
+  /**
    * Envia lista interativa (dentro da janela de 24h, max 10 items)
    */
   async sendList(

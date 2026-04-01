@@ -8,10 +8,11 @@
  * Envia via WaMessageService (não EvolutionApiClient).
  * Suporta mensagens interativas (botões e listas).
  *
- * Lógica reutilizada do bot original:
+ * Lógica:
  *   - Prompt building por blocos (buildPromptFromBlocks)
  *   - Debounce de 25s
- *   - Separação de resposta por ---
+ *   - Split por \n\n (double newline) para múltiplas mensagens
+ *   - CTA URL button para link de agendamento (Calendly)
  *   - Delay entre mensagens (1.5s + 50ms/char)
  *   - Histórico IA com cap de 20
  *   - Opt-out e cold contact checks
@@ -22,6 +23,7 @@ import OpenAI from 'openai';
 import prisma from '../../lib/prisma';
 import { WaMessageService } from './messageService';
 import { WindowService } from './windowService';
+import { WhatsAppCloudClient } from '../whatsappCloudClient';
 
 // ─── Debounce ────────────────────────────────────────────────────────────────
 
@@ -45,29 +47,33 @@ interface ChatMessage {
 
 // ─── Default Prompt Blocks ───────────────────────────────────────────────────
 
-const DEFAULT_CONVERSATION_RULES = `REGRAS DE OURO:
-- Mensagens CURTAS. Máximo 1 linha por mensagem. Escreva como quem digita rápido no WhatsApp.
-- Seja DIRETA. Entenda a dor do lead e encaminhe pra reunião. Sem enrolação.
-- A partir da 2ª troca, já direcione para o agendamento.
-- NUNCA mande parágrafos longos. Se a mensagem tem mais de 2 linhas, quebre com ---.
+const DEFAULT_CONVERSATION_RULES = `COMO CONVERSAR:
+- Converse como uma pessoa real no WhatsApp. Seja natural, simpática, direta.
+- Leia o que o lead disse e responda de acordo. Se ele fez uma pergunta, responda primeiro.
+- Não force o agendamento logo. Primeiro entenda o que ele precisa, depois conecte com a reunião.
+- Mensagens curtas e naturais (1-3 linhas). Uma mensagem por vez.
+- Use emojis com moderação (1 por mensagem, no máximo).
+- NUNCA mande textão. Se tem mais de 3 linhas, quebre em parágrafos separados (pule uma linha entre eles).
+- Adapte o tom ao lead: se ele é formal, seja formal. Se é descontraído, seja leve.
+- Nunca invente informações.`;
 
-ESCRITA:
-- Máximo 1 linha por mensagem entre ---
-- Máximo 1 emoji por mensagem, esporádico
-- Sem listas, sem bullets, sem blocos de texto
-- Nunca invente informações`;
+const DEFAULT_FUNNEL = `FLUXO DA CONVERSA:
+1. Lead mandou mensagem → Leia o contexto, responda naturalmente
+2. Se é a primeira interação → Se apresente brevemente e pergunte como pode ajudar
+3. Entendeu a necessidade → Conecte com o produto certo (GoBI ou GoControladoria)
+4. Lead demonstra interesse → Sugira a reunião de Diagnóstico Financeiro
+5. Lead quer agendar → Responda "Vou te mandar o link pra agendar!" (SEM enviar URL no texto)
 
-const DEFAULT_FUNNEL = `FUNIL:
-1. Cumprimente + pergunte sobre a empresa/dor (1 mensagem curta)
-2. Entendeu a dor? Conecte com o produto certo e proponha reunião
-3. Envie o link do Calendly
+SOBRE O AGENDAMENTO:
+- NÃO envie link de URL no texto da mensagem. O sistema vai enviar um botão clicável automaticamente.
+- Quando sugerir agendar, use frases como "Posso te mandar o link?", "Vou te enviar pra agendar"
+- O link é enviado NO MÁXIMO 1 VEZ automaticamente pelo sistema. Não se preocupe em enviar.
+- Se o lead pedir link de novo, diga "Vou te mandar!" que o sistema cuida.
 
-AGENDAMENTO:
-- Envie o link do Calendly em mensagem SEPARADA (entre ---), SOZINHO, sem texto antes ou depois, SEM markdown
-- NUNCA use formato [texto](url). Mande APENAS a URL pura.
-- NUNCA sugira horários. O lead escolhe pelo link.
-- O link é enviado NO MÁXIMO 1 VEZ. Depois, vire suporte — responda dúvidas sem reenviar.
-- Se o lead pedir o link de novo → mande. Senão, não repita.`;
+IMPORTANTE:
+- Se o lead diz algo pessoal/off-topic, responda brevemente e volte pro assunto com naturalidade
+- Se o lead diz "não quero" ou demonstra desinteresse → agradeça e encerre. NÃO insista.
+- Se o lead tem dúvidas sobre preço → dê o range e diga que na reunião definem certinho`;
 
 const DEFAULT_OBJECTIONS = `OBJEÇÕES (respostas curtas):
 - "Não tenho tempo" → "São 45 minutinhos! Te mando o link pra encaixar na agenda"
@@ -99,7 +105,7 @@ async function buildPromptFromBlocks(): Promise<string> {
   const botCompany = config?.botCompany || 'Bertuzzi Patrimonial';
 
   let prompt = `Você é a ${botName}, SDR da ${botCompany}. SEMPRE se apresente como ${botName} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro.\n\n`;
-  prompt += `FORMATO: Separe mensagens com ---. Cada bloco entre --- vira uma mensagem separada no WhatsApp. Mande 2-3 mensagens curtas por vez.\n\n`;
+  prompt += `FORMATO: Responda em 1-3 frases curtas e naturais. Se precisar separar em mais de uma mensagem, pule uma linha entre elas (linha em branco). NÃO envie URLs no texto — o sistema envia botões clicáveis automaticamente.\n\n`;
   prompt += (config?.conversationRules?.trim() || DEFAULT_CONVERSATION_RULES) + '\n\n';
   prompt += (config?.funnelInstructions?.trim() || DEFAULT_FUNNEL) + '\n\n';
 
@@ -153,7 +159,7 @@ function getCurrentContext(): string {
   return `\n\nCONTEXTO ATUAL:
 - Data: ${data} (${diaSemana})
 - Hora atual: ${hora}:${minutos}
-- Para agendamento: SEMPRE envie o link do Calendly. NÃO sugira horários específicos. O lead escolhe pelo link.`;
+- Para agendamento: NÃO sugira horários específicos. NÃO envie URLs no texto. O sistema envia um botão clicável automaticamente.`;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -464,7 +470,7 @@ export class WaBotService {
     }
 
     if (meetingLink) {
-      systemMessage += `\n\nLINK DE AGENDAMENTO (use exatamente este): ${meetingLink}\nREGRA ABSOLUTA: quando enviar o link, cole EXATAMENTE "${meetingLink}" sozinho em uma mensagem. NUNCA use markdown [texto](url). NUNCA escreva "calendly.com" genérico. SEMPRE o link completo acima.`;
+      systemMessage += `\n\nAGENDAMENTO: Existe um link de agendamento configurado. Quando o lead quiser agendar, diga algo como "Vou te mandar o link pra agendar!" — NÃO inclua a URL no texto. O sistema envia um botão clicável automaticamente.`;
     } else {
       systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
     }
@@ -486,13 +492,10 @@ export class WaBotService {
 
     let reply = completion.choices[0].message.content || '';
 
-    // Sanitize: replace markdown links with raw URLs
+    // Strip any URLs the AI might have included (system sends CTA button instead)
     if (meetingLink) {
-      reply = reply.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, _text, url) => {
-        if (url.toLowerCase().includes('calendly')) return meetingLink;
-        return url;
-      });
-      reply = reply.replace(/(?<!\S)calendly\.com(?!\S)/gi, meetingLink);
+      reply = reply.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text) => text || '');
+      reply = reply.replace(/https?:\/\/[^\s),]+/g, '').replace(/\s{2,}/g, ' ').trim();
     }
 
     return reply;
@@ -501,59 +504,92 @@ export class WaBotService {
   // ─── Send Bot Response ───────────────────────────────────────────────────
 
   /**
-   * Splits AI reply by --- separator and sends each part via WaMessageService.
-   * Detects meeting intent to send interactive buttons instead of plain URLs.
-   * Detects product discovery to send interactive list.
+   * Sends AI reply via WaMessageService.
+   * Splits by double newline for multiple short messages.
+   * Detects meeting intent to send CTA URL button (clickable link).
    */
   private static async sendBotResponse(
     conversationId: string,
     phone: string,
     aiReply: string,
     meetingLink?: string,
-    products?: Array<{ id: string; name: string; description?: string | null; priceRange?: string | null }>,
+    _products?: Array<{ id: string; name: string; description?: string | null; priceRange?: string | null }>,
   ): Promise<void> {
-    // Primary split: by --- separator
-    let parts = aiReply.split(/\s*-{3,}\s*/).map((p) => p.trim()).filter((p) => p.length > 0);
+    // Split by double newline or --- (legacy) into separate messages
+    const parts = aiReply
+      .split(/\n\n+|\s*-{3,}\s*/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
 
-    // Fallback: split by double newlines
-    if (parts.length === 1) {
-      parts = aiReply.split(/\n\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
-    }
-
+    // Send each text part
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      const url = extractMeetingUrl(part);
 
-      if (url && meetingLink) {
-        // Part contains a meeting URL — send as interactive button
-        const cleanText = stripUrl(part);
-        if (cleanText && cleanText.length > 2) {
-          await WaMessageService.sendText(conversationId, cleanText, { senderType: 'WA_BOT' });
-          await delay(1500);
-        }
-
-        // Send meeting link as interactive button
-        try {
-          await WaMessageService.sendInteractiveButtons(
-            conversationId,
-            'Clique no botao abaixo para agendar sua reuniao:',
-            [{ id: 'btn_agendar', title: 'Agendar reuniao' }],
-            { senderType: 'WA_BOT' },
-          );
-        } catch (btnErr) {
-          // Fallback: send as plain text if interactive fails
-          console.warn(`[WaBot] Falha ao enviar botao interativo, enviando como texto:`, btnErr);
-          await WaMessageService.sendText(conversationId, meetingLink, { senderType: 'WA_BOT' });
-        }
-      } else {
-        // Regular text message
-        await WaMessageService.sendText(conversationId, part, { senderType: 'WA_BOT' });
+      // Strip any leftover URLs from the text (AI shouldn't include them)
+      const cleanPart = stripUrl(part) || part;
+      if (cleanPart.length > 0) {
+        await WaMessageService.sendText(conversationId, cleanPart, { senderType: 'WA_BOT' });
       }
 
       // Delay between messages (1.5s + 50ms per char, max 5s)
       if (parts.length > 1 && i < parts.length - 1) {
-        const msgDelay = Math.min(1500 + part.length * 50, 5000);
+        const msgDelay = Math.min(1500 + cleanPart.length * 50, 5000);
         await delay(msgDelay);
+      }
+    }
+
+    // Detect meeting intent and send CTA URL button
+    if (meetingLink && MEETING_INTENT_REGEX.test(aiReply)) {
+      // Check if we already sent the meeting link (look for CTA marker in messages)
+      const previousCta = await prisma.waMessage.findFirst({
+        where: {
+          conversationId,
+          senderType: 'WA_BOT',
+          body: { contains: '[CTA_MEETING_SENT]' },
+        },
+      });
+
+      // Check if lead explicitly asked for link again
+      const lastClientMsg = await prisma.waMessage.findFirst({
+        where: { conversationId, senderType: 'WA_CLIENT', direction: 'INBOUND' },
+        orderBy: { createdAt: 'desc' },
+        select: { body: true },
+      });
+      const leadAskedForLink = lastClientMsg?.body
+        ? /link|agendar|marcar|hor[aá]rio/i.test(lastClientMsg.body)
+        : false;
+
+      const shouldSendLink = !previousCta || leadAskedForLink;
+
+      if (shouldSendLink) {
+        await delay(2000);
+        try {
+          const client = await WhatsAppCloudClient.fromDB();
+          await client.sendCtaUrl(
+            phone,
+            'Clique abaixo para escolher o melhor horário:',
+            '📅 Agendar Diagnóstico',
+            meetingLink,
+          );
+          console.log(`[WaBot] CTA URL button enviado para ${phone}`);
+
+          // Mark meeting link as sent (internal marker, not visible to user)
+          await prisma.waMessage.create({
+            data: {
+              direction: 'OUTBOUND',
+              senderType: 'WA_BOT',
+              type: 'INTERACTIVE_BUTTONS',
+              body: '[CTA_MEETING_SENT]',
+              status: 'WA_SENT',
+              conversationId,
+            },
+          });
+        } catch (ctaErr) {
+          console.warn(`[WaBot] Falha ao enviar CTA URL button, enviando como texto:`, ctaErr);
+          await WaMessageService.sendText(conversationId, meetingLink, { senderType: 'WA_BOT' });
+        }
+      } else {
+        console.log(`[WaBot] Link já enviado anteriormente para ${phone}, não reenviando`);
       }
     }
 
@@ -563,33 +599,16 @@ export class WaBotService {
   // ─── Ensure Meeting Link ─────────────────────────────────────────────────
 
   /**
-   * If the AI mentioned a meeting but forgot to include the link,
-   * automatically send it as an interactive button.
+   * No-op: meeting link CTA is now handled directly in sendBotResponse.
+   * Kept for backward compatibility — does nothing.
    */
   private static async ensureMeetingLink(
-    conversationId: string,
-    aiReply: string,
-    meetingLink?: string,
+    _conversationId: string,
+    _aiReply: string,
+    _meetingLink?: string,
   ): Promise<void> {
-    if (!meetingLink) return;
-    if (!MEETING_INTENT_REGEX.test(aiReply)) return;
-    if (URL_REGEX.test(aiReply)) return;
-
-    await delay(2000);
-
-    try {
-      await WaMessageService.sendInteractiveButtons(
-        conversationId,
-        'Segue o link para agendar:',
-        [{ id: 'btn_agendar', title: 'Agendar reuniao' }],
-        { senderType: 'WA_BOT' },
-      );
-      console.log(`[WaBot] Link do Calendly enviado automaticamente via botao (IA mencionou reuniao sem link)`);
-    } catch {
-      // Fallback to plain text
-      await WaMessageService.sendText(conversationId, meetingLink, { senderType: 'WA_BOT' });
-      console.log(`[WaBot] Link do Calendly enviado como texto (fallback)`);
-    }
+    // CTA URL button is now sent in sendBotResponse when meeting intent is detected.
+    // This method is intentionally empty to avoid duplicate sends.
   }
 
   // ─── Product Discovery (Interactive List) ────────────────────────────────
