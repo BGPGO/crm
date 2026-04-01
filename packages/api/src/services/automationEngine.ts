@@ -52,14 +52,15 @@ export async function evaluateTriggers(
     const matches = doesTriggerMatch(triggerType, triggerConfig, data.metadata);
     if (!matches) continue;
 
-    // Check if the contact is already enrolled (ACTIVE, PAUSED, or COMPLETED recently)
-    // PAUSED = foi interrompido por mudança de etapa (já processou essa cadência)
-    // COMPLETED = já terminou essa cadência
+    // Check if the contact already has an enrollment IN PROGRESS (ACTIVE or PAUSED).
+    // ACTIVE = cadência rodando agora
+    // PAUSED = interrompida por mudança de etapa (pode voltar)
+    // COMPLETED = já terminou — pode enrolar de novo (deal novo do mesmo contato)
     const existingEnrollment = await prisma.automationEnrollment.findFirst({
       where: {
         automationId: automation.id,
         contactId: data.contactId,
-        status: { in: ['ACTIVE', 'PAUSED', 'COMPLETED'] },
+        status: { in: ['ACTIVE', 'PAUSED'] },
       },
     });
 
