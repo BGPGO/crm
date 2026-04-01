@@ -27,6 +27,9 @@ const router = Router();
 // Cache stats por 30s para evitar muitos COUNTs a cada polling do frontend
 let statsCache: { data: object; expiresAt: number } | null = null;
 
+// Cache dashboard por 60s
+let dashboardCache: { data: object; expiresAt: number } | null = null;
+
 // ─── GET /api/wa/conversations — List conversations with filters + pagination ──
 
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -240,6 +243,187 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
 
     const data = { total, open, closed, archived, needsHuman, byStage: convsByStage };
     statsCache = { data, expiresAt: Date.now() + 30_000 };
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/wa/conversations/dashboard — WABA operation dashboard ─────────
+
+router.get('/dashboard', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (dashboardCache && Date.now() < dashboardCache.expiresAt) {
+      return res.json({ data: dashboardCache.data });
+    }
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    // ── Pipeline: contacts by funnel stage with WaConversation ──
+    const pipelineRaw = await prisma.$queryRaw<Array<{
+      stageId: string;
+      stageName: string;
+      stageColor: string | null;
+      stageOrder: number;
+      count: number;
+    }>>`
+      SELECT
+        ps.id as "stageId",
+        ps.name as "stageName",
+        ps.color as "stageColor",
+        ps."order" as "stageOrder",
+        COUNT(DISTINCT wc.id)::int as count
+      FROM "WaConversation" wc
+      JOIN "Contact" c ON c.id = wc."contactId"
+      JOIN "Deal" d ON d."contactId" = c.id AND d.status = 'OPEN'
+      JOIN "PipelineStage" ps ON ps.id = d."stageId"
+      GROUP BY ps.id, ps.name, ps.color, ps."order"
+      ORDER BY ps."order" ASC
+    `;
+
+    // ── Meetings ──
+    const [meetingsTotal, meetingsThisWeek, meetingsToday] = await Promise.all([
+      prisma.calendlyEvent.count({ where: { status: 'active' } }),
+      prisma.calendlyEvent.count({ where: { status: 'active', createdAt: { gte: startOfWeek } } }),
+      prisma.calendlyEvent.count({ where: { status: 'active', startTime: { gte: startOfToday, lte: endOfToday } } }),
+    ]);
+
+    // ── Messages last 30 days ──
+    const [
+      messagesTotal,
+      templatesTotal,
+      botMessages,
+      humanMessages,
+      clientMessages,
+    ] = await Promise.all([
+      prisma.waMessage.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      prisma.waMessage.count({
+        where: { direction: 'OUTBOUND', type: 'TEMPLATE', createdAt: { gte: thirtyDaysAgo } },
+      }),
+      prisma.waMessage.count({
+        where: { senderType: 'WA_BOT', type: 'TEXT', createdAt: { gte: thirtyDaysAgo } },
+      }),
+      prisma.waMessage.count({
+        where: { senderType: 'WA_HUMAN', createdAt: { gte: thirtyDaysAgo } },
+      }),
+      prisma.waMessage.count({
+        where: { direction: 'INBOUND', createdAt: { gte: thirtyDaysAgo } },
+      }),
+    ]);
+
+    // Template categories (MARKETING vs UTILITY)
+    const templatesByCategory = await prisma.$queryRaw<Array<{ category: string; count: number }>>`
+      SELECT ct.category, COUNT(*)::int as count
+      FROM "WaMessage" wm
+      JOIN "CloudWaTemplate" ct ON ct.name = wm."templateName"
+      WHERE wm.direction = 'OUTBOUND'
+        AND wm.type = 'TEMPLATE'
+        AND wm."createdAt" >= NOW() - INTERVAL '30 days'
+      GROUP BY ct.category
+    `;
+
+    const marketingTemplates = templatesByCategory.find(r => r.category === 'MARKETING')?.count ?? 0;
+    const utilityTemplates = templatesByCategory.find(r => r.category === 'UTILITY')?.count ?? 0;
+
+    // ── Cost estimate (Meta Brazil pricing) ──
+    const costMarketing = Number(marketingTemplates) * 0.375;
+    const costUtility = Number(utilityTemplates) * 0.0477;
+
+    // ── Automations ──
+    // WABA automations: those with steps that use WA-related action types
+    const wabaActionTypes = ['SEND_WHATSAPP', 'SEND_WHATSAPP_AI', 'SEND_WA_TEMPLATE', 'WAIT_FOR_RESPONSE'];
+
+    const wabaAutomationIds = await prisma.automationStep.findMany({
+      where: { actionType: { in: wabaActionTypes as any } },
+      select: { automationId: true },
+      distinct: ['automationId'],
+    });
+    const wabaAutomationIdList = wabaAutomationIds.map(a => a.automationId);
+
+    const [activeEnrollments, completedToday, pausedByResponse] = await Promise.all([
+      prisma.automationEnrollment.count({
+        where: {
+          status: 'ACTIVE',
+          ...(wabaAutomationIdList.length > 0 ? { automationId: { in: wabaAutomationIdList } } : {}),
+        },
+      }),
+      prisma.automationEnrollment.count({
+        where: {
+          status: 'COMPLETED',
+          completedAt: { gte: startOfToday },
+          ...(wabaAutomationIdList.length > 0 ? { automationId: { in: wabaAutomationIdList } } : {}),
+        },
+      }),
+      prisma.automationEnrollment.count({
+        where: {
+          status: 'PAUSED',
+          metadata: { path: ['interruptedByResponse'], equals: true },
+          ...(wabaAutomationIdList.length > 0 ? { automationId: { in: wabaAutomationIdList } } : {}),
+        },
+      }),
+    ]);
+
+    // ── Conversations ──
+    const [
+      convTotal,
+      convActive,
+      convWithBot,
+      convNeedsHuman,
+      convOptedOut,
+    ] = await Promise.all([
+      prisma.waConversation.count(),
+      prisma.waConversation.count({ where: { status: 'WA_OPEN' } }),
+      prisma.waConversation.count({ where: { isActive: true } }),
+      prisma.waConversation.count({ where: { needsHumanAttention: true } }),
+      prisma.waConversation.count({ where: { optedOut: true } }),
+    ]);
+
+    const data = {
+      pipeline: pipelineRaw,
+      meetings: {
+        total: meetingsTotal,
+        thisWeek: meetingsThisWeek,
+        today: meetingsToday,
+      },
+      messages: {
+        total: messagesTotal,
+        templates: templatesTotal,
+        botMessages,
+        humanMessages,
+        clientMessages,
+        marketingTemplates: Number(marketingTemplates),
+        utilityTemplates: Number(utilityTemplates),
+      },
+      cost: {
+        marketing: Math.round(costMarketing * 100) / 100,
+        utility: Math.round(costUtility * 100) / 100,
+        service: 0,
+        total: Math.round((costMarketing + costUtility) * 100) / 100,
+        currency: 'BRL' as const,
+      },
+      automations: {
+        activeEnrollments,
+        completedToday,
+        pausedByResponse,
+      },
+      conversations: {
+        total: convTotal,
+        active: convActive,
+        withBot: convWithBot,
+        needsHuman: convNeedsHuman,
+        optedOut: convOptedOut,
+      },
+    };
+
+    dashboardCache = { data, expiresAt: Date.now() + 60_000 };
     res.json({ data });
   } catch (err) {
     next(err);
