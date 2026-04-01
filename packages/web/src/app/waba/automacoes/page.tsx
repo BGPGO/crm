@@ -13,8 +13,7 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+import { api } from "@/lib/api";
 
 interface AutomationStep {
   id: string;
@@ -47,14 +46,12 @@ export default function WabaAutomacoesPage() {
 
   async function fetchAutomations() {
     try {
-      const res = await fetch(`${API}/automations?includeSteps=true&limit=50`, { credentials: "include" });
-      const data = await res.json();
-      const allAutomations = data.data || data.automations || data || [];
-      // Filter to WABA automations (those with SEND_WA_TEMPLATE steps or WABA/reunião in name)
+      const res = await api.get<{ data: Automation[] }>("/automations?includeSteps=true&limit=50");
+      const allAutomations = res.data || [];
+      // Filter: automações que usam SEND_WA_TEMPLATE ou têm "WABA" no nome
       const wabaAutomations = allAutomations.filter(
         (a: Automation) =>
-          a.name.includes("WABA") ||
-          a.name.toLowerCase().includes("reunião agendada") ||
+          a.name.toUpperCase().includes("WABA") ||
           (a.steps || []).some((s: AutomationStep) => s.actionType === "SEND_WA_TEMPLATE")
       );
       setAutomations(wabaAutomations);
