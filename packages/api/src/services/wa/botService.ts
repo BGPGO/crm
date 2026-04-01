@@ -342,17 +342,7 @@ export class WaBotService {
         dealContext || undefined,
       );
 
-      // 8. Save bot message to WaMessage
-      await prisma.waMessage.create({
-        data: {
-          direction: 'OUTBOUND',
-          senderType: 'WA_BOT',
-          type: 'TEXT',
-          body: aiReply,
-          status: 'WA_PENDING',
-          conversationId,
-        },
-      });
+      // 8. (removido — WaMessageService.sendText já salva no banco, evita duplicação)
 
       // 9. Save AI history
       await prisma.waAIHistory.create({
