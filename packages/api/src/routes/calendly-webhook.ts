@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
+import { onStageChanged } from '../services/automationTriggerListener';
 
 const router = Router();
 
@@ -372,6 +373,11 @@ router.post('/', async (req: Request, res: Response) => {
               data: updateData,
             });
             console.log(`[calendly-webhook] Deal updated with:`, updateData);
+
+            // Disparar automações se o stage mudou (ex: confirmação de reunião agendada)
+            if (updateData.stageId && deal.contactId) {
+              onStageChanged(deal.contactId, updateData.stageId as string, deal.id);
+            }
           }
 
           // Link event to deal
