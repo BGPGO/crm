@@ -65,6 +65,15 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       ];
     }
 
+    // Filter by pipeline stage (via contact → deal relation)
+    const stageId = req.query.stageId as string | undefined;
+    if (stageId) {
+      where.contact = {
+        ...((where.contact as object) || {}),
+        deals: { some: { stageId, status: 'OPEN' } },
+      };
+    }
+
     const [total, data] = await Promise.all([
       prisma.waConversation.count({ where }),
       prisma.waConversation.findMany({
@@ -218,7 +227,18 @@ router.get('/stats', async (req: Request, res: Response, next: NextFunction) => 
       prisma.waConversation.count({ where: { needsHumanAttention: true } }),
     ]);
 
-    const data = { total, open, closed, archived, needsHuman };
+    // Contagem por etapa do funil
+    const convsByStage = await prisma.$queryRaw`
+      SELECT ps.id as "stageId", ps.name as "stageName", COUNT(DISTINCT wc.id)::int as count
+      FROM "WaConversation" wc
+      JOIN "Contact" c ON c.id = wc."contactId"
+      JOIN "Deal" d ON d."contactId" = c.id AND d.status = 'OPEN'
+      JOIN "PipelineStage" ps ON ps.id = d."stageId"
+      GROUP BY ps.id, ps.name, ps."order"
+      ORDER BY ps."order" ASC
+    `;
+
+    const data = { total, open, closed, archived, needsHuman, byStage: convsByStage };
     statsCache = { data, expiresAt: Date.now() + 30_000 };
     res.json({ data });
   } catch (err) {

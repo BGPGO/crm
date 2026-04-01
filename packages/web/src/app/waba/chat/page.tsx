@@ -112,6 +112,7 @@ interface WaStats {
   closed: number;
   archived: number;
   needsHuman: number;
+  byStage?: Array<{ stageId: string; stageName: string; count: number }>;
 }
 
 interface WaTemplate {
@@ -463,6 +464,7 @@ export default function WabaChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [stageFilter, setStageFilter] = useState<string>("all");
   const [stats, setStats] = useState<WaStats>({
     total: 0,
     open: 0,
@@ -505,6 +507,7 @@ export default function WabaChatPage() {
         params.set("limit", "100");
         const s = query !== undefined ? query : searchQuery;
         if (s) params.set("search", s);
+        if (stageFilter && stageFilter !== "all") params.set("stageId", stageFilter);
 
         const res = await api.get<{
           data: WaConversation[];
@@ -517,7 +520,7 @@ export default function WabaChatPage() {
         setLoading(false);
       }
     },
-    [searchQuery]
+    [searchQuery, stageFilter]
   );
 
   // ── Fetch stats ──
@@ -893,6 +896,38 @@ export default function WabaChatPage() {
             <strong className="text-gray-400">{stats.closed}</strong> fechados
           </span>
         </div>
+
+        {/* Stage filter bar */}
+        {stats.byStage && stats.byStage.length > 0 && (
+          <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-1.5 flex items-center gap-1.5 overflow-x-auto">
+            <span className="text-[10px] text-gray-400 font-medium mr-1 flex-shrink-0">Funil:</span>
+            <button
+              onClick={() => setStageFilter("all")}
+              className={clsx(
+                "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
+                stageFilter === "all"
+                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
+              )}
+            >
+              Todas
+            </button>
+            {stats.byStage.map((s) => (
+              <button
+                key={s.stageId}
+                onClick={() => setStageFilter(stageFilter === s.stageId ? "all" : s.stageId)}
+                className={clsx(
+                  "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
+                  stageFilter === s.stageId
+                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
+                )}
+              >
+                {s.stageName} <span className="opacity-60">({s.count})</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Conversation list */}
         <div className="flex-1 overflow-y-auto">
