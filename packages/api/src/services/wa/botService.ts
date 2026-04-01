@@ -318,17 +318,36 @@ export class WaBotService {
 
     console.log(`[WaBot] Processando ${pendingMsgs.length} mensagem(ns) de ${phone}: "${combinedText.substring(0, 100)}..."`);
 
-    // 6. Load AI history
+    // 6. Load AI history (WaAIHistory + fallback para WaMessage se vazio)
     const aiHistory = await prisma.waAIHistory.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
       take: 20,
     });
 
-    const history: ChatMessage[] = aiHistory.map((h) => ({
-      role: h.role as 'user' | 'assistant',
-      content: h.content,
-    }));
+    const history: ChatMessage[] = [];
+
+    if (aiHistory.length > 0) {
+      // Histórico IA existente — usar direto
+      history.push(...aiHistory.map((h) => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content,
+      })));
+    } else {
+      // Sem histórico IA — carregar mensagens recentes do WaMessage como contexto.
+      // Isso cobre templates enviados pela automação (que não passam pelo bot).
+      const recentMessages = await prisma.waMessage.findMany({
+        where: { conversationId, body: { not: null } },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+      });
+      for (const msg of recentMessages) {
+        if (!msg.body || msg.body.startsWith('[')) continue; // pula markers como [CTA_MEETING_SENT]
+        const role: 'user' | 'assistant' = msg.direction === 'INBOUND' ? 'user' : 'assistant';
+        history.push({ role, content: msg.body });
+      }
+    }
+
     history.push({ role: 'user', content: combinedText });
 
     try {
