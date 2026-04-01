@@ -86,6 +86,19 @@ const CATEGORY_CONFIG: Record<
 
 const VARIABLE_HINTS: Record<string, string> = {
   "{{1}}": "Nome do contato",
+  "{{2}}": "Variavel 2 (ex: horario, empresa)",
+  "{{3}}": "Variavel 3",
+};
+
+// Hints específicos por prefixo do nome do template
+const TEMPLATE_VARIABLE_HINTS: Record<string, Record<string, string>> = {
+  lembrete_reuniao: {
+    "{{1}}": "Nome do contato",
+    "{{2}}": "Horario da reuniao (ex: 15:00)",
+  },
+  cadencia_contato: {
+    "{{1}}": "Nome do contato",
+  },
 };
 
 const LANGUAGE_OPTIONS = [
@@ -858,7 +871,7 @@ export default function TemplatesPage() {
 
                   {/* Body preview */}
                   <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1 whitespace-pre-wrap">
-                    {highlightVariables(truncate(tpl.body, 160))}
+                    {highlightVariables(truncate(tpl.body, 160), tpl.name)}
                   </p>
 
                   {/* Buttons preview */}
@@ -1118,9 +1131,9 @@ export default function TemplatesPage() {
                           <div key={v} className="flex flex-col gap-1">
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                               {v}
-                              {VARIABLE_HINTS[v] && (
+                              {(getHintsForTemplate(form.name)[v] || VARIABLE_HINTS[v]) && (
                                 <span className="ml-1 text-gray-400 dark:text-gray-500 font-normal">
-                                  ({VARIABLE_HINTS[v]})
+                                  ({getHintsForTemplate(form.name)[v] || VARIABLE_HINTS[v]})
                                 </span>
                               )}
                             </label>
@@ -1306,7 +1319,16 @@ export default function TemplatesPage() {
 
 // ── Variable highlighting helper ─────────────────────────────────────────────
 
-function highlightVariables(text: string): React.ReactNode {
+function getHintsForTemplate(templateName?: string): Record<string, string> {
+  if (!templateName) return VARIABLE_HINTS;
+  const match = Object.entries(TEMPLATE_VARIABLE_HINTS).find(([prefix]) =>
+    templateName.startsWith(prefix)
+  );
+  return match ? match[1] : VARIABLE_HINTS;
+}
+
+function highlightVariables(text: string, templateName?: string): React.ReactNode {
+  const hints = getHintsForTemplate(templateName);
   const parts = text.split(/(\{\{\d+\}\})/g);
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
@@ -1314,9 +1336,9 @@ function highlightVariables(text: string): React.ReactNode {
       <span
         key={i}
         className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-mono font-medium cursor-help"
-        title={VARIABLE_HINTS[part] || `Variavel ${part}`}
+        title={hints[part] || VARIABLE_HINTS[part] || `Variavel ${part}`}
       >
-        {part}
+        {hints[part] || part}
       </span>
     ) : (
       <span key={i}>{part}</span>
