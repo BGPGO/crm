@@ -112,17 +112,17 @@ function StatCard({
   valueClass?: string;
 }) {
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-gray-400 text-sm">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
         {icon}
         <span>{label}</span>
       </div>
-      <div className={clsx("text-2xl font-bold text-white", valueClass)}>
+      <div className={clsx("text-2xl font-bold text-gray-900 dark:text-white", valueClass)}>
         {typeof value === "number" ? fmt(value) : value}
       </div>
       {sub !== undefined && subLabel && (
         <div className="text-xs text-gray-500">
-          <span className="text-gray-300 font-medium">
+          <span className="text-gray-700 dark:text-gray-300 font-medium">
             {typeof sub === "number" ? fmt(sub) : sub}
           </span>{" "}
           {subLabel}
@@ -134,7 +134,7 @@ function StatCard({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
       {children}
     </h2>
   );
@@ -164,10 +164,10 @@ function FunnelBar({
 
   return (
     <div className="flex items-center gap-3">
-      <div className="w-40 text-sm text-gray-300 truncate shrink-0">
+      <div className="w-40 text-sm text-gray-700 dark:text-gray-300 truncate shrink-0">
         {stage.stageName}
       </div>
-      <div className="flex-1 h-5 bg-gray-700 rounded-full overflow-hidden">
+      <div className="flex-1 h-5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
         {stage.stageColor ? (
           <div
             className="h-full rounded-full transition-all duration-500"
@@ -186,7 +186,7 @@ function FunnelBar({
           />
         )}
       </div>
-      <div className="w-8 text-right text-sm font-medium text-white shrink-0">
+      <div className="w-8 text-right text-sm font-medium text-gray-900 dark:text-white shrink-0">
         {stage.count}
       </div>
     </div>
@@ -241,11 +241,11 @@ export default function WabaDashboardPage() {
   const maxPipelineCount = Math.max(...data.pipeline.map((s) => s.count), 1);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-900 p-6 space-y-6">
+    <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
             Dashboard WhatsApp Cloud API
           </h1>
           {lastUpdated && (
@@ -262,7 +262,7 @@ export default function WabaDashboardPage() {
         </div>
         <button
           onClick={() => { setLoading(true); load(); }}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           <RefreshCw size={14} />
           Atualizar
@@ -306,7 +306,7 @@ export default function WabaDashboardPage() {
       </div>
 
       {/* ── Funnel ── */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
         <SectionTitle>Funil de Vendas — Contatos com Conversa WA</SectionTitle>
         {data.pipeline.length === 0 ? (
           <p className="text-sm text-gray-500">Nenhum dado de funil disponível.</p>
@@ -326,7 +326,7 @@ export default function WabaDashboardPage() {
       {/* ── Messages + Automations ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Messages breakdown */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
           <SectionTitle>Mensagens (últimos 30 dias)</SectionTitle>
           <div className="space-y-3">
             <MessageRow
@@ -358,7 +358,7 @@ export default function WabaDashboardPage() {
         </div>
 
         {/* Automations */}
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
           <SectionTitle>Automações WABA</SectionTitle>
           <div className="space-y-3">
             <MessageRow
@@ -397,7 +397,7 @@ export default function WabaDashboardPage() {
       </div>
 
       {/* ── Cost breakdown ── */}
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
         <SectionTitle>Custo Estimado (últimos 30 dias)</SectionTitle>
         <div className="space-y-2 text-sm">
           <CostRow
@@ -422,7 +422,7 @@ export default function WabaDashboardPage() {
             <span className="font-medium text-emerald-400">R$0,00</span>
           </div>
           <div className="flex items-center gap-2 pt-2 border-t border-gray-700 font-semibold">
-            <span className="w-24 shrink-0 text-gray-300">Total estimado</span>
+            <span className="w-24 shrink-0 text-gray-700 dark:text-gray-300">Total estimado</span>
             <span className="flex-1" />
             <span className={clsx("text-lg", costColor(data.cost.total))}>
               {fmtCurrency(data.cost.total)}
@@ -450,8 +450,8 @@ function MessageRow({
   return (
     <div className="flex items-center gap-2 text-sm">
       {icon}
-      <span className="flex-1 text-gray-300">{label}</span>
-      <span className="font-semibold text-white">{fmt(value)}</span>
+      <span className="flex-1 text-gray-600 dark:text-gray-300">{label}</span>
+      <span className="font-semibold text-gray-900 dark:text-white">{fmt(value)}</span>
     </div>
   );
 }
@@ -476,10 +476,10 @@ function CostRow({
       <span className={clsx("w-24 shrink-0 font-medium", colorClass)}>
         {label}
       </span>
-      <span className="flex-1 text-gray-400">
+      <span className="flex-1 text-gray-500 dark:text-gray-400">
         {fmt(count)} {unit} &times; {fmtCurrency(rate)}
       </span>
-      <span className="font-semibold text-white">{fmtCurrency(total)}</span>
+      <span className="font-semibold text-gray-900 dark:text-white">{fmtCurrency(total)}</span>
     </div>
   );
 }
