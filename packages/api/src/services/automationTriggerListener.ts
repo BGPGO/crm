@@ -19,14 +19,11 @@ export function onTagRemoved(contactId: string, tagId: string): void {
 }
 
 export function onStageChanged(contactId: string, stageId: string, dealId: string): void {
-  // First: cancel any active cadence for the OLD stage
-  interruptCadenceOnStageChange(contactId, stageId).catch(
-    (err) => console.error('[AutomationTrigger] interruptCadenceOnStageChange failed:', err)
-  );
-  // Then: evaluate triggers for the NEW stage (may start a new cadence)
-  evaluateTriggers('STAGE_CHANGED', { contactId, metadata: { stageId, dealId } }).catch(
-    (err) => console.error('[AutomationTrigger] onStageChanged failed:', err)
-  );
+  // SERIALIZADO: primeiro cancela cadências antigas, DEPOIS cria novas.
+  // Se rodar em paralelo, o interrupt pode cancelar o enrollment recém-criado.
+  interruptCadenceOnStageChange(contactId, stageId)
+    .then(() => evaluateTriggers('STAGE_CHANGED', { contactId, metadata: { stageId, dealId } }))
+    .catch((err) => console.error('[AutomationTrigger] onStageChanged failed:', err));
 }
 
 export function onContactCreated(contactId: string): void {
