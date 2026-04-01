@@ -84,7 +84,7 @@ export class WhatsAppCloudClient {
       baseURL: GRAPH_API_BASE,
       headers: {
         'Authorization': `Bearer ${config.accessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
       },
     });
 

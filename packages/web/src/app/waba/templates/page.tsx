@@ -857,7 +857,7 @@ export default function TemplatesPage() {
                   </div>
 
                   {/* Body preview */}
-                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1 whitespace-pre-wrap">
                     {highlightVariables(truncate(tpl.body, 160))}
                   </p>
 
