@@ -60,10 +60,16 @@ function sortMappings(mappings: VariableMapping[]): VariableMapping[] {
   });
 }
 
+export interface ResolveResult {
+  parameters: Array<{ type: 'text'; text: string }>;
+  /** Se alguma variável não pôde ser resolvida (dado não existe). Não enviar o template. */
+  missingVars: Array<{ var: string; source: string }>;
+}
+
 export async function resolveTemplateVariables(
   mappings: VariableMapping[] | null | undefined,
   context: ResolveContext,
-): Promise<Array<{ type: 'text'; text: string }>> {
+): Promise<ResolveResult> {
   // Fallback se não há mapeamento configurado
   const effectiveMappings: VariableMapping[] =
     mappings && mappings.length > 0
@@ -139,6 +145,7 @@ export async function resolveTemplateVariables(
   };
 
   const results: Array<{ type: 'text'; text: string }> = [];
+  const missingVars: Array<{ var: string; source: string }> = [];
 
   for (const mapping of sorted) {
     const source = mapping.source || '';
@@ -202,8 +209,15 @@ export async function resolveTemplateVariables(
       value = '';
     }
 
+    // Se variável ficou vazia e não é custom/contact.name (que pode ser vazio OK),
+    // marcar como missing pra o chamador decidir se pula o envio
+    if (!value && !source.startsWith('custom.')) {
+      missingVars.push({ var: mapping.var, source });
+      console.warn(`[templateVariableResolver] Variável ${mapping.var} (${source}) não resolvida — dado não encontrado`);
+    }
+
     results.push({ type: 'text', text: value });
   }
 
-  return results;
+  return { parameters: results, missingVars };
 }

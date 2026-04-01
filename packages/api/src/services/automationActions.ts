@@ -994,13 +994,19 @@ async function sendWaTemplate(
     select: { variableMapping: true },
   });
 
-  const parameters = await resolveTemplateVariables(
+  const resolved = await resolveTemplateVariables(
     templateRecord?.variableMapping as any,
-    { contactId, dealId: undefined }, // dealId será resolvido internamente pelo contactId
+    { contactId, dealId: undefined },
   );
 
-  const components = parameters.length > 0
-    ? [{ type: 'body', parameters }]
+  // Se tem variáveis obrigatórias faltando (ex: meeting.time sem reunião), pula o envio
+  if (resolved.missingVars.length > 0) {
+    const missing = resolved.missingVars.map(v => `${v.var}=${v.source}`).join(', ');
+    return { success: false, output: `Template ${config.templateName} não enviado — dados faltando: ${missing}` };
+  }
+
+  const components = resolved.parameters.length > 0
+    ? [{ type: 'body', parameters: resolved.parameters }]
     : [];
 
   // Send template via WaMessageService
