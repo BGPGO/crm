@@ -41,6 +41,7 @@ function formatDate(date: Date): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
   });
 }
 
@@ -49,6 +50,7 @@ function formatTime(date: Date): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: 'America/Sao_Paulo',
   });
 }
 
@@ -193,7 +195,7 @@ export async function resolveTemplateVariables(
           } else if (sub === 'time') {
             value = formatTime(dt);
           } else if (sub === 'datetime') {
-            const day = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const day = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
             value = `${day} às ${formatTime(dt)}`;
           } else {
             value = dt.toISOString();
