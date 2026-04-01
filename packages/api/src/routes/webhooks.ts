@@ -4,6 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onLeadCreated } from '../services/leadQualificationEngine';
+import { onStageChanged } from '../services/automationTriggerListener';
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 
@@ -326,6 +327,12 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       campaign: campaignRef ?? null,
       tracking: { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, referrer, landingPage },
     });
+
+    // Trigger automations for the new deal entering the first stage (STAGE_CHANGED)
+    // Só dispara se o deal foi criado agora (não duplicata)
+    if (!recentDeal) {
+      onStageChanged(contact.id, firstStage.id, deal.id);
+    }
 
     // Trigger lead qualification engine (checks Calendly, activates SDR IA if needed)
     onLeadCreated(contact.id, deal.id).catch((err: unknown) => {
