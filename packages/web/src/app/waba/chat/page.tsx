@@ -102,8 +102,18 @@ interface WaConversation {
   windowExpiresAt: string | null;
   lastMessageAt: string | null;
   messages: WaMessage[];
+  dealStage?: { name: string; color: string | null } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface AutomationInfo {
+  id: string;
+  status: string;
+  automationName: string;
+  currentStep: { order: number; actionType: string; label: string } | null;
+  totalSteps: number;
+  nextActionAt: string | null;
 }
 
 interface WaStats {
@@ -479,6 +489,7 @@ export default function WabaChatPage() {
   const [showDetails, setShowDetails] = useState(true);
   const [contactDetail, setContactDetail] = useState<ContactDetail | null>(null);
   const [dealSummary, setDealSummary] = useState<DealSummary | null>(null);
+  const [automationInfo, setAutomationInfo] = useState<AutomationInfo | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showNewConv, setShowNewConv] = useState(false);
   const [showSlashMenu, setShowSlashMenu] = useState(false);
@@ -623,6 +634,7 @@ export default function WabaChatPage() {
   useEffect(() => {
     if (!selectedId) {
       setDealSummary(null);
+      setAutomationInfo(null);
       return;
     }
 
@@ -634,6 +646,11 @@ export default function WabaChatPage() {
         setDealSummary(openDeal);
       })
       .catch(() => setDealSummary(null));
+
+    api
+      .get<{ data: AutomationInfo | null }>(`/wa/conversations/${selectedId}/automation`)
+      .then((res) => setAutomationInfo(res.data))
+      .catch(() => setAutomationInfo(null));
   }, [selectedId]);
 
   // ── Auto-scroll to bottom ──
@@ -1018,9 +1035,26 @@ export default function WabaChatPage() {
                           {relativeTime(lastMsgTime)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
-                        {displayPhone}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
+                          {displayPhone}
+                        </p>
+                        {conv.dealStage && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0 rounded text-[9px] font-semibold flex-shrink-0 whitespace-nowrap"
+                            style={{
+                              backgroundColor: `${conv.dealStage.color || "#6B7280"}20`,
+                              color: conv.dealStage.color || "#6B7280",
+                            }}
+                          >
+                            <span
+                              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: conv.dealStage.color || "#6B7280" }}
+                            />
+                            {conv.dealStage.name}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <p
                           className={clsx(
@@ -1699,12 +1733,83 @@ export default function WabaChatPage() {
                   </div>
                 )}
                 <a
-                  href="/pipeline"
+                  href={`/deals/${dealSummary.id}`}
                   className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
                 >
                   <ExternalLink size={11} />
-                  Ver no pipeline
+                  Ver negociacao
                 </a>
+              </div>
+            </div>
+          )}
+
+          {/* ── Automation Info ── */}
+          {automationInfo && (
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+              <h4 className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                Automacao
+              </h4>
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
+                  {automationInfo.automationName}
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Status</span>
+                  <span
+                    className={clsx(
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold",
+                      automationInfo.status === "ACTIVE"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "w-1.5 h-1.5 rounded-full",
+                        automationInfo.status === "ACTIVE" ? "bg-green-500 animate-pulse" : "bg-yellow-500"
+                      )}
+                    />
+                    {automationInfo.status === "ACTIVE" ? "Ativa" : "Pausada"}
+                  </span>
+                </div>
+                {automationInfo.currentStep && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Etapa</span>
+                    <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                      {automationInfo.currentStep.order}/{automationInfo.totalSteps} — {automationInfo.currentStep.label}
+                    </span>
+                  </div>
+                )}
+                {automationInfo.nextActionAt && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">Proxima msg</span>
+                    <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                      {(() => {
+                        const d = new Date(automationInfo.nextActionAt);
+                        const now = new Date();
+                        const diffMs = d.getTime() - now.getTime();
+                        if (diffMs < 0) return "Processando...";
+                        const diffMin = Math.floor(diffMs / 60000);
+                        if (diffMin < 60) return `em ${diffMin}min`;
+                        const diffH = Math.floor(diffMin / 60);
+                        if (diffH < 24) return `em ${diffH}h${diffMin % 60 > 0 ? ` ${diffMin % 60}min` : ""}`;
+                        const diffD = Math.floor(diffH / 24);
+                        return `em ${diffD}d ${diffH % 24}h`;
+                      })()}
+                    </span>
+                  </div>
+                )}
+                {/* Progress bar */}
+                {automationInfo.currentStep && (
+                  <div className="mt-1">
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${Math.round((automationInfo.currentStep.order / automationInfo.totalSteps) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

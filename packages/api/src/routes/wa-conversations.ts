@@ -113,10 +113,27 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Compute window status and enrich response
     const now = new Date();
+
+    // Batch-fetch latest OPEN deal + stage for each contact
+    const contactIdsForStage = data.map(c => c.contactId).filter(Boolean) as string[];
+    const dealsByContact: Record<string, { id: string; stageId: string; stage: { name: string; color: string | null } | null }> = {};
+    if (contactIdsForStage.length > 0) {
+      const deals = await prisma.deal.findMany({
+        where: { contactId: { in: contactIdsForStage }, status: 'OPEN' },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['contactId'],
+        select: { id: true, contactId: true, stageId: true, stage: { select: { name: true, color: true } } },
+      });
+      for (const d of deals) {
+        if (d.contactId) dealsByContact[d.contactId] = d;
+      }
+    }
+
     const enriched = data.map((c) => ({
       ...c,
       unreadCount: unreadCounts[c.id] || 0,
       windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
+      dealStage: c.contactId ? dealsByContact[c.contactId]?.stage ?? null : null,
     }));
 
     res.json({
@@ -513,6 +530,50 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     });
 
     res.json({ data: allDeals });
+  } catch (err) { next(err); }
+});
+
+// ─── GET /api/wa/conversations/:id/automation — Active automation enrollments ─
+
+router.get('/:id/automation', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const conv = await prisma.waConversation.findUnique({
+      where: { id: req.params.id },
+      select: { contactId: true },
+    });
+    if (!conv?.contactId) return res.json({ data: null });
+
+    const enrollment = await prisma.automationEnrollment.findFirst({
+      where: { contactId: conv.contactId, status: { in: ['ACTIVE', 'PAUSED'] } },
+      orderBy: { enrolledAt: 'desc' },
+      include: {
+        automation: { select: { name: true } },
+        currentStep: { select: { order: true, actionType: true, config: true } },
+      },
+    });
+
+    if (!enrollment) return res.json({ data: null });
+
+    const totalSteps = await prisma.automationStep.count({
+      where: { automationId: enrollment.automationId },
+    });
+
+    res.json({
+      data: {
+        id: enrollment.id,
+        status: enrollment.status,
+        automationName: enrollment.automation.name,
+        currentStep: enrollment.currentStep
+          ? {
+              order: enrollment.currentStep.order,
+              actionType: enrollment.currentStep.actionType,
+              label: (enrollment.currentStep.config as any)?._label || enrollment.currentStep.actionType,
+            }
+          : null,
+        totalSteps,
+        nextActionAt: enrollment.nextActionAt,
+      },
+    });
   } catch (err) { next(err); }
 });
 
