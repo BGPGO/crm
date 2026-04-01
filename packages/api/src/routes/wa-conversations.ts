@@ -289,11 +289,12 @@ router.get('/dashboard', async (req: Request, res: Response, next: NextFunction)
       ORDER BY ps."order" ASC
     `;
 
-    // ── Meetings ──
+    // ── Meetings (apenas de contatos com WaConversation = fluxo WABA) ──
+    const waContactFilter = { contact: { waConversations: { some: {} } } };
     const [meetingsTotal, meetingsThisWeek, meetingsToday] = await Promise.all([
-      prisma.calendlyEvent.count({ where: { status: 'active' } }),
-      prisma.calendlyEvent.count({ where: { status: 'active', createdAt: { gte: startOfWeek } } }),
-      prisma.calendlyEvent.count({ where: { status: 'active', startTime: { gte: startOfToday, lte: endOfToday } } }),
+      prisma.calendlyEvent.count({ where: { status: 'active', ...waContactFilter } }),
+      prisma.calendlyEvent.count({ where: { status: 'active', createdAt: { gte: startOfWeek }, ...waContactFilter } }),
+      prisma.calendlyEvent.count({ where: { status: 'active', startTime: { gte: startOfToday, lte: endOfToday }, ...waContactFilter } }),
     ]);
 
     // ── Messages last 30 days ──
