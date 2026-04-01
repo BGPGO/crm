@@ -243,6 +243,7 @@ router.put('/:id/steps', async (req: Request, res: Response, next: NextFunction)
     // Validate actionType for every step before touching the DB
     const validActionTypes: string[] = [
       'ADD_TAG', 'REMOVE_TAG', 'SEND_EMAIL', 'SEND_WHATSAPP', 'SEND_WHATSAPP_AI',
+      'SEND_WA_TEMPLATE',
       'WAIT', 'UPDATE_FIELD', 'MOVE_PIPELINE_STAGE', 'CONDITION', 'MARK_LOST',
       'WAIT_FOR_RESPONSE',
     ];
