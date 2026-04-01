@@ -63,10 +63,6 @@ const router = Router();
 // ─── Auth routes (no auth middleware needed for login/logout) ─────────────────
 router.use('/auth', authRouter);
 
-// ─── Health check (public, sem auth) — retorna versão do código em produção ──
-router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', build: '2026-04-01-v2', uptime: Math.floor(process.uptime()) });
-});
 
 // ─── Public routes (no auth — tracking pixels, unsubscribe, webhooks) ────────
 router.use('/email-tracking', emailTrackingRouter);  // /api/email-tracking/t/...
