@@ -289,7 +289,6 @@ export async function processEnrollments(): Promise<{ processed: number }> {
                 where: {
                   enrollmentId: enrollment.id,
                   actionType: { in: ['SEND_WA_TEMPLATE', 'SEND_WHATSAPP', 'SEND_WHATSAPP_AI'] },
-                  success: true,
                 },
                 select: { id: true },
               });
