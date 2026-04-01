@@ -199,6 +199,12 @@ export class WaMessageRouter {
           // 5. Open 24h window via WindowService
           await WindowService.openWindow(conversation.id, inboundAt);
 
+          // 5b. Mark responded in followUpState (reset cold contact counter)
+          await prisma.waFollowUpState.updateMany({
+            where: { conversationId: conversation.id },
+            data: { respondedSinceLastBot: true },
+          });
+
           // 6. Update conversation timestamps
           await prisma.waConversation.update({
             where: { id: conversation.id },
