@@ -11,6 +11,20 @@ export class WindowService {
     return conv.windowExpiresAt > new Date();
   }
 
+  /**
+   * Check if window is open with safety margin (default 30min).
+   * Use this for smart-send decisions to avoid race conditions
+   * where the window closes between the check and actual send.
+   */
+  static async isWindowOpenSafe(conversationId: string, marginMs = 30 * 60 * 1000): Promise<boolean> {
+    const conv = await prisma.waConversation.findUnique({
+      where: { id: conversationId },
+      select: { windowExpiresAt: true },
+    });
+    if (!conv?.windowExpiresAt) return false;
+    return conv.windowExpiresAt.getTime() > Date.now() + marginMs;
+  }
+
   /** Open/extend 24h window from inbound message timestamp */
   static async openWindow(conversationId: string, inboundAt: Date): Promise<void> {
     const expiresAt = new Date(inboundAt.getTime() + 24 * 60 * 60 * 1000);

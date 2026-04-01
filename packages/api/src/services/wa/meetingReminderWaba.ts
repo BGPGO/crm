@@ -258,8 +258,45 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     },
   ];
 
-  // Enviar via WaMessageService
+  // ── Smart Send: texto livre se janela 24h aberta, template se fechada ──
+  const { WindowService } = await import('./windowService');
+  const windowOpen = await WindowService.isWindowOpenSafe(waConversation.id);
+
   try {
+    if (windowOpen) {
+      // Janela aberta → enviar corpo do template como texto livre (custo zero)
+      const templateBody = await prisma.cloudWaTemplate.findFirst({
+        where: { name: templateName, language: 'pt_BR' },
+        select: { body: true },
+      });
+
+      if (templateBody?.body) {
+        let freeText = templateBody.body
+          .replace('{{1}}', contactName)
+          .replace('{{2}}', meetingTime);
+
+        try {
+          await WaMessageService.sendText(
+            waConversation.id,
+            freeText,
+            { senderType: 'WA_SYSTEM' },
+          );
+
+          await registerSent('reminder');
+          console.log(`[waba-meeting-reminder] Smart send: texto livre (janela aberta) — lembrete ${followUp.stepNumber}min para ${meeting.contact.phone}`);
+          return;
+        } catch (textErr: any) {
+          const metaCode = textErr?.metaCode || textErr?.response?.data?.error?.code;
+          if (metaCode === 131047) {
+            console.log(`[waba-meeting-reminder] Smart send fallback: janela fechou, enviando template`);
+          } else {
+            throw textErr;
+          }
+        }
+      }
+    }
+
+    // Fallback: enviar template normalmente
     await WaMessageService.sendTemplate(
       waConversation.id,
       templateName,
@@ -274,7 +311,7 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     );
 
     await registerSent('reminder');
-    console.log(`[waba-meeting-reminder] Lembrete ${followUp.stepNumber}min enviado para ${meeting.contact.phone} (meeting ${followUp.meetingId})`);
+    console.log(`[waba-meeting-reminder] Lembrete ${followUp.stepNumber}min enviado via template para ${meeting.contact.phone} (meeting ${followUp.meetingId})`);
   } catch (sendErr) {
     // Falhou — reverter para FAILED
     await prisma.scheduledFollowUp.update({

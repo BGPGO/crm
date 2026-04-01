@@ -1061,8 +1061,58 @@ async function sendWaTemplate(
     ? [{ type: 'body', parameters: resolved.parameters }]
     : [];
 
-  // Send template via WaMessageService
+  // ── Smart Send: texto livre se janela 24h aberta, template se fechada ──
   const { WaMessageService } = await import('./wa/messageService');
+  const { WindowService } = await import('./wa/windowService');
+
+  const windowOpen = await WindowService.isWindowOpenSafe(conversation.id);
+
+  if (windowOpen) {
+    // Janela aberta → enviar corpo do template como texto livre (custo zero)
+    const templateBody = await prisma.cloudWaTemplate.findFirst({
+      where: { name: config.templateName, language },
+      select: { body: true },
+    });
+
+    if (templateBody?.body) {
+      // Substituir {{1}}, {{2}}, ... pelos valores resolvidos
+      let freeText = templateBody.body;
+      resolved.parameters.forEach((param: { type: string; text: string }, idx: number) => {
+        freeText = freeText.replace(`{{${idx + 1}}}`, param.text);
+      });
+
+      try {
+        const result = await WaMessageService.sendText(
+          conversation.id,
+          freeText,
+          { senderType: 'WA_BOT' },
+        );
+
+        console.log(`[sendWaTemplate] Smart send: texto livre enviado (janela aberta) — economizou template ${config.templateName}`);
+        return {
+          success: true,
+          output: {
+            phone,
+            conversationId: conversation.id,
+            templateName: config.templateName,
+            language,
+            smartSend: 'free_text',
+            messageId: result?.id || null,
+          },
+        };
+      } catch (err: any) {
+        // Erro 131047 = janela fechou entre o check e o envio → fallback pra template
+        const metaCode = err?.metaCode || err?.response?.data?.error?.code;
+        if (metaCode === 131047) {
+          console.log(`[sendWaTemplate] Smart send fallback: janela fechou, enviando template ${config.templateName}`);
+        } else {
+          throw err; // Erro diferente — propagar
+        }
+      }
+    }
+  }
+
+  // Fallback: enviar template normalmente (janela fechada ou smart send falhou)
   const result = await WaMessageService.sendTemplate(
     conversation.id,
     config.templateName,
@@ -1078,6 +1128,7 @@ async function sendWaTemplate(
       conversationId: conversation.id,
       templateName: config.templateName,
       language,
+      smartSend: windowOpen ? 'fallback_template' : 'template',
       messageId: result?.id || null,
     },
   };
