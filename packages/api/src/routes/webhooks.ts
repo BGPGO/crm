@@ -4,7 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onLeadCreated } from '../services/leadQualificationEngine';
-import { onStageChanged } from '../services/automationTriggerListener';
+import { onStageChanged, onContactCreated } from '../services/automationTriggerListener';
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 
@@ -328,9 +328,9 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       tracking: { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, referrer, landingPage },
     });
 
-    // Trigger automations for the new deal entering the first stage (STAGE_CHANGED)
-    // Só dispara se o deal foi criado agora (não duplicata)
+    // Trigger automations para o novo lead
     if (!recentDeal) {
+      onContactCreated(contact.id);
       onStageChanged(contact.id, firstStage.id, deal.id);
     }
 
