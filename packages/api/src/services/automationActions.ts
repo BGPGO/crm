@@ -16,6 +16,7 @@ interface ActionResult {
   output?: any;
   conditionResult?: boolean; // for CONDITION type
   nextActionAt?: Date; // returned by WAIT action so the engine uses the fresh value
+  retry?: boolean; // se true, engine não avança — tenta de novo no próximo ciclo
 }
 
 // ─── Action Executor ─────────────────────────────────────────────────────────
@@ -966,6 +967,26 @@ async function sendWaTemplate(
     return { success: false, output: 'templateName is required in action config' };
   }
 
+  // Verificar se o template está APPROVED antes de tentar enviar.
+  // Se está PENDING (em aprovação), retorna retry pra manter o step em espera.
+  const language = config.language || 'pt_BR';
+  const templateStatus = await prisma.cloudWaTemplate.findFirst({
+    where: { name: config.templateName, language },
+    select: { status: true },
+  });
+
+  if (!templateStatus) {
+    return { success: false, output: `Template "${config.templateName}" não encontrado no banco` };
+  }
+
+  if (templateStatus.status !== 'APPROVED') {
+    return {
+      success: false,
+      retry: true, // sinaliza pro engine NÃO avançar — tentar de novo no próximo ciclo
+      output: `Template "${config.templateName}" não está aprovado (status: ${templateStatus.status}) — aguardando aprovação`,
+    };
+  }
+
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
   });
@@ -975,7 +996,6 @@ async function sendWaTemplate(
   }
 
   const phone = normalizePhone(contact.phone);
-  const language = config.language || 'pt_BR';
 
   // Check opt-out on WaConversation
   const { phoneVariants } = await import('../utils/phoneNormalize');

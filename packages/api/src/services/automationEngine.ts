@@ -350,6 +350,18 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         generalContext: (enrollment.automation.triggerConfig as any)?.generalContext || '',
       });
 
+      // Se a action pede retry (ex: template PENDING), não avança — tenta de novo no próximo ciclo
+      if (result.retry) {
+        const retryAt = new Date(Date.now() + 5 * 60 * 1000); // tenta de novo em 5 min
+        await prisma.automationEnrollment.update({
+          where: { id: enrollment.id },
+          data: { nextActionAt: retryAt },
+        });
+        console.log(`[AutomationEngine] Retry solicitado — reagendado pra ${retryAt.toISOString()} (enrollment ${enrollment.id}): ${result.output}`);
+        processed++;
+        continue;
+      }
+
       // Track WhatsApp sends for per-cycle throttle (volume is registered inside the actions themselves)
       if (isWhatsAppAction && result.success) {
         whatsappSentThisCycle++;
