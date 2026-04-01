@@ -5,6 +5,7 @@ import { MessageSender } from '@prisma/client';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { canSend, registerSent } from './dailyLimitService';
 import { isBusinessHours, msUntilNextBusinessHour, BYPASS_SDR_BUSINESS_HOURS } from '../utils/sendingWindow';
+import { evaluateTriggers } from './automationEngine';
 
 // Re-export for existing consumers
 export { normalizePhone };
@@ -466,6 +467,18 @@ async function delayedCalendlyCheck(contactId: string, dealId: string): Promise<
 
 export async function onLeadCreated(contactId: string, dealId: string): Promise<void> {
   console.log(`[LeadQualification] Lead criado: contact=${contactId} deal=${dealId}`);
+
+  // Disparar automações CONTACT_CREATED + STAGE_CHANGED para cadências WABA
+  // Feito aqui (e não só no webhook) pra garantir que funciona independente do deploy do webhook
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { stageId: true } });
+  evaluateTriggers('CONTACT_CREATED', { contactId }).catch(
+    (err) => console.error('[LeadQualification] evaluateTriggers CONTACT_CREATED failed:', err)
+  );
+  if (deal?.stageId) {
+    evaluateTriggers('STAGE_CHANGED', { contactId, metadata: { stageId: deal.stageId, dealId } }).catch(
+      (err) => console.error('[LeadQualification] evaluateTriggers STAGE_CHANGED failed:', err)
+    );
+  }
 
   // Check if lead qualification is enabled
   const config = await prisma.whatsAppConfig.findFirst();
