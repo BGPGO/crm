@@ -2,9 +2,11 @@ import prisma from '../lib/prisma';
 import { executeAction } from './automationActions';
 
 // ─── Throttle config for WhatsApp sends ─────────────────────────────────────
-const WHATSAPP_MAX_PER_CYCLE = 10; // max WhatsApp messages per cron tick
-const WHATSAPP_MIN_DELAY_S = 30;   // min seconds between sends
-const WHATSAPP_MAX_DELAY_S = 90;   // max seconds between sends
+// WABA (Cloud API) não tem risco de ban — Meta gerencia rate limits via tier.
+// Throttle mantido apenas pra não sobrecarregar a API da Meta de uma vez.
+const WHATSAPP_MAX_PER_CYCLE = 50;  // max WhatsApp messages per cron tick
+const WHATSAPP_MIN_DELAY_S = 3;     // min seconds between sends
+const WHATSAPP_MAX_DELAY_S = 8;     // max seconds between sends
 
 // ─── Trigger Evaluation ──────────────────────────────────────────────────────
 
