@@ -486,7 +486,7 @@ export class WaBotService {
         { role: 'system', content: systemMessage },
         ...history,
       ],
-      max_tokens: 400,
+      max_tokens: 200,
       temperature: 0.7,
     });
 
@@ -568,7 +568,7 @@ export class WaBotService {
           await client.sendCtaUrl(
             phone,
             'Clique abaixo para escolher o melhor horário:',
-            '📅 Agendar Diagnóstico',
+            'Agendar Reuniao',
             meetingLink,
           );
           console.log(`[WaBot] CTA URL button enviado para ${phone}`);
