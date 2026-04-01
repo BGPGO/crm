@@ -254,7 +254,7 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
       // Cadence automations: check feature flag + business hours for WhatsApp
       const isCadence = (enrollment.automation.triggerConfig as any)?.isCadence === true;
-      const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI';
+      const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI' || step.actionType === 'SEND_WA_TEMPLATE';
 
       if (isCadence) {
         // Check if cadences are enabled globally
