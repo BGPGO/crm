@@ -443,31 +443,48 @@ async function movePipelineStage(
   contactId: string,
   config: { stageId: string }
 ): Promise<ActionResult> {
+  // Buscar a etapa alvo pra saber a ordem
+  const targetStage = await prisma.pipelineStage.findUnique({
+    where: { id: config.stageId },
+    select: { order: true, pipelineId: true },
+  });
+
   // Find the contact's active deals and move them to the target stage
   const deals = await prisma.deal.findMany({
     where: {
       contactId,
       status: 'OPEN',
     },
+    include: { stage: { select: { order: true } } },
   });
 
   if (deals.length === 0) {
     return { success: false, output: 'No active deals found for contact' };
   }
 
+  const moved: string[] = [];
+  const skipped: string[] = [];
+
   for (const deal of deals) {
+    // Não regredir deals que já estão em etapas posteriores
+    if (targetStage && deal.stage && deal.stage.order > targetStage.order) {
+      skipped.push(deal.id);
+      continue;
+    }
     await prisma.deal.update({
       where: { id: deal.id },
       data: { stageId: config.stageId },
     });
+    moved.push(deal.id);
   }
 
   return {
     success: true,
     output: {
       stageId: config.stageId,
-      dealsUpdated: deals.length,
-      dealIds: deals.map((d) => d.id),
+      dealsUpdated: moved.length,
+      dealIds: moved,
+      ...(skipped.length > 0 ? { skippedDealIds: skipped, skippedReason: 'deal já está em etapa posterior' } : {}),
     },
   };
 }
