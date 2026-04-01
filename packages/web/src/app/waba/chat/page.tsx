@@ -479,6 +479,8 @@ export default function WabaChatPage() {
   const [dealSummary, setDealSummary] = useState<DealSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showNewConv, setShowNewConv] = useState(false);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashFilter, setSlashFilter] = useState("");
   const [newConvSearch, setNewConvSearch] = useState("");
   const [newConvContacts, setNewConvContacts] = useState<Array<{ id: string; name: string; phone: string | null; organization?: { name: string } | null }>>([]);
   const [newConvLoading, setNewConvLoading] = useState(false);
@@ -1300,11 +1302,22 @@ export default function WabaChatPage() {
               /* Window OPEN: regular text input */
               <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-3 flex-shrink-0">
                 <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                  <div className="relative flex-1">
                   <textarea
                     ref={textareaRef}
                     value={inputText}
                     onChange={(e) => {
-                      setInputText(e.target.value);
+                      const val = e.target.value;
+                      setInputText(val);
+                      // Detect "/" at start to open template menu
+                      if (val === "/") {
+                        setShowSlashMenu(true);
+                        setSlashFilter("");
+                      } else if (val.startsWith("/") && showSlashMenu) {
+                        setSlashFilter(val.slice(1).toLowerCase());
+                      } else {
+                        setShowSlashMenu(false);
+                      }
                       if (textareaRef.current) {
                         textareaRef.current.style.height = "auto";
                         textareaRef.current.style.height =
@@ -1312,20 +1325,58 @@ export default function WabaChatPage() {
                       }
                     }}
                     onKeyDown={(e) => {
+                      if (e.key === "Escape" && showSlashMenu) {
+                        setShowSlashMenu(false);
+                        return;
+                      }
                       if (
                         e.key === "Enter" &&
-                        (e.ctrlKey || e.metaKey)
+                        (e.ctrlKey || e.metaKey) &&
+                        !showSlashMenu
                       ) {
                         e.preventDefault();
                         handleSend();
                       }
                     }}
-                    placeholder="Digite sua mensagem... (Ctrl+Enter para enviar)"
-                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-400"
+                    placeholder="Digite / para templates... (Ctrl+Enter para enviar)"
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-400"
                     disabled={sending}
                     rows={1}
                     style={{ maxHeight: "120px" }}
                   />
+                  {/* Slash menu — template picker */}
+                  {showSlashMenu && (
+                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-64 overflow-y-auto z-50">
+                      <div className="p-2 border-b border-gray-100 dark:border-gray-700">
+                        <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase px-2">Templates aprovados</p>
+                      </div>
+                      {templates
+                        .filter((t) => t.status === "APPROVED" && (!slashFilter || t.name.includes(slashFilter) || (t.body || "").toLowerCase().includes(slashFilter)))
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setShowSlashMenu(false);
+                              setInputText("");
+                              handleSendTemplate(t);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-green-600 dark:text-green-400">{t.name}</span>
+                              {t.name.startsWith("cadencia_") && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded font-medium">Automação</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{t.body?.replace(/\{\{1\}\}/g, selectedConv?.contact?.name || "Nome") || "..."}</p>
+                          </button>
+                        ))}
+                      {templates.filter((t) => t.status === "APPROVED" && (!slashFilter || t.name.includes(slashFilter))).length === 0 && (
+                        <p className="px-4 py-3 text-xs text-gray-400 text-center">Nenhum template aprovado encontrado</p>
+                      )}
+                    </div>
+                  )}
+                  </div>
                   <button
                     onClick={handleSend}
                     disabled={!inputText.trim() || sending}
