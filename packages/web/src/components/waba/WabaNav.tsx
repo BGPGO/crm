@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageCircle, LayoutTemplate, Send, Settings } from "lucide-react";
+import { MessageCircle, LayoutTemplate, Send, Settings, Workflow } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
   { label: "Chat", href: "/waba/chat", icon: MessageCircle },
   { label: "Templates", href: "/waba/templates", icon: LayoutTemplate },
   { label: "Broadcasts", href: "/waba/broadcasts", icon: Send },
+  { label: "Automacoes", href: "/waba/automacoes", icon: Workflow },
   { label: "Configuracao", href: "/waba/config", icon: Settings },
 ] as const;
 

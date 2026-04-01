@@ -1,6 +1,7 @@
 import prisma from '../../lib/prisma';
 import { WindowService } from './windowService';
 import { WaBotService } from './botService';
+import { StageOrchestrator } from './stageOrchestrator';
 import { isOptOutMessage } from '../../utils/optOut';
 
 // ─── Deduplication (in-memory Set with 5-min TTL) ────────────────────────────
@@ -204,6 +205,11 @@ export class WaMessageRouter {
             where: { conversationId: conversation.id },
             data: { respondedSinceLastBot: true },
           });
+
+          // 5c. Auto-advance stage: Lead/Contato Feito → Marcar Reunião
+          StageOrchestrator.handleLeadResponse(conversation.id).catch(err =>
+            console.error(`[WaMessageRouter] Erro no stage orchestrator:`, err)
+          );
 
           // 6. Update conversation timestamps
           await prisma.waConversation.update({

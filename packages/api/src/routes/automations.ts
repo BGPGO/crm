@@ -43,6 +43,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const where: Record<string, unknown> = {};
     if (status) where.status = status as string;
 
+    const includeSteps = req.query.includeSteps === 'true';
+
     const [total, data] = await Promise.all([
       prisma.automation.count({ where }),
       prisma.automation.findMany({
@@ -52,6 +54,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { updatedAt: 'desc' },
         include: {
           _count: { select: { steps: true, enrollments: true } },
+          ...(includeSteps ? { steps: { orderBy: { order: 'asc' as const } } } : {}),
         },
       }),
     ]);
