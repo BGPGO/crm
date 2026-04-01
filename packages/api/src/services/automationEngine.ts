@@ -279,17 +279,40 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         if (isWhatsAppAction) {
           const { isBusinessHours, msUntilNextBusinessHour } = await import('../utils/sendingWindow');
           if (!isBusinessHours()) {
-            // Schedule for next business hour + random jitter (0-120 min)
-            // to SPREAD messages throughout the day instead of bursting at 8am
-            const msUntil = msUntilNextBusinessHour();
-            const jitterMs = Math.floor(Math.random() * 120 * 60 * 1000); // 0-2 hours
-            const nextBH = new Date(Date.now() + msUntil + jitterMs);
-            await prisma.automationEnrollment.update({
-              where: { id: enrollment.id },
-              data: { nextActionAt: nextBH },
-            });
-            console.log(`[AutomationEngine] Cadência WhatsApp fora do horário — reagendado para ${nextBH.toISOString()} com jitter +${Math.round(jitterMs / 60000)}min (enrollment ${enrollment.id})`);
-            continue;
+            // Exceção: primeiro template WABA da cadência pode sair fora do horário.
+            // Lead acabou de entrar (ex: meia-noite) e o primeiro contato deve ser imediato.
+            // Identificamos como "primeiro" se não existe nenhum log de envio WhatsApp
+            // bem-sucedido para esse enrollment.
+            let isFirstWaTemplate = false;
+            if (step.actionType === 'SEND_WA_TEMPLATE') {
+              const previousWaSend = await prisma.automationLog.findFirst({
+                where: {
+                  enrollmentId: enrollment.id,
+                  actionType: { in: ['SEND_WA_TEMPLATE', 'SEND_WHATSAPP', 'SEND_WHATSAPP_AI'] },
+                  success: true,
+                },
+                select: { id: true },
+              });
+              isFirstWaTemplate = !previousWaSend;
+            }
+
+            if (isFirstWaTemplate) {
+              console.log(`[AutomationEngine] Primeiro template WABA da cadência — enviando fora do horário (enrollment ${enrollment.id})`);
+              // Segue para envio imediato, sem reagendar
+            } else {
+              // Follow-ups respeitam horário comercial
+              // Schedule for next business hour + random jitter (0-120 min)
+              // to SPREAD messages throughout the day instead of bursting at 8am
+              const msUntil = msUntilNextBusinessHour();
+              const jitterMs = Math.floor(Math.random() * 120 * 60 * 1000); // 0-2 hours
+              const nextBH = new Date(Date.now() + msUntil + jitterMs);
+              await prisma.automationEnrollment.update({
+                where: { id: enrollment.id },
+                data: { nextActionAt: nextBH },
+              });
+              console.log(`[AutomationEngine] Cadência WhatsApp fora do horário — reagendado para ${nextBH.toISOString()} com jitter +${Math.round(jitterMs / 60000)}min (enrollment ${enrollment.id})`);
+              continue;
+            }
           }
         }
       }
