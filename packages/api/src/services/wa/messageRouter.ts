@@ -110,29 +110,26 @@ export class WaMessageRouter {
           const { text, mediaId, type } = extractContent(msg);
           const waMessageType = mapMessageType(type);
 
-          // 2. Find or create WaConversation by phone
-          let conversation = await prisma.waConversation.findUnique({
-            where: { phone: from },
+          // 2. Find or create WaConversation by phone (com normalização BR)
+          //    WhatsApp pode enviar com ou sem o 9 extra: 555181614555 vs 5551981614555
+          const phoneVariations = [from];
+          if (from.startsWith('55') && from.length === 12) {
+            const ddd = from.substring(2, 4);
+            const number = from.substring(4);
+            phoneVariations.push(`55${ddd}9${number}`);
+          }
+          if (from.startsWith('55') && from.length === 13) {
+            const ddd = from.substring(2, 4);
+            const number = from.substring(5);
+            phoneVariations.push(`55${ddd}${number}`);
+          }
+
+          let conversation = await prisma.waConversation.findFirst({
+            where: { phone: { in: phoneVariations } },
           });
 
           if (!conversation) {
             // 3. Try to link to existing Contact by phone (with normalization)
-            // WhatsApp sends without the extra 9 digit for some BR numbers
-            // Contact DB may have 5551981375218, WhatsApp sends 555181375218
-            const phoneVariations = [from];
-            // If BR number (55) and has 12 digits (55+DDD+8digits), try adding 9 after DDD
-            if (from.startsWith('55') && from.length === 12) {
-              const ddd = from.substring(2, 4);
-              const number = from.substring(4);
-              phoneVariations.push(`55${ddd}9${number}`);
-            }
-            // If BR number with 13 digits (55+DDD+9+8digits), try without the 9
-            if (from.startsWith('55') && from.length === 13) {
-              const ddd = from.substring(2, 4);
-              const number = from.substring(5); // skip the 9
-              phoneVariations.push(`55${ddd}${number}`);
-            }
-
             const contact = await prisma.contact.findFirst({
               where: { phone: { in: phoneVariations } },
               select: { id: true },
@@ -153,13 +150,7 @@ export class WaMessageRouter {
               updates.pushName = pushName;
             }
             if (!conversation.contactId) {
-              const phoneVariations = [from];
-              if (from.startsWith('55') && from.length === 12) {
-                phoneVariations.push(`55${from.substring(2, 4)}9${from.substring(4)}`);
-              }
-              if (from.startsWith('55') && from.length === 13) {
-                phoneVariations.push(`55${from.substring(2, 4)}${from.substring(5)}`);
-              }
+              // phoneVariations já foi calculado acima (inclui com/sem 9)
               const contact = await prisma.contact.findFirst({
                 where: { phone: { in: phoneVariations } },
                 select: { id: true },
