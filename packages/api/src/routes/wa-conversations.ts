@@ -170,6 +170,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       }))
       .filter((c) => {
         if (!dealStatusFilter) return true;
+        // "Em andamento" (OPEN) also shows conversations without any deal
+        if (dealStatusFilter === 'OPEN') return c.dealStatus === 'OPEN' || c.dealStatus === null;
         return c.dealStatus === dealStatusFilter;
       });
 
