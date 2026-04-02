@@ -58,6 +58,21 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.products = { some: { productId: str('productId') } };
     }
 
+    // UTM filter: matches deals whose contact has matching LeadTracking UTMs
+    const utmCampaign = str('utmCampaign');
+    const utmSource = str('utmSource');
+    const utmMedium = str('utmMedium');
+    if (utmCampaign || utmSource || utmMedium) {
+      const utmWhere: Record<string, unknown> = {};
+      if (utmCampaign) utmWhere.utmCampaign = { contains: utmCampaign, mode: 'insensitive' };
+      if (utmSource) utmWhere.utmSource = { contains: utmSource, mode: 'insensitive' };
+      if (utmMedium) utmWhere.utmMedium = { contains: utmMedium, mode: 'insensitive' };
+      where.contact = {
+        ...((where.contact as Record<string, unknown>) || {}),
+        leadTrackings: { some: utmWhere },
+      };
+    }
+
     // Value range
     const valueMin = str('valueMin');
     const valueMax = str('valueMax');

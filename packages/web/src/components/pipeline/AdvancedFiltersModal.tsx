@@ -26,6 +26,9 @@ export interface AdvancedFilters {
   classification?: string;
   valueMin?: string;
   valueMax?: string;
+  utmCampaign?: string;
+  utmSource?: string;
+  utmMedium?: string;
   createdAtFrom?: string;
   createdAtTo?: string;
   updatedAtFrom?: string;
@@ -244,6 +247,40 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
             value={draft.campaignIds ?? ""}
             onChange={(val) => setDraft((prev) => ({ ...prev, campaignIds: val || undefined }))}
           />
+        </div>
+
+        {/* Row: UTM Tracking */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">UTM Campaign</label>
+            <input
+              type="text"
+              value={draft.utmCampaign ?? ""}
+              onChange={(e) => set("utmCampaign", e.target.value)}
+              placeholder="Ex: escala-best-ads"
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">UTM Source</label>
+            <input
+              type="text"
+              value={draft.utmSource ?? ""}
+              onChange={(e) => set("utmSource", e.target.value)}
+              placeholder="Ex: facebook, google"
+              className={INPUT}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">UTM Medium</label>
+            <input
+              type="text"
+              value={draft.utmMedium ?? ""}
+              onChange={(e) => set("utmMedium", e.target.value)}
+              placeholder="Ex: cpc, social"
+              className={INPUT}
+            />
+          </div>
         </div>
 
         {/* Row: Product */}
