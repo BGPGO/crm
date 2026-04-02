@@ -260,8 +260,19 @@ router.get('/legacy', async (req: Request, res: Response, next: NextFunction) =>
       },
     });
 
+    // Exclude conversations that already exist in WABA (by phone)
+    const zapiPhones = data.map(c => c.phone);
+    const wabaExisting = zapiPhones.length > 0
+      ? await prisma.waConversation.findMany({
+          where: { phone: { in: zapiPhones } },
+          select: { phone: true },
+        })
+      : [];
+    const wabaPhoneSet = new Set(wabaExisting.map(w => w.phone));
+    const filtered = data.filter(c => !wabaPhoneSet.has(c.phone));
+
     // Map to WaConversation-like shape
-    const enriched = data.map((c) => {
+    const enriched = filtered.map((c) => {
       const lastMsg = c.messages[0] ?? null;
       return {
         id: `zapi_${c.id}`,

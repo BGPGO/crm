@@ -1008,8 +1008,8 @@ export default function WabaChatPage() {
             filteredConversations.map((conv) => {
               const lastMsg = conv.messages[0] ?? null;
               const displayName =
-                conv.contact?.name || conv.contact?.phone || "Sem nome";
-              const displayPhone = conv.contact?.phone || "";
+                conv.contact?.name || conv.pushName || conv.contact?.phone || conv.phone || "Sem nome";
+              const displayPhone = conv.contact?.phone || conv.phone || "";
               const isSelected = selectedId === conv.id;
               const hasUnread = conv.unreadCount > 0;
               const lastMsgPreview = lastMsg
