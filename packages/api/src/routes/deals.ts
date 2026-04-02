@@ -94,19 +94,36 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.products = { some: { productId: str('productId') } };
     }
 
-    // UTM filter: matches deals whose contact has matching LeadTracking UTMs
+    // UTM filter: matches deals whose contact's FIRST LeadTracking matches
+    // Usa primeiro toque (atribuição de origem) para evitar falsos positivos
+    // quando um contato tem múltiplos trackings de campanhas diferentes
     const utmCampaign = str('utmCampaign');
     const utmSource = str('utmSource');
     const utmMedium = str('utmMedium');
     if (utmCampaign || utmSource || utmMedium) {
-      const utmWhere: Record<string, unknown> = {};
-      if (utmCampaign) utmWhere.utmCampaign = { contains: utmCampaign, mode: 'insensitive' };
-      if (utmSource) utmWhere.utmSource = { contains: utmSource, mode: 'insensitive' };
-      if (utmMedium) utmWhere.utmMedium = { contains: utmMedium, mode: 'insensitive' };
-      where.contact = {
-        ...((where.contact as Record<string, unknown>) || {}),
-        leadTrackings: { some: utmWhere },
-      };
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      if (utmCampaign) { conditions.push(`lt."utmCampaign" = $${params.length + 1}`); params.push(utmCampaign); }
+      if (utmSource) { conditions.push(`lt."utmSource" = $${params.length + 1}`); params.push(utmSource); }
+      if (utmMedium) { conditions.push(`lt."utmMedium" = $${params.length + 1}`); params.push(utmMedium); }
+
+      const contactIds: Array<{ contactId: string }> = await prisma.$queryRawUnsafe(`
+        SELECT DISTINCT lt."contactId"
+        FROM "LeadTracking" lt
+        WHERE ${conditions.join(' AND ')}
+          AND lt."createdAt" = (
+            SELECT MIN(lt2."createdAt")
+            FROM "LeadTracking" lt2
+            WHERE lt2."contactId" = lt."contactId"
+          )
+      `, ...params);
+
+      if (contactIds.length > 0) {
+        where.contactId = { in: contactIds.map(r => r.contactId) };
+      } else {
+        // Nenhum match → forçar resultado vazio
+        where.contactId = { in: [] };
+      }
     }
 
     // Value range
