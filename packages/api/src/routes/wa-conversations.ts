@@ -114,27 +114,36 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Compute window status and enrich response
     const now = new Date();
 
-    // Batch-fetch latest OPEN deal + stage for each contact
+    // Batch-fetch latest deal + stage for each contact (any status)
     const contactIdsForStage = data.map(c => c.contactId).filter(Boolean) as string[];
-    const dealsByContact: Record<string, { id: string; stageId: string; stage: { name: string; color: string | null } | null }> = {};
+    const dealsByContact: Record<string, { id: string; stageId: string; status: string; stage: { name: string; color: string | null } | null }> = {};
     if (contactIdsForStage.length > 0) {
       const deals = await prisma.deal.findMany({
-        where: { contactId: { in: contactIdsForStage }, status: 'OPEN' },
-        orderBy: { createdAt: 'desc' },
+        where: { contactId: { in: contactIdsForStage } },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], // OPEN first, then most recent
         distinct: ['contactId'],
-        select: { id: true, contactId: true, stageId: true, stage: { select: { name: true, color: true } } },
+        select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true } } },
       });
       for (const d of deals) {
         if (d.contactId) dealsByContact[d.contactId] = d;
       }
     }
 
-    const enriched = data.map((c) => ({
-      ...c,
-      unreadCount: unreadCounts[c.id] || 0,
-      windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
-      dealStage: c.contactId ? dealsByContact[c.contactId]?.stage ?? null : null,
-    }));
+    // Apply deal status filter if provided
+    const dealStatusFilter = req.query.dealStatus as string | undefined;
+
+    const enriched = data
+      .map((c) => ({
+        ...c,
+        unreadCount: unreadCounts[c.id] || 0,
+        windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
+        dealStage: c.contactId ? dealsByContact[c.contactId]?.stage ?? null : null,
+        dealStatus: c.contactId ? (dealsByContact[c.contactId]?.status ?? null) : null,
+      }))
+      .filter((c) => {
+        if (!dealStatusFilter) return true;
+        return c.dealStatus === dealStatusFilter;
+      });
 
     res.json({
       data: enriched,

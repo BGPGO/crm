@@ -103,6 +103,7 @@ interface WaConversation {
   lastMessageAt: string | null;
   messages: WaMessage[];
   dealStage?: { name: string; color: string | null } | null;
+  dealStatus?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -476,6 +477,7 @@ export default function WabaChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [dealStatusFilter, setDealStatusFilter] = useState<string>("OPEN");
   const [stats, setStats] = useState<WaStats>({
     total: 0,
     open: 0,
@@ -523,6 +525,7 @@ export default function WabaChatPage() {
         const s = query !== undefined ? query : searchQuery;
         if (s) params.set("search", s);
         if (stageFilter && stageFilter !== "all") params.set("stageId", stageFilter);
+        if (dealStatusFilter && dealStatusFilter !== "all") params.set("dealStatus", dealStatusFilter);
 
         const res = await api.get<{
           data: WaConversation[];
@@ -535,7 +538,7 @@ export default function WabaChatPage() {
         setLoading(false);
       }
     },
-    [searchQuery, stageFilter]
+    [searchQuery, stageFilter, dealStatusFilter]
   );
 
   // ── Fetch stats ──
@@ -939,6 +942,32 @@ export default function WabaChatPage() {
                 {f.count !== null && (
                   <span className="ml-1 text-[10px] opacity-70">({f.count})</span>
                 )}
+              </button>
+            ))}
+          </div>
+
+          {/* Deal status filter */}
+          <div className="flex gap-1 mt-1.5">
+            {([
+              { key: "OPEN", label: "Em andamento", color: "blue" },
+              { key: "WON", label: "Ganho", color: "green" },
+              { key: "LOST", label: "Perdido", color: "red" },
+              { key: "all", label: "Todos", color: "gray" },
+            ] as const).map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setDealStatusFilter(s.key)}
+                className={clsx(
+                  "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                  dealStatusFilter === s.key
+                    ? s.color === "blue" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                    : s.color === "green" ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                    : s.color === "red" ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                    : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
+                )}
+              >
+                {s.label}
               </button>
             ))}
           </div>
