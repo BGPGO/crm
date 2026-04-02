@@ -76,6 +76,7 @@ interface WaMessage {
     | "UNKNOWN";
   body: string | null;
   mediaUrl: string | null;
+  mediaId: string | null;
   interactiveData: any;
   status: "WA_PENDING" | "WA_SENT" | "WA_DELIVERED" | "WA_READ" | "WA_FAILED";
   sentAt: string | null;
@@ -299,8 +300,23 @@ function senderLabel(msg: WaMessage): string | null {
 
 // ─── Message content renderer ─────────────────────────────────────────────────
 
+function useResolvedMediaUrl(mediaUrl: string | null, mediaId: string | null): string | null {
+  const [resolved, setResolved] = useState<string | null>(mediaUrl);
+  useEffect(() => {
+    if (mediaUrl) { setResolved(mediaUrl); return; }
+    if (!mediaId) return;
+    let cancelled = false;
+    api.get<{ data: { url: string } }>(`/wa/conversations/media/${mediaId}`)
+      .then((res) => { if (!cancelled && res.data?.url) setResolved(res.data.url); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mediaUrl, mediaId]);
+  return resolved;
+}
+
 function MessageContent({ msg }: { msg: WaMessage }) {
-  const { type, body, mediaUrl, interactiveData, templateName } = msg;
+  const { type, body, interactiveData, templateName } = msg;
+  const mediaUrl = useResolvedMediaUrl(msg.mediaUrl, msg.mediaId);
 
   switch (type) {
     case "TEXT":

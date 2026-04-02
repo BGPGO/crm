@@ -172,6 +172,19 @@ export class WaMessageRouter {
             interactiveData = msg.interactive?.button_reply || msg.interactive?.list_reply || null;
           }
 
+          // Resolve media URL if message has media
+          let resolvedMediaUrl: string | null = null;
+          if (mediaId) {
+            try {
+              const { WhatsAppCloudClient } = await import('../whatsappCloudClient');
+              const cloudClient = await WhatsAppCloudClient.fromConfig();
+              const mediaInfo = await cloudClient.getMediaUrl(mediaId);
+              resolvedMediaUrl = mediaInfo.url;
+            } catch (err) {
+              console.error(`[messageRouter] Failed to resolve mediaUrl for ${mediaId}:`, err);
+            }
+          }
+
           await prisma.waMessage.create({
             data: {
               waMessageId: messageId,
@@ -180,6 +193,7 @@ export class WaMessageRouter {
               type: waMessageType as any,
               body: text,
               mediaId: mediaId || null,
+              mediaUrl: resolvedMediaUrl,
               interactiveData,
               replyToMessageId: msg.context?.id || null,
               status: 'WA_DELIVERED',

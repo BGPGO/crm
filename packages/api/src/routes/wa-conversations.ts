@@ -787,6 +787,19 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+// ─── GET /api/wa/conversations/media/:mediaId — Resolve fresh media URL ─────
+
+router.get('/media/:mediaId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { WhatsAppCloudClient } = await import('../services/whatsappCloudClient');
+    const client = await WhatsAppCloudClient.fromConfig();
+    const mediaInfo = await client.getMediaUrl(req.params.mediaId);
+    res.json({ data: { url: mediaInfo.url, mimeType: mediaInfo.mime_type } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── POST /api/wa/conversations/:id/messages — Send message ────────────────
 
 router.post('/:id/messages', async (req: Request, res: Response, next: NextFunction) => {
