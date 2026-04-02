@@ -32,6 +32,7 @@ import {
   PanelRightOpen,
   Plus,
   Building2,
+  Paperclip,
 } from "lucide-react";
 import clsx from "clsx";
 import { api, getAuthHeaders } from "@/lib/api";
@@ -843,6 +844,49 @@ export default function WabaChatPage() {
     }
   };
 
+  // ── File upload ──
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId || sending) return;
+    setSending(true);
+    try {
+      // 1. Upload to Meta via our proxy
+      const formData = new FormData();
+      formData.append("file", file);
+      const headers = await getAuthHeaders();
+      const uploadRes = await fetch("/api/wa/conversations/upload", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error("Upload falhou");
+      const { data: uploadData } = await uploadRes.json();
+
+      // 2. Determine media type
+      const mime = file.type;
+      let mediaType = "document";
+      if (mime.startsWith("image/")) mediaType = "image";
+      else if (mime.startsWith("video/")) mediaType = "video";
+      else if (mime.startsWith("audio/")) mediaType = "audio";
+
+      // 3. Send as media message
+      await api.post(`/wa/conversations/${selectedId}/messages`, {
+        type: mediaType,
+        mediaUrl: uploadData.mediaUrl,
+        caption: file.name,
+      });
+
+      await fetchMessages(selectedId);
+    } catch (err: any) {
+      setError(`Erro ao enviar arquivo: ${err?.message || "Tente novamente"}`);
+    } finally {
+      setSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   const toggleHumanAttention = async () => {
     if (!selectedId || !selectedConv) return;
     try {
@@ -1593,6 +1637,21 @@ export default function WabaChatPage() {
                     </div>
                   )}
                   </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                    className="p-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
+                    title="Enviar arquivo"
+                  >
+                    <Paperclip size={18} />
+                  </button>
                   <button
                     onClick={handleSend}
                     disabled={!inputText.trim() || sending}

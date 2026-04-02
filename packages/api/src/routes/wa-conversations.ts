@@ -787,6 +787,50 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
+// ─── POST /api/wa/conversations/upload — Upload media to Meta ────────────────
+
+import multer from 'multer';
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } }); // 16MB
+
+router.post('/upload', upload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const file = (req as any).file;
+    if (!file) return next(createError('file is required', 400));
+
+    const { WhatsAppCloudClient } = await import('../services/whatsappCloudClient');
+    const client = await WhatsAppCloudClient.fromConfig();
+
+    // Write buffer to temp file for Meta upload
+    const os = await import('os');
+    const fs = await import('fs');
+    const path = await import('path');
+    const tmpPath = path.join(os.tmpdir(), `wa-upload-${Date.now()}-${file.originalname}`);
+    fs.writeFileSync(tmpPath, file.buffer);
+
+    try {
+      const result = await client.uploadMedia(tmpPath, file.mimetype);
+
+      // Get the media URL back
+      const mediaInfo = await client.getMediaUrl(result.id);
+
+      res.json({
+        data: {
+          mediaId: result.id,
+          mediaUrl: mediaInfo.url,
+          mimeType: file.mimetype,
+          fileName: file.originalname,
+          fileSize: file.size,
+        },
+      });
+    } finally {
+      // Clean up temp file
+      fs.unlinkSync(tmpPath);
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/wa/conversations/media/:mediaId — Proxy media download ────────
 // Meta media URLs require Authorization header, so we proxy through our server
 
