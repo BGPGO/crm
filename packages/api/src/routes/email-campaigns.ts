@@ -388,6 +388,21 @@ router.get('/:id/recipients', async (req: Request, res: Response, next: NextFunc
       },
     });
 
+    // Batch-fetch latest deal for each contact
+    const contactIds = sends.map(s => s.contact?.id).filter(Boolean) as string[];
+    const dealsByContact: Record<string, { id: string; title: string; status: string; stage: { name: string; color: string | null } | null }> = {};
+    if (contactIds.length > 0) {
+      const deals = await prisma.deal.findMany({
+        where: { contactId: { in: contactIds } },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        distinct: ['contactId'],
+        select: { id: true, title: true, status: true, contactId: true, stage: { select: { name: true, color: true } } },
+      });
+      for (const d of deals) {
+        if (d.contactId) dealsByContact[d.contactId] = d;
+      }
+    }
+
     const data = sends.map((s) => ({
       id: s.id,
       contact: s.contact,
@@ -397,6 +412,7 @@ router.get('/:id/recipients', async (req: Request, res: Response, next: NextFunc
       clickedAt: s.clickedAt,
       bouncedAt: s.bouncedAt,
       unsubscribedAt: s.unsubscribedAt,
+      deal: s.contact?.id ? dealsByContact[s.contact.id] || null : null,
     }));
 
     res.json({ data });

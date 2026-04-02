@@ -26,6 +26,7 @@ interface Recipient {
   clickedAt: string | null;
   bouncedAt: string | null;
   unsubscribedAt: string | null;
+  deal: { id: string; title: string; status: string; stage: { name: string; color: string | null } | null } | null;
 }
 
 interface CampaignMetricsProps {
@@ -267,6 +268,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                     <th className="pb-2 text-xs font-medium text-gray-500">Status</th>
                     <th className="pb-2 text-xs font-medium text-gray-500">Abriu</th>
                     <th className="pb-2 text-xs font-medium text-gray-500">Clicou</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Negociação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -305,8 +307,31 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                       <td className="py-2 pr-2 text-xs text-gray-500">
                         {r.openedAt ? new Date(r.openedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
                       </td>
-                      <td className="py-2 text-xs text-gray-500">
+                      <td className="py-2 pr-2 text-xs text-gray-500">
                         {r.clickedAt ? new Date(r.clickedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                      </td>
+                      <td className="py-2 text-xs">
+                        {r.deal ? (
+                          <a href={`/pipeline/${r.deal.id}`} className="inline-flex items-center gap-1 hover:underline">
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                              style={{
+                                backgroundColor: `${r.deal.stage?.color || "#6B7280"}15`,
+                                color: r.deal.stage?.color || "#6B7280",
+                              }}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: r.deal.stage?.color || "#6B7280" }}
+                              />
+                              {r.deal.stage?.name}
+                            </span>
+                            {r.deal.status === "WON" && <span className="text-green-600 font-medium">Ganho</span>}
+                            {r.deal.status === "LOST" && <span className="text-red-500 font-medium">Perdido</span>}
+                          </a>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
