@@ -34,7 +34,7 @@ import {
   Building2,
 } from "lucide-react";
 import clsx from "clsx";
-import { api } from "@/lib/api";
+import { api, getAuthHeaders } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -300,19 +300,37 @@ function senderLabel(msg: WaMessage): string | null {
 
 // ─── Message content renderer ─────────────────────────────────────────────────
 
-function resolveMediaSrc(mediaUrl: string | null, mediaId: string | null): string | null {
-  // If we have a mediaUrl that's NOT a Meta URL (already proxied/local), use it
-  if (mediaUrl && !mediaUrl.includes('lookaside.fbsbx.com') && !mediaUrl.includes('graph.facebook.com')) {
-    return mediaUrl;
-  }
-  // Proxy through our API (Meta URLs need auth header)
-  if (mediaId) return `/api/wa/conversations/media/${mediaId}`;
-  return null;
+function useResolvedMedia(mediaUrl: string | null, mediaId: string | null): string | null {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (mediaUrl && !mediaUrl.includes('lookaside.fbsbx.com') && !mediaUrl.includes('graph.facebook.com')) {
+      setBlobUrl(mediaUrl);
+      return;
+    }
+    if (!mediaId) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/wa/conversations/media/${mediaId}`, { headers });
+        if (!res.ok) throw new Error(`${res.status}`);
+        const blob = await res.blob();
+        if (!cancelled) setBlobUrl(URL.createObjectURL(blob));
+      } catch { /* silent */ }
+    })();
+
+    return () => { cancelled = true; };
+  }, [mediaUrl, mediaId]);
+
+  return blobUrl;
 }
 
 function MessageContent({ msg }: { msg: WaMessage }) {
   const { type, body, interactiveData, templateName } = msg;
-  const mediaUrl = resolveMediaSrc(msg.mediaUrl, msg.mediaId);
+  const mediaUrl = useResolvedMedia(msg.mediaUrl, msg.mediaId);
 
   switch (type) {
     case "TEXT":

@@ -35,7 +35,7 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
+export async function getAuthHeaders(): Promise<Record<string, string>> {
   try {
     const now = Date.now();
     if (cachedToken && tokenExpiresAt > now) {
