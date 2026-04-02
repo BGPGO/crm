@@ -13,9 +13,10 @@
  *   - Usa WaConversation (não WhatsAppConversation)
  *   - Envia via WaMessageService.sendTemplate() (não sendText())
  *   - NÃO usa setTimeout — o cron meetingReminderWabaCron.ts dispara o envio
- *   - Templates fixos por step (60min e 15min)
+ *   - Templates por step (4h, 1h, 15min) — variáveis resolvidas via variableMapping
  *
  * Templates necessários (devem estar APROVADOS na Meta):
+ *   - lembrete_reuniao_4h    (240 min antes)
  *   - lembrete_reuniao_1h    (60 min antes)
  *   - lembrete_reuniao_15min (15 min antes)
  * ═══════════════════════════════════════════════════════════════════════════
@@ -104,16 +105,6 @@ async function findOrCreateWaConversation(phone: string, contactId: string | nul
   }
 
   return conversation;
-}
-
-// ─── Formatar horário da reunião ──────────────────────────────────────────────
-
-function formatMeetingTime(startTime: Date): string {
-  return startTime.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'America/Sao_Paulo',
-  });
 }
 
 // ─── Enviar lembrete WABA para um ScheduledFollowUp específico ────────────────
@@ -243,18 +234,53 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     return;
   }
 
-  // Montar parâmetros do template
-  // {{1}} = nome do contato, {{2}} = horário formatado (ex: "15:30")
-  const contactName = meeting.contact.name || meeting.inviteeName || 'Prezado(a)';
-  const meetingTime = formatMeetingTime(new Date(meeting.startTime));
+  // Montar parâmetros do template via variableMapping (suporta templates manuais)
+  const { resolveTemplateVariables } = await import('../../utils/templateVariableResolver');
+
+  const templateRecord = await prisma.cloudWaTemplate.findFirst({
+    where: { name: templateName, language: 'pt_BR' },
+    select: { variableMapping: true, body: true },
+  });
+
+  // Se variableMapping está vazio, gerar mapeamento padrão para meeting reminders
+  // baseado na quantidade de variáveis no body do template
+  let mappings = templateRecord?.variableMapping as any;
+  if (!mappings || (Array.isArray(mappings) && mappings.length === 0)) {
+    const varCount = (templateRecord?.body?.match(/\{\{\d+\}\}/g) || []).length;
+    // Mapeamento padrão para lembretes de reunião:
+    // {{1}} = nome, {{2}} = data (dd/mm/yyyy), {{3}} = horário (HH:MM)
+    const defaultMappings = [
+      { var: '{{1}}', source: 'contact.name' },
+      { var: '{{2}}', source: 'meeting.date' },
+      { var: '{{3}}', source: 'meeting.time' },
+    ];
+    mappings = defaultMappings.slice(0, Math.max(varCount, 1));
+    console.log(`[waba-meeting-reminder] variableMapping vazio para "${templateName}" — usando padrão meeting (${varCount} vars)`);
+  }
+
+  const resolved = await resolveTemplateVariables(
+    mappings,
+    {
+      contactId: meeting.contact.id,
+      dealId: meeting.dealId || undefined,
+      meetingId: meeting.id,
+    },
+  );
+
+  // Se há variáveis obrigatórias faltando, não enviar
+  if (resolved.missingVars.length > 0) {
+    console.warn(`[waba-meeting-reminder] Variáveis faltando para template "${templateName}": ${resolved.missingVars.map(v => `${v.var}(${v.source})`).join(', ')} — pulando`);
+    await prisma.scheduledFollowUp.update({
+      where: { id: scheduledFollowUpId },
+      data: { status: 'FAILED' },
+    }).catch(() => {});
+    return;
+  }
 
   const components = [
     {
       type: 'body',
-      parameters: [
-        { type: 'text', text: contactName },
-        { type: 'text', text: meetingTime },
-      ],
+      parameters: resolved.parameters,
     },
   ];
 
@@ -263,35 +289,29 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
   const windowOpen = await WindowService.isWindowOpenSafe(waConversation.id);
 
   try {
-    if (windowOpen) {
+    if (windowOpen && templateRecord?.body) {
       // Janela aberta → enviar corpo do template como texto livre (custo zero)
-      const templateBody = await prisma.cloudWaTemplate.findFirst({
-        where: { name: templateName, language: 'pt_BR' },
-        select: { body: true },
+      let freeText = templateRecord.body;
+      resolved.parameters.forEach((p, i) => {
+        freeText = freeText.replace(`{{${i + 1}}}`, p.text);
       });
 
-      if (templateBody?.body) {
-        let freeText = templateBody.body
-          .replace('{{1}}', contactName)
-          .replace('{{2}}', meetingTime);
+      try {
+        await WaMessageService.sendText(
+          waConversation.id,
+          freeText,
+          { senderType: 'WA_SYSTEM' },
+        );
 
-        try {
-          await WaMessageService.sendText(
-            waConversation.id,
-            freeText,
-            { senderType: 'WA_SYSTEM' },
-          );
-
-          await registerSent('reminder');
-          console.log(`[waba-meeting-reminder] Smart send: texto livre (janela aberta) — lembrete ${followUp.stepNumber}min para ${meeting.contact.phone}`);
-          return;
-        } catch (textErr: any) {
-          const metaCode = textErr?.metaCode || textErr?.response?.data?.error?.code;
-          if (metaCode === 131047) {
-            console.log(`[waba-meeting-reminder] Smart send fallback: janela fechou, enviando template`);
-          } else {
-            throw textErr;
-          }
+        await registerSent('reminder');
+        console.log(`[waba-meeting-reminder] Smart send: texto livre (janela aberta) — lembrete ${followUp.stepNumber}min para ${meeting.contact.phone}`);
+        return;
+      } catch (textErr: any) {
+        const metaCode = textErr?.metaCode || textErr?.response?.data?.error?.code;
+        if (metaCode === 131047) {
+          console.log(`[waba-meeting-reminder] Smart send fallback: janela fechou, enviando template`);
+        } else {
+          throw textErr;
         }
       }
     }
@@ -324,7 +344,7 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
 
 // ─── Agendar lembretes WABA para uma reunião ──────────────────────────────────
 //
-// Cria registros ScheduledFollowUp para os steps 1h e 15min antes.
+// Cria registros ScheduledFollowUp para os steps 4h, 1h e 15min antes.
 // NÃO usa setTimeout — o cron meetingReminderWabaCron.ts dispara o envio
 // quando o scheduledAt for atingido.
 //
@@ -349,8 +369,8 @@ export async function scheduleWabaMeetingReminders(meetingId: string): Promise<v
   const now = Date.now();
   const meetingTime = new Date(meeting.startTime).getTime();
 
-  // Steps suportados via WABA: 60min e 15min antes
-  const steps = Object.keys(TEMPLATE_MAP).map(Number); // [60, 15]
+  // Steps suportados via WABA: 4h, 1h e 15min antes
+  const steps = Object.keys(TEMPLATE_MAP).map(Number); // [240, 60, 15]
 
   for (const minutesBefore of steps) {
     const sendAt = meetingTime - minutesBefore * 60 * 1000;
