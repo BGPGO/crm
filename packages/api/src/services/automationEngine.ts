@@ -88,6 +88,28 @@ export async function evaluateTriggers(
         nextActionAt: new Date(),
       },
     });
+
+    // Log activity on the contact's most recent open deal
+    try {
+      const deal = await prisma.deal.findFirst({
+        where: { contactId: data.contactId, status: 'OPEN' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+      if (deal) {
+        await prisma.activity.create({
+          data: {
+            type: 'AUTOMATION_ENROLLED',
+            content: `Cadência iniciada: ${automation.name}`,
+            dealId: deal.id,
+            contactId: data.contactId,
+            userId: 'system',
+          },
+        });
+      }
+    } catch {
+      // Non-critical — don't block enrollment
+    }
   }
 }
 
