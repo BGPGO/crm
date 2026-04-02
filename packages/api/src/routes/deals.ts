@@ -23,6 +23,42 @@ const dealInclude = {
   products: { select: { unitPrice: true, quantity: true, setupPrice: true, recurrenceValue: true, discount: true } },
 };
 
+// GET /api/deals/utm-values — valores únicos de UTM para dropdowns
+router.get('/utm-values', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [campaigns, sources, mediums] = await Promise.all([
+      prisma.leadTracking.findMany({
+        where: { utmCampaign: { not: null } },
+        select: { utmCampaign: true },
+        distinct: ['utmCampaign'],
+        orderBy: { utmCampaign: 'asc' },
+      }),
+      prisma.leadTracking.findMany({
+        where: { utmSource: { not: null } },
+        select: { utmSource: true },
+        distinct: ['utmSource'],
+        orderBy: { utmSource: 'asc' },
+      }),
+      prisma.leadTracking.findMany({
+        where: { utmMedium: { not: null } },
+        select: { utmMedium: true },
+        distinct: ['utmMedium'],
+        orderBy: { utmMedium: 'asc' },
+      }),
+    ]);
+
+    res.json({
+      data: {
+        utmCampaign: campaigns.map(r => r.utmCampaign).filter(Boolean),
+        utmSource: sources.map(r => r.utmSource).filter(Boolean),
+        utmMedium: mediums.map(r => r.utmMedium).filter(Boolean),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/deals
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {

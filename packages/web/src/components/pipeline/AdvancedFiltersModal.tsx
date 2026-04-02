@@ -165,6 +165,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
   const [organizations, setOrganizations] = useState<Option[]>([]);
   const [contacts, setContacts] = useState<Option[]>([]);
   const [products, setProducts] = useState<Option[]>([]);
+  const [utmValues, setUtmValues] = useState<{ utmCampaign: string[]; utmSource: string[]; utmMedium: string[] }>({ utmCampaign: [], utmSource: [], utmMedium: [] });
   const [loaded, setLoaded] = useState(false);
 
   // Sync draft when modal opens with new current
@@ -176,13 +177,14 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
   const loadOptions = useCallback(async () => {
     if (loaded) return;
     try {
-      const [srcRes, campRes, lrRes, orgRes, ctRes, prodRes] = await Promise.all([
+      const [srcRes, campRes, lrRes, orgRes, ctRes, prodRes, utmRes] = await Promise.all([
         api.get<ListResponse>("/sources?limit=100"),
         api.get<ListResponse>("/campaigns?limit=100"),
         api.get<ListResponse>("/lost-reasons?limit=100"),
         api.get<ListResponse>("/organizations?limit=200"),
         api.get<ListResponse>("/contacts?limit=200"),
         api.get<ListResponse>("/products?limit=200&isActive=true"),
+        api.get<{ data: { utmCampaign: string[]; utmSource: string[]; utmMedium: string[] } }>("/deals/utm-values"),
       ]);
       setSources(srcRes.data ?? []);
       setCampaigns(campRes.data ?? []);
@@ -190,6 +192,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
       setOrganizations(orgRes.data ?? []);
       setContacts(ctRes.data ?? []);
       setProducts(prodRes.data ?? []);
+      setUtmValues(utmRes.data ?? { utmCampaign: [], utmSource: [], utmMedium: [] });
       setLoaded(true);
     } catch {
       // silent
@@ -253,33 +256,42 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">UTM Campaign</label>
-            <input
-              type="text"
+            <select
               value={draft.utmCampaign ?? ""}
               onChange={(e) => set("utmCampaign", e.target.value)}
-              placeholder="Ex: escala-best-ads"
-              className={INPUT}
-            />
+              className={SEL}
+            >
+              <option value="">Todas</option>
+              {utmValues.utmCampaign.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">UTM Source</label>
-            <input
-              type="text"
+            <select
               value={draft.utmSource ?? ""}
               onChange={(e) => set("utmSource", e.target.value)}
-              placeholder="Ex: facebook, google"
-              className={INPUT}
-            />
+              className={SEL}
+            >
+              <option value="">Todas</option>
+              {utmValues.utmSource.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">UTM Medium</label>
-            <input
-              type="text"
+            <select
               value={draft.utmMedium ?? ""}
               onChange={(e) => set("utmMedium", e.target.value)}
-              placeholder="Ex: cpc, social"
-              className={INPUT}
-            />
+              className={SEL}
+            >
+              <option value="">Todos</option>
+              {utmValues.utmMedium.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
           </div>
         </div>
 
