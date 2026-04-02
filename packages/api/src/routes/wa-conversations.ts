@@ -787,14 +787,24 @@ router.get('/:id/messages', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
-// ─── GET /api/wa/conversations/media/:mediaId — Resolve fresh media URL ─────
+// ─── GET /api/wa/conversations/media/:mediaId — Proxy media download ────────
+// Meta media URLs require Authorization header, so we proxy through our server
 
 router.get('/media/:mediaId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { WhatsAppCloudClient } = await import('../services/whatsappCloudClient');
     const client = await WhatsAppCloudClient.fromConfig();
+
+    // 1. Get the temporary URL + mime type from Meta
     const mediaInfo = await client.getMediaUrl(req.params.mediaId);
-    res.json({ data: { url: mediaInfo.url, mimeType: mediaInfo.mime_type } });
+
+    // 2. Download the actual file (the client uses the access token)
+    const buffer = await client.downloadMedia(mediaInfo.url);
+
+    // 3. Serve to frontend
+    res.set('Content-Type', mediaInfo.mime_type || 'application/octet-stream');
+    res.set('Cache-Control', 'public, max-age=86400'); // cache 24h
+    res.send(buffer);
   } catch (err) {
     next(err);
   }
