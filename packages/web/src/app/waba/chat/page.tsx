@@ -749,10 +749,20 @@ export default function WabaChatPage() {
     if (!inputText.trim() || !selectedId || sending) return;
     setSending(true);
     try {
-      await api.post(`/wa/conversations/${selectedId}/messages`, {
-        type: "text",
-        content: inputText.trim(),
-      });
+      const isLegacy = selectedId.startsWith("zapi_");
+      if (isLegacy) {
+        // Send via Z-API endpoint
+        const legacyId = selectedId.replace("zapi_", "");
+        await api.post(`/whatsapp/conversations/${legacyId}/send`, {
+          content: inputText.trim(),
+          userId: authUser?.id,
+        });
+      } else {
+        await api.post(`/wa/conversations/${selectedId}/messages`, {
+          type: "text",
+          content: inputText.trim(),
+        });
+      }
       setInputText("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
@@ -1403,11 +1413,43 @@ export default function WabaChatPage() {
 
             {/* ── Input area ── */}
             {selectedId?.startsWith("zapi_") ? (
-              /* Legacy Z-API conversation — read only */
+              /* Legacy Z-API conversation — sends via Z-API */
               <div className="bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-700 p-3 flex-shrink-0">
-                <div className="flex items-center gap-2 justify-center text-amber-700 dark:text-amber-400">
-                  <AlertTriangle size={14} />
-                  <p className="text-xs font-medium">Conversa Z-API (legado) — somente leitura. Use a seção Conversas para responder.</p>
+                <div className="flex items-center gap-1.5 justify-center text-amber-600 dark:text-amber-400 mb-2">
+                  <AlertTriangle size={12} />
+                  <p className="text-[10px] font-medium">Enviando via Z-API (legado)</p>
+                </div>
+                <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                  <textarea
+                    ref={textareaRef}
+                    value={inputText}
+                    onChange={(e) => {
+                      setInputText(e.target.value);
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = "auto";
+                        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + "px";
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    placeholder="Mensagem via Z-API... (Ctrl+Enter envia)"
+                    className="flex-1 px-4 py-2.5 text-sm border border-amber-300 dark:border-amber-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none placeholder-gray-400"
+                    disabled={sending}
+                    rows={1}
+                    style={{ maxHeight: "120px" }}
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!inputText.trim() || sending}
+                    className="p-2.5 bg-amber-500 text-white rounded-xl hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    title="Enviar via Z-API (Ctrl+Enter)"
+                  >
+                    {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
                 </div>
               </div>
             ) : selectedConv?.windowOpen ? (
