@@ -224,13 +224,18 @@ export class WhatsAppCloudClient {
   /**
    * Envia imagem (dentro da janela de 24h)
    */
+  private mediaRef(urlOrId: string): { link: string } | { id: string } {
+    // Meta media IDs are numeric strings; URLs start with http
+    return urlOrId.startsWith('http') ? { link: urlOrId } : { id: urlOrId };
+  }
+
   async sendImage(to: string, imageUrl: string, caption?: string): Promise<SendMessageResponse> {
     const res = await this.client.post(`/${this.phoneNumberId}/messages`, {
       messaging_product: 'whatsapp',
       recipient_type: 'individual',
       to,
       type: 'image',
-      image: { link: imageUrl, caption },
+      image: { ...this.mediaRef(imageUrl), caption },
     });
     return res.data;
   }
@@ -244,7 +249,7 @@ export class WhatsAppCloudClient {
       recipient_type: 'individual',
       to,
       type: 'document',
-      document: { link: documentUrl, filename, caption },
+      document: { ...this.mediaRef(documentUrl), filename, caption },
     });
     return res.data;
   }
@@ -258,7 +263,7 @@ export class WhatsAppCloudClient {
       recipient_type: 'individual',
       to,
       type: 'video',
-      video: { link: videoUrl, caption },
+      video: { ...this.mediaRef(videoUrl), caption },
     });
     return res.data;
   }
@@ -272,7 +277,7 @@ export class WhatsAppCloudClient {
       recipient_type: 'individual',
       to,
       type: 'audio',
-      audio: { link: audioUrl },
+      audio: this.mediaRef(audioUrl),
     });
     return res.data;
   }

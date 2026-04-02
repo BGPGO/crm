@@ -871,10 +871,10 @@ export default function WabaChatPage() {
       else if (mime.startsWith("video/")) mediaType = "video";
       else if (mime.startsWith("audio/")) mediaType = "audio";
 
-      // 3. Send as media message
+      // 3. Send as media message (use mediaId — Meta resolves internally)
       await api.post(`/wa/conversations/${selectedId}/messages`, {
         type: mediaType,
-        mediaUrl: uploadData.mediaUrl,
+        mediaUrl: uploadData.mediaId,
         caption: file.name,
       });
 

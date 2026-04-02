@@ -810,13 +810,9 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     try {
       const result = await client.uploadMedia(tmpPath, file.mimetype);
 
-      // Get the media URL back
-      const mediaInfo = await client.getMediaUrl(result.id);
-
       res.json({
         data: {
           mediaId: result.id,
-          mediaUrl: mediaInfo.url,
           mimeType: file.mimetype,
           fileName: file.originalname,
           fileSize: file.size,

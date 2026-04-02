@@ -205,11 +205,9 @@ export class WaBotService {
     console.log(`[WaBot] Mensagem de ${phone} (${pushName}): "${text.substring(0, 80)}"`);
 
     // ── Check if bot is enabled ──
+    // WABA bot is independent from Z-API botEnabled flag.
+    // It always runs unless needsHumanAttention is set per-conversation.
     const config = await prisma.whatsAppConfig.findFirst();
-    if (!config || !config.botEnabled) {
-      console.log(`[WaBot] Bot desabilitado, ignorando`);
-      return;
-    }
 
     // ── Check needsHumanAttention ──
     const conversation = await prisma.waConversation.findUnique({
@@ -257,7 +255,8 @@ export class WaBotService {
         botProducts: { where: { isActive: true }, orderBy: { order: 'asc' } },
       },
     });
-    if (!config || !config.botEnabled) return;
+    if (!config) return;
+    // WABA bot is independent from Z-API botEnabled — always runs
 
     // 2. Re-check conversation state
     const conversation = await prisma.waConversation.findUnique({
