@@ -688,17 +688,40 @@ router.get('/:id/whatsapp-conversation', async (req, res, next) => {
       });
     }
 
-    if (!conversation) return res.json({ data: null });
+    // Also check for WABA (Cloud API) conversation
+    let wabaConversation = await prisma.waConversation.findFirst({
+      where: { contactId: contact.id },
+      include: { _count: { select: { messages: true } } },
+    });
+    if (!wabaConversation) {
+      const normalized = normalizePhone(contact.phone);
+      wabaConversation = await prisma.waConversation.findFirst({
+        where: { phone: normalized },
+        include: { _count: { select: { messages: true } } },
+      });
+    }
+
+    if (!conversation && !wabaConversation) return res.json({ data: null });
 
     res.json({
-      data: {
+      data: conversation ? {
         conversationId: conversation.id,
         phone: conversation.phone,
         status: conversation.status,
         isActive: conversation.isActive,
         lastMessageAt: conversation.lastMessageAt,
         messageCount: conversation._count.messages,
-      },
+        channel: 'zapi' as const,
+      } : null,
+      waba: wabaConversation ? {
+        conversationId: wabaConversation.id,
+        phone: wabaConversation.phone,
+        status: wabaConversation.status,
+        isActive: wabaConversation.isActive,
+        lastMessageAt: wabaConversation.lastMessageAt,
+        messageCount: wabaConversation._count.messages,
+        channel: 'waba' as const,
+      } : null,
     });
   } catch (err) {
     next(err);

@@ -542,12 +542,20 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
 
     // Single batch query: which contacts have a WhatsApp conversation?
     const contactsWithConversation = new Set<string>();
+    const contactsWithWabaConversation = new Set<string>();
     if (allContactIds.length > 0) {
-      const convs = await prisma.whatsAppConversation.findMany({
-        where: { contactId: { in: allContactIds } },
-        select: { contactId: true },
-      });
-      convs.forEach((c) => { if (c.contactId) contactsWithConversation.add(c.contactId); });
+      const [zapiConvs, wabaConvs] = await Promise.all([
+        prisma.whatsAppConversation.findMany({
+          where: { contactId: { in: allContactIds } },
+          select: { contactId: true },
+        }),
+        prisma.waConversation.findMany({
+          where: { contactId: { in: allContactIds } },
+          select: { contactId: true },
+        }),
+      ]);
+      zapiConvs.forEach((c) => { if (c.contactId) contactsWithConversation.add(c.contactId); });
+      wabaConvs.forEach((c) => { if (c.contactId) contactsWithWabaConversation.add(c.contactId); });
     }
 
     const stages: Record<string, { deals: unknown[]; total: number }> = {};
@@ -556,6 +564,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
         deals: result.deals.map((deal) => ({
           ...deal,
           hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
+          hasWabaConversation: deal.contactId ? contactsWithWabaConversation.has(deal.contactId) : false,
           nextTask: (deal as any).tasks?.[0] ?? null,
         })),
         total: result.total,
