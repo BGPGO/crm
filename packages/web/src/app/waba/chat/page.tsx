@@ -507,8 +507,11 @@ export default function WabaChatPage() {
 
   // ── Selected conversation ──
   const selectedConv = useMemo(
-    () => conversations.find((c) => c.id === selectedId) ?? null,
-    [conversations, selectedId]
+    () =>
+      conversations.find((c) => c.id === selectedId)
+      ?? (legacyConversations as typeof conversations).find((c) => c.id === selectedId)
+      ?? null,
+    [conversations, legacyConversations, selectedId]
   );
 
   // ── Fetch conversations ──
