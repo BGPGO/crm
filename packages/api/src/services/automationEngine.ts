@@ -31,15 +31,21 @@ export async function evaluateTriggers(
     },
   });
 
-  // Pre-check: if any automation is a cadence, verify cadenceEnabled once
+  // Pre-check cadence flags (Z-API cadences need cadenceEnabled; WABA cadences always run)
   let cadenceEnabledChecked = false;
   let cadenceEnabled = false;
 
   for (const automation of automations) {
     const triggerConfig = automation.triggerConfig as any;
 
-    // Skip cadence automations if cadences are disabled
-    if (triggerConfig?.isCadence) {
+    // Determine if this is a WABA automation (has SEND_WA_TEMPLATE steps)
+    const isWabaAutomation = automation.steps.some(
+      (s) => s.actionType === 'SEND_WA_TEMPLATE'
+    );
+
+    // Skip Z-API cadence automations if cadences are disabled
+    // WABA cadences always run regardless of the flag
+    if (triggerConfig?.isCadence && !isWabaAutomation) {
       if (!cadenceEnabledChecked) {
         const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
         cadenceEnabled = waConfig?.cadenceEnabled === true;
@@ -283,11 +289,18 @@ export async function processEnrollments(): Promise<{ processed: number }> {
       const isCadence = (enrollment.automation.triggerConfig as any)?.isCadence === true;
       const isWhatsAppAction = step.actionType === 'SEND_WHATSAPP' || step.actionType === 'SEND_WHATSAPP_AI' || step.actionType === 'SEND_WA_TEMPLATE';
 
+      // Determine if this is a WABA automation (has SEND_WA_TEMPLATE steps)
+      const isWabaAutomation = enrollment.automation.steps.some(
+        (s) => s.actionType === 'SEND_WA_TEMPLATE'
+      );
+
       if (isCadence) {
-        // Check if cadences are enabled globally
-        const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
-        if (!waConfig?.cadenceEnabled) {
-          continue;
+        // WABA cadences always run. Z-API cadences need cadenceEnabled flag.
+        if (!isWabaAutomation) {
+          const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
+          if (!waConfig?.cadenceEnabled) {
+            continue;
+          }
         }
 
         // Check if conversation is in human attention mode — pause cadence
