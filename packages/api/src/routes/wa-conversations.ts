@@ -231,6 +231,129 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// ─── GET /api/wa/conversations/legacy — Z-API conversations formatted as WaConversation shape
+// Allows the unified WABA inbox to show legacy Z-API conversations with a tag
+
+router.get('/legacy', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 100));
+    const search = req.query.search as string | undefined;
+
+    const where: Record<string, unknown> = {};
+    if (search) {
+      where.OR = [
+        { phone: { contains: search, mode: 'insensitive' } },
+        { pushName: { contains: search, mode: 'insensitive' } },
+        { contact: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const data = await prisma.whatsAppConversation.findMany({
+      where,
+      take: limit,
+      orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
+      include: {
+        contact: { select: { id: true, name: true, email: true, phone: true } },
+        assignedUser: { select: { id: true, name: true } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1, include: { senderUser: { select: { id: true, name: true } } } },
+        _count: { select: { messages: true } },
+      },
+    });
+
+    // Map to WaConversation-like shape
+    const enriched = data.map((c) => {
+      const lastMsg = c.messages[0] ?? null;
+      return {
+        id: `zapi_${c.id}`,
+        _legacyId: c.id,
+        phone: c.phone,
+        pushName: c.pushName,
+        contact: c.contact,
+        assignedUser: c.assignedUser,
+        status: c.status === 'open' ? 'WA_OPEN' : 'WA_CLOSED',
+        needsHumanAttention: c.needsHumanAttention,
+        optedOut: c.optedOut,
+        unreadCount: 0,
+        windowOpen: false,
+        windowExpiresAt: null,
+        lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
+        dealStage: null,
+        channel: 'zapi' as const,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        messages: lastMsg ? [{
+          id: lastMsg.id,
+          conversationId: c.id,
+          direction: lastMsg.sender === 'CLIENT' ? 'INBOUND' : 'OUTBOUND',
+          senderType: lastMsg.sender === 'CLIENT' ? 'WA_CLIENT' : lastMsg.sender === 'BOT' ? 'WA_BOT' : 'WA_HUMAN',
+          type: 'TEXT',
+          body: lastMsg.text,
+          mediaUrl: null,
+          interactiveData: null,
+          status: 'WA_DELIVERED',
+          sentAt: lastMsg.createdAt.toISOString(),
+          deliveredAt: null,
+          readAt: null,
+          failedAt: null,
+          errorMessage: null,
+          templateName: null,
+          senderUser: lastMsg.senderUser ? { id: lastMsg.senderUser.id, name: lastMsg.senderUser.name } : null,
+          createdAt: lastMsg.createdAt.toISOString(),
+        }] : [],
+      };
+    });
+
+    res.json({
+      data: enriched,
+      meta: { total: enriched.length },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/wa/conversations/legacy/:id/messages — Z-API messages for sidebar
+
+router.get('/legacy/:id/messages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const legacyId = req.params.id;
+    const limit = Math.min(500, parseInt(req.query.limit as string) || 200);
+
+    const messages = await prisma.whatsAppMessage.findMany({
+      where: { conversationId: legacyId },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+      include: {
+        senderUser: { select: { id: true, name: true } },
+      },
+    });
+
+    const mapped = messages.map((m) => ({
+      id: m.id,
+      conversationId: m.conversationId,
+      direction: m.sender === 'CLIENT' ? 'INBOUND' : 'OUTBOUND',
+      senderType: m.sender === 'CLIENT' ? 'WA_CLIENT' : m.sender === 'BOT' ? 'WA_BOT' : 'WA_HUMAN',
+      type: 'TEXT',
+      body: m.text,
+      mediaUrl: null,
+      interactiveData: null,
+      status: m.delivered === false ? 'WA_FAILED' : 'WA_DELIVERED',
+      sentAt: m.createdAt.toISOString(),
+      deliveredAt: null,
+      readAt: null,
+      failedAt: null,
+      errorMessage: null,
+      templateName: null,
+      senderUser: m.senderUser,
+      createdAt: m.createdAt.toISOString(),
+    }));
+
+    res.json({ data: mapped, meta: { total: mapped.length } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/wa/conversations/stats — Conversation counts ──────────────────
 
 router.get('/stats', async (req: Request, res: Response, next: NextFunction) => {

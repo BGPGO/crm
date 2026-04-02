@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -35,7 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/lib/api";
 
-const navItems = [
+const baseNavItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
   { href: "/pipeline", label: "Negociações", icon: Kanban },
   { href: "/organizations", label: "Empresas", icon: Building2 },
@@ -43,7 +43,7 @@ const navItems = [
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/reports", label: "Análises", icon: BarChart3 },
   { href: "/marketing", label: "Marketing", icon: Megaphone },
-  { href: "/conversas", label: "Conversas", icon: MessageSquare },
+  { href: "/conversas", label: "Conversas", icon: MessageSquare, restrictTo: "oliver@bertuzzipatrimonial.com.br" },
   { href: "/waba", label: "WhatsApp", icon: MessageCircle },
   { href: "/reunioes", label: "Reuniões", icon: Calendar },
 ];
@@ -91,6 +91,17 @@ export default function TopNavbar() {
   const [overdueCount, setOverdueCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Filter nav items based on user permissions
+  const navItems = useMemo(() =>
+    baseNavItems.filter((item) => {
+      if ('restrictTo' in item && item.restrictTo) {
+        return user?.email === item.restrictTo;
+      }
+      return true;
+    }),
+    [user?.email]
+  );
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;

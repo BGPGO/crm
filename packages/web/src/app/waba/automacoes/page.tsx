@@ -48,13 +48,8 @@ export default function WabaAutomacoesPage() {
     try {
       const res = await api.get<{ data: Automation[] }>("/automations?includeSteps=true&limit=50");
       const allAutomations = res.data || [];
-      // Filter: automações que usam SEND_WA_TEMPLATE ou têm "WABA" no nome
-      const wabaAutomations = allAutomations.filter(
-        (a: Automation) =>
-          a.name.toUpperCase().includes("WABA") ||
-          (a.steps || []).some((s: AutomationStep) => s.actionType === "SEND_WA_TEMPLATE")
-      );
-      setAutomations(wabaAutomations);
+      // Mostrar todas as automações (unificado — WABA + legado)
+      setAutomations(allAutomations);
     } catch (err) {
       console.error("Erro ao buscar automações:", err);
     } finally {
@@ -95,8 +90,21 @@ export default function WabaAutomacoesPage() {
     switch (actionType) {
       case "SEND_WA_TEMPLATE":
         return <MessageSquare size={14} className="text-green-600" />;
+      case "SEND_WHATSAPP":
+      case "SEND_WHATSAPP_AI":
+        return <MessageSquare size={14} className="text-amber-500" />;
+      case "SEND_EMAIL":
+        return <MessageSquare size={14} className="text-blue-500" />;
       case "WAIT":
+      case "WAIT_FOR_RESPONSE":
         return <Clock size={14} className="text-blue-500" />;
+      case "CONDITION":
+        return <AlertCircle size={14} className="text-purple-500" />;
+      case "ADD_TAG":
+      case "REMOVE_TAG":
+        return <CheckCircle2 size={14} className="text-indigo-500" />;
+      case "MOVE_PIPELINE_STAGE":
+        return <ChevronRight size={14} className="text-teal-500" />;
       case "MARK_LOST":
         return <XCircle size={14} className="text-red-500" />;
       default:
@@ -104,18 +112,41 @@ export default function WabaAutomacoesPage() {
     }
   }
 
+  function isWabaAutomation(automation: Automation): boolean {
+    return automation.name.toUpperCase().includes("WABA") ||
+      (automation.steps || []).some((s) => s.actionType === "SEND_WA_TEMPLATE");
+  }
+
   function formatStepLabel(step: AutomationStep) {
     const config = step.config || {};
     switch (step.actionType) {
       case "SEND_WA_TEMPLATE":
-        return config._label || config.templateName || "Template";
+        return config._label || config.templateName || "Template WABA";
+      case "SEND_WHATSAPP":
+        return config._label || "Enviar WhatsApp (Z-API)";
+      case "SEND_WHATSAPP_AI":
+        return config._label || "Enviar WhatsApp IA (Z-API)";
+      case "SEND_EMAIL":
+        return config._label || "Enviar Email";
       case "WAIT": {
         const d = config.duration;
         const u = config.unit === "days" ? "dia(s)" : config.unit === "hours" ? "hora(s)" : "min";
         return `Aguardar ${d} ${u}`;
       }
+      case "WAIT_FOR_RESPONSE":
+        return "Aguardar resposta";
+      case "CONDITION":
+        return config._label || `Condição: ${config.field || "..."}`;
+      case "ADD_TAG":
+        return config._label || "Adicionar tag";
+      case "REMOVE_TAG":
+        return config._label || "Remover tag";
+      case "MOVE_PIPELINE_STAGE":
+        return config._label || "Mover etapa";
+      case "UPDATE_FIELD":
+        return config._label || "Atualizar campo";
       case "MARK_LOST":
-        return "Marcar como perdido";
+        return config._label || "Marcar como perdido";
       default:
         return config._label || step.actionType;
     }
@@ -143,10 +174,10 @@ export default function WabaAutomacoesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Workflow size={24} />
-            Automacoes WABA
+            Automacoes
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Cadencias de follow-up via WhatsApp Cloud API (templates aprovados pela Meta)
+            Cadencias e automacoes de follow-up (WABA + legado)
           </p>
         </div>
         <a
@@ -195,8 +226,13 @@ export default function WabaAutomacoesPage() {
                       <Workflow size={20} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         {automation.name}
+                        {isWabaAutomation(automation) ? (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded font-bold">WABA</span>
+                        ) : (
+                          <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded font-bold">Z-API</span>
+                        )}
                       </h3>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {templateSteps.length} templates · Trigger:{" "}

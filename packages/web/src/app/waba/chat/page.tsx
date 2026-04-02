@@ -158,7 +158,7 @@ interface DealSummary {
 
 // ─── Filter type ──────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "open" | "bot" | "human";
+type FilterKey = "all" | "open" | "bot" | "human" | "zapi";
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
@@ -464,7 +464,8 @@ export default function WabaChatPage() {
   const { user: authUser } = useAuth();
 
   // ── State ──
-  const [conversations, setConversations] = useState<WaConversation[]>([]);
+  const [conversations, setConversations] = useState<(WaConversation & { channel?: string; _legacyId?: string })[]>([]);
+  const [legacyConversations, setLegacyConversations] = useState<(WaConversation & { channel: string; _legacyId: string })[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -549,9 +550,14 @@ export default function WabaChatPage() {
     async (convId: string, showLoading = false) => {
       if (showLoading) setMessagesLoading(true);
       try {
-        const res = await api.get<{ data: WaMessage[]; meta: { total: number } }>(
-          `/wa/conversations/${convId}/messages?limit=200`
-        );
+        // Check if this is a legacy Z-API conversation
+        const isLegacy = convId.startsWith("zapi_");
+        const legacyId = isLegacy ? convId.replace("zapi_", "") : convId;
+        const url = isLegacy
+          ? `/wa/conversations/legacy/${legacyId}/messages?limit=200`
+          : `/wa/conversations/${convId}/messages?limit=200`;
+
+        const res = await api.get<{ data: WaMessage[]; meta: { total: number } }>(url);
         setMessages(res.data || []);
       } catch {
         if (showLoading) setError("Erro ao carregar mensagens.");
@@ -562,11 +568,27 @@ export default function WabaChatPage() {
     []
   );
 
+  // ── Fetch legacy Z-API conversations ──
+  const fetchLegacyConversations = useCallback(async (query?: string) => {
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", "100");
+      const s = query !== undefined ? query : searchQuery;
+      if (s) params.set("search", s);
+
+      const res = await api.get<{ data: any[] }>(`/wa/conversations/legacy?${params.toString()}`);
+      setLegacyConversations(res.data || []);
+    } catch {
+      // silent
+    }
+  }, [searchQuery]);
+
   // ── Initial load ──
   useEffect(() => {
     fetchConversations();
     fetchStats();
-  }, [fetchConversations, fetchStats]);
+    fetchLegacyConversations();
+  }, [fetchConversations, fetchStats, fetchLegacyConversations]);
 
   // ── Load users + templates once ──
   useEffect(() => {
@@ -670,6 +692,9 @@ export default function WabaChatPage() {
 
   // ── Filtered conversations ──
   const filteredConversations = useMemo(() => {
+    if (activeFilter === "zapi") {
+      return legacyConversations as typeof conversations;
+    }
     return conversations.filter((conv) => {
       if (activeFilter === "open") return conv.status === "WA_OPEN";
       if (activeFilter === "bot") {
@@ -679,7 +704,7 @@ export default function WabaChatPage() {
       if (activeFilter === "human") return conv.needsHumanAttention;
       return true;
     });
-  }, [conversations, activeFilter]);
+  }, [conversations, legacyConversations, activeFilter]);
 
   // ── Handlers ──
   const handleSelectConversation = (id: string) => {
@@ -873,13 +898,14 @@ export default function WabaChatPage() {
           </div>
 
           {/* Filter pills */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {(
               [
-                { key: "all" as FilterKey, label: "Todos", count: stats.total },
-                { key: "open" as FilterKey, label: "Abertos", count: stats.open },
-                { key: "bot" as FilterKey, label: "Bot", count: null },
-                { key: "human" as FilterKey, label: "Humano", count: stats.needsHuman },
+                { key: "all" as FilterKey, label: "Todos", count: stats.total, color: null },
+                { key: "open" as FilterKey, label: "Abertos", count: stats.open, color: null },
+                { key: "bot" as FilterKey, label: "Bot", count: null, color: null },
+                { key: "human" as FilterKey, label: "Humano", count: stats.needsHuman, color: null },
+                { key: "zapi" as FilterKey, label: "Z-API", count: legacyConversations.length || null, color: "amber" },
               ] as const
             ).map((f) => (
               <button
@@ -888,8 +914,12 @@ export default function WabaChatPage() {
                 className={clsx(
                   "px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors",
                   activeFilter === f.key
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                    ? f.color === "amber"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                    : f.color === "amber"
+                      ? "bg-amber-50 text-amber-500 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                 )}
               >
                 {f.label}
@@ -1016,13 +1046,18 @@ export default function WabaChatPage() {
                       <div className="flex items-baseline justify-between gap-2">
                         <p
                           className={clsx(
-                            "text-sm truncate",
+                            "text-sm truncate flex items-center gap-1.5",
                             hasUnread
                               ? "font-bold text-gray-900 dark:text-white"
                               : "font-medium text-gray-900 dark:text-gray-100"
                           )}
                         >
                           {displayName}
+                          {(conv as any).channel === "zapi" && (
+                            <span className="inline-flex items-center px-1.5 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 flex-shrink-0">
+                              Z-API
+                            </span>
+                          )}
                         </p>
                         <span
                           className={clsx(
@@ -1367,7 +1402,15 @@ export default function WabaChatPage() {
             </div>
 
             {/* ── Input area ── */}
-            {selectedConv?.windowOpen ? (
+            {selectedId?.startsWith("zapi_") ? (
+              /* Legacy Z-API conversation — read only */
+              <div className="bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-700 p-3 flex-shrink-0">
+                <div className="flex items-center gap-2 justify-center text-amber-700 dark:text-amber-400">
+                  <AlertTriangle size={14} />
+                  <p className="text-xs font-medium">Conversa Z-API (legado) — somente leitura. Use a seção Conversas para responder.</p>
+                </div>
+              </div>
+            ) : selectedConv?.windowOpen ? (
               /* Window OPEN: regular text input */
               <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-3 flex-shrink-0">
                 <div className="flex items-end gap-2 max-w-3xl mx-auto">
