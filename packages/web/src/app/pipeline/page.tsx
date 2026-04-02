@@ -33,6 +33,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Deal } from "@/components/pipeline/DealCard";
+import DuplicateAlerts from "@/components/pipeline/DuplicateAlerts";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -926,6 +927,9 @@ export default function PipelinePage() {
           <p className="text-sm text-gray-400">Nenhum pipeline encontrado.</p>
         </div>
       )}
+
+      {/* Duplicate Alerts */}
+      <DuplicateAlerts />
 
       {/* Kanban Board */}
       {!loading && !error && stageSummaries.length > 0 && view === "kanban" && pipelineId && (

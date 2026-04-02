@@ -1818,3 +1818,16 @@ model WaBroadcastContact {
   @@index([broadcastId, status])
   @@index([phone])
 }
+
+// ─── Duplicate Detection ───────────────────────────────────────────────────────
+
+model DuplicateAlert {
+  id          String   @id @default(cuid())
+  contactAId  String   // contato recém-criado (ex: via Calendly)
+  contactBId  String   // possível duplicata (ex: via GreatPages)
+  reason      String   // ex: "Mesmo nome, criado 27s antes"
+  status      String   @default("PENDING") // PENDING | MERGED | DISMISSED
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+}

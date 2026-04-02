@@ -56,6 +56,7 @@ import contractWitnessesRouter from './contract-witnesses';
 import contractWebhookRouter from './contract-webhook';
 import reportsRouter from './reports';
 import readaiRouter from './readai';
+import duplicateAlertsRouter from './duplicate-alerts';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -127,5 +128,6 @@ router.use('/contracts', contractsRouter);
 router.use('/contract-witnesses', contractWitnessesRouter);
 router.use('/notification-config', notificationConfigRouter);
 router.use('/reports', reportsRouter);
+router.use('/duplicate-alerts', duplicateAlertsRouter);
 
 export default router;

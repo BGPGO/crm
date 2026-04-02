@@ -230,6 +230,49 @@ router.post('/', async (req: Request, res: Response) => {
           },
         });
         console.log(`[calendly-webhook] Auto-created contact: ${contact.id}`);
+
+        // ── Duplicate detection: check if a similar contact was created recently ──
+        try {
+          const contactName = (inviteeName || '').trim().toLowerCase();
+          const firstName = contactName.split(/\s+/)[0];
+          if (firstName && firstName.length >= 3) {
+            const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+            const candidates = await prisma.contact.findMany({
+              where: {
+                id: { not: contact.id },
+                createdAt: { gte: twoDaysAgo },
+                name: { contains: firstName, mode: 'insensitive' },
+                phone: { not: null }, // GreatPages leads always have phone
+                deals: { some: { status: 'OPEN' } },
+              },
+              select: { id: true, name: true, phone: true, createdAt: true },
+              take: 5,
+            });
+
+            if (candidates.length > 0) {
+              // Pick the most likely match (closest in time)
+              const best = candidates.sort((a, b) =>
+                Math.abs(a.createdAt.getTime() - contact!.createdAt.getTime()) -
+                Math.abs(b.createdAt.getTime() - contact!.createdAt.getTime())
+              )[0];
+
+              const diffMs = Math.abs(contact.createdAt.getTime() - best.createdAt.getTime());
+              const diffMin = Math.floor(diffMs / 60000);
+              const diffStr = diffMin < 60 ? `${diffMin}min` : `${Math.floor(diffMin / 60)}h${diffMin % 60}min`;
+
+              await prisma.duplicateAlert.create({
+                data: {
+                  contactAId: contact.id,
+                  contactBId: best.id,
+                  reason: `Calendly "${inviteeName}" ↔ Lead "${best.name}" (${best.phone}), criado ${diffStr} antes`,
+                },
+              });
+              console.log(`[calendly-webhook] DuplicateAlert criado: ${contact.id} ↔ ${best.id} (${diffStr})`);
+            }
+          }
+        } catch (err) {
+          console.error('[calendly-webhook] Erro no duplicate check (non-critical):', err);
+        }
       }
 
       if (contact) {
