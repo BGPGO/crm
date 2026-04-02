@@ -114,18 +114,46 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Compute window status and enrich response
     const now = new Date();
 
-    // Batch-fetch latest deal + stage for each contact (any status)
-    const contactIdsForStage = data.map(c => c.contactId).filter(Boolean) as string[];
-    const dealsByContact: Record<string, { id: string; stageId: string; status: string; stage: { name: string; color: string | null } | null }> = {};
-    if (contactIdsForStage.length > 0) {
-      const deals = await prisma.deal.findMany({
-        where: { contactId: { in: contactIdsForStage } },
-        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], // OPEN first, then most recent
-        distinct: ['contactId'],
-        select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true } } },
+    // Batch-fetch deals for each conversation phone (handles duplicate contacts)
+    // We look up by phone via Contact to catch cases where same phone = multiple contacts
+    const allPhones = data.map(c => c.phone).filter(Boolean);
+    type DealInfo = { id: string; stageId: string; status: string; stage: { name: string; color: string | null } | null };
+    const dealsByPhone: Record<string, DealInfo> = {};
+    if (allPhones.length > 0) {
+      // Build all phone variants for matching
+      const phonesNorm = [...new Set(allPhones)];
+      const allVariants = phonesNorm.flatMap(p => phoneVariants(p));
+      const uniqueVariants = [...new Set(allVariants)];
+      // Find all contacts matching these phones, then their deals
+      const contacts = await prisma.contact.findMany({
+        where: { phone: { in: uniqueVariants } },
+        select: { id: true, phone: true },
       });
-      for (const d of deals) {
-        if (d.contactId) dealsByContact[d.contactId] = d;
+      const allContactIds = contacts.map(c => c.id);
+      if (allContactIds.length > 0) {
+        const deals = await prisma.deal.findMany({
+          where: { contactId: { in: allContactIds } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true } } },
+        });
+        // Group by phone, prioritize OPEN > WON > LOST
+        const statusPriority: Record<string, number> = { OPEN: 0, WON: 1, LOST: 2 };
+        // Map contactId → normalized phone (digits only) for matching back to conversation
+        const contactPhoneMap = new Map(contacts.map(c => [c.id, c.phone?.replace(/\D/g, '') || '']));
+        // Build reverse map: conversation phone (normalized) → conversation phone (original)
+        const convPhoneNorm = new Map(phonesNorm.map(p => [p.replace(/\D/g, ''), p]));
+        for (const d of deals) {
+          const contactPhoneNorm = contactPhoneMap.get(d.contactId!) || '';
+          // Match back to conversation phone
+          const convPhone = convPhoneNorm.get(contactPhoneNorm) || contactPhoneNorm;
+          if (!convPhone) continue;
+          const existing = dealsByPhone[convPhone];
+          const dPriority = statusPriority[d.status] ?? 3;
+          const ePriority = existing ? (statusPriority[existing.status] ?? 3) : 99;
+          if (dPriority < ePriority) {
+            dealsByPhone[convPhone] = d;
+          }
+        }
       }
     }
 
@@ -137,8 +165,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         ...c,
         unreadCount: unreadCounts[c.id] || 0,
         windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
-        dealStage: c.contactId ? dealsByContact[c.contactId]?.stage ?? null : null,
-        dealStatus: c.contactId ? (dealsByContact[c.contactId]?.status ?? null) : null,
+        dealStage: dealsByPhone[c.phone]?.stage ?? null,
+        dealStatus: dealsByPhone[c.phone]?.status ?? null,
       }))
       .filter((c) => {
         if (!dealStatusFilter) return true;
