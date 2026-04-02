@@ -28,10 +28,10 @@ import { canSend, registerSent } from '../dailyLimitService';
 
 // ─── Mapeamento step (minutos antes) → template ──────────────────────────────
 
-const TEMPLATE_MAP: Record<number, string> = {
-  240: 'lembrete_reuniao_4h',
-  60: 'lembrete_reuniao_1h',
-  15: 'lembrete_reuniao_15min',
+const TEMPLATE_MAP: Record<number, string[]> = {
+  240: ['lembrete_reuniao_4h'],
+  60: ['lembrete_reuniao_60min', 'lembrete_reuniao_1h'],
+  15: ['lembrete_reuniao_15min'],
 };
 
 // ─── Normalização de telefone ────────────────────────────────────────────────
@@ -142,8 +142,8 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
   }
 
   // Buscar o template correspondente ao step (minutesBefore)
-  const templateName = TEMPLATE_MAP[followUp.stepNumber];
-  if (!templateName) {
+  const templateCandidates = TEMPLATE_MAP[followUp.stepNumber];
+  if (!templateCandidates || templateCandidates.length === 0) {
     console.warn(`[waba-meeting-reminder] Nenhum template mapeado para step ${followUp.stepNumber}min — pulando`);
     await prisma.scheduledFollowUp.update({
       where: { id: scheduledFollowUpId },
@@ -152,14 +152,18 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     return;
   }
 
-  // Verificar se o template está aprovado no banco
-  const template = await prisma.cloudWaTemplate.findFirst({
-    where: { name: templateName, language: 'pt_BR' },
-    select: { status: true },
-  });
+  // Buscar o primeiro template APPROVED da lista de candidatos
+  let templateName: string | null = null;
+  for (const candidate of templateCandidates) {
+    const t = await prisma.cloudWaTemplate.findFirst({
+      where: { name: candidate, language: 'pt_BR', status: 'APPROVED' },
+      select: { name: true },
+    });
+    if (t) { templateName = candidate; break; }
+  }
 
-  if (!template || template.status !== 'APPROVED') {
-    console.warn(`[waba-meeting-reminder] Template "${templateName}" não encontrado ou não aprovado (status: ${template?.status}) — pulando`);
+  if (!templateName) {
+    console.warn(`[waba-meeting-reminder] Nenhum template aprovado para step ${followUp.stepNumber}min (candidatos: ${templateCandidates.join(', ')}) — pulando`);
     // Não marcamos FAILED aqui pois o template pode ser aprovado depois
     return;
   }
