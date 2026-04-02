@@ -1185,7 +1185,7 @@ export default function WabaChatPage() {
 
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {selectedConv?.contact?.name || "Sem nome"}
+                      {selectedConv?.contact?.name || selectedConv?.pushName || selectedConv?.phone || "Sem nome"}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {selectedConv?.contact?.phone || ""}
@@ -1643,7 +1643,7 @@ export default function WabaChatPage() {
               {getInitials(selectedConv.contact?.name)}
             </div>
             <h3 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white truncate">
-              {selectedConv.contact?.name || "Sem nome"}
+              {selectedConv.contact?.name || selectedConv.pushName || selectedConv.phone || "Sem nome"}
             </h3>
             {selectedConv.contact?.phone && (
               <div className="flex items-center justify-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
