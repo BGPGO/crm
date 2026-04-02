@@ -396,7 +396,7 @@ router.get('/:id/recipients', async (req: Request, res: Response, next: NextFunc
         where: { contactId: { in: contactIds } },
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
         distinct: ['contactId'],
-        select: { id: true, title: true, status: true, contactId: true, stage: { select: { name: true, color: true } } },
+        select: { id: true, title: true, status: true, contactId: true, createdAt: true, stage: { select: { name: true, color: true, order: true } } },
       });
       for (const d of deals) {
         if (d.contactId) dealsByContact[d.contactId] = d;

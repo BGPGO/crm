@@ -26,7 +26,7 @@ interface Recipient {
   clickedAt: string | null;
   bouncedAt: string | null;
   unsubscribedAt: string | null;
-  deal: { id: string; title: string; status: string; stage: { name: string; color: string | null } | null } | null;
+  deal: { id: string; title: string; status: string; createdAt: string; stage: { name: string; color: string | null; order: number } | null } | null;
 }
 
 interface CampaignMetricsProps {
@@ -269,11 +269,19 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                     <th className="pb-2 text-xs font-medium text-gray-500">Abriu</th>
                     <th className="pb-2 text-xs font-medium text-gray-500">Clicou</th>
                     <th className="pb-2 text-xs font-medium text-gray-500">Negociação</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Criada em</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recipients.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  {recipients.map((r) => {
+                    // Reunião agendada (order >= 4) com deal criado após envio do email
+                    const isPostEmailMeeting = r.deal?.stage?.order != null && r.deal.stage.order >= 4
+                      && r.sentAt && r.deal.createdAt && new Date(r.deal.createdAt) >= new Date(r.sentAt);
+                    return (
+                    <tr key={r.id} className={clsx(
+                      "border-b border-gray-50 hover:bg-gray-50",
+                      isPostEmailMeeting && "bg-emerald-50 dark:bg-emerald-900/10"
+                    )}>
                       <td className="py-2 pr-2">
                         {r.contact ? (
                           <a href={`/contacts/${r.contact.id}`} className="text-blue-600 hover:underline font-medium">
@@ -328,13 +336,18 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                             </span>
                             {r.deal.status === "WON" && <span className="text-green-600 font-medium">Ganho</span>}
                             {r.deal.status === "LOST" && <span className="text-red-500 font-medium">Perdido</span>}
+                            {isPostEmailMeeting && <span className="text-emerald-600 font-bold text-[9px] ml-1">REUNIÃO</span>}
                           </a>
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
+                      <td className="py-2 text-xs text-gray-500">
+                        {r.deal?.createdAt ? new Date(r.deal.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—"}
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
