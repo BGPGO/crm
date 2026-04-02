@@ -182,6 +182,42 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   return where;
 }
 
+/**
+ * Aplica filtro UTM ao where de deals (async — requer query raw).
+ * Filtra pelo primeiro LeadTracking do contato (atribuição de origem).
+ */
+async function applyUtmFilter(where: Record<string, unknown>, query: Record<string, unknown>): Promise<void> {
+  const str = (key: string) => query[key] as string | undefined;
+  const utmCampaign = str('utmCampaign');
+  const utmSource = str('utmSource');
+  const utmMedium = str('utmMedium');
+
+  if (!utmCampaign && !utmSource && !utmMedium) return;
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (utmCampaign) { conditions.push(`lt."utmCampaign" = $${params.length + 1}`); params.push(utmCampaign); }
+  if (utmSource) { conditions.push(`lt."utmSource" = $${params.length + 1}`); params.push(utmSource); }
+  if (utmMedium) { conditions.push(`lt."utmMedium" = $${params.length + 1}`); params.push(utmMedium); }
+
+  const contactIds: Array<{ contactId: string }> = await prisma.$queryRawUnsafe(`
+    SELECT DISTINCT lt."contactId"
+    FROM "LeadTracking" lt
+    WHERE ${conditions.join(' AND ')}
+      AND lt."createdAt" = (
+        SELECT MIN(lt2."createdAt")
+        FROM "LeadTracking" lt2
+        WHERE lt2."contactId" = lt."contactId"
+      )
+  `, ...params);
+
+  if (contactIds.length > 0) {
+    where.contactId = { in: contactIds.map(r => r.contactId) };
+  } else {
+    where.contactId = { in: [] };
+  }
+}
+
 // GET /api/pipelines
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -247,6 +283,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
 
     const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id);
     await applySearch(where);
+    await applyUtmFilter(where, req.query as Record<string, unknown>);
 
     // When status is not explicitly WON, we need a separate WON count using closedAt
     // because the main where uses createdAt for period filtering
@@ -261,6 +298,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
         req.params.id,
       );
       await applySearch(wonWhere);
+      await applyUtmFilter(wonWhere, req.query as Record<string, unknown>);
     }
 
     // When no status filter + period: also include WON deals with closedAt in period
@@ -309,6 +347,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
       req.params.id,
     );
     await applySearch(wonValueWhere);
+    await applyUtmFilter(wonValueWhere, req.query as Record<string, unknown>);
 
     const wonProducts = await prisma.dealProduct.findMany({
       where: { deal: wonValueWhere },
@@ -383,6 +422,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
 
     const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
     await applySearch(where);
+    await applyUtmFilter(where, req.query as Record<string, unknown>);
 
     const sortBy = req.query.sortBy as string | undefined;
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
@@ -445,6 +485,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
 
     const baseWhere = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
     await applySearch(baseWhere);
+    await applyUtmFilter(baseWhere, req.query as Record<string, unknown>);
 
     const sortBy = req.query.sortBy as string | undefined;
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
