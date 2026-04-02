@@ -368,6 +368,43 @@ router.get('/:id/stats', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
+// GET /api/email-campaigns/:id/recipients — List individual recipients with status
+router.get('/:id/recipients', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status: filterStatus } = req.query;
+
+    const where: Record<string, unknown> = { emailCampaignId: req.params.id };
+    if (filterStatus) {
+      where.status = filterStatus as string;
+    }
+
+    const sends = await prisma.emailSend.findMany({
+      where,
+      orderBy: [{ clickedAt: { sort: 'desc', nulls: 'last' } }, { openedAt: { sort: 'desc', nulls: 'last' } }, { sentAt: { sort: 'desc', nulls: 'last' } }],
+      include: {
+        contact: {
+          select: { id: true, name: true, email: true, phone: true },
+        },
+      },
+    });
+
+    const data = sends.map((s) => ({
+      id: s.id,
+      contact: s.contact,
+      status: s.status,
+      sentAt: s.sentAt,
+      openedAt: s.openedAt,
+      clickedAt: s.clickedAt,
+      bouncedAt: s.bouncedAt,
+      unsubscribedAt: s.unsubscribedAt,
+    }));
+
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/email-campaigns/:id/test-send
 router.post('/:id/test-send', async (req: Request, res: Response, next: NextFunction) => {
   try {

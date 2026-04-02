@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Loader2, Send, MailOpen, MousePointerClick, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, Send, MailOpen, MousePointerClick, AlertTriangle, Users, ExternalLink } from "lucide-react";
+import clsx from "clsx";
 import Card from "@/components/ui/Card";
 import { api } from "@/lib/api";
 
@@ -14,6 +15,17 @@ interface CampaignStats {
   unsubscribed: number;
   openRate: number;
   clickRate: number;
+}
+
+interface Recipient {
+  id: string;
+  contact: { id: string; name: string; email: string; phone: string | null } | null;
+  status: string;
+  sentAt: string | null;
+  openedAt: string | null;
+  clickedAt: string | null;
+  bouncedAt: string | null;
+  unsubscribedAt: string | null;
 }
 
 interface CampaignMetricsProps {
@@ -35,6 +47,21 @@ function getRateTextColor(rate: number): string {
 export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
   const [stats, setStats] = useState<CampaignStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipientFilter, setRecipientFilter] = useState<string>("all");
+  const [recipientLoading, setRecipientLoading] = useState(false);
+  const [showRecipients, setShowRecipients] = useState(false);
+
+  const fetchRecipients = useCallback(async (filter?: string) => {
+    setRecipientLoading(true);
+    try {
+      const f = filter || recipientFilter;
+      const qs = f !== "all" ? `?status=${f}` : "";
+      const res = await api.get<{ data: Recipient[] }>(`/email-campaigns/${campaignId}/recipients${qs}`);
+      setRecipients(res.data || []);
+    } catch { /* silent */ }
+    finally { setRecipientLoading(false); }
+  }, [campaignId, recipientFilter]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -180,6 +207,114 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
             %
           </span>
         </div>
+      </Card>
+
+      {/* Recipients list */}
+      <Card padding="md">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <Users size={16} />
+            Destinatários
+          </h3>
+          {!showRecipients ? (
+            <button
+              onClick={() => { setShowRecipients(true); fetchRecipients(); }}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Ver lista
+            </button>
+          ) : (
+            <div className="flex gap-1">
+              {([
+                { key: "all", label: "Todos" },
+                { key: "CLICKED", label: "Clicaram" },
+                { key: "OPENED", label: "Abriram" },
+                { key: "DELIVERED", label: "Entregue" },
+                { key: "BOUNCED", label: "Rejeitado" },
+              ] as const).map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => { setRecipientFilter(f.key); fetchRecipients(f.key); }}
+                  className={clsx(
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                    recipientFilter === f.key
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {showRecipients && (
+          recipientLoading ? (
+            <div className="flex items-center justify-center py-6 text-gray-400">
+              <Loader2 size={16} className="animate-spin mr-2" />
+              Carregando...
+            </div>
+          ) : recipients.length === 0 ? (
+            <p className="text-center py-4 text-sm text-gray-400">Nenhum destinatário encontrado.</p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="pb-2 text-xs font-medium text-gray-500">Nome</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Email</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Status</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Abriu</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Clicou</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recipients.map((r) => (
+                    <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 pr-2">
+                        {r.contact ? (
+                          <a href={`/contacts/${r.contact.id}`} className="text-blue-600 hover:underline font-medium">
+                            {r.contact.name}
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-2 text-gray-500 text-xs">{r.contact?.email || "-"}</td>
+                      <td className="py-2 pr-2">
+                        <span className={clsx(
+                          "inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium",
+                          r.status === "CLICKED" ? "bg-purple-100 text-purple-700" :
+                          r.status === "OPENED" ? "bg-green-100 text-green-700" :
+                          r.status === "DELIVERED" ? "bg-blue-100 text-blue-700" :
+                          r.status === "BOUNCED" ? "bg-red-100 text-red-700" :
+                          r.status === "SPAM" ? "bg-red-100 text-red-700" :
+                          "bg-gray-100 text-gray-600"
+                        )}>
+                          {r.status === "CLICKED" ? "Clicou" :
+                           r.status === "OPENED" ? "Abriu" :
+                           r.status === "DELIVERED" ? "Entregue" :
+                           r.status === "BOUNCED" ? "Rejeitado" :
+                           r.status === "SPAM" ? "Spam" :
+                           r.status === "SENT" ? "Enviado" :
+                           r.status === "UNSUBSCRIBED" ? "Descadastrou" :
+                           r.status}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-2 text-xs text-gray-500">
+                        {r.openedAt ? new Date(r.openedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                      </td>
+                      <td className="py-2 text-xs text-gray-500">
+                        {r.clickedAt ? new Date(r.clickedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
       </Card>
     </div>
   );
