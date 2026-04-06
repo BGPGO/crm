@@ -86,6 +86,7 @@ interface WaMessage {
   failedAt: string | null;
   errorMessage: string | null;
   templateName: string | null;
+  metadata: any;
   senderUser: WaSenderUser | null;
   createdAt: string;
 }
@@ -438,19 +439,45 @@ function MessageContent({ msg }: { msg: WaMessage }) {
         <span className="text-2xl">{body || ""}</span>
       );
 
-    case "TEMPLATE":
+    case "TEMPLATE": {
+      const meta = msg.metadata || {};
+      const buttons = meta.buttons as Array<{ type: string; text: string; url?: string }> | undefined;
       return (
-        <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
-          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-            <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              Template: {templateName || ""}
-            </p>
-          </div>
-          <div className="px-3 py-2">
-            <p className="text-sm whitespace-pre-line break-words">{body || ""}</p>
-          </div>
+        <div>
+          {meta.headerContent && (
+            <p className="text-sm font-semibold mb-1">{meta.headerContent}</p>
+          )}
+          <p className="text-sm whitespace-pre-line break-words">{body || ""}</p>
+          {meta.footer && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{meta.footer}</p>
+          )}
+          {buttons && buttons.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {buttons.map((btn, i) => (
+                btn.url ? (
+                  <a
+                    key={i}
+                    href={btn.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-sm text-blue-600 dark:text-blue-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    {btn.text}
+                  </a>
+                ) : (
+                  <span
+                    key={i}
+                    className="block text-center text-sm text-blue-600 dark:text-blue-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg"
+                  >
+                    {btn.text}
+                  </span>
+                )
+              ))}
+            </div>
+          )}
         </div>
       );
+    }
 
     case "INTERACTIVE_BUTTONS":
       return (

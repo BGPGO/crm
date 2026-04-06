@@ -192,10 +192,10 @@ export class WaMessageService {
     await this.checkDailyVolume(senderType);
     await enforcePairRateLimit(conv.phone);
 
-    // Fetch template body from DB for display
+    // Fetch template from DB for display (body + header + buttons + footer)
     const tplRecord = await prisma.cloudWaTemplate.findFirst({
       where: { name: templateName },
-      select: { body: true },
+      select: { body: true, headerType: true, headerContent: true, footer: true, buttons: true },
     });
     const templateBody = tplRecord?.body || `[template: ${templateName}]`;
     // Replace {{N}} placeholders with actual params if provided
@@ -208,6 +208,15 @@ export class WaMessageService {
         });
       }
     }
+
+    // Build template metadata for frontend rendering
+    const templateMeta: Record<string, any> = {};
+    if (tplRecord?.headerType && tplRecord?.headerContent) {
+      templateMeta.headerType = tplRecord.headerType;
+      templateMeta.headerContent = tplRecord.headerContent;
+    }
+    if (tplRecord?.footer) templateMeta.footer = tplRecord.footer;
+    if (tplRecord?.buttons) templateMeta.buttons = tplRecord.buttons;
 
     const client = await this.getClient();
     let response: any;
@@ -228,7 +237,7 @@ export class WaMessageService {
       senderUserId: opts.senderUserId,
       isFollowUp: opts.isFollowUp,
       followUpStep: opts.followUpStep,
-      metadata: opts.metadata,
+      metadata: { ...opts.metadata, ...templateMeta },
     });
 
     return message;
