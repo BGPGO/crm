@@ -177,6 +177,12 @@ router.get('/status', async (req: Request, res: Response, next: NextFunction) =>
             exceeded: spend.exceeded,
             marketingCount: spend.marketingCount,
             utilityCount: spend.utilityCount,
+            automationCost: spend.automationCost,
+            automationMarketingCount: spend.automationMarketingCount,
+            automationUtilityCount: spend.automationUtilityCount,
+            broadcastCost: spend.broadcastCost,
+            broadcastMarketingCount: spend.broadcastMarketingCount,
+            broadcastUtilityCount: spend.broadcastUtilityCount,
           },
           templates: templateStats.reduce((acc: Record<string, number>, s) => {
             acc[s.status] = s._count.id;
