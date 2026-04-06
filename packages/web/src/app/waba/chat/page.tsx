@@ -294,7 +294,7 @@ function senderLabel(msg: WaMessage): string | null {
     case "WA_HUMAN":
       return msg.senderUser?.name ? `${msg.senderUser.name} (Agente)` : "Agente";
     case "WA_SYSTEM":
-      return "Sistema";
+      return msg.type === "TEMPLATE" ? "Broadcast" : "Sistema";
     default:
       return null;
   }
@@ -1451,7 +1451,8 @@ export default function WabaChatPage() {
                       idx > 0 ? getDateKey(messages[idx - 1].createdAt) : null;
                     const showDateSeparator = currentDateKey !== prevDateKey;
                     const label = senderLabel(msg);
-                    const isSystem = msg.senderType === "WA_SYSTEM";
+                    // WA_SYSTEM + TEMPLATE = broadcast/cadência — renderiza como bolha normal
+                    const isSystem = msg.senderType === "WA_SYSTEM" && msg.type !== "TEMPLATE";
 
                     if (isSystem) {
                       return (
