@@ -48,6 +48,22 @@ export default function WabaSidebar({
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
+  const getDateKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+
+  const formatDateSeparator = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+    const msgDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (msgDayStart.getTime() === todayStart.getTime()) return "Hoje";
+    if (msgDayStart.getTime() === yesterdayStart.getTime()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  };
+
   const fetchMessages = useCallback(
     async (showLoading = false) => {
       if (showLoading) setLoading(true);
@@ -146,15 +162,24 @@ export default function WabaSidebar({
               <p className="text-sm text-gray-400 text-center">Nenhuma mensagem na WABA ainda.</p>
             </div>
           ) : (
-            messages.map((msg) => {
+            messages.map((msg, idx) => {
               const isClient = msg.direction === "INBOUND";
               const isBot = msg.senderType === "WA_BOT";
               const isHuman = msg.senderType === "WA_HUMAN";
               const isTemplate = msg.type === "TEMPLATE";
               const text = msg.body || (isTemplate ? `[Template: ${msg.templateName}]` : "[Mídia]");
+              const showDateSeparator = idx === 0 || getDateKey(msg.createdAt) !== getDateKey(messages[idx - 1].createdAt);
 
               return (
-                <div key={msg.id} className={`flex ${isClient ? "justify-start" : "justify-end"}`}>
+                <div key={msg.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center my-3">
+                      <span className="px-3 py-0.5 bg-white text-gray-500 text-[10px] rounded-full shadow-sm font-medium border border-gray-200">
+                        {formatDateSeparator(msg.createdAt)}
+                      </span>
+                    </div>
+                  )}
+                <div className={`flex ${isClient ? "justify-start" : "justify-end"}`}>
                   <div
                     className={`max-w-[75%] rounded-xl px-3 py-2 shadow-sm ${
                       isClient
@@ -184,6 +209,7 @@ export default function WabaSidebar({
                       {!isClient && <span className="text-[10px]">{statusIcon(msg.status)}</span>}
                     </div>
                   </div>
+                </div>
                 </div>
               );
             })

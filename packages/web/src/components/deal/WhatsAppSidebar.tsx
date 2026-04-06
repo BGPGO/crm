@@ -49,6 +49,22 @@ export default function WhatsAppSidebar({
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
 
+  const getDateKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+
+  const formatDateSeparator = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+    const msgDayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (msgDayStart.getTime() === todayStart.getTime()) return "Hoje";
+    if (msgDayStart.getTime() === yesterdayStart.getTime()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  };
+
   const fetchMessages = useCallback(
     async (showLoading = false) => {
       if (showLoading) setLoading(true);
@@ -191,16 +207,24 @@ export default function WhatsAppSidebar({
               )}
             </div>
           ) : (
-            messages.map((msg) => {
+            messages.map((msg, idx) => {
               const isClient = msg.sender === "CLIENT";
               const isBot = msg.sender === "BOT";
               const isHuman = msg.sender === "HUMAN";
               const isEditing = editingMessageId === msg.id;
               const canEdit = isHuman && msg.senderUserId === authUser?.id;
+              const showDateSeparator = idx === 0 || getDateKey(msg.createdAt) !== getDateKey(messages[idx - 1].createdAt);
 
               return (
+                <div key={msg.id}>
+                  {showDateSeparator && (
+                    <div className="flex items-center justify-center my-3">
+                      <span className="px-3 py-0.5 bg-white text-gray-500 text-[10px] rounded-full shadow-sm font-medium border border-gray-200">
+                        {formatDateSeparator(msg.createdAt)}
+                      </span>
+                    </div>
+                  )}
                 <div
-                  key={msg.id}
                   className={`flex group ${isClient ? "justify-start" : "justify-end"}`}
                 >
                   <div className={`relative ${!isClient ? "flex items-start gap-1" : ""}`}>
@@ -271,6 +295,7 @@ export default function WhatsAppSidebar({
                       </p>
                     </div>
                   </div>
+                </div>
                 </div>
               );
             })
