@@ -1809,6 +1809,7 @@ model WaBroadcastContact {
   sentAt      DateTime?
   deliveredAt DateTime?
   readAt      DateTime?
+  clickedAt   DateTime? // Rastreia clique no botão CTA URL
   failedAt    DateTime?
   error       String?
 
@@ -1820,6 +1821,7 @@ model WaBroadcastContact {
   @@index([broadcastId])
   @@index([broadcastId, status])
   @@index([phone])
+  @@index([waMessageId])
 }
 
 // ─── Duplicate Detection ───────────────────────────────────────────────────────

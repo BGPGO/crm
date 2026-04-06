@@ -224,6 +224,24 @@ async function handleMessagesChange(value: any) {
       // TODO: Integrar com handleMessage() quando a seção Inbox estiver pronta
       // Por enquanto só loga e armazena
       console.log(`[cloud-webhook] 📩 ${from} (${pushName}): ${text || `[${type}]`}`);
+
+      // Track button click: when user taps a CTA URL button, Meta sends it as type "button"
+      // Mark as "clicked" on the most recent broadcast contact for this phone
+      if (type === 'button' || type === 'interactive') {
+        try {
+          const normalizedFrom = from.startsWith('55') ? from : `55${from}`;
+          await prisma.waBroadcastContact.updateMany({
+            where: {
+              phone: normalizedFrom,
+              status: 'WA_BC_SENT',
+              clickedAt: null,
+            },
+            data: { clickedAt: new Date() },
+          });
+        } catch {
+          // Non-critical
+        }
+      }
     } catch (msgErr) {
       console.error(`[cloud-webhook] Erro ao processar mensagem ${messageId}:`, msgErr);
     }
@@ -278,6 +296,53 @@ async function handleMessagesChange(value: any) {
           });
         } catch (err) {
           console.error(`[cloud-webhook] Erro ao atualizar status ${statusType} para ${messageId}:`, err);
+        }
+
+        // Propagate delivery status to WaBroadcastContact + WaBroadcast stats
+        try {
+          const bcUpdate: Record<string, any> = {};
+          let broadcastStatField: string | null = null;
+
+          if (statusType === 'delivered') {
+            bcUpdate.deliveredAt = updateData.deliveredAt;
+            broadcastStatField = 'deliveredCount';
+          }
+          if (statusType === 'read') {
+            bcUpdate.readAt = updateData.readAt;
+            broadcastStatField = 'readCount';
+          }
+          if (statusType === 'failed') {
+            bcUpdate.status = 'WA_BC_FAILED';
+            bcUpdate.failedAt = updateData.failedAt;
+            bcUpdate.error = updateData.errorMessage || 'Delivery failed';
+          }
+
+          if (Object.keys(bcUpdate).length > 0) {
+            const result = await prisma.waBroadcastContact.updateMany({
+              where: {
+                waMessageId: messageId,
+                ...(statusType === 'delivered' ? { deliveredAt: null } : {}),
+                ...(statusType === 'read' ? { readAt: null } : {}),
+              },
+              data: bcUpdate,
+            });
+
+            // Increment broadcast-level stats only if a row was actually updated
+            if (result.count > 0 && broadcastStatField) {
+              const bc = await prisma.waBroadcastContact.findFirst({
+                where: { waMessageId: messageId },
+                select: { broadcastId: true },
+              });
+              if (bc) {
+                await prisma.waBroadcast.update({
+                  where: { id: bc.broadcastId },
+                  data: { [broadcastStatField]: { increment: result.count } },
+                });
+              }
+            }
+          }
+        } catch {
+          // Non-critical — broadcast contact may not exist for this message
         }
       }
 

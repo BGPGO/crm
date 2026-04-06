@@ -33,6 +33,43 @@ function randomBroadcastDelay(): Promise<void> {
 /** Circuit breaker — pausa broadcast apos erros consecutivos */
 const MAX_CONSECUTIVE_ERRORS = 5;
 
+/** Track active broadcast loops to prevent concurrent execution */
+const activeBroadcastLoops = new Set<string>();
+
+/**
+ * Resolve CRM Contact by normalized phone.
+ * Phones in Contact table are stored in raw format (e.g. "15 98821-4393"),
+ * so we strip formatting and compare digits only.
+ */
+async function findContactByPhone(normalizedPhone: string): Promise<{ id: string; name: string | null } | null> {
+  // Try exact normalized match first (fast path for phones already normalized)
+  const exactMatch = await prisma.contact.findFirst({
+    where: { phone: normalizedPhone },
+    select: { id: true, name: true },
+  });
+  if (exactMatch) return exactMatch;
+
+  // Extract DDD + last 4 digits for fuzzy search (works even with dashes/spaces)
+  const ddd = normalizedPhone.slice(2, 4);
+  const last4 = normalizedPhone.slice(-4);
+
+  const candidates = await prisma.contact.findMany({
+    where: {
+      phone: { not: null, contains: last4 },
+    },
+    select: { id: true, name: true, phone: true },
+  });
+
+  // Normalize each candidate and compare
+  for (const c of candidates) {
+    if (!c.phone) continue;
+    const cNormalized = normalizePhone(c.phone);
+    if (cNormalized === normalizedPhone) return { id: c.id, name: c.name };
+  }
+
+  return null;
+}
+
 // ─── GET /api/wa/broadcasts — List broadcasts with pagination ───────────────
 
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -232,10 +269,15 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
       return next(createError(`Template "${broadcast.template.name}" nao esta aprovado`, 400));
     }
 
+    // Prevent concurrent loops for the same broadcast
+    if (activeBroadcastLoops.has(broadcast.id)) {
+      return next(createError('Broadcast ja tem um loop ativo — aguarde a pausa completar antes de reiniciar', 409));
+    }
+
     // Optimistic lock: only mark SENDING if not already SENDING
     const result = await prisma.waBroadcast.updateMany({
       where: { id: broadcast.id, status: { not: 'WA_SENDING' } },
-      data: { status: 'WA_SENDING', startedAt: new Date() },
+      data: { status: 'WA_SENDING', startedAt: new Date(), pausedAt: null },
     });
 
     if (result.count === 0) {
@@ -245,6 +287,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
     const updated = await prisma.waBroadcast.findUnique({ where: { id: broadcast.id } });
 
     // Execute in background
+    activeBroadcastLoops.add(broadcast.id);
     (async () => {
       try {
         const { WaMessageService } = await import('../services/wa/messageService');
@@ -264,7 +307,12 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
         }
 
         for (const contact of broadcast.contacts) {
-          if (contact.status !== 'WA_BC_PENDING') continue;
+          // Re-read contact status from DB to prevent duplicate sends on restart
+          const freshContact = await prisma.waBroadcastContact.findUnique({
+            where: { id: contact.id },
+            select: { status: true },
+          });
+          if (freshContact?.status !== 'WA_BC_PENDING') continue;
 
           // Re-check broadcast status (might have been paused)
           const current = await prisma.waBroadcast.findUnique({
@@ -289,11 +337,11 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
           }
 
           // Check opt-out
-          const conv = await prisma.waConversation.findUnique({
+          const existingConv = await prisma.waConversation.findUnique({
             where: { phone: contact.phone },
             select: { optedOut: true },
           });
-          if (conv?.optedOut) {
+          if (existingConv?.optedOut) {
             await prisma.waBroadcastContact.update({
               where: { id: contact.id },
               data: { status: 'WA_BC_SKIPPED' },
@@ -303,15 +351,33 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
           }
 
           try {
-            // Find or create conversation for this contact
+            // Find or create conversation — linked to CRM Contact
             let conversation = await prisma.waConversation.findUnique({
               where: { phone: contact.phone },
             });
 
             if (!conversation) {
+              // Resolve CRM contact to link the conversation
+              const crmContact = await findContactByPhone(contact.phone);
               conversation = await prisma.waConversation.create({
-                data: { phone: contact.phone },
+                data: {
+                  phone: contact.phone,
+                  ...(crmContact ? { contactId: crmContact.id } : {}),
+                },
               });
+              if (crmContact) {
+                console.log(`[wa-broadcast] Conversa ${contact.phone} vinculada ao contato ${crmContact.name} (${crmContact.id})`);
+              }
+            } else if (!conversation.contactId) {
+              // Conversation exists but has no contact link — fix it
+              const crmContact = await findContactByPhone(contact.phone);
+              if (crmContact) {
+                await prisma.waConversation.update({
+                  where: { id: conversation.id },
+                  data: { contactId: crmContact.id },
+                });
+                console.log(`[wa-broadcast] Conversa existente ${contact.phone} vinculada ao contato ${crmContact.name}`);
+              }
             }
 
             // Send template
@@ -330,6 +396,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
                 status: 'WA_BC_SENT',
                 sentAt: new Date(),
                 waMessageId: msg?.id || null,
+                contactId: conversation.contactId || null,
               },
             });
 
@@ -398,6 +465,8 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
           where: { id: broadcast.id },
           data: { status: 'WA_PAUSED', pausedAt: new Date() },
         });
+      } finally {
+        activeBroadcastLoops.delete(broadcast.id);
       }
     })();
 
