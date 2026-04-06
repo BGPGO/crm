@@ -23,9 +23,9 @@ import { normalizePhone } from '../utils/phoneNormalize';
 
 const router = Router();
 
-/** Random delay between sends (30-90s) to simulate human behavior */
+/** Random delay between sends (5-10s) — templates aprovados pelo Meta são seguros para bulk */
 function randomBroadcastDelay(): Promise<void> {
-  const delayMs = 30000 + Math.random() * 60000; // 30-90s
+  const delayMs = 5000 + Math.random() * 5000; // 5-10s
   console.log(`[wa-broadcast] Aguardando ${Math.round(delayMs / 1000)}s ate proximo envio...`);
   return new Promise(resolve => setTimeout(resolve, delayMs));
 }
