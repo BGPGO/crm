@@ -31,6 +31,7 @@ import {
   XCircle,
   Users,
   Radio,
+  MousePointerClick,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -68,6 +69,7 @@ interface Broadcast {
   sentCount: number;
   deliveredCount: number;
   readCount: number;
+  clickedCount: number;
   failedCount: number;
   createdAt: string;
 }
@@ -80,6 +82,7 @@ interface BroadcastContact {
   sentAt: string | null;
   deliveredAt: string | null;
   readAt: string | null;
+  clickedAt: string | null;
   error: string | null;
 }
 
@@ -451,13 +454,14 @@ function BroadcastDetail({
     );
   }
 
-  const { totalContacts, sentCount, deliveredCount, readCount, failedCount } = broadcast;
+  const { totalContacts, sentCount, deliveredCount, readCount, clickedCount, failedCount } = broadcast;
 
   const statCards = [
     { label: "Total", value: totalContacts, icon: Users, color: "bg-blue-50 text-blue-600" },
     { label: "Enviados", value: sentCount, icon: Send, color: "bg-yellow-50 text-yellow-600" },
     { label: "Entregues", value: deliveredCount, pct: pct(deliveredCount, sentCount), icon: CheckCircle2, color: "bg-green-50 text-green-600" },
     { label: "Lidos", value: readCount, pct: pct(readCount, sentCount), icon: BookOpen, color: "bg-purple-50 text-purple-600" },
+    { label: "Cliques", value: clickedCount || 0, pct: pct(clickedCount || 0, sentCount), icon: MousePointerClick, color: "bg-orange-50 text-orange-600" },
     { label: "Falhas", value: failedCount, pct: pct(failedCount, totalContacts), icon: XCircle, color: "bg-red-50 text-red-600" },
   ];
 
@@ -513,7 +517,7 @@ function BroadcastDetail({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((s) => (
           <Card key={s.label} padding="sm">
             <div className="flex items-center gap-3">
@@ -559,6 +563,7 @@ function BroadcastDetail({
                 <TableHeader>Enviado</TableHeader>
                 <TableHeader>Entregue</TableHeader>
                 <TableHeader>Lido</TableHeader>
+                <TableHeader>Clicou</TableHeader>
                 <TableHeader>Erro</TableHeader>
               </TableRow>
             </TableHead>
@@ -572,6 +577,7 @@ function BroadcastDetail({
                   <TableCell className="text-xs">{formatDate(c.sentAt)}</TableCell>
                   <TableCell className="text-xs">{formatDate(c.deliveredAt)}</TableCell>
                   <TableCell className="text-xs">{formatDate(c.readAt)}</TableCell>
+                  <TableCell className="text-xs">{c.clickedAt ? formatDate(c.clickedAt) : "---"}</TableCell>
                   <TableCell className="text-xs text-red-500">{c.error ?? "---"}</TableCell>
                 </TableRow>
               ))}
@@ -693,6 +699,7 @@ export default function BroadcastsPage() {
           {broadcasts.map((b) => {
             const deliveryRate = pct(b.deliveredCount, b.sentCount);
             const readRate = pct(b.readCount, b.sentCount);
+            const clickRate = pct(b.clickedCount || 0, b.sentCount);
             return (
               <Card key={b.id} padding="none">
                 <div className="p-4 sm:p-5">
@@ -727,6 +734,10 @@ export default function BroadcastsPage() {
                       <div className="text-center">
                         <p className="font-semibold text-purple-600">{readRate}</p>
                         <p>Leitura</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-orange-600">{clickRate}</p>
+                        <p>Cliques</p>
                       </div>
                       {b.failedCount > 0 && (
                         <div className="text-center">

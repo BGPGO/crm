@@ -1789,6 +1789,7 @@ model WaBroadcast {
   sentCount      Int @default(0)
   deliveredCount Int @default(0)
   readCount      Int @default(0)
+  clickedCount   Int @default(0)
   failedCount    Int @default(0)
 
   contacts WaBroadcastContact[]

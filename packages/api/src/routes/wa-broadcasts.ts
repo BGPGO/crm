@@ -213,11 +213,16 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (!broadcast) return next(createError('Broadcast not found', 404));
 
     // Aggregate contact statuses for live stats
-    const statusCounts = await prisma.waBroadcastContact.groupBy({
-      by: ['status'],
-      where: { broadcastId: broadcast.id },
-      _count: true,
-    });
+    const [statusCounts, clickedCount] = await Promise.all([
+      prisma.waBroadcastContact.groupBy({
+        by: ['status'],
+        where: { broadcastId: broadcast.id },
+        _count: true,
+      }),
+      prisma.waBroadcastContact.count({
+        where: { broadcastId: broadcast.id, clickedAt: { not: null } },
+      }),
+    ]);
 
     const stats: Record<string, number> = {};
     for (const row of statusCounts) {
@@ -227,6 +232,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     res.json({
       data: {
         ...broadcast,
+        clickedCount,
         stats,
       },
     });
@@ -376,13 +382,30 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               }
             }
 
-            // Send template
+            // Send template — inject tracking URL component if template has URL button
             const templateParams = contact.templateParams || broadcast.templateParams;
+            const components = templateParams ? (Array.isArray(templateParams) ? [...templateParams] : [templateParams]) : [];
+
+            // Check if template has URL button with dynamic suffix ({{1}})
+            const buttons = broadcast.template!.buttons as Array<{ type: string; url?: string }> | null;
+            const hasUrlButton = buttons?.some(b => b.type === 'URL' && b.url?.includes('{{1}}'));
+            if (hasUrlButton) {
+              // Inject tracking token as URL suffix
+              const trackingToken = contact.id;
+              const buttonIdx = buttons!.findIndex(b => b.type === 'URL');
+              components.push({
+                type: 'button',
+                sub_type: 'url',
+                index: buttonIdx >= 0 ? buttonIdx : 0,
+                parameters: [{ type: 'text', text: trackingToken }],
+              });
+            }
+
             const msg = await WaMessageService.sendTemplate(
               conversation.id,
               broadcast.template!.name,
               broadcast.template!.language || 'pt_BR',
-              templateParams ? (Array.isArray(templateParams) ? templateParams : [templateParams]) : [],
+              components,
               { senderType: 'WA_SYSTEM' },
             );
 

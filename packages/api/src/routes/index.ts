@@ -45,6 +45,7 @@ import cloudWaTemplatesRouter from './cloud-wa-templates';
 import waWebhookRouter from './wa-webhook';
 import waConversationsRouter from './wa-conversations';
 import waBroadcastsRouter from './wa-broadcasts';
+import trackRouter from './track';
 import botProductsRouter from './bot-products';
 import botObjectionsRouter from './bot-objections';
 import calendlyWebhookRouter from './calendly-webhook';
@@ -74,6 +75,7 @@ router.use('/wa/webhook', waWebhookRouter);  // WA v2 (módulo unificado)
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
 router.use('/readai', readaiRouter);
+router.use('/t', trackRouter); // Click tracking redirect (public)
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
