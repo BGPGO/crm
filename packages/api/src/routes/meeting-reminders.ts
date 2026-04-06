@@ -39,9 +39,9 @@ router.get('/by-meetings', async (req: Request, res: Response, next: NextFunctio
     if (ids.length === 0) return res.json({ data: [] });
 
     const reminders = await prisma.scheduledFollowUp.findMany({
-      where: { meetingId: { in: ids }, type: 'MEETING_REMINDER' },
+      where: { meetingId: { in: ids }, type: { in: ['MEETING_REMINDER', 'MEETING_REMINDER_WABA'] } },
       orderBy: { scheduledAt: 'asc' },
-      select: { id: true, meetingId: true, stepNumber: true, label: true, status: true, scheduledAt: true, sentAt: true },
+      select: { id: true, meetingId: true, stepNumber: true, label: true, status: true, scheduledAt: true, sentAt: true, type: true },
     });
 
     res.json({ data: reminders });

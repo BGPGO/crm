@@ -22,6 +22,12 @@ interface TemplateDef {
 
 const TEMPLATES: TemplateDef[] = [
   {
+    name: 'lembrete_reuniao_4h',
+    body: 'Olá {{1}}! Lembrete: sua reunião está marcada para {{2}} às {{3}} (faltam 4 horas). Te esperamos!',
+    footer: 'BGPGO',
+    bodyExamples: [['João', '10/04/2026', '15:00']],
+  },
+  {
     name: 'lembrete_reuniao_1h',
     body: 'Olá {{1}}, sua reunião está marcada para hoje às {{2}} (falta 1 hora). Te esperamos!',
     footer: 'BGPGO',

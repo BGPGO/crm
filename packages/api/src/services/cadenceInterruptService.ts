@@ -46,7 +46,7 @@ async function resolveAllContactIds(contactId: string): Promise<string[]> {
  * → Cadência Etapa 2 (Contato feito) is cancelled
  * → Cadência Etapa 3 (Marcar reunião) is allowed to start via evaluateTriggers
  */
-export async function interruptCadenceOnStageChange(contactId: string, newStageId: string): Promise<number> {
+export async function interruptCadenceOnStageChange(contactId: string, newStageId: string | null): Promise<number> {
   try {
     const allContactIds = await resolveAllContactIds(contactId);
 

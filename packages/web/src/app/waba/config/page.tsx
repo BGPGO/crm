@@ -115,16 +115,16 @@ function connectionVariant(status: string | null, configured: boolean): { label:
 function tierMaxMessages(tier: string | null): number {
   switch (tier?.toUpperCase()) {
     case "TIER_1": return 250;
-    case "TIER_2": return 1000;
+    case "TIER_2": return 2000;
     case "TIER_3": return 10000;
-    default: return 250;
+    default: return 2000;
   }
 }
 
 function tierLabel(tier: string | null): string {
   switch (tier?.toUpperCase()) {
     case "TIER_1": return "Tier 1 — 250/dia";
-    case "TIER_2": return "Tier 2 — 1.000/dia";
+    case "TIER_2": return "Tier 2 — 2.000/dia";
     case "TIER_3": return "Tier 3 — 10.000/dia";
     default: return tier || "---";
   }
@@ -222,7 +222,7 @@ function SecurityDashboard({
 
   const tiers = [
     { key: "TIER_1", label: "Tier 1", limit: "250/dia" },
-    { key: "TIER_2", label: "Tier 2", limit: "1.000/dia" },
+    { key: "TIER_2", label: "Tier 2", limit: "2.000/dia" },
     { key: "TIER_3", label: "Tier 3", limit: "10.000/dia" },
   ];
 
@@ -455,7 +455,7 @@ function DailyLimitCard({
 }) {
   const tier = status?.phone?.messagingTier ?? null;
   const tierMax = tierMaxMessages(tier);
-  const configuredLimit = config?.dailyMessageLimit ?? 250;
+  const configuredLimit = config?.dailyMessageLimit ?? 2000;
   const overTier = configuredLimit > tierMax;
 
   return (
@@ -496,7 +496,7 @@ function DailyLimitCard({
       <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
         <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-700 dark:text-blue-300">
-          Recomendamos comecar conservador (250) e aumentar gradualmente conforme a qualidade se mantem alta.
+          Recomendamos comecar conservador e aumentar gradualmente conforme a qualidade se mantem alta. Limite atual do tier: 2.000/dia.
           Altere o valor na secao de Credenciais abaixo.
         </p>
       </div>
@@ -798,7 +798,7 @@ function CredentialsForm({
     appSecret: "",
     verifyToken: "",
     displayPhone: "",
-    dailyMessageLimit: 250,
+    dailyMessageLimit: 2000,
     dailySpendLimitBRL: 40,
   });
   const [saving, setSaving] = useState(false);
@@ -813,7 +813,7 @@ function CredentialsForm({
         appSecret: config.appSecret || "",
         verifyToken: config.verifyToken || "",
         displayPhone: config.displayPhone || "",
-        dailyMessageLimit: config.dailyMessageLimit || 250,
+        dailyMessageLimit: config.dailyMessageLimit || 2000,
         dailySpendLimitBRL: config.dailySpendLimitBRL ?? 40,
       });
     }
@@ -926,7 +926,7 @@ function CredentialsForm({
           onChange={(e) =>
             setForm((f) => ({ ...f, dailyMessageLimit: parseInt(e.target.value) || 0 }))
           }
-          placeholder="250"
+          placeholder="2000"
         />
 
         {/* Daily Spend Limit */}

@@ -8,6 +8,8 @@ import { onStageChanged } from '../services/automationTriggerListener';
 import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
 import { sendSaleNotifications } from '../services/saleNotificationService';
 import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
+import { scheduleWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
+import { interruptCadenceOnStageChange } from '../services/cadenceInterruptService';
 
 const router = Router();
 
@@ -542,6 +544,29 @@ router.patch(
         });
       }
 
+      // Interrupt cadences and complete tasks on LOST/WON (batch)
+      if (status === 'LOST' || status === 'WON') {
+        for (const deal of deals) {
+          if (deal.contactId) {
+            try {
+              await interruptCadenceOnStageChange(deal.contactId, null);
+              console.log(`[deal-status] Cadencias interrompidas para contato ${deal.contactId}`);
+            } catch (err) {
+              console.error('[deal-status] Erro ao interromper cadencias (batch):', err);
+            }
+          }
+          try {
+            const taskResult = await prisma.task.updateMany({
+              where: { dealId: deal.id, status: { in: ['PENDING', 'OVERDUE'] } },
+              data: { status: 'COMPLETED' },
+            });
+            console.log(`[deal-status] ${taskResult.count} tarefas concluidas para deal ${deal.id}`);
+          } catch (err) {
+            console.error('[deal-status] Erro ao concluir tarefas (batch):', err);
+          }
+        }
+      }
+
       res.json({ data: { updated: results.length, dealIds: results.map((r) => r.id) } });
     } catch (err) {
       next(err);
@@ -643,6 +668,27 @@ router.patch(
           lostReasonId,
           closedAt: deal.closedAt,
         });
+      }
+
+      // Interrupt cadences and complete tasks on LOST/WON
+      if ((status === 'LOST' || status === 'WON') && deal.contactId) {
+        try {
+          await interruptCadenceOnStageChange(deal.contactId, null);
+          console.log(`[deal-status] Cadencias interrompidas para contato ${deal.contactId}`);
+        } catch (err) {
+          console.error('[deal-status] Erro ao interromper cadencias:', err);
+        }
+      }
+      if (status === 'LOST' || status === 'WON') {
+        try {
+          const taskResult = await prisma.task.updateMany({
+            where: { dealId: deal.id, status: { in: ['PENDING', 'OVERDUE'] } },
+            data: { status: 'COMPLETED' },
+          });
+          console.log(`[deal-status] ${taskResult.count} tarefas concluidas para deal ${deal.id}`);
+        } catch (err) {
+          console.error('[deal-status] Erro ao concluir tarefas:', err);
+        }
       }
 
       res.json({ data: deal });
@@ -896,8 +942,9 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
       },
     });
 
-    // Schedule event-driven meeting reminders
+    // Schedule event-driven meeting reminders (Z-API + WABA)
     scheduleMeetingReminders(meeting.id).catch(console.error);
+    scheduleWabaMeetingReminders(meeting.id).catch(console.error);
 
     // Mark conversation as meetingBooked if exists
     if (deal.contact?.id) {

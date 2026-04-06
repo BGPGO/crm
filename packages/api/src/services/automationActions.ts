@@ -6,6 +6,7 @@ import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
 import { normalizePhone } from '../utils/phoneNormalize';
+import { interruptCadenceOnStageChange } from './cadenceInterruptService';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -950,6 +951,23 @@ async function markLost(
       where: { id: deal.id },
       data: updateData,
     });
+  }
+
+  // Interrupt active cadences and complete orphaned tasks
+  try {
+    await interruptCadenceOnStageChange(contactId, null);
+
+    await prisma.task.updateMany({
+      where: {
+        deal: { contactId, status: 'LOST' },
+        status: { in: ['PENDING', 'OVERDUE'] },
+      },
+      data: { status: 'COMPLETED' },
+    });
+
+    console.log(`[markLost] Cadencias interrompidas e tarefas concluidas para contato ${contactId}`);
+  } catch (err) {
+    console.error(`[markLost] Erro ao interromper cadencias/tarefas para contato ${contactId}:`, err);
   }
 
   return {

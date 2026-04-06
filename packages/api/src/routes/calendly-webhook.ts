@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
+import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
 
 const router = Router();
@@ -150,8 +151,9 @@ router.post('/', async (req: Request, res: Response) => {
 
       console.log(`[calendly-webhook] Saved CalendlyEvent: ${calendlyEvent.id}`);
 
-      // Schedule event-driven meeting reminders
+      // Schedule event-driven meeting reminders (Z-API + WABA)
       scheduleMeetingReminders(calendlyEvent.id).catch(console.error);
+      scheduleWabaMeetingReminders(calendlyEvent.id).catch(console.error);
 
       // 2. Find Contact — PRIORITY: email > phone > exact unique name
       // NEVER use fuzzy/partial name matching — leads with similar names get mixed up.
@@ -549,10 +551,11 @@ router.post('/', async (req: Request, res: Response) => {
         });
         console.log(`[calendly-webhook] Canceled event: ${calendlyEventId} (${updated.count} records updated)`);
 
-        // Cancel any scheduled reminders for this event
+        // Cancel any scheduled reminders for this event (Z-API + WABA)
         const canceledEvents = await prisma.calendlyEvent.findMany({ where: { calendlyEventId }, select: { id: true } });
         for (const ev of canceledEvents) {
           cancelMeetingReminders(ev.id);
+          cancelWabaMeetingReminders(ev.id).catch(console.error);
         }
 
         // Cancel the associated task

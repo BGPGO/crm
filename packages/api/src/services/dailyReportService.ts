@@ -12,7 +12,21 @@ const STAGES = {
   GANHO_FECHADO:        '65084ece058c5700170506d4',
 };
 
+// Stage names exactly as stored in metadata (used for activity queries)
+const STAGE_NAMES = {
+  CONTATO_FEITO:         'Contato feito',
+  MARCAR_REUNIAO:        'Marcar reunião',
+  REUNIAO_AGENDADA:      'Reunião agendada',
+  PROPOSTA_ENVIADA:      'Proposta enviada',
+  AGUARDANDO_DADOS:      'Aguardando dados',
+  AGUARDANDO_ASSINATURA: 'Aguardando assinatura',
+  GANHO_FECHADO:         'Ganho fechado',
+};
+
 const PIPELINE_ID = '64fb7516ea4eb400219457de';
+
+// BRT = UTC-3 (offset in milliseconds)
+const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 interface StageMetrics {
   total: number;
@@ -44,15 +58,28 @@ interface ReportData {
   ganhoMes: StageMetrics;
 }
 
-function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+/**
+ * Returns midnight in BRT (as a UTC Date) for the given UTC timestamp.
+ * E.g. if nowUtc is 2026-04-06T10:00:00Z (= 07:00 BRT),
+ * this returns 2026-04-06T03:00:00Z (= 00:00 BRT on April 6th).
+ */
+function startOfDayBRT(utcDate: Date): Date {
+  // Shift to BRT to find the local date components
+  const brtTime = utcDate.getTime() + BRT_OFFSET_MS;
+  const brt = new Date(brtTime);
+  // Midnight BRT = year/month/day in BRT, then shift back to UTC
+  const midnightBRT = new Date(Date.UTC(brt.getUTCFullYear(), brt.getUTCMonth(), brt.getUTCDate()));
+  // Convert BRT midnight back to UTC: midnight BRT = 03:00 UTC
+  return new Date(midnightBRT.getTime() - BRT_OFFSET_MS);
 }
 
 async function gatherReportData(): Promise<ReportData> {
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayStart = startOfDayBRT(now);                           // 00:00 BRT today (as UTC)
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000); // 00:00 BRT yesterday (as UTC)
+  // First day of month in BRT
+  const brtNow = new Date(now.getTime() + BRT_OFFSET_MS);
+  const monthStart = new Date(Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth(), 1) - BRT_OFFSET_MS);
 
   const openFilter = { pipelineId: PIPELINE_ID, status: 'OPEN' as const };
 
@@ -123,11 +150,11 @@ async function gatherReportData(): Promise<ReportData> {
     propostaVirouDadosOntem,
     dadosVirouAssinaturaOntem,
   ] = await Promise.all([
-    movedFromYesterday('Contato feito'),
-    movedToYesterday('agendada'),
-    movedToYesterday('Proposta'),
-    movedToYesterday('dados'),
-    movedToYesterday('assinatura'),
+    movedFromYesterday(STAGE_NAMES.CONTATO_FEITO),
+    movedToYesterday(STAGE_NAMES.REUNIAO_AGENDADA),
+    movedToYesterday(STAGE_NAMES.PROPOSTA_ENVIADA),
+    movedToYesterday(STAGE_NAMES.AGUARDANDO_DADOS),
+    movedToYesterday(STAGE_NAMES.AGUARDANDO_ASSINATURA),
   ]);
 
   // Ganho fechado ontem
@@ -144,7 +171,7 @@ async function gatherReportData(): Promise<ReportData> {
     value: ganhosOntem.reduce((s, d) => s + (d.value ? Number(d.value) : 0), 0),
   };
 
-  // Ganho fechado mês
+  // Ganho fechado mês (monthStart até todayStart já inclui ontem, não somar de novo)
   const ganhosMes = await prisma.deal.findMany({
     where: {
       pipelineId: PIPELINE_ID,
@@ -153,10 +180,9 @@ async function gatherReportData(): Promise<ReportData> {
     },
     select: { value: true },
   });
-  // Include yesterday's wins in monthly total
   const ganhoMes: StageMetrics = {
-    total: ganhosMes.length + ganhoOntem.total,
-    value: ganhosMes.reduce((s, d) => s + (d.value ? Number(d.value) : 0), 0) + ganhoOntem.value,
+    total: ganhosMes.length,
+    value: ganhosMes.reduce((s, d) => s + (d.value ? Number(d.value) : 0), 0),
   };
 
   return {
@@ -269,8 +295,8 @@ export async function sendDailyReport(): Promise<void> {
     const data = await gatherReportData();
 
     const yesterday = new Date(Date.now() - 86400000);
-    const dateLabel = yesterday.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-    const subjectDate = yesterday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    const dateLabel = yesterday.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo' });
+    const subjectDate = yesterday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
 
     const resend = new Resend(resendKey);
     await resend.emails.send({

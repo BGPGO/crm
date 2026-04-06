@@ -209,6 +209,23 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         continue;
       }
 
+      // Safety guard: skip if deal is closed (LOST/WON)
+      if (enrollment.contactId) {
+        const openDeal = await prisma.deal.findFirst({
+          where: { contactId: enrollment.contactId, status: 'OPEN' },
+          select: { id: true },
+        });
+        if (!openDeal) {
+          console.log(`[AutomationEngine] Enrollment ${enrollment.id} skipped — no open deals for contact ${enrollment.contactId}`);
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: { status: 'COMPLETED', completedAt: new Date() },
+          });
+          processed++;
+          continue;
+        }
+      }
+
       // ── WAIT_FOR_RESPONSE branching ──────────────────────────────────────
       // When the enrollment arrives at a WAIT_FOR_RESPONSE step and
       // nextActionAt <= now, it means either the client responded early

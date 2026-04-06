@@ -1,6 +1,6 @@
 import prisma from '../../lib/prisma';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
-// Cloud API limits are managed by Meta (tier-based: 250/1000/10000/unlimited per day).
+// Cloud API limits are managed by Meta (tier-based: 250/2000/10000/unlimited per day).
 // Local dailyLimitService is for Z-API warmup only — not used here.
 import { WindowService } from './windowService';
 
@@ -66,7 +66,7 @@ export class WaMessageService {
     const config = await prisma.cloudWaConfig.findFirst({
       select: { dailyMessageLimit: true },
     });
-    const baseLimit = config?.dailyMessageLimit || 250;
+    const baseLimit = config?.dailyMessageLimit || 2000;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

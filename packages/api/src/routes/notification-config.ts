@@ -11,10 +11,10 @@ const DEFAULTS: Record<string, string> = {
   deal_won_emails: 'fernanda@bertuzzipatrimonial.com.br,vitor@bertuzzipatrimonial.com.br',
   deal_won_subject: 'Contrato Assinado — {{cliente}}',
   lead_created_enabled: 'true',
-  lead_created_emails: 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br',
+  lead_created_emails: 'oliver@bertuzzipatrimonial.com.br,vitor@bertuzzipatrimonial.com.br,joao.lopes@bertuzzipatrimonial.com.br',
   lead_created_subject: 'Novo Lead — {{nome}}',
   daily_report_enabled: 'true',
-  daily_report_emails: 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br',
+  daily_report_emails: 'oliver@bertuzzipatrimonial.com.br,vitor@bertuzzipatrimonial.com.br,joao.lopes@bertuzzipatrimonial.com.br',
 };
 
 // GET /api/notification-config — Get all notification settings

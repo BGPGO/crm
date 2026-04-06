@@ -258,11 +258,11 @@ export class WaBotService {
     if (!config) return;
     // WABA bot is independent from Z-API botEnabled — always runs
 
-    // 2. Re-check conversation state
+    // 2. Re-check conversation state (include contact name for AI prompt)
     const conversation = await prisma.waConversation.findUnique({
       where: { id: conversationId },
       include: {
-        contact: { select: { id: true } },
+        contact: { select: { id: true, name: true } },
       },
     });
     if (!conversation || conversation.needsHumanAttention || conversation.optedOut) return;
@@ -353,9 +353,12 @@ export class WaBotService {
       // 7. Build system prompt + deal context
       const dealContext = await WaBotService.buildDealContext(conversation.contactId);
 
+      // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name)
+      const contactName = conversation.contact?.name || pushName;
+
       const aiReply = await WaBotService.getAIResponse(
         history,
-        pushName,
+        contactName,
         config.meetingLink || null,
         dealContext || undefined,
       );
@@ -677,6 +680,9 @@ export class WaBotService {
 
     const stageName = deal.stage?.name || 'Desconhecida';
     let ctx = `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
+    if (deal.contact?.name) {
+      ctx += `\nNome do lead no CRM: ${deal.contact.name}`;
+    }
     ctx += `\nEmpresa: ${deal.organization?.name || deal.title}`;
     ctx += `\nEtapa atual: ${stageName}`;
 

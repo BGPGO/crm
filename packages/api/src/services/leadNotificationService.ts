@@ -1,6 +1,5 @@
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
-
 interface LeadNotificationData {
   dealId: string;
   contactName: string;
@@ -18,20 +17,28 @@ export async function sendLeadNotifications(data: LeadNotificationData): Promise
     const getConfig = (key: string, defaultValue: string) => configMap.get(key) || defaultValue;
 
     const enabled = getConfig('lead_created_enabled', 'true') === 'true';
-    const recipients = getConfig('lead_created_emails', 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br');
+    const recipients = getConfig('lead_created_emails', 'oliver@bertuzzipatrimonial.com.br,vitor@bertuzzipatrimonial.com.br,joao.lopes@bertuzzipatrimonial.com.br');
     const subject = getConfig('lead_created_subject', 'Novo Lead — {{nome}}')
       .replace(/\{\{nome\}\}/gi, data.contactName || 'Sem nome');
 
-    if (!enabled || !recipients) return;
+    if (!enabled) {
+      console.warn('[lead-notification] SKIP: lead_created_enabled está desativado no banco');
+      return;
+    }
 
     const emails = recipients.split(',').map(e => e.trim()).filter(Boolean);
-    if (emails.length === 0) return;
+    if (emails.length === 0) {
+      console.warn('[lead-notification] SKIP: nenhum email destinatário configurado');
+      return;
+    }
 
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) {
-      console.warn('[lead-notification] RESEND_API_KEY não configurado');
+      console.warn('[lead-notification] SKIP: RESEND_API_KEY não configurado');
       return;
     }
+
+    console.log(`[lead-notification] Enviando para ${emails.join(', ')} — lead: ${data.contactName}`);
 
     const resend = new Resend(resendKey);
     await resend.emails.send({
@@ -96,3 +103,4 @@ function escapeHtml(str: string): string {
 function truncate(str: string, max: number): string {
   return str.length > max ? str.slice(0, max) + '...' : str;
 }
+

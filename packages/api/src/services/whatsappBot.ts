@@ -602,7 +602,7 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
 
   const conversation = await prisma.whatsAppConversation.findUnique({
     where: { id: conversationId },
-    include: { followUpState: true },
+    include: { followUpState: true, contact: { select: { name: true } } },
   });
   if (!conversation || conversation.needsHumanAttention) return;
 
@@ -669,6 +669,9 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
       if (deal) {
         const stageName = deal.stage?.name || 'Desconhecida';
         dealContext += `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
+        if (deal.contact?.name) {
+          dealContext += `\nNome do lead no CRM: ${deal.contact.name}`;
+        }
         dealContext += `\nEmpresa: ${deal.organization?.name || deal.title}`;
         dealContext += `\nEtapa atual: ${stageName}`;
 
@@ -684,7 +687,9 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
       }
     }
 
-    const reply = await getAIResponse(history, pushName, config.meetingLink, dealContext || undefined);
+    // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name)
+    const contactName = conversation.contact?.name || pushName;
+    const reply = await getAIResponse(history, contactName, config.meetingLink, dealContext || undefined);
 
     // Save bot message
     await prisma.whatsAppMessage.create({
