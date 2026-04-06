@@ -14,7 +14,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { pipelineId } = req.query;
     const where: Record<string, unknown> = {};
-    if (pipelineId) where.pipelineId = pipelineId as string;
+    if (pipelineId === 'default') {
+      const defaultPipeline = await prisma.pipeline.findFirst({ where: { isDefault: true } });
+      if (defaultPipeline) where.pipelineId = defaultPipeline.id;
+    } else if (pipelineId) {
+      where.pipelineId = pipelineId as string;
+    }
 
     const [total, data] = await Promise.all([
       prisma.pipelineStage.count({ where }),

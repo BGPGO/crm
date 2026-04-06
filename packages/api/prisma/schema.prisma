@@ -1772,6 +1772,9 @@ model WaBroadcast {
   stageId String?
   stage   PipelineStage? @relation(fields: [stageId], references: [id])
 
+  stageIds   Json?   // Array de stageIds quando multi-select
+  dealStatus String? // OPEN | WON | LOST — filtro de andamento usado
+
   // ── Scheduling ──
   scheduledAt DateTime?
   startedAt   DateTime?

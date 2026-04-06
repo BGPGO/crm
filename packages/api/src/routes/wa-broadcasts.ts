@@ -74,7 +74,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, templateId, templateParams, segmentId, stageId } = req.body;
+    const { name, templateId, templateParams, segmentId, stageId, stageIds, dealStatus } = req.body;
 
     if (!name) return next(createError('name is required', 400));
     if (!templateId) return next(createError('templateId is required (Meta exige template para bulk)', 400));
@@ -86,8 +86,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError(`Template "${template.name}" nao esta aprovado (status: ${template.status})`, 400));
     }
 
-    // Resolve contacts from segment or stage
+    // Resolve contacts from segment or stage(s)
     let phoneNumbers: string[] = [];
+
+    // Normalize stage IDs: support both single stageId and stageIds array
+    const resolvedStageIds: string[] = Array.isArray(stageIds) && stageIds.length > 0
+      ? stageIds
+      : stageId ? [stageId] : [];
+
+    const resolvedDealStatus: string = dealStatus || 'OPEN';
 
     if (segmentId) {
       const segment = await prisma.segment.findUnique({ where: { id: segmentId } });
@@ -104,9 +111,12 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       phoneNumbers = contacts
         .map(c => normalizePhone(c.phone!))
         .filter(p => p.trim() !== '');
-    } else if (stageId) {
+    } else if (resolvedStageIds.length > 0) {
       const deals = await prisma.deal.findMany({
-        where: { stageId, status: 'OPEN' },
+        where: {
+          stageId: { in: resolvedStageIds },
+          status: resolvedDealStatus as any,
+        },
         include: { contact: { select: { phone: true, id: true } } },
       });
 
@@ -119,7 +129,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     // Deduplicate
     phoneNumbers = [...new Set(phoneNumbers)];
 
-    if (phoneNumbers.length === 0 && (segmentId || stageId)) {
+    if (phoneNumbers.length === 0 && (segmentId || resolvedStageIds.length > 0)) {
       return next(createError('Nenhum contato com telefone encontrado nos filtros selecionados', 422));
     }
 
@@ -129,7 +139,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         templateId,
         templateParams: templateParams || null,
         segmentId: segmentId || null,
-        stageId: stageId || null,
+        stageId: resolvedStageIds[0] || null,
+        stageIds: resolvedStageIds.length > 0 ? resolvedStageIds : null,
+        dealStatus: resolvedStageIds.length > 0 ? resolvedDealStatus : null,
         totalContacts: phoneNumbers.length,
         contacts: {
           create: phoneNumbers.map((phone: string) => ({ phone })),

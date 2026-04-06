@@ -59,6 +59,8 @@ interface Broadcast {
   template: BroadcastTemplate | null;
   segment: { id: string; name: string } | null;
   stage: { id: string; name: string } | null;
+  stageIds: string[] | null;
+  dealStatus: string | null;
   scheduledAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -97,7 +99,14 @@ interface Segment {
 interface Stage {
   id: string;
   name: string;
+  pipeline?: { id: string; name: string };
 }
+
+const dealStatusOptions = [
+  { value: "OPEN", label: "Em andamento" },
+  { value: "LOST", label: "Perdido" },
+  { value: "WON", label: "Ganho" },
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -169,7 +178,8 @@ function CreateBroadcastModal({
   const [templateId, setTemplateId] = useState("");
   const [audienceType, setAudienceType] = useState<"segment" | "stage">("segment");
   const [segmentId, setSegmentId] = useState("");
-  const [stageId, setStageId] = useState("");
+  const [stageIds, setStageIds] = useState<string[]>([]);
+  const [dealStatus, setDealStatus] = useState("OPEN");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -186,7 +196,7 @@ function CreateBroadcastModal({
     Promise.allSettled([
       api.get<{ data: Template[] }>("/whatsapp/cloud/templates?status=APPROVED"),
       api.get<{ data: Segment[] }>("/segments"),
-      api.get<{ data: Stage[] }>("/pipeline-stages"),
+      api.get<{ data: Stage[] }>("/pipeline-stages?pipelineId=default&limit=50"),
     ]).then(([tplRes, segRes, stgRes]) => {
       if (tplRes.status === "fulfilled") setTemplates(tplRes.value.data);
       if (segRes.status === "fulfilled") setSegments(segRes.value.data);
@@ -200,7 +210,8 @@ function CreateBroadcastModal({
     setTemplateId("");
     setAudienceType("segment");
     setSegmentId("");
-    setStageId("");
+    setStageIds([]);
+    setDealStatus("OPEN");
     setError(null);
   };
 
@@ -221,9 +232,12 @@ function CreateBroadcastModal({
     setSaving(true);
     setError(null);
     try {
-      const body: Record<string, string> = { name: name.trim(), templateId };
+      const body: Record<string, unknown> = { name: name.trim(), templateId };
       if (audienceType === "segment" && segmentId) body.segmentId = segmentId;
-      if (audienceType === "stage" && stageId) body.stageId = stageId;
+      if (audienceType === "stage" && stageIds.length > 0) {
+        body.stageIds = stageIds;
+        body.dealStatus = dealStatus;
+      }
       await api.post("/wa/broadcasts", body);
       reset();
       onCreated();
@@ -301,12 +315,54 @@ function CreateBroadcastModal({
                   onChange={(e) => setSegmentId(e.target.value)}
                 />
               ) : (
-                <Select
-                  placeholder="Selecione uma etapa"
-                  options={stages.map((s) => ({ value: s.id, label: s.name }))}
-                  value={stageId}
-                  onChange={(e) => setStageId(e.target.value)}
-                />
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">Etapas do funil</p>
+                    <div className="border border-gray-200 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1.5">
+                      {stages.length === 0 ? (
+                        <p className="text-xs text-gray-400">Nenhuma etapa encontrada</p>
+                      ) : (
+                        <>
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-500 pb-1 border-b border-gray-100 mb-1">
+                            <input
+                              type="checkbox"
+                              checked={stageIds.length === stages.length && stages.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) setStageIds(stages.map((s) => s.id));
+                                else setStageIds([]);
+                              }}
+                              className="accent-blue-600 rounded"
+                            />
+                            Selecionar todas
+                          </label>
+                          {stages.map((s) => (
+                            <label key={s.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={stageIds.includes(s.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setStageIds((prev) => [...prev, s.id]);
+                                  else setStageIds((prev) => prev.filter((id) => id !== s.id));
+                                }}
+                                className="accent-blue-600 rounded"
+                              />
+                              {s.name}
+                            </label>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                    {stageIds.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-1">{stageIds.length} etapa(s) selecionada(s)</p>
+                    )}
+                  </div>
+                  <Select
+                    label="Andamento"
+                    options={dealStatusOptions}
+                    value={dealStatus}
+                    onChange={(e) => setDealStatus(e.target.value)}
+                  />
+                </div>
               )}
             </div>
 
@@ -652,7 +708,8 @@ export default function BroadcastsPage() {
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         {b.template && <span>Template: {b.template.name}</span>}
                         {b.segment && <span>Segmento: {b.segment.name}</span>}
-                        {b.stage && <span>Etapa: {b.stage.name}</span>}
+                        {b.stage && <span>Etapa: {b.stage.name}{b.stageIds && b.stageIds.length > 1 ? ` (+${b.stageIds.length - 1})` : ""}</span>}
+                        {b.dealStatus && <span>{b.dealStatus === "OPEN" ? "Em andamento" : b.dealStatus === "LOST" ? "Perdido" : "Ganho"}</span>}
                         <span>{formatDate(b.startedAt || b.createdAt)}</span>
                       </div>
                     </div>
