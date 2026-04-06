@@ -74,6 +74,7 @@ router.use('/whatsapp/cloud/webhook', cloudWaWebhookRouter);  // Cloud API (Meta
 router.use('/wa/webhook', waWebhookRouter);  // WA v2 (módulo unificado)
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
+router.use('/webhooks', webhooksRouter);  // Incoming lead webhooks (public — has own secret validation)
 router.use('/readai', readaiRouter);
 router.use('/t', trackRouter); // Click tracking redirect (public)
 
@@ -97,7 +98,6 @@ router.use('/lost-reasons', lostReasonsRouter);
 router.use('/campaigns', campaignsRouter);
 router.use('/campaign-contexts', campaignContextsRouter);
 router.use('/custom-fields', customFieldsRouter);
-router.use('/webhooks', webhooksRouter);
 router.use('/webhook-configs', webhookConfigsRouter);
 router.use('/tags', tagsRouter);
 router.use('/segments', segmentsRouter);
