@@ -69,6 +69,12 @@ interface WabaStatus {
     exceeded: boolean;
     marketingCount: number;
     utilityCount: number;
+    automationCost?: number;
+    automationMarketingCount?: number;
+    automationUtilityCount?: number;
+    broadcastCost?: number;
+    broadcastMarketingCount?: number;
+    broadcastUtilityCount?: number;
   };
   templates: Record<string, unknown>;
 }
@@ -506,7 +512,8 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
   const spend = status?.spend;
   if (!spend) return null;
 
-  const pct = spend.limitBRL > 0 ? Math.min((spend.totalCost / spend.limitBRL) * 100, 100) : 0;
+  const automationCost = spend.automationCost ?? spend.totalCost;
+  const pct = spend.limitBRL > 0 ? Math.min((automationCost / spend.limitBRL) * 100, 100) : 0;
   const barColor = spend.exceeded
     ? "bg-red-500"
     : pct > 80
@@ -536,7 +543,7 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
           <div>
             <p className="text-sm font-bold">AUTOMACOES CONGELADAS</p>
             <p className="text-xs opacity-90">
-              Limite diario de R${spend.limitBRL.toFixed(2)} atingido. Templates de automacao estao pausados. BIA continua respondendo.
+              Limite de R${spend.limitBRL.toFixed(2)} de automacoes atingido. Cadencias e follow-ups pausados. Broadcasts e BIA continuam.
             </p>
           </div>
         </div>
@@ -548,16 +555,16 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
             "text-3xl font-bold",
             spend.exceeded ? "text-red-600" : "text-gray-900 dark:text-gray-100"
           )}>
-            R${spend.totalCost.toFixed(2)}
+            R${(spend.automationCost ?? spend.totalCost).toFixed(2)}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">gasto hoje</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">automacoes hoje</p>
         </div>
         <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
         <div>
           <p className="text-2xl font-bold text-emerald-600">
             R${spend.limitBRL > 0 ? spend.limitBRL.toFixed(2) : "∞"}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">limite diario</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">limite automacoes</p>
         </div>
         <div className="h-10 w-px bg-gray-200 dark:bg-gray-700" />
         <div>
@@ -571,9 +578,9 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
       {spend.limitBRL > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-xs mb-1">
-            <span className="text-gray-600 dark:text-gray-400">{Math.round(pct)}% do limite</span>
+            <span className="text-gray-600 dark:text-gray-400">{Math.round(pct)}% do limite de automacoes</span>
             <span className="text-gray-500 dark:text-gray-400">
-              R${spend.totalCost.toFixed(2)} / R${spend.limitBRL.toFixed(2)}
+              R${(spend.automationCost ?? spend.totalCost).toFixed(2)} / R${spend.limitBRL.toFixed(2)}
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
@@ -585,28 +592,36 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div className={clsx("rounded-lg border p-3", bgColor, borderColor)}>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Templates Marketing</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{spend.marketingCount}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Automacoes (cadencias, follow-ups)</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {(spend.automationMarketingCount ?? 0) + (spend.automationUtilityCount ?? 0)} msgs
+          </p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400">
-            R${(spend.marketingCount * 0.375).toFixed(2)} (R$0,375/msg)
+            R${(spend.automationCost ?? spend.totalCost).toFixed(2)} — conta no limite
           </p>
         </div>
-        <div className={clsx("rounded-lg border p-3", bgColor, borderColor)}>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Templates Utility</p>
-          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{spend.utilityCount}</p>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400">
-            R${(spend.utilityCount * 0.0477).toFixed(2)} (R$0,0477/msg)
+        <div className="rounded-lg border p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-700">
+          <p className="text-xs text-gray-500 dark:text-gray-400">Broadcasts (envio em massa)</p>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {(spend.broadcastMarketingCount ?? 0) + (spend.broadcastUtilityCount ?? 0)} msgs
+          </p>
+          <p className="text-[11px] text-blue-600 dark:text-blue-400">
+            R${(spend.broadcastCost ?? 0).toFixed(2)} — fora do limite
           </p>
         </div>
       </div>
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Gasto total do dia: R${spend.totalCost.toFixed(2)} (automacoes + broadcasts)
+      </div>
+
+      <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
         <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-blue-700 dark:text-blue-300">
-          O limite congela apenas automacoes (templates). A BIA continua respondendo dentro das janelas de 24h (mensagens de servico sao gratuitas).
-          Altere o limite na secao Credenciais abaixo.
+          O limite de R${spend.limitBRL > 0 ? spend.limitBRL.toFixed(2) : "∞"} se aplica apenas a automacoes (cadencias, follow-ups, lembretes).
+          Broadcasts e a BIA funcionam independente desse limite.
         </p>
       </div>
     </Card>

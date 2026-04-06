@@ -295,16 +295,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
         let sentCount = 0;
         let consecutiveErrors = 0;
 
-        // Import daily limit service
-        let dailyLimit: {
-          canSend: () => Promise<boolean>;
-          registerSent: (source: 'campaign' | 'followUp' | 'reminder') => Promise<void>;
-        } | null = null;
-        try {
-          dailyLimit = await import('../services/dailyLimitService');
-        } catch {
-          console.log('[wa-broadcast] dailyLimitService nao disponivel — prosseguindo sem limite diario');
-        }
+        // Broadcasts NÃO usam dailyLimitService (budget de automações é separado)
 
         for (const contact of broadcast.contacts) {
           // Re-read contact status from DB to prevent duplicate sends on restart
@@ -322,18 +313,6 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
           if (current?.status !== 'WA_SENDING') {
             console.log(`[wa-broadcast] Broadcast ${broadcast.id} nao esta mais em SENDING — parando`);
             break;
-          }
-
-          // Check daily limit
-          if (dailyLimit) {
-            if (!await dailyLimit.canSend()) {
-              console.log('[wa-broadcast] Limite diario atingido. Pausando broadcast.');
-              await prisma.waBroadcast.update({
-                where: { id: broadcast.id },
-                data: { status: 'WA_PAUSED', pausedAt: new Date() },
-              });
-              break;
-            }
           }
 
           // Check opt-out
@@ -409,10 +388,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             sentCount++;
             consecutiveErrors = 0;
 
-            // Register in daily limit
-            if (dailyLimit) {
-              await dailyLimit.registerSent('campaign');
-            }
+            // Broadcast não registra no dailyLimit (budget separado de automações)
           } catch (err: any) {
             console.error(`[wa-broadcast] Falha ao enviar para ${contact.phone}:`, err);
             await prisma.waBroadcastContact.update({
