@@ -378,6 +378,46 @@ export class WaMessageRouter {
               // Message not found in WaMessage — might be in CloudWaMessageLog (legacy)
               console.log(`[WaMessageRouter] Status ${statusType} para msg ${messageId} — não encontrada em WaMessage`);
             }
+
+            // Propagate to WaBroadcastContact + WaBroadcast stats
+            try {
+              const bcUpdate: Record<string, any> = {};
+              let broadcastStatField: string | null = null;
+
+              if (statusType === 'delivered') { bcUpdate.deliveredAt = updateData.deliveredAt; broadcastStatField = 'deliveredCount'; }
+              if (statusType === 'read') { bcUpdate.readAt = updateData.readAt; broadcastStatField = 'readCount'; }
+              if (statusType === 'failed') {
+                bcUpdate.status = 'WA_BC_FAILED';
+                bcUpdate.failedAt = updateData.failedAt;
+                bcUpdate.error = updateData.errorMessage || 'Delivery failed';
+              }
+
+              if (Object.keys(bcUpdate).length > 0) {
+                const bcResult = await prisma.waBroadcastContact.updateMany({
+                  where: {
+                    waMessageId: messageId,
+                    ...(statusType === 'delivered' ? { deliveredAt: null } : {}),
+                    ...(statusType === 'read' ? { readAt: null } : {}),
+                  },
+                  data: bcUpdate,
+                });
+
+                if (bcResult.count > 0 && broadcastStatField) {
+                  const bc = await prisma.waBroadcastContact.findFirst({
+                    where: { waMessageId: messageId },
+                    select: { broadcastId: true },
+                  });
+                  if (bc) {
+                    await prisma.waBroadcast.update({
+                      where: { id: bc.broadcastId },
+                      data: { [broadcastStatField]: { increment: bcResult.count } },
+                    });
+                  }
+                }
+              }
+            } catch {
+              // Non-critical
+            }
           }
 
           if (statusType === 'failed') {

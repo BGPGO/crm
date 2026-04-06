@@ -395,7 +395,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               data: {
                 status: 'WA_BC_SENT',
                 sentAt: new Date(),
-                waMessageId: msg?.id || null,
+                waMessageId: msg?.waMessageId || null, // Meta wamid, not Prisma ID
                 contactId: conversation.contactId || null,
               },
             });
