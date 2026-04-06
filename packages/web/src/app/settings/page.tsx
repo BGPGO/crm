@@ -2494,6 +2494,7 @@ function NotificationsTab() {
 
       {/* ── Lead Created Notifications ── */}
       <LeadNotificationSection config={config} setConfig={setConfig} save={save} saving={saving} setMsg={setMsg} />
+      <DailyReportSection config={config} setConfig={setConfig} save={save} saving={saving} setMsg={setMsg} />
 
       <FeedbackMsg msg={msg} />
     </div>
@@ -2642,6 +2643,135 @@ function LeadNotificationSection({
             className="px-4 py-2 bg-yellow-500 text-white text-sm font-medium rounded-lg hover:bg-yellow-600 transition-colors"
           >
             Enviar Teste
+          </button>
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function DailyReportSection({
+  config, setConfig, save, saving, setMsg,
+}: {
+  config: Record<string, string>;
+  setConfig: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  save: (u: Record<string, string>) => Promise<void>;
+  saving: boolean;
+  setMsg: (m: { type: "success" | "error"; text: string } | null) => void;
+}) {
+  const [newEmail, setNewEmail] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const emails = (config.daily_report_emails || "vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br").split(",").map(e => e.trim()).filter(Boolean);
+  const enabled = (config.daily_report_enabled ?? "true") !== "false";
+
+  const addEmail = () => {
+    const email = newEmail.trim();
+    if (!email || !email.includes("@")) return;
+    if (emails.includes(email)) return;
+    save({ daily_report_emails: [...emails, email].join(",") });
+    setNewEmail("");
+  };
+
+  const removeEmail = (email: string) => {
+    save({ daily_report_emails: emails.filter(e => e !== email).join(",") });
+  };
+
+  return (
+    <>
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-gray-800 mb-1">Relatório Diário do Funil</h2>
+        <p className="text-sm text-gray-500 mb-4">Email automático às 7h com métricas do dia anterior: leads, movimentações, vendas e totais por etapa.</p>
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-indigo-50" : "bg-gray-100")}>
+              <Mail size={20} className={enabled ? "text-indigo-600" : "text-gray-400"} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Relatório diário por email</p>
+              <p className="text-xs text-gray-500">Enviado automaticamente às 7h da manhã</p>
+            </div>
+          </div>
+          <button
+            onClick={() => save({ daily_report_enabled: enabled ? "false" : "true" })}
+            className={clsx("relative w-11 h-6 rounded-full transition-colors", enabled ? "bg-green-500" : "bg-gray-300")}
+          >
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform" style={{ left: enabled ? '22px' : '2px' }} />
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="p-4 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Destinatários</h3>
+            <p className="text-xs text-gray-500">Quem recebe o relatório diário</p>
+          </div>
+
+          <div className="space-y-2">
+            {emails.map(email => (
+              <div key={email} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Mail size={14} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">{email}</span>
+                </div>
+                <button onClick={() => removeEmail(email)} className="text-gray-400 hover:text-red-500 transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            {emails.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-3">Nenhum email configurado</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
+              placeholder="novo@email.com"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={addEmail}
+              disabled={!newEmail.trim() || !newEmail.includes("@")}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between p-4">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Enviar relatório agora</p>
+            <p className="text-xs text-gray-500">Gera e envia o relatório do dia anterior imediatamente</p>
+          </div>
+          <button
+            disabled={sending}
+            onClick={async () => {
+              setSending(true);
+              setMsg(null);
+              try {
+                await api.post("/notification-config/send-daily-report", {});
+                setMsg({ type: "success", text: `Relatório enviado para ${emails.join(", ")}` });
+              } catch {
+                setMsg({ type: "error", text: "Erro ao enviar relatório" });
+              }
+              setSending(false);
+              setTimeout(() => setMsg(null), 5000);
+            }}
+            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            {sending && <Loader2 size={14} className="animate-spin" />}
+            Enviar Agora
           </button>
         </div>
       </Card>

@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 import { EvolutionApiClient } from '../services/evolutionApiClient';
+import { sendDailyReport } from '../services/dailyReportService';
 
 const router = Router();
 
@@ -12,6 +13,8 @@ const DEFAULTS: Record<string, string> = {
   lead_created_enabled: 'true',
   lead_created_emails: 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br',
   lead_created_subject: 'Novo Lead — {{nome}}',
+  daily_report_enabled: 'true',
+  daily_report_emails: 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br',
 };
 
 // GET /api/notification-config — Get all notification settings
@@ -193,6 +196,16 @@ router.post('/test-lead-email', async (req: Request, res: Response, next: NextFu
     });
 
     res.json({ success: true, sentTo: emails });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notification-config/send-daily-report — Send daily report now (manual trigger)
+router.post('/send-daily-report', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await sendDailyReport();
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

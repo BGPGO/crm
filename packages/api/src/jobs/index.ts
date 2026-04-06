@@ -8,6 +8,7 @@ import { initMeetingReminders } from '../services/meetingReminderScheduler';
 import { initFollowUpScheduler } from '../services/followUpScheduler';
 import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
 import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
+import { startDailyReportCron } from './dailyReportCron';
 
 export function startAllJobs() {
   // Recovery: campanhas que ficaram RUNNING após restart
@@ -26,6 +27,9 @@ export function startAllJobs() {
 
   // WABA meeting reminders (desativado por padrão — CloudWaConfig.wabaMeetingReminderEnabled)
   startMeetingReminderWabaCron();
+
+  // Relatório diário do funil por email (7h BRT)
+  startDailyReportCron();
 
   console.log('[jobs] All cron jobs started');
 }
