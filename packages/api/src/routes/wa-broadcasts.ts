@@ -315,6 +315,23 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             break;
           }
 
+          // Skip contacts already marked as phone invalid
+          const crmContact = await findContactByPhone(contact.phone);
+          if (crmContact) {
+            const contactRecord = await prisma.contact.findUnique({
+              where: { id: crmContact.id },
+              select: { phoneInvalid: true },
+            });
+            if (contactRecord?.phoneInvalid) {
+              await prisma.waBroadcastContact.update({
+                where: { id: contact.id },
+                data: { status: 'WA_BC_SKIPPED' },
+              });
+              console.log(`[wa-broadcast] Pulando ${contact.phone} — telefone marcado como invalido`);
+              continue;
+            }
+          }
+
           // Check opt-out
           const existingConv = await prisma.waConversation.findUnique({
             where: { phone: contact.phone },
@@ -391,12 +408,13 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             // Broadcast não registra no dailyLimit (budget separado de automações)
           } catch (err: any) {
             console.error(`[wa-broadcast] Falha ao enviar para ${contact.phone}:`, err);
+            const errorMsg = err.message || 'Unknown error';
             await prisma.waBroadcastContact.update({
               where: { id: contact.id },
               data: {
                 status: 'WA_BC_FAILED',
                 failedAt: new Date(),
-                error: err.message || 'Unknown error',
+                error: errorMsg,
               },
             });
 
@@ -404,6 +422,19 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               where: { id: broadcast.id },
               data: { failedCount: { increment: 1 } },
             });
+
+            // Mark contact as phoneInvalid for undeliverable/invalid number errors
+            const isInvalidPhone = /undeliverable|131026|131051|not.+valid|nao.+possui.+whatsapp/i.test(errorMsg);
+            if (isInvalidPhone) {
+              const invalidContact = await findContactByPhone(contact.phone);
+              if (invalidContact) {
+                await prisma.contact.update({
+                  where: { id: invalidContact.id },
+                  data: { phoneInvalid: true, phoneInvalidAt: new Date() },
+                });
+                console.log(`[wa-broadcast] Contato ${invalidContact.name} (${contact.phone}) marcado como telefone invalido`);
+              }
+            }
 
             consecutiveErrors++;
 

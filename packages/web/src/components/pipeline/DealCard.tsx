@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Star, User, Plus, MessageCircle, Calendar } from "lucide-react";
+import { Star, User, Plus, MessageCircle, Calendar, PhoneOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
@@ -22,6 +22,7 @@ export interface Deal {
   createdAt?: string;
   hasWhatsAppConversation?: boolean;
   hasWabaConversation?: boolean;
+  phoneInvalid?: boolean;
   nextTask?: { id: string; title: string; dueDate?: string; type: string } | null;
 }
 
@@ -86,9 +87,20 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             onClick={() => router.push(`/pipeline/${deal.id}`)}
             onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); window.open(`/pipeline/${deal.id}`, '_blank'); } }}
           >
-            {/* Top row: status badge */}
+            {/* Top row: status badge + phone invalid */}
             <div className="flex items-start justify-between mb-1.5">
-              <StatusBadge status={deal.status} />
+              <div className="flex items-center gap-1.5">
+                <StatusBadge status={deal.status} />
+                {deal.phoneInvalid && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-red-700 bg-red-50 px-1.5 py-0.5 rounded"
+                    title="Telefone invalido — numero nao possui WhatsApp"
+                  >
+                    <PhoneOff size={10} />
+                    Tel. invalido
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Deal title */}

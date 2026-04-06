@@ -439,7 +439,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
         orderBy,
         include: {
           stage: { select: { id: true, name: true } },
-          contact: { select: { id: true, name: true } },
+          contact: { select: { id: true, name: true, phoneInvalid: true } },
           organization: { select: { id: true, name: true } },
           user: { select: { id: true, name: true } },
           tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
@@ -495,7 +495,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
 
     const dealInclude = {
       stage: { select: { id: true, name: true } },
-      contact: { select: { id: true, name: true } },
+      contact: { select: { id: true, name: true, phoneInvalid: true } },
       organization: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
       dealContacts: { include: { contact: { select: { id: true, name: true } } } },
@@ -565,6 +565,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
           ...deal,
           hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
           hasWabaConversation: deal.contactId ? contactsWithWabaConversation.has(deal.contactId) : false,
+          phoneInvalid: (deal as any).contact?.phoneInvalid ?? false,
           nextTask: (deal as any).tasks?.[0] ?? null,
         })),
         total: result.total,

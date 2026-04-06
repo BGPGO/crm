@@ -422,7 +422,31 @@ export class WaMessageRouter {
 
           if (statusType === 'failed') {
             const errors = status.errors || [];
-            console.warn(`[WaMessageRouter] Falha ao enviar para ${recipientId}: ${errors[0]?.code} — ${errors[0]?.title}`);
+            const errorCode = errors[0]?.code;
+            console.warn(`[WaMessageRouter] Falha ao enviar para ${recipientId}: ${errorCode} — ${errors[0]?.title}`);
+
+            // Mark contact as phoneInvalid for undeliverable/invalid number errors
+            const invalidCodes = [131026, 131051, '131026', '131051'];
+            if (invalidCodes.includes(errorCode) && recipientId) {
+              try {
+                const { normalizePhone } = await import('../../utils/phoneNormalize');
+                const normalized = normalizePhone(recipientId);
+                // Find contact via conversation
+                const conv = await prisma.waConversation.findUnique({
+                  where: { phone: normalized },
+                  select: { contactId: true },
+                });
+                if (conv?.contactId) {
+                  await prisma.contact.update({
+                    where: { id: conv.contactId },
+                    data: { phoneInvalid: true, phoneInvalidAt: new Date() },
+                  });
+                  console.log(`[WaMessageRouter] Contato ${conv.contactId} marcado como telefone invalido (${errorCode})`);
+                }
+              } catch {
+                // Non-critical
+              }
+            }
           }
         } catch (err) {
           console.error(`[WaMessageRouter] Erro ao processar status ${statusType} para ${messageId}:`, err);
