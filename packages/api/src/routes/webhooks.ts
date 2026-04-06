@@ -7,6 +7,7 @@ import { onLeadCreated } from '../services/leadQualificationEngine';
 import { onStageChanged, onContactCreated } from '../services/automationTriggerListener';
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
+import { sendLeadNotifications } from '../services/leadNotificationService';
 
 const router = Router();
 
@@ -332,6 +333,18 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     if (!recentDeal) {
       onContactCreated(contact.id);
       onStageChanged(contact.id, firstStage.id, deal.id);
+
+      // Email notification to team (fire-and-forget)
+      const utmUrl = resolveField(['URL', 'url', 'page_url', 'landing_page']);
+      sendLeadNotifications({
+        dealId: deal.id,
+        contactName,
+        contactEmail: contactEmail ?? null,
+        contactPhone: contactPhone ?? null,
+        sourceName: sourceName ?? null,
+        campaignName: campaignRef ?? null,
+        utmUrl: utmUrl ?? null,
+      }).catch(err => console.error('[webhook] Lead notification error:', err));
     }
 
     // Trigger lead qualification engine (checks Calendly, activates SDR IA if needed)

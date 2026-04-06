@@ -9,6 +9,9 @@ const DEFAULTS: Record<string, string> = {
   deal_won_enabled: 'true',
   deal_won_emails: 'fernanda@bertuzzipatrimonial.com.br,vitor@bertuzzipatrimonial.com.br',
   deal_won_subject: 'Contrato Assinado — {{cliente}}',
+  lead_created_enabled: 'true',
+  lead_created_emails: 'vitor@bertuzzipatrimonial.com.br,oliver@bertuzzipatrimonial.com.br',
+  lead_created_subject: 'Novo Lead — {{nome}}',
 };
 
 // GET /api/notification-config — Get all notification settings
@@ -144,6 +147,52 @@ router.post('/test-whatsapp', async (req: Request, res: Response, next: NextFunc
     await registerSent('reminder').catch(() => {});
 
     res.json({ success: true, sentTo: phone });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notification-config/test-lead-email — Send test lead notification
+router.post('/test-lead-email', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const configs = await prisma.notificationConfig.findMany();
+    const map: Record<string, string> = { ...DEFAULTS };
+    for (const c of configs) map[c.key] = c.value;
+
+    const emails = (map.lead_created_emails || '').split(',').map(e => e.trim()).filter(Boolean);
+    if (emails.length === 0) return next({ status: 400, message: 'Nenhum email configurado' });
+
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) return next({ status: 400, message: 'RESEND_API_KEY não configurado' });
+
+    const subject = (map.lead_created_subject || 'Novo Lead — {{nome}}').replace('{{nome}}', 'Lead Teste');
+    const resend = new Resend(resendKey);
+
+    await resend.emails.send({
+      from: 'BGPGO CRM <noreply@bertuzzipatrimonial.app.br>',
+      to: emails,
+      subject: `[TESTE] ${subject}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #3B82F6, #2563EB); padding: 24px; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Novo Lead!</h1>
+          </div>
+          <div style="background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Nome</td><td style="padding: 8px 0; font-weight: bold; font-size: 14px;">Lead Teste</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Email</td><td style="padding: 8px 0; font-weight: bold; font-size: 14px;">teste@exemplo.com</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Telefone</td><td style="padding: 8px 0; font-weight: bold; font-size: 14px;">+55 11 99999-0000</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Origem</td><td style="padding: 8px 0; font-weight: bold; font-size: 14px;">Facebook Ads</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Campanha</td><td style="padding: 8px 0; font-weight: bold; font-size: 14px;">AZ|BI|CADASTRO|Teste</td></tr>
+              <tr><td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Link UTM</td><td style="padding: 8px 0; font-size: 14px;"><a href="#" style="color: #2563eb;">https://lp.bertuzzipatrimonial.com.br/teste?utm_source=Facebook</a></td></tr>
+            </table>
+            <p style="margin-top: 16px; font-size: 12px; color: #9ca3af;">Este é apenas um teste. Nenhum lead real foi criado.</p>
+          </div>
+        </div>
+      `,
+    });
+
+    res.json({ success: true, sentTo: emails });
   } catch (err) {
     next(err);
   }
