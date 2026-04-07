@@ -716,6 +716,8 @@ model EmailCampaign {
   segmentId String?
   segment   Segment? @relation(fields: [segmentId], references: [id])
 
+  filters   Json?    // filterGroups inline — alternative to segmentId (OR groups format)
+
   sends EmailSend[]
   links EmailLink[]
 

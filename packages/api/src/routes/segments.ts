@@ -2,9 +2,34 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
-import { buildSegmentWhere, SegmentFilter } from '../services/segmentEngine';
+import { buildSegmentWhere, buildSegmentWhereFromGroups, SegmentFilter, FilterGroup } from '../services/segmentEngine';
 
 const router = Router();
+
+// POST /api/segments/preview-count
+// Body: { filterGroups: [{ filters: [...] }, ...] }
+// Returns: { count: number }
+router.post('/preview-count', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { filterGroups } = req.body as { filterGroups: FilterGroup[] };
+    if (!Array.isArray(filterGroups)) {
+      return res.status(400).json({ error: 'filterGroups must be an array' });
+    }
+    const segmentWhere = buildSegmentWhereFromGroups(filterGroups);
+
+    // Always require a valid email and exclude unsubscribed contacts
+    const where: Record<string, any> = {
+      ...segmentWhere,
+      email: { not: null },
+      NOT: { unsubscribeList: { some: {} } },
+    };
+
+    const count = await prisma.contact.count({ where });
+    res.json({ count });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/segments
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {

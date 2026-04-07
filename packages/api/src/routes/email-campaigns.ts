@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
-import { buildSegmentWhere, SegmentFilter } from '../services/segmentEngine';
+import { buildSegmentWhere, buildSegmentWhereFromGroups, SegmentFilter, FilterGroup } from '../services/segmentEngine';
 
 const router = Router();
 
@@ -107,7 +107,7 @@ router.post(
   validate({ name: 'required', subject: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, subject, fromName, fromEmail, templateId, segmentId, status, htmlContent } = req.body;
+      const { name, subject, fromName, fromEmail, templateId, segmentId, filterGroups, status, htmlContent } = req.body;
 
       // If custom HTML is provided without a template, create an inline template
       let finalTemplateId = templateId ?? null;
@@ -130,6 +130,7 @@ router.post(
           fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.com.br',
           templateId: finalTemplateId,
           segmentId: segmentId ?? null,
+          filters: filterGroups ?? null,
           status: status ?? 'DRAFT',
         },
       });
@@ -151,7 +152,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError('Only DRAFT campaigns can be updated', 400));
     }
 
-    const { name, subject, fromName, fromEmail, templateId, segmentId } = req.body;
+    const { name, subject, fromName, fromEmail, templateId, segmentId, filterGroups } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (subject !== undefined) data.subject = subject;
@@ -159,6 +160,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (fromEmail !== undefined) data.fromEmail = fromEmail;
     if (templateId !== undefined) data.templateId = templateId;
     if (segmentId !== undefined) data.segmentId = segmentId;
+    if (filterGroups !== undefined) data.filters = filterGroups;
 
     const campaign = await prisma.emailCampaign.update({
       where: { id: req.params.id },
@@ -204,8 +206,16 @@ router.post('/:id/send', async (req: Request, res: Response, next: NextFunction)
 
     let contacts;
 
-    if (campaign.segmentId && campaign.segment) {
-      const filters = campaign.segment.filters as unknown as SegmentFilter[];
+    // Priority: inline filterGroups > saved segment > all contacts with email
+    const inlineFilterGroups = campaign.filters as unknown as FilterGroup[] | null;
+    if (inlineFilterGroups && Array.isArray(inlineFilterGroups) && inlineFilterGroups.length > 0) {
+      const where = buildSegmentWhereFromGroups(inlineFilterGroups);
+      contacts = await prisma.contact.findMany({
+        where: { ...where, email: { not: null } },
+        select: { id: true, email: true },
+      });
+    } else if (campaign.segmentId && campaign.segment) {
+      const filters = campaign.segment.filters as unknown as SegmentFilter[] | FilterGroup[];
       const where = buildSegmentWhere(filters);
       contacts = await prisma.contact.findMany({
         where: { ...where, email: { not: null } },

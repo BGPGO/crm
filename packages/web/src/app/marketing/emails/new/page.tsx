@@ -6,7 +6,9 @@ import Header from "@/components/layout/Header";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import MarketingNav from "@/components/marketing/MarketingNav";
-import AudienceSelector from "@/components/marketing/AudienceSelector";
+import AudienceBuilderStep, {
+  type AudienceState,
+} from "@/components/marketing/AudienceBuilderStep";
 import EmailPreview from "@/components/marketing/EmailPreview";
 import EmailDesignPanel, {
   DEFAULT_DESIGN,
@@ -172,7 +174,12 @@ function NewCampaignPageInner() {
   const [saveTemplateSuccess, setSaveTemplateSuccess] = useState(false);
 
   // Step 3 — Audience
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [audienceState, setAudienceState] = useState<AudienceState>({
+    mode: "all",
+    filterGroups: [{ filters: [] }],
+    selectedSegmentId: null,
+    previewCount: null,
+  });
 
   // Step 4 — Review/Send
   const [sendTeamCopy, setSendTeamCopy] = useState(true);
@@ -477,7 +484,14 @@ ${bodyHtml}
         fromName: fromName.trim(),
         fromEmail: fromEmail.trim(),
         htmlContent: getHtmlContent(),
-        segmentId: selectedSegmentId,
+        segmentId:
+          audienceState.mode === "segment"
+            ? audienceState.selectedSegmentId
+            : null,
+        filterGroups:
+          audienceState.mode === "filter"
+            ? audienceState.filterGroups
+            : undefined,
       });
       await api.post(`/email-campaigns/${campaign.data.id}/send`, { sendTeamCopy });
       router.push(`/marketing/emails/${campaign.data.id}`);
@@ -500,7 +514,14 @@ ${bodyHtml}
         fromName: fromName.trim(),
         fromEmail: fromEmail.trim(),
         htmlContent: getHtmlContent(),
-        segmentId: selectedSegmentId,
+        segmentId:
+          audienceState.mode === "segment"
+            ? audienceState.selectedSegmentId
+            : null,
+        filterGroups:
+          audienceState.mode === "filter"
+            ? audienceState.filterGroups
+            : undefined,
       });
       await api.post(`/email-campaigns/${campaign.data.id}/schedule`, {
         scheduledAt: new Date(scheduleDate).toISOString(),
@@ -1084,16 +1105,16 @@ ${bodyHtml}
         {/* Step 3: Audience */}
         {step === 2 && (
           <Card padding="lg">
-            <div className="space-y-4 max-w-lg">
+            <div className="space-y-4 max-w-2xl">
               <h2 className="text-base font-semibold text-gray-900">
-                Selecionar Audiência
+                Selecionar Audiencia
               </h2>
               <p className="text-sm text-gray-500">
-                Escolha para quem a campanha será enviada.
+                Escolha quem vai receber esta campanha. Crie filtros na hora ou use um segmento salvo.
               </p>
-              <AudienceSelector
-                selectedSegmentId={selectedSegmentId}
-                onChange={setSelectedSegmentId}
+              <AudienceBuilderStep
+                value={audienceState}
+                onChange={setAudienceState}
               />
             </div>
           </Card>
@@ -1141,10 +1162,21 @@ ${bodyHtml}
                     </div>
                     <div>
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Audiência
+                        Audiencia
                       </p>
                       <p className="text-sm text-gray-900 mt-0.5">
-                        {selectedSegmentId ? "Segmento selecionado" : "Todos os contatos"}
+                        {audienceState.mode === "all" && "Todos os contatos"}
+                        {audienceState.mode === "segment" && (audienceState.selectedSegmentId ? "Segmento selecionado" : "Todos os contatos")}
+                        {audienceState.mode === "filter" && (
+                          <>
+                            {audienceState.filterGroups.filter(g => g.filters.length > 0).length} grupo(s) de filtros
+                            {audienceState.previewCount !== null && (
+                              <span className="ml-1 text-blue-600 font-semibold">
+                                — {audienceState.previewCount.toLocaleString("pt-BR")} contatos
+                              </span>
+                            )}
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>

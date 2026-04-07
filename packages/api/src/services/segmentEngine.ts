@@ -4,6 +4,14 @@ export interface SegmentFilter {
   value: any;
 }
 
+/**
+ * A group of filters combined with AND.
+ * Multiple FilterGroups are combined with OR between them.
+ */
+export interface FilterGroup {
+  filters: SegmentFilter[];
+}
+
 // ── All valid segment fields, grouped by category ─────────────────────────────
 
 const VALID_SEGMENT_FIELDS = new Set([
@@ -37,7 +45,24 @@ const VALID_SEGMENT_FIELDS = new Set([
   'hasMeeting',
 ]);
 
-export function buildSegmentWhere(filters: SegmentFilter[]): Record<string, any> {
+/**
+ * Detects whether the input is an array of FilterGroups (new format)
+ * or a flat array of SegmentFilters (old format).
+ *
+ * A FilterGroup has a `filters` array property.
+ * A SegmentFilter has `field`, `operator`, `value` properties.
+ */
+function isFilterGroupArray(input: SegmentFilter[] | FilterGroup[]): input is FilterGroup[] {
+  if (!Array.isArray(input) || input.length === 0) return false;
+  const first = input[0] as any;
+  return Array.isArray(first.filters);
+}
+
+/**
+ * Builds a Prisma condition array from a flat list of SegmentFilters (AND logic).
+ * Returns a raw array of conditions — callers wrap with AND/OR as needed.
+ */
+function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
   const conditions: Record<string, any>[] = [];
 
   for (const filter of filters) {
@@ -278,7 +303,52 @@ export function buildSegmentWhere(filters: SegmentFilter[]): Record<string, any>
     conditions.push({ [field]: mapOp(operator, parsedValue) });
   }
 
-  return conditions.length > 0 ? { AND: conditions } : {};
+  return conditions;
+}
+
+/**
+ * Builds a Prisma `where` clause from either:
+ * - A flat array of SegmentFilter (old format, all AND — backward compatible)
+ * - An array of FilterGroup (new format, AND within group, OR between groups)
+ *
+ * Examples:
+ *   // Old format — still works
+ *   buildSegmentWhere([{ field: 'email', operator: 'EXISTS', value: 'true' }])
+ *
+ *   // New format — OR between groups
+ *   buildSegmentWhere([
+ *     { filters: [{ field: 'dealStageName', operator: 'EQUALS', value: 'Contato Feito' }, { field: 'dealStatus', operator: 'EQUALS', value: 'OPEN' }] },
+ *     { filters: [{ field: 'dealStageName', operator: 'EQUALS', value: 'Marcar Reunião' }, { field: 'dealStatus', operator: 'EQUALS', value: 'LOST' }] },
+ *   ])
+ */
+export function buildSegmentWhere(input: SegmentFilter[] | FilterGroup[]): Record<string, any> {
+  if (!Array.isArray(input) || input.length === 0) return {};
+
+  if (isFilterGroupArray(input)) {
+    // New format: array of FilterGroup
+    return buildSegmentWhereFromGroups(input);
+  }
+
+  // Old format: flat SegmentFilter[] — treat as single AND group (backward compatible)
+  const conds = buildConditions(input as SegmentFilter[]);
+  return conds.length > 0 ? { AND: conds } : {};
+}
+
+/**
+ * Builds Prisma `where` for an array of FilterGroups (OR between groups, AND within each group).
+ * Can be called directly when you already have the new FilterGroup format.
+ */
+export function buildSegmentWhereFromGroups(filterGroups: FilterGroup[]): Record<string, any> {
+  const validGroups = filterGroups.filter(g => g.filters && g.filters.length > 0);
+  if (validGroups.length === 0) return {};
+
+  const orBranches = validGroups.map(group => {
+    const andConditions = buildConditions(group.filters);
+    return andConditions.length > 0 ? { AND: andConditions } : null;
+  }).filter(Boolean) as Record<string, any>[];
+
+  if (orBranches.length === 0) return {};
+  return orBranches.length === 1 ? orBranches[0] : { OR: orBranches };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
