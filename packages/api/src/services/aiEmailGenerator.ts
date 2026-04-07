@@ -78,7 +78,7 @@ DESTAQUE/QUOTE (para frases de impacto):
 
 BOTÃO CTA (use data-cta="true" para o editor detectar):
 <div style="text-align:center;margin:32px 0;">
-<a href="https://wa.me/5551992091726" data-cta="true" style="display:inline-block;background-color:#3ae056;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px;font-family:'Montserrat',Arial,sans-serif;letter-spacing:0.3px;">Texto do botão →</a>
+<a href="https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp" data-cta="true" style="display:inline-block;background-color:#3ae056;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px;font-family:'Montserrat',Arial,sans-serif;letter-spacing:0.3px;">Texto do botão →</a>
 </div>
 
 ASSINATURA:

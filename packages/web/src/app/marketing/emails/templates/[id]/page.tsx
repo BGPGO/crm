@@ -197,6 +197,36 @@ export default function TemplateEditorPage() {
     }
   }, [htmlContent]);
 
+  // ── Inject global CSS for image drag/resize inside editor ────────────────
+  // This runs once on mount to enable native browser image resize handles and
+  // cursor affordances inside the contentEditable preview area.
+  useEffect(() => {
+    const styleId = "email-editor-img-styles";
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement("style");
+    style.id = styleId;
+    style.textContent = `
+      [contenteditable] img {
+        cursor: move;
+        max-width: 100%;
+      }
+      [contenteditable] img:hover {
+        outline: 2px solid #3B82F6;
+        outline-offset: 2px;
+      }
+      [contenteditable] img.selected,
+      [contenteditable] img:focus {
+        outline: 2px solid #3B82F6;
+        outline-offset: 2px;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+    };
+  }, []);
+
   // ── Sync preview to state (blur only — never on input) ───────────────────
 
   const syncPreviewToState = useCallback(() => {
@@ -220,7 +250,9 @@ export default function TemplateEditorPage() {
 
   function handleInsertImage(src: string) {
     // Append a <p> after the image so the cursor lands below it, not inside
-    const img = `<div style="text-align:center;margin:16px 0;"><img src="${src}" alt="Imagem" style="max-width:100%;width:100%;height:auto;display:block;margin:0 auto;" /></div><p><br></p>`;
+    // draggable="true" enables native browser drag-and-drop repositioning inside contentEditable
+    // resize:both + overflow:auto enables native browser resize handles (drag corners to resize)
+    const img = `<div style="text-align:center;margin:16px 0;display:block;" draggable="true"><img src="${src}" alt="Imagem" style="max-width:100%;width:100%;height:auto;display:inline-block;cursor:move;resize:both;overflow:auto;" /></div><p><br></p>`;
     if (previewRef.current) {
       previewRef.current.focus();
 
