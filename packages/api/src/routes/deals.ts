@@ -371,6 +371,12 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       data,
       include: dealInclude,
     });
+
+    if (req.body.stageId && req.body.stageId !== existing.stageId) {
+      const { onStageChanged } = await import('../services/automationTriggerListener');
+      onStageChanged(deal.contactId, deal.stageId, deal.id);
+    }
+
     res.json({ data: deal });
   } catch (err) {
     next(err);

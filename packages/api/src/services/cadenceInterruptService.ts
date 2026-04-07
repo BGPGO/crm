@@ -73,10 +73,10 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
       await prisma.automationEnrollment.update({
         where: { id: enrollment.id },
         data: {
-          status: 'PAUSED',
+          status: 'CANCELLED',
           metadata: {
             ...((enrollment.metadata as Record<string, unknown>) || {}),
-            interruptedByStageChange: true,
+            cancelledByStageChange: true,
             newStageId,
             interruptedAt: new Date().toISOString(),
           },
@@ -84,7 +84,7 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
       });
 
       console.log(
-        `[cadence-interrupt] Enrollment ${enrollment.id} pausado — etapa mudou para ${newStageId} (automação: "${enrollment.automation.name}")`
+        `[cadence-interrupt] Enrollment ${enrollment.id} cancelado — etapa mudou para ${newStageId} (automação: "${enrollment.automation.name}")`
       );
       cancelled++;
     }

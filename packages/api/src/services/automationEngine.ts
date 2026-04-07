@@ -213,13 +213,35 @@ export async function processEnrollments(): Promise<{ processed: number }> {
       if (enrollment.contactId) {
         const openDeal = await prisma.deal.findFirst({
           where: { contactId: enrollment.contactId, status: 'OPEN' },
-          select: { id: true },
+          select: { id: true, stageId: true },
         });
         if (!openDeal) {
           console.log(`[AutomationEngine] Enrollment ${enrollment.id} skipped — no open deals for contact ${enrollment.contactId}`);
           await prisma.automationEnrollment.update({
             where: { id: enrollment.id },
             data: { status: 'COMPLETED', completedAt: new Date() },
+          });
+          processed++;
+          continue;
+        }
+
+        // Safety net: if automation targets a specific stage and the deal is no longer
+        // in that stage, auto-complete to prevent executing actions for the wrong stage.
+        const triggerStageId = (enrollment.automation.triggerConfig as any)?.stageId;
+        if (triggerStageId && openDeal.stageId !== triggerStageId) {
+          console.log(`[AutomationEngine] Enrollment ${enrollment.id} auto-completed — stage mismatch (expected ${triggerStageId}, current ${openDeal.stageId})`);
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: {
+              status: 'COMPLETED',
+              completedAt: new Date(),
+              metadata: {
+                ...((enrollment.metadata as Record<string, unknown>) || {}),
+                completedReason: 'stage_mismatch',
+                expectedStageId: triggerStageId,
+                actualStageId: openDeal.stageId,
+              },
+            },
           });
           processed++;
           continue;
