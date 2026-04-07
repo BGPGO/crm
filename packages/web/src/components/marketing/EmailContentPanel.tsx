@@ -178,8 +178,8 @@ export default function EmailContentPanel({
 }: EmailContentPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState("");
-  const [btnText, setBtnText] = useState("");
-  const [btnUrl, setBtnUrl] = useState("");
+  const [btnText, setBtnText] = useState("Agendar Reunião");
+  const [btnUrl, setBtnUrl] = useState("https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp");
   const [btnColor, setBtnColor] = useState("#2563eb");
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,38 +262,46 @@ export default function EmailContentPanel({
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
             >
               <Upload className="h-4 w-4" />
-              Enviar imagem
+              Enviar imagem do computador
             </button>
           </div>
 
           {/* URL input */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Link className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="https://..."
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAddImageUrl();
-                }}
-                className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400"
-              />
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-gray-500">
+              Ou cole a URL da imagem
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Link className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="https://exemplo.com/imagem.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddImageUrl();
+                  }}
+                  className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddImageUrl}
+                disabled={!imageUrl.trim()}
+                className="text-sm px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+              >
+                Inserir
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={handleAddImageUrl}
-              disabled={!imageUrl.trim()}
-              className="text-sm px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Adicionar
-            </button>
           </div>
 
           {/* Image list */}
           {images.length > 0 && (
             <div className="space-y-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                Imagens no email ({images.length})
+              </p>
               {images.map((img) => (
                 <ImageItem
                   key={`${img.src}-${img.index}`}

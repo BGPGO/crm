@@ -94,7 +94,7 @@ export function SectionWrapper({
 
   return (
     <div
-      className={`relative border-2 rounded transition-all ${borderClass}`}
+      className={`relative border-2 rounded transition-all duration-100 ${borderClass}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={(e) => {

@@ -286,22 +286,75 @@ function ImageEditor({
   data: ImageData;
   onUpdate: (d: Partial<ImageData>) => void;
 }) {
+  const hasImage = !!data.src;
   return (
     <div className="space-y-3">
-      <TextInput
-        label="URL da imagem"
-        value={data.src}
-        placeholder="https://..."
-        onChange={(v) => onUpdate({ src: v })}
-      />
+      {!hasImage && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+          <p className="mb-2 text-xs font-semibold text-blue-700">Cole a URL da imagem</p>
+          <div className="space-y-1">
+            <input
+              type="text"
+              value={data.src}
+              placeholder="https://exemplo.com/imagem.jpg"
+              autoFocus
+              onChange={(e) => onUpdate({ src: e.target.value })}
+              className="h-8 w-full rounded border border-blue-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+            />
+            <p className="text-[10px] text-blue-500">
+              Ou clique no placeholder no canvas para inserir diretamente.
+            </p>
+          </div>
+        </div>
+      )}
+      {hasImage && (
+        <TextInput
+          label="URL da imagem"
+          value={data.src}
+          placeholder="https://..."
+          onChange={(v) => onUpdate({ src: v })}
+        />
+      )}
       <TextInput
         label="Texto alternativo"
         value={data.alt}
         placeholder="Descrição da imagem"
         onChange={(v) => onUpdate({ alt: v })}
       />
+      {/* Quick size presets */}
+      <div className="space-y-1">
+        <SectionLabel>Tamanho rápido</SectionLabel>
+        <div className="flex gap-1.5">
+          {([
+            { label: "Pequena", value: 30 },
+            { label: "Média", value: 60 },
+            { label: "Grande", value: 80 },
+            { label: "Total", value: "full" },
+          ] as { label: string; value: "full" | number }[]).map((preset) => {
+            const isActive =
+              preset.value === "full"
+                ? data.width === "full"
+                : data.width === preset.value;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => onUpdate({ width: preset.value })}
+                className={`flex-1 rounded py-1 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <SegmentedControl
-        label="Largura"
+        label="Largura personalizada"
         options={[
           { value: "full" as const, label: "100%" },
           { value: "custom" as const, label: "Personalizada" },

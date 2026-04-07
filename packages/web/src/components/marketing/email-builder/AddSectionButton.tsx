@@ -83,8 +83,8 @@ export function createDefaultSection(type: SectionType): EmailSection {
         style,
         data: {
           type: "button",
-          text: "Clique aqui",
-          url: "#",
+          text: "Agendar Reunião",
+          url: "https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp",
           alignment: "center",
           buttonColor: "#2563eb",
           textColor: "#ffffff",

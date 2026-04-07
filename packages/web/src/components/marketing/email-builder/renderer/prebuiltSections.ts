@@ -79,8 +79,8 @@ export const PREBUILT_BLOCKS: PrebuiltBlock[] = [
       }, { paddingTop: 20, paddingBottom: 10 }),
       sec("pb-hero-btn", "button", {
         type: "button",
-        text: "Saiba Mais",
-        url: "#",
+        text: "Agendar Reunião",
+        url: "https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp",
         alignment: "center",
         buttonColor: "#2563eb",
         textColor: "#ffffff",
@@ -130,8 +130,8 @@ export const PREBUILT_BLOCKS: PrebuiltBlock[] = [
       }, { backgroundColor: "#7c3aed", paddingTop: 30, paddingBottom: 10, paddingLeft: 30, paddingRight: 30 }),
       sec("pb-cta-btn", "button", {
         type: "button",
-        text: "Aproveite Agora",
-        url: "#",
+        text: "Agendar Reunião",
+        url: "https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp",
         alignment: "center",
         buttonColor: "#22c55e",
         textColor: "#ffffff",

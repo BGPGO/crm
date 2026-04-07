@@ -109,8 +109,10 @@ export default function TemplateEditorPage() {
   const [htmlContent, setHtmlContent] = useState("");
   const [design, setDesign] = useState<EmailDesign>(DEFAULT_DESIGN);
   const [activeTab, setActiveTab] = useState<TabId>("ai");
-  const [previewKey, setPreviewKey] = useState(0);
   const previewRef = useRef<HTMLDivElement>(null);
+  // Track whether the editor has been initialised so we never reapply
+  // dangerouslySetInnerHTML after the first mount (which would destroy the cursor).
+  const editorInitialised = useRef(false);
 
   // UI state
   const [loading, setLoading] = useState(!isNew);
@@ -160,8 +162,8 @@ export default function TemplateEditorPage() {
             const parsed = JSON.parse(res.data.jsonContent);
             if (parsed.design) setDesign(parsed.design);
             if (parsed.bodyHtml) {
+              editorInitialised.current = false; // allow re-init with new content
               setHtmlContent(parsed.bodyHtml);
-              setPreviewKey((k) => k + 1);
               return;
             }
           } catch {
@@ -169,8 +171,8 @@ export default function TemplateEditorPage() {
           }
         }
 
+        editorInitialised.current = false; // allow re-init with new content
         setHtmlContent(res.data.htmlContent || "");
-        setPreviewKey((k) => k + 1);
       })
       .catch(() => showToast("Erro ao carregar template"))
       .finally(() => setLoading(false));
@@ -183,7 +185,19 @@ export default function TemplateEditorPage() {
     setTimeout(() => setToast(""), 3000);
   }
 
-  // ── Sync preview to state ────────────────────────────────────────────────
+  // ── Initialise editor DOM when htmlContent changes externally (AI / load) ──
+  // We ONLY push innerHTML into the DOM when editorInitialised is false (i.e.,
+  // when content was replaced by AI generation or initial load), never while
+  // the user is actively typing.  This prevents the cursor-reset bug.
+
+  useEffect(() => {
+    if (!editorInitialised.current && previewRef.current && htmlContent) {
+      previewRef.current.innerHTML = htmlContent;
+      editorInitialised.current = true;
+    }
+  }, [htmlContent]);
+
+  // ── Sync preview to state (blur only — never on input) ───────────────────
 
   const syncPreviewToState = useCallback(() => {
     if (previewRef.current) {
@@ -192,24 +206,40 @@ export default function TemplateEditorPage() {
   }, []);
 
   // ── Format handler (for content tab) ─────────────────────────────────────
+  // execCommand mutates the DOM directly; no state update needed here — the
+  // blur handler will capture the final content when the user leaves the editor.
 
   function handleFormat(command: string, value?: string) {
     previewRef.current?.focus();
     document.execCommand(command, false, value);
-    syncPreviewToState();
+    // Do NOT call syncPreviewToState() here — that would trigger a re-render
+    // and reset the cursor mid-edit.
   }
 
   // ── Insert image ─────────────────────────────────────────────────────────
 
   function handleInsertImage(src: string) {
-    const img = `<div style="text-align:center;margin:16px 0;"><img src="${src}" alt="Imagem" style="max-width:100%;height:auto;display:block;margin:0 auto;" /></div>`;
+    // Append a <p> after the image so the cursor lands below it, not inside
+    const img = `<div style="text-align:center;margin:16px 0;"><img src="${src}" alt="Imagem" style="max-width:100%;width:100%;height:auto;display:block;margin:0 auto;" /></div><p><br></p>`;
     if (previewRef.current) {
       previewRef.current.focus();
+
+      // Ensure insertion happens at end if selection is outside the editor
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !previewRef.current.contains(sel.anchorNode)) {
+        // Move cursor to end of editor
+        const range = document.createRange();
+        range.selectNodeContents(previewRef.current);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+
       document.execCommand("insertHTML", false, img);
-      syncPreviewToState();
+      // DOM updated directly — no state sync needed during editing
     } else {
+      editorInitialised.current = false;
       setHtmlContent((prev) => prev + img);
-      setPreviewKey((k) => k + 1);
     }
   }
 
@@ -220,30 +250,36 @@ export default function TemplateEditorPage() {
     if (previewRef.current) {
       previewRef.current.focus();
       document.execCommand("insertHTML", false, btn);
-      syncPreviewToState();
+      // DOM updated directly — no state sync needed during editing
     } else {
+      editorInitialised.current = false;
       setHtmlContent((prev) => prev + btn);
-      setPreviewKey((k) => k + 1);
     }
   }
 
   // ── Image management ─────────────────────────────────────────────────────
 
   function handleRemoveImage(src: string) {
-    const updated = removeImageFromHtml(htmlContent, src);
+    // Read live DOM content (may differ from state if user typed without blur)
+    const current = previewRef.current?.innerHTML ?? htmlContent;
+    const updated = removeImageFromHtml(current, src);
+    editorInitialised.current = false;
     setHtmlContent(updated);
-    setPreviewKey((k) => k + 1);
   }
 
   function handleChangeImageSrc(oldSrc: string, newSrc: string) {
-    const updated = replaceImageSrc(htmlContent, oldSrc, newSrc);
+    const current = previewRef.current?.innerHTML ?? htmlContent;
+    const updated = replaceImageSrc(current, oldSrc, newSrc);
+    editorInitialised.current = false;
     setHtmlContent(updated);
-    setPreviewKey((k) => k + 1);
   }
 
   // ── Compile full HTML for saving ─────────────────────────────────────────
+  // Always read the live DOM content so unsaved edits (user typed without blur)
+  // are included.
 
   function compileFullHtml(): string {
+    const bodyHtml = previewRef.current?.innerHTML ?? htmlContent;
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:${design.bodyBg};font-family:${design.fontFamily};font-size:${design.fontSize}px;color:${design.textColor};">
@@ -251,10 +287,18 @@ export default function TemplateEditorPage() {
 <tr><td align="center" style="padding:${design.paddingY}px 0;">
 <table role="presentation" width="${design.contentWidth}" cellpadding="0" cellspacing="0" style="background-color:${design.contentBg};border-radius:8px;">
 <tr><td style="padding:${design.paddingY}px ${design.paddingX}px;">
-${htmlContent}
+${bodyHtml}
 </td></tr></table>
 </td></tr></table>
 </body></html>`;
+  }
+
+  // Ensure htmlContent state is up to date before saving
+  function flushEditorToState() {
+    if (previewRef.current) {
+      const current = previewRef.current.innerHTML;
+      if (current !== htmlContent) setHtmlContent(current);
+    }
   }
 
   // ── Save ─────────────────────────────────────────────────────────────────
@@ -264,13 +308,14 @@ ${htmlContent}
       showToast("Preencha nome e assunto");
       return;
     }
+    flushEditorToState();
     setSaving(true);
     try {
       const payload = {
         name: name.trim(),
         subject: subject.trim(),
         htmlContent: compileFullHtml(),
-        jsonContent: JSON.stringify({ design, bodyHtml: htmlContent }),
+        jsonContent: JSON.stringify({ design, bodyHtml: previewRef.current?.innerHTML ?? htmlContent }),
       };
 
       if (isNew) {
@@ -297,13 +342,14 @@ ${htmlContent}
       showToast("Preencha nome e assunto");
       return;
     }
+    flushEditorToState();
     setSaving(true);
     try {
       const payload = {
         name: name.trim(),
         subject: subject.trim(),
         htmlContent: compileFullHtml(),
-        jsonContent: JSON.stringify({ design, bodyHtml: htmlContent }),
+        jsonContent: JSON.stringify({ design, bodyHtml: previewRef.current?.innerHTML ?? htmlContent }),
       };
 
       if (isNew) {
@@ -337,9 +383,9 @@ ${htmlContent}
         tone: aiTone,
         audience: aiAudience.trim() || "clientes e leads do CRM",
       });
+      editorInitialised.current = false;
       setHtmlContent(res.data.htmlContent);
       setSubject(res.data.subject);
-      setPreviewKey((k) => k + 1);
       setAiTopic("");
       showToast("Email gerado com IA!");
     } catch (err) {
@@ -365,8 +411,8 @@ ${htmlContent}
         "/ai/improve-email",
         { htmlContent, instruction }
       );
+      editorInitialised.current = false;
       setHtmlContent(res.data.htmlContent);
-      setPreviewKey((k) => k + 1);
       showToast("Alteração aplicada!");
     } catch (err) {
       setAiError(
@@ -736,9 +782,10 @@ ${htmlContent}
                               />
                               <button
                                 onClick={() => {
-                                  const updated = replaceButtonHref(htmlContent, btn.href, editBtnHref);
+                                  const current = previewRef.current?.innerHTML ?? htmlContent;
+                                  const updated = replaceButtonHref(current, btn.href, editBtnHref);
+                                  editorInitialised.current = false;
                                   setHtmlContent(updated);
-                                  setPreviewKey((k) => k + 1);
                                   setEditingBtnIdx(null);
                                 }}
                                 className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded font-medium hover:bg-blue-700"
@@ -783,13 +830,10 @@ ${htmlContent}
             }}>
               {htmlContent ? (
                 <div
-                  key={previewKey}
                   ref={previewRef}
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={syncPreviewToState}
-                  onInput={syncPreviewToState}
-                  dangerouslySetInnerHTML={{ __html: htmlContent }}
                   style={{ outline: "none", minHeight: 200, wordBreak: "break-word" }}
                 />
               ) : (

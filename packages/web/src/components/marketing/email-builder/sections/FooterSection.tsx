@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import type {
   FooterData,
   SectionData,
@@ -26,6 +26,18 @@ export function FooterSection({ data, onUpdate, globalStyle }: FooterSectionProp
   const ref = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
+  // Seed the editable div with HTML when entering edit mode.
+  // Never use dangerouslySetInnerHTML on the contentEditable div — that causes
+  // React to re-apply innerHTML on every render, destroying cursor position.
+  useEffect(() => {
+    if (isFocused && ref.current) {
+      if (ref.current.innerHTML === "") {
+        ref.current.innerHTML = data.html;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]); // intentionally NOT depending on data.html
+
   const handleBlur = useCallback(() => {
     setIsFocused(false);
     if (ref.current) {
@@ -35,6 +47,10 @@ export function FooterSection({ data, onUpdate, globalStyle }: FooterSectionProp
       }
     }
   }, [data, onUpdate]);
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+  }, []);
 
   const containerStyle: React.CSSProperties = {
     fontFamily: globalStyle.fontFamily,
@@ -53,7 +69,7 @@ export function FooterSection({ data, onUpdate, globalStyle }: FooterSectionProp
         ref={ref}
         style={containerStyle}
         tabIndex={0}
-        onFocus={() => setIsFocused(true)}
+        onFocus={handleFocus}
         dangerouslySetInnerHTML={{ __html: data.html }}
       />
     );
@@ -66,7 +82,6 @@ export function FooterSection({ data, onUpdate, globalStyle }: FooterSectionProp
       contentEditable
       suppressContentEditableWarning
       onBlur={handleBlur}
-      dangerouslySetInnerHTML={{ __html: data.html }}
     />
   );
 }

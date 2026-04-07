@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import type {
   HeaderData,
@@ -37,6 +37,18 @@ export function HeaderSection({ data, onUpdate, globalStyle }: HeaderSectionProp
   const textRef = useRef<HTMLDivElement>(null);
   const [isTextFocused, setIsTextFocused] = useState(false);
 
+  // Seed the editable div with HTML when entering edit mode.
+  // Never use dangerouslySetInnerHTML on the contentEditable div — that causes
+  // React to re-apply innerHTML on every render, destroying cursor position.
+  useEffect(() => {
+    if (isTextFocused && textRef.current) {
+      if (textRef.current.innerHTML === "") {
+        textRef.current.innerHTML = data.html;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTextFocused]); // intentionally NOT depending on data.html
+
   const handleBlur = useCallback(() => {
     setIsTextFocused(false);
     if (textRef.current) {
@@ -48,6 +60,15 @@ export function HeaderSection({ data, onUpdate, globalStyle }: HeaderSectionProp
   }, [data, onUpdate]);
 
   const alignment = data.alignment || "left";
+
+  const textStyle: React.CSSProperties = {
+    fontFamily: globalStyle.fontFamily,
+    fontSize: globalStyle.fontSize,
+    color: globalStyle.textColor,
+    minHeight: 24,
+    cursor: "text",
+    outline: "none",
+  };
 
   return (
     <div
@@ -75,14 +96,7 @@ export function HeaderSection({ data, onUpdate, globalStyle }: HeaderSectionProp
           ref={textRef}
           tabIndex={0}
           onFocus={() => setIsTextFocused(true)}
-          style={{
-            fontFamily: globalStyle.fontFamily,
-            fontSize: globalStyle.fontSize,
-            color: globalStyle.textColor,
-            minHeight: 24,
-            cursor: "text",
-            outline: "none",
-          }}
+          style={textStyle}
           dangerouslySetInnerHTML={{ __html: data.html }}
         />
       ) : (
@@ -91,15 +105,7 @@ export function HeaderSection({ data, onUpdate, globalStyle }: HeaderSectionProp
           contentEditable
           suppressContentEditableWarning
           onBlur={handleBlur}
-          style={{
-            fontFamily: globalStyle.fontFamily,
-            fontSize: globalStyle.fontSize,
-            color: globalStyle.textColor,
-            minHeight: 24,
-            cursor: "text",
-            outline: "none",
-          }}
-          dangerouslySetInnerHTML={{ __html: data.html }}
+          style={textStyle}
         />
       )}
     </div>
