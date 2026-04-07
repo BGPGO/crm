@@ -58,6 +58,7 @@ import contractWebhookRouter from './contract-webhook';
 import reportsRouter from './reports';
 import readaiRouter from './readai';
 import duplicateAlertsRouter from './duplicate-alerts';
+import internalRouter from './internal';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -77,6 +78,7 @@ router.use('/contracts/webhook', contractWebhookRouter);
 router.use('/webhooks', webhooksRouter);  // Incoming lead webhooks (public — has own secret validation)
 router.use('/readai', readaiRouter);
 router.use('/t', trackRouter); // Click tracking redirect (public)
+router.use('/internal', internalRouter); // Edge Function callbacks (public)
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.

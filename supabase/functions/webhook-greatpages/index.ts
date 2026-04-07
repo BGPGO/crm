@@ -5,6 +5,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("WEBHOOK_SECRET") ?? "";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const API_URL = Deno.env.get("API_URL") ?? "";
 
 // Default IDs (pipeline Vendas, stage LEAD, admin user)
 const DEFAULT_PIPELINE_ID = "64fb7516ea4eb400219457de";
@@ -293,5 +295,69 @@ async function processLead(
     },
   ]);
 
+  // ── Notify team + trigger automations via API (fire-and-forget) ────
+  if (API_URL) {
+    fetch(`${API_URL}/internal/lead-created`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactId,
+        dealId,
+        contactName,
+        contactEmail,
+        contactPhone,
+        sourceName,
+        campaignName: campaignRef,
+        landingPage,
+      }),
+    }).catch(() => {});
+  } else if (RESEND_API_KEY) {
+    // Fallback: send notification email directly via Resend
+    sendLeadNotificationEmail(contactName, contactEmail, contactPhone, sourceName, campaignRef, landingPage).catch(() => {});
+  }
+
   return json({ success: true, contactId, dealId });
+}
+
+// ── Lead notification email (fallback when API_URL is not set) ─────────────
+
+async function sendLeadNotificationEmail(
+  name: string,
+  email: string | null,
+  phone: string | null,
+  source: string | null,
+  campaign: string | null,
+  landingPage: string | null,
+): Promise<void> {
+  const recipients = ["oliver@bertuzzipatrimonial.com.br", "vitor@bertuzzipatrimonial.com.br"];
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const r = (label: string, value: string | null) =>
+    value ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:14px;">${esc(label)}</td><td style="padding:8px 0;font-weight:bold;font-size:14px;">${esc(value)}</td></tr>` : "";
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <div style="background:linear-gradient(135deg,#3B82F6,#2563EB);padding:24px;border-radius:12px 12px 0 0;">
+        <h1 style="color:white;margin:0;font-size:24px;">Novo Lead!</h1>
+      </div>
+      <div style="background:#f9fafb;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+        <table style="width:100%;border-collapse:collapse;">
+          ${r("Nome", name)}${r("Email", email)}${r("Telefone", phone)}${r("Origem", source)}${r("Campanha", campaign)}${r("Landing Page", landingPage)}
+        </table>
+        <p style="margin-top:16px;font-size:12px;color:#9ca3af;">Enviado pelo CRM BGPGO</p>
+      </div>
+    </div>`;
+
+  await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "BGPGO CRM <noreply@bertuzzipatrimonial.app.br>",
+      to: recipients,
+      subject: `Novo Lead — ${name}`,
+      html,
+    }),
+  });
 }
