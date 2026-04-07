@@ -197,6 +197,13 @@ function NewCampaignPageInner() {
     "Tom mais consultivo",
   ];
 
+  // Reset editorInitialised when navigating back to step 2 so content reloads into DOM
+  useEffect(() => {
+    if (step === 1 && htmlContent) {
+      editorInitialised.current = false;
+    }
+  }, [step, htmlContent]);
+
   // ── Initialise editor DOM when htmlContent changes externally (AI / template load) ──
   // Only pushes innerHTML when editorInitialised is false — never while user is typing.
   useEffect(() => {
@@ -204,7 +211,7 @@ function NewCampaignPageInner() {
       previewRef.current.innerHTML = htmlContent;
       editorInitialised.current = true;
     }
-  }, [htmlContent]);
+  }, [htmlContent, step]);
 
   // ── Inject global CSS for image drag/resize inside editor ────────────────
   // Runs once on mount to enable native browser image resize handles and
