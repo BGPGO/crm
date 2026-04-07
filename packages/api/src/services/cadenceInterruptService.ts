@@ -73,10 +73,11 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
       await prisma.automationEnrollment.update({
         where: { id: enrollment.id },
         data: {
-          status: 'CANCELLED',
+          status: 'COMPLETED',
+          completedAt: new Date(),
           metadata: {
             ...((enrollment.metadata as Record<string, unknown>) || {}),
-            cancelledByStageChange: true,
+            completedByStageChange: true,
             newStageId,
             interruptedAt: new Date().toISOString(),
           },
