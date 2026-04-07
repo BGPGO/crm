@@ -54,7 +54,7 @@ const SHORTCUTS: Shortcut[] = [
   { label: "Perdidos", filter: { field: "dealStatus", operator: "EQUALS", value: "LOST" } },
   { label: "Ganhos", filter: { field: "dealStatus", operator: "EQUALS", value: "WON" } },
   { label: "Contato feito", filter: { field: "dealStageName", operator: "EQUALS", value: "Contato feito" } },
-  { label: "Reuniao marcada", filter: { field: "dealStageName", operator: "EQUALS", value: "Reuniao marcada" } },
+  { label: "Reunião marcada", filter: { field: "dealStageName", operator: "EQUALS", value: "Reunião agendada" } },
   { label: "Proposta enviada", filter: { field: "dealStageName", operator: "EQUALS", value: "Proposta enviada" } },
   { label: "Com email", filter: { field: "email", operator: "NOT_EQUALS", value: "" } },
   { label: "Engajados", filter: { field: "engagementLevel", operator: "EQUALS", value: "ENGAGED" } },
@@ -82,6 +82,9 @@ export default function AudienceBuilderStep({
 
   // Debounce timer ref
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Keep a ref to latest value to avoid stale closures in async callbacks
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   // ── Fetch segments and total count on mount ──────────────────────────────
   useEffect(() => {
@@ -108,7 +111,7 @@ export default function AudienceBuilderStep({
     async (groups: FilterGroup[]) => {
       const hasFilters = groups.some((g) => g.filters.length > 0);
       if (!hasFilters) {
-        onChange({ ...value, filterGroups: groups, previewCount: null });
+        onChange({ ...valueRef.current, filterGroups: groups, previewCount: null });
         return;
       }
       setCountLoading(true);
@@ -116,7 +119,8 @@ export default function AudienceBuilderStep({
         const res = await api.post<{ count: number }>("/segments/preview-count", {
           filterGroups: groups,
         });
-        onChange({ ...value, filterGroups: groups, previewCount: res.count });
+        // Use ref to get latest value, avoiding stale closure
+        onChange({ ...valueRef.current, previewCount: res.count });
       } catch {
         // silent — keep last count
       } finally {
@@ -124,7 +128,7 @@ export default function AudienceBuilderStep({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [value]
+    [onChange]
   );
 
   const scheduleCountFetch = useCallback(
@@ -142,11 +146,11 @@ export default function AudienceBuilderStep({
 
   // ── Filter group operations ──────────────────────────────────────────────
   function updateGroup(groupIdx: number, filters: SegmentFilter[]) {
-    const updated = filterGroups.map((g, i) =>
+    const updated = value.filterGroups.map((g, i) =>
       i === groupIdx ? { ...g, filters } : g
     );
+    onChange({ ...value, filterGroups: updated });
     scheduleCountFetch(updated);
-    onChange({ ...value, filterGroups: updated, previewCount: value.previewCount });
   }
 
   function addGroup() {
@@ -156,10 +160,10 @@ export default function AudienceBuilderStep({
   }
 
   function removeGroup(groupIdx: number) {
-    if (filterGroups.length === 1) return; // keep at least one group
+    if (filterGroups.length === 1) return;
     const updated = filterGroups.filter((_, i) => i !== groupIdx);
+    onChange({ ...value, filterGroups: updated });
     scheduleCountFetch(updated);
-    onChange({ ...value, filterGroups: updated, previewCount: value.previewCount });
     setActiveGroupIndex(Math.min(activeGroupIndex, updated.length - 1));
   }
 
