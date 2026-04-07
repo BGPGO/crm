@@ -247,6 +247,21 @@ export class WaMessageRouter {
             console.error(`[WaMessageRouter] Erro no stage orchestrator:`, err)
           );
 
+          // 5e. Interrupt cadences and cancel wait-for-response when lead replies (WABA)
+          if (conversation.contactId) {
+            const contactId = conversation.contactId;
+            import('../waitForResponseService').then(({ checkAndCancelWaitForResponse }) => {
+              checkAndCancelWaitForResponse(contactId).catch(err =>
+                console.error(`[WaMessageRouter] Erro em checkAndCancelWaitForResponse:`, err)
+              );
+            });
+            import('../cadenceInterruptService').then(({ interruptCadenceOnResponse }) => {
+              interruptCadenceOnResponse(contactId).catch(err =>
+                console.error(`[WaMessageRouter] Erro em interruptCadenceOnResponse:`, err)
+              );
+            });
+          }
+
           // 6. Update conversation timestamps
           await prisma.waConversation.update({
             where: { id: conversation.id },

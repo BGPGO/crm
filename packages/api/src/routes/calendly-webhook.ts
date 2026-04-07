@@ -151,10 +151,6 @@ router.post('/', async (req: Request, res: Response) => {
 
       console.log(`[calendly-webhook] Saved CalendlyEvent: ${calendlyEvent.id}`);
 
-      // Schedule event-driven meeting reminders (Z-API + WABA)
-      scheduleMeetingReminders(calendlyEvent.id).catch(console.error);
-      scheduleWabaMeetingReminders(calendlyEvent.id).catch(console.error);
-
       // 2. Find Contact — PRIORITY: email > phone > exact unique name
       // NEVER use fuzzy/partial name matching — leads with similar names get mixed up.
       // See: bug where two "Flávio" leads 15min apart had their deals swapped.
@@ -293,6 +289,11 @@ router.post('/', async (req: Request, res: Response) => {
           where: { id: calendlyEvent.id },
           data: { contactId: contact.id },
         });
+
+        // Schedule meeting reminders — MUST be after contactId is linked so
+        // the scheduler can resolve the contact's phone number.
+        scheduleMeetingReminders(calendlyEvent.id).catch(console.error);
+        scheduleWabaMeetingReminders(calendlyEvent.id).catch(console.error);
 
         // 3. Find OPEN deal associated to this contact
         let deal = await prisma.deal.findFirst({

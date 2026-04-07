@@ -19,6 +19,9 @@ import { onStageChanged } from '../automationTriggerListener';
 // Stage names that trigger auto-move to "Marcar reunião"
 const MOVABLE_STAGE_NAMES = ['lead', 'contato feito'];
 
+// Stage names that must NEVER be moved backward — safeguard against race conditions
+const BLOCKED_STAGE_NAMES = ['marcar reuni', 'reunião agendada', 'reuniao agendada', 'proposta', 'aguardando', 'ganho', 'fechado'];
+
 export class StageOrchestrator {
   /**
    * Chamado quando um lead envia mensagem inbound.
@@ -49,6 +52,10 @@ export class StageOrchestrator {
 
       // Verifica se está em etapa movável
       const currentStageName = deal.stage.name.toLowerCase();
+
+      // Safeguard: never move backward stages beyond "Contato Feito"
+      if (BLOCKED_STAGE_NAMES.some(s => currentStageName.includes(s))) return;
+
       if (!MOVABLE_STAGE_NAMES.some(s => currentStageName.includes(s))) return;
 
       // Busca "Marcar reunião" no mesmo pipeline

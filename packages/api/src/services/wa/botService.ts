@@ -551,6 +551,26 @@ export class WaBotService {
 
     // Detect meeting intent and send CTA URL button
     if (meetingLink && MEETING_INTENT_REGEX.test(aiReply)) {
+      // Check if deal is already in a post-scheduling stage — do NOT send Calendly CTA
+      const conv = await prisma.waConversation.findUnique({
+        where: { id: conversationId },
+        select: { contactId: true },
+      });
+      if (conv?.contactId) {
+        const deal = await prisma.deal.findFirst({
+          where: { contactId: conv.contactId, status: 'OPEN' },
+          include: { stage: { select: { name: true } } },
+        });
+        if (deal?.stage) {
+          const stageLC = deal.stage.name.toLowerCase();
+          const LATE_STAGES = ['reunião agendada', 'reuniao agendada', 'proposta', 'aguardando', 'ganho', 'fechado'];
+          if (LATE_STAGES.some(s => stageLC.includes(s))) {
+            console.log(`[WaBot] Etapa "${deal.stage.name}" — CTA Calendly bloqueado (reunião já agendada ou etapa avançada)`);
+            return;
+          }
+        }
+      }
+
       // Check if we already sent the meeting link (look for CTA marker in messages)
       const previousCta = await prisma.waMessage.findFirst({
         where: {
