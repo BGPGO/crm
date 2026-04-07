@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
+import { sendMeetingNotifications } from '../services/meetingNotificationService';
 
 const router = Router();
 
@@ -506,6 +507,17 @@ router.post('/', async (req: Request, res: Response) => {
           }
 
           console.log(`[calendly-webhook] Paused cadences + removed cadence tags for contact ${contact.id}`);
+
+          // Notify team about the booked meeting
+          sendMeetingNotifications({
+            contactName: inviteeName,
+            contactEmail: inviteeEmail,
+            contactPhone: inviteePhone,
+            eventType: String(eventType),
+            startTime: startTime || '',
+            hostName,
+            dealId: deal.id,
+          }).catch(err => console.error('[calendly-webhook] Meeting notification error:', err));
 
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);
         } else {

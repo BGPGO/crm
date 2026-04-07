@@ -6,7 +6,6 @@
 import { Router, Request, Response } from 'express';
 import { sendLeadNotifications } from '../services/leadNotificationService';
 import { onLeadCreated } from '../services/leadQualificationEngine';
-import { onContactCreated, onStageChanged } from '../services/automationTriggerListener';
 
 const router = Router();
 
@@ -37,11 +36,8 @@ router.post('/lead-created', async (req: Request, res: Response) => {
       utmUrl: landingPage ?? null,
     }).catch(err => console.error('[internal/lead-created] Notification error:', err));
 
-    // Trigger automations
-    onContactCreated(contactId);
-    onStageChanged(contactId, DEFAULT_STAGE_ID, dealId);
-
-    // Trigger lead qualification (Calendly check, SDR IA)
+    // Trigger lead qualification + automations (onLeadCreated already calls
+    // evaluateTriggers for CONTACT_CREATED and STAGE_CHANGED internally)
     onLeadCreated(contactId, dealId).catch(err => {
       console.error('[internal/lead-created] LeadQualification error:', err);
     });
