@@ -507,6 +507,61 @@ export async function processEnrollments(): Promise<{ processed: number }> {
             nextActionAt: null,
           },
         });
+
+        // Auto-close deal as LOST when a cadence completes all steps without conversion.
+        // If the lead had responded/advanced, the cadence would have been cancelled by
+        // stage change — reaching the end means all follow-up attempts were exhausted.
+        const isCadence = (enrollment.automation.triggerConfig as any)?.isCadence === true;
+        if (isCadence && enrollment.contactId) {
+          const openDeal = await prisma.deal.findFirst({
+            where: { contactId: enrollment.contactId, status: 'OPEN' },
+            select: { id: true, stageId: true },
+          });
+          if (openDeal) {
+            const LOST_REASON_NUNCA_RESPONDEU = '64fb7515ea4eb400219457cb';
+            const LOST_REASON_PAROU_RETORNO = '67cf41a6f638130017ff61ec';
+
+            // Check if lead ever responded (has any inbound WA message)
+            const hasInbound = await prisma.waMessage.findFirst({
+              where: {
+                conversation: { contactId: enrollment.contactId },
+                direction: 'INBOUND',
+              },
+              select: { id: true },
+            });
+            // Also check Z-API conversations
+            const hasZapiInbound = !hasInbound ? await prisma.whatsAppMessage.findFirst({
+              where: {
+                conversation: { contactId: enrollment.contactId },
+                direction: 'INBOUND',
+              },
+              select: { id: true },
+            }).catch(() => null) : null;
+
+            const everResponded = !!(hasInbound || hasZapiInbound);
+            const lostReasonId = everResponded ? LOST_REASON_PAROU_RETORNO : LOST_REASON_NUNCA_RESPONDEU;
+
+            await prisma.deal.update({
+              where: { id: openDeal.id },
+              data: {
+                status: 'LOST',
+                lostReasonId,
+                closedAt: new Date(),
+              },
+            });
+
+            await prisma.activity.create({
+              data: {
+                type: 'DEAL_LOST',
+                content: `Negociação encerrada automaticamente — cadência "${enrollment.automation.name}" completou todas as etapas sem conversão. Motivo: ${everResponded ? 'Parou de dar retorno' : 'Nunca respondeu'}`,
+                contactId: enrollment.contactId,
+                dealId: openDeal.id,
+              },
+            });
+
+            console.log(`[AutomationEngine] Deal ${openDeal.id} auto-closed as LOST (${everResponded ? 'parou retorno' : 'nunca respondeu'}) — cadence "${enrollment.automation.name}" exhausted`);
+          }
+        }
       }
 
       processed++;
