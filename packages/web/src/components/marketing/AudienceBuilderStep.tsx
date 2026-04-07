@@ -121,8 +121,8 @@ export default function AudienceBuilderStep({
         });
         // Use ref to get latest value, avoiding stale closure
         onChange({ ...valueRef.current, previewCount: res.count });
-      } catch {
-        // silent — keep last count
+      } catch (err) {
+        console.error('[audience-count] Erro ao buscar contagem:', err);
       } finally {
         setCountLoading(false);
       }

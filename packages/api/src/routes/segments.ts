@@ -17,11 +17,13 @@ router.post('/preview-count', async (req: Request, res: Response, next: NextFunc
     }
     const segmentWhere = buildSegmentWhereFromGroups(filterGroups);
 
-    // Always require a valid email and exclude unsubscribed contacts
+    // Exclude unsubscribed emails (UnsubscribeList has no relation to Contact)
+    const unsubEmails = await prisma.unsubscribeList.findMany({ select: { email: true } });
+    const unsubList = unsubEmails.map(u => u.email);
+
     const where: Record<string, any> = {
       ...segmentWhere,
-      email: { not: null },
-      NOT: { unsubscribeList: { some: {} } },
+      email: { not: null, ...(unsubList.length > 0 ? { notIn: unsubList } : {}) },
     };
 
     const count = await prisma.contact.count({ where });
