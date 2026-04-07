@@ -1833,7 +1833,7 @@ function WebhooksTab() {
                 {selectedWh.type === "INCOMING" && (() => {
                   const fullUrl = selectedWh.url.startsWith("http")
                     ? selectedWh.url
-                    : `http://opjlp6hp5ejuctjmck9dzd7b.187.77.238.125.sslip.io/api/webhooks/incoming/${selectedWh.id}`;
+                    : `https://api.bertuzzipatrimonial.com.br/api/webhooks/incoming/${selectedWh.id}`;
                   return (
                     <div>
                       <span className="text-[10px] font-semibold text-gray-400 uppercase">URL Completa para Configurar</span>

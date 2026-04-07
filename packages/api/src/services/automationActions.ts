@@ -219,9 +219,10 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     const greeting = firstName ? `<p style="margin:0 0 20px;font-size:16px;color:#1e3a5f;font-weight:600;">Olá, ${firstName}!</p>` : '';
     const bodyHtml = greeting + paragraphs.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${p.replace(/\n/g, '<br>')}</p>`).join('');
 
-    // Build unsubscribe URL for branded template
+    // Build unsubscribe URL for branded template (email-based, no token needed for automations)
     const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';
-    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe?email=${encodeURIComponent(contact.email)}`;
+    const emailB64 = Buffer.from(contact.email, 'utf-8').toString('base64url');
+    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe/email/${emailB64}`;
 
     // Wrap in the same branded template used by campaigns
     htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
@@ -239,7 +240,8 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
 
   // Build unsubscribe URL for List-Unsubscribe header
   const apiBase = process.env.API_URL || 'http://localhost:3001/api';
-  const unsubUrl = `${apiBase.replace('/api', '')}/api/unsubscribe?email=${encodeURIComponent(contact.email)}`;
+  const emailB64Header = Buffer.from(contact.email, 'utf-8').toString('base64url');
+  const unsubUrl = `${apiBase.replace('/api', '')}/api/unsubscribe/email/${emailB64Header}`;
 
   const result = await resend.emails.send({
     from: `BGPGO CRM <noreply@bertuzzipatrimonial.app.br>`,

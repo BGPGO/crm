@@ -258,6 +258,51 @@ router.post('/t/webhook', async (req: Request, res: Response, _next: NextFunctio
   }
 });
 
+// ─── GET /unsubscribe/email/:emailB64 — Email-based unsubscribe (automations) ─
+// IMPORTANT: must be registered BEFORE /unsubscribe/:token to avoid Express matching "email" as :token
+
+router.get('/unsubscribe/email/:emailB64', async (req: Request, res: Response, _next: NextFunction) => {
+  try {
+    const email = Buffer.from(req.params.emailB64, 'base64url').toString('utf-8');
+    if (!email || !email.includes('@')) {
+      return res.status(404).send(buildUnsubscribeHtml(false, 'Link inválido.'));
+    }
+    return res.status(200).send(buildUnsubscribeConfirmEmailHtml(req.params.emailB64));
+  } catch (error) {
+    console.error('Error loading email unsubscribe page:', error);
+    return res.status(500).send(buildUnsubscribeHtml(false, 'Erro interno. Tente novamente.'));
+  }
+});
+
+router.post('/unsubscribe/email/:emailB64', async (req: Request, res: Response, _next: NextFunction) => {
+  try {
+    const email = Buffer.from(req.params.emailB64, 'base64url').toString('utf-8');
+    if (!email || !email.includes('@')) {
+      return res.status(404).send(buildUnsubscribeHtml(false, 'Link inválido.'));
+    }
+
+    const contact = await prisma.contact.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+
+    await prisma.unsubscribeList.upsert({
+      where: { email },
+      update: {},
+      create: {
+        email,
+        contactId: contact?.id ?? undefined,
+        reason: 'Unsubscribed via automation email link',
+      },
+    });
+
+    return res.status(200).send(buildUnsubscribeHtml(true));
+  } catch (error) {
+    console.error('Error processing email unsubscribe:', error);
+    return res.status(500).send(buildUnsubscribeHtml(false, 'Erro interno. Tente novamente.'));
+  }
+});
+
 // ─── GET /unsubscribe/:token — Show confirmation page ───────────────────────
 
 router.get('/unsubscribe/:token', async (req: Request, res: Response, _next: NextFunction) => {
@@ -359,7 +404,36 @@ function buildUnsubscribeConfirmHtml(token: string): string {
   <div class="card">
     <h1>Deseja se descadastrar?</h1>
     <p>Ao confirmar, você não receberá mais nossos emails.</p>
-    <form method="POST" action="/unsubscribe/${safeToken}">
+    <form method="POST" action="/api/unsubscribe/${safeToken}">
+      <button type="submit">Confirmar descadastro</button>
+    </form>
+  </div>
+</body>
+</html>`;
+}
+
+function buildUnsubscribeConfirmEmailHtml(emailB64: string): string {
+  const safeEmailB64 = escapeHtml(emailB64);
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confirmar descadastro</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f5f5f5; color: #333; }
+    .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #666; line-height: 1.5; }
+    button { margin-top: 1rem; padding: 0.75rem 1.5rem; background: #e53e3e; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    button:hover { background: #c53030; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Deseja se descadastrar?</h1>
+    <p>Ao confirmar, você não receberá mais nossos emails.</p>
+    <form method="POST" action="/api/unsubscribe/email/${safeEmailB64}">
       <button type="submit">Confirmar descadastro</button>
     </form>
   </div>
