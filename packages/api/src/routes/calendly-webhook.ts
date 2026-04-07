@@ -508,15 +508,25 @@ router.post('/', async (req: Request, res: Response) => {
 
           console.log(`[calendly-webhook] Paused cadences + removed cadence tags for contact ${contact.id}`);
 
-          // Notify team about the booked meeting
-          sendMeetingNotifications({
-            contactName: inviteeName,
-            contactEmail: inviteeEmail,
-            contactPhone: inviteePhone,
-            eventType: String(eventType),
-            startTime: startTime || '',
-            hostName,
-            dealId: deal.id,
+          // Notify team about the booked meeting (fetch UTM data for context)
+          prisma.leadTracking.findFirst({
+            where: { contactId: contact.id },
+            orderBy: { createdAt: 'desc' },
+            select: { landingPage: true, utmSource: true, utmMedium: true, utmCampaign: true },
+          }).then(tracking => {
+            sendMeetingNotifications({
+              contactName: inviteeName,
+              contactEmail: inviteeEmail,
+              contactPhone: inviteePhone,
+              eventType: String(eventType),
+              startTime: startTime || '',
+              hostName,
+              dealId: deal.id,
+              utmUrl: tracking?.landingPage ?? null,
+              utmSource: tracking?.utmSource ?? null,
+              utmMedium: tracking?.utmMedium ?? null,
+              utmCampaign: tracking?.utmCampaign ?? null,
+            });
           }).catch(err => console.error('[calendly-webhook] Meeting notification error:', err));
 
           console.log(`[calendly-webhook] Processed invitee.created: contact=${contact.id}, deal=${deal.id}, stage=${reuniaoStage?.name || 'unchanged'}`);

@@ -9,6 +9,10 @@ interface MeetingNotificationData {
   startTime: string;
   hostName?: string | null;
   dealId?: string | null;
+  utmUrl?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }
 
 export async function sendMeetingNotifications(data: MeetingNotificationData): Promise<void> {
@@ -83,6 +87,10 @@ function buildMeetingEmailHtml(data: MeetingNotificationData): string {
           ${row('Tipo', data.eventType)}
           ${row('Data/Hora', formattedDate)}
           ${row('Closer', data.hostName)}
+          ${row('UTM Source', data.utmSource)}
+          ${row('UTM Medium', data.utmMedium)}
+          ${row('UTM Campaign', data.utmCampaign)}
+          ${data.utmUrl ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:14px;">Landing Page</td><td style="padding:8px 0;font-size:14px;"><a href="${esc(data.utmUrl)}" style="color:#2563eb;word-break:break-all;">${esc(data.utmUrl.length > 80 ? data.utmUrl.slice(0, 80) + '...' : data.utmUrl)}</a></td></tr>` : ''}
         </table>
         <p style="margin-top:16px;font-size:12px;color:#9ca3af;">Enviado pelo CRM BGPGO</p>
       </div>
