@@ -230,4 +230,131 @@ router.put('/config', requireAuth, async (req: Request, res: Response, next: Nex
   }
 });
 
+/**
+ * POST /api/readai/performance-report — Receives a sales performance report
+ * from the BGP Sales Report service and stores it in the deal's timeline.
+ * Public endpoint (called by our automated pipeline).
+ */
+router.post('/performance-report', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      session_id,
+      title,
+      meeting_date,
+      score,
+      report_html,
+      report_json,
+      participants,
+      pipeline, // "sales" or "ops"
+    } = req.body;
+
+    if (!session_id) {
+      return res.status(400).json({ error: 'session_id is required' });
+    }
+
+    console.log(`[Performance Report] Received: ${title} (score: ${score}, pipeline: ${pipeline})`);
+
+    // 1. Try to find the ReadAiMeeting by sessionId
+    let meeting = await prisma.readAiMeeting.findUnique({
+      where: { sessionId: String(session_id) },
+    });
+
+    // 2. If no meeting found, try to match via participant emails
+    let dealId: string | null = meeting?.dealId || null;
+    let contactId: string | null = meeting?.contactId || null;
+
+    if (!dealId && participants && Array.isArray(participants)) {
+      const participantEmails = participants
+        .map((p: any) => typeof p === 'string' ? p : (p.email || ''))
+        .filter((e: string) => e && e.includes('@'))
+        .map((e: string) => e.toLowerCase());
+
+      if (participantEmails.length > 0) {
+        const contacts = await prisma.contact.findMany({
+          where: { email: { in: participantEmails, mode: 'insensitive' } },
+          select: { id: true, deals: { where: { status: 'OPEN' }, select: { id: true, userId: true }, take: 1 } },
+        });
+
+        if (contacts.length > 0) {
+          contactId = contacts[0].id;
+          dealId = contacts[0].deals?.[0]?.id || null;
+        }
+      }
+    }
+
+    // 3. Also try matching by meeting title (extract client name from "Diagnóstico Financeiro BGP <> ClientName")
+    if (!dealId && title) {
+      const nameMatch = title.match(/<>\s*(.+)$/i);
+      if (nameMatch) {
+        const clientName = nameMatch[1].trim();
+        // Find contact by exact unique name
+        const contacts = await prisma.contact.findMany({
+          where: { name: { contains: clientName, mode: 'insensitive' } },
+          select: { id: true, name: true, deals: { where: { status: 'OPEN' }, select: { id: true, userId: true }, take: 1 } },
+        });
+
+        if (contacts.length === 1) {
+          contactId = contactId || contacts[0].id;
+          dealId = dealId || contacts[0].deals?.[0]?.id || null;
+          console.log(`[Performance Report] Matched by name: "${clientName}" → contact ${contactId}, deal ${dealId}`);
+        }
+      }
+    }
+
+    // 4. Update the ReadAiMeeting record with report data (if exists)
+    if (meeting) {
+      await prisma.readAiMeeting.update({
+        where: { sessionId: String(session_id) },
+        data: {
+          dealId: dealId || meeting.dealId,
+          contactId: contactId || meeting.contactId,
+        },
+      });
+    }
+
+    // 5. Create Activity in the deal's timeline with the report
+    if (dealId) {
+      const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { userId: true } });
+      if (deal) {
+        const scoreEmoji = (score || 0) >= 7 ? '🟢' : (score || 0) >= 5 ? '🟡' : '🔴';
+        const pipelineLabel = pipeline === 'ops' ? 'Operação' : 'Vendas';
+        const activityContent = report_html
+          || `<h3>${scoreEmoji} Relatório de ${pipelineLabel} — Score ${score || '?'}/10</h3><p>${title || 'Reunião'}</p><pre>${JSON.stringify(report_json, null, 2)}</pre>`;
+
+        await prisma.activity.create({
+          data: {
+            type: 'MEETING' as any,
+            content: activityContent,
+            metadata: {
+              source: 'bgp-sales-report',
+              pipeline: pipeline || 'sales',
+              score: score || null,
+              session_id,
+              meeting_date: meeting_date || null,
+              report_json: report_json || null,
+            },
+            dealId,
+            contactId,
+            userId: deal.userId,
+          },
+        });
+
+        console.log(`[Performance Report] Activity created in deal ${dealId} (score: ${score})`);
+      }
+    } else {
+      console.log(`[Performance Report] No deal found for "${title}" — report stored but not linked`);
+    }
+
+    res.json({
+      ok: true,
+      dealId,
+      contactId,
+      linked: !!dealId,
+    });
+  } catch (err) {
+    console.error('[Performance Report] Error:', err);
+    next(err);
+  }
+});
+
 export default router;
