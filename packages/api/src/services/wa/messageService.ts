@@ -35,19 +35,30 @@ async function enforcePairRateLimit(phone: string): Promise<void> {
 // ─── Meta error handling helper ─────────────────────────────────────────────
 function handleMetaSendError(err: any, conversationId: string): never {
   const metaCode = (err as any)?.metaCode;
+
+  // Helper: create error preserving metaCode for upstream consumers
+  function metaError(message: string): Error {
+    const e = new Error(message);
+    (e as any).metaCode = metaCode;
+    return e;
+  }
+
   if (metaCode === 131047) {
     // Outside 24h window — clear window and suggest template
     prisma.waConversation.update({
       where: { id: conversationId },
       data: { windowExpiresAt: null },
     }).catch(() => {}); // fire-and-forget
-    throw new Error('[WA] Mensagem fora da janela de 24h. Use um template aprovado.');
+    throw metaError('[WA] Mensagem fora da janela de 24h. Use um template aprovado.');
   }
-  if (metaCode === 131051) {
-    throw new Error('[WA] Este numero nao possui WhatsApp.');
+  if (metaCode === 131026 || metaCode === 131051) {
+    throw metaError('[WA] Este numero nao possui WhatsApp ou e invalido.');
+  }
+  if (metaCode === 131052) {
+    throw metaError('[WA] Tipo de midia nao suportado pelo destinatario.');
   }
   if (metaCode === 131056) {
-    throw new Error('[WA] Limite de envio atingido para este numero. Aguarde alguns segundos.');
+    throw metaError('[WA] Limite de envio atingido para este numero. Aguarde alguns segundos.');
   }
   throw err;
 }

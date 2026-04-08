@@ -1030,6 +1030,11 @@ async function sendWaTemplate(
     return { success: false, output: 'Contact has no phone number' };
   }
 
+  // Skip contacts already marked as phoneInvalid — no point wasting templates
+  if (contact.phoneInvalid) {
+    return { success: false, output: `Contato ${contact.name} tem telefone marcado como invalido — envio bloqueado` };
+  }
+
   const phone = normalizePhone(contact.phone);
 
   // Check opt-out on WaConversation
@@ -1081,6 +1086,49 @@ async function sendWaTemplate(
     ? [{ type: 'body', parameters: resolved.parameters }]
     : [];
 
+  // ── Helper: detect & handle invalid phone errors ──
+  // Meta error codes: 131026 = phone not on WhatsApp, 131051 = number doesn't exist,
+  // 131052 = media not supported by recipient (sometimes indicates invalid)
+  const INVALID_PHONE_CODES = [131026, 131051];
+
+  async function handleInvalidPhoneError(err: any): Promise<void> {
+    const metaCode = err?.metaCode;
+    const msg = (err?.message || '').toLowerCase();
+
+    const isDefinitiveInvalid =
+      INVALID_PHONE_CODES.includes(metaCode) ||
+      (msg.includes('numero nao possui whatsapp')) ||
+      (msg.includes('invalido') && (msg.includes('phone') || msg.includes('recipient')));
+
+    if (!isDefinitiveInvalid) return; // Not an invalid phone error — let caller handle
+
+    console.log(`[sendWaTemplate] Telefone invalido detectado (metaCode=${metaCode}) — contactId=${contactId}, phone=${phone}`);
+
+    try {
+      // 1. Mark contact as phoneInvalid
+      await prisma.contact.update({
+        where: { id: contactId },
+        data: { phoneInvalid: true, phoneInvalidAt: new Date() },
+      });
+
+      // 2. Tag the contact with "Numero Invalido"
+      const tag = await prisma.tag.upsert({
+        where: { name: 'Numero Invalido' },
+        update: {},
+        create: { name: 'Numero Invalido', color: '#ef4444' },
+      });
+      await prisma.contactTag.upsert({
+        where: { contactId_tagId: { contactId, tagId: tag.id } },
+        update: {},
+        create: { contactId, tagId: tag.id },
+      });
+
+      console.log(`[sendWaTemplate] Contato ${contactId} marcado como telefone invalido + tag aplicada`);
+    } catch (markErr) {
+      console.error(`[sendWaTemplate] Erro ao marcar telefone invalido:`, markErr);
+    }
+  }
+
   // ── Smart Send: texto livre se janela 24h aberta, template se fechada ──
   const { WaMessageService } = await import('./wa/messageService');
   const { WindowService } = await import('./wa/windowService');
@@ -1126,30 +1174,38 @@ async function sendWaTemplate(
         if (metaCode === 131047) {
           console.log(`[sendWaTemplate] Smart send fallback: janela fechou, enviando template ${config.templateName}`);
         } else {
-          throw err; // Erro diferente — propagar
+          // Check for invalid phone before re-throwing
+          await handleInvalidPhoneError(err);
+          throw err; // Propagate — engine will mark enrollment as FAILED
         }
       }
     }
   }
 
   // Fallback: enviar template normalmente (janela fechada ou smart send falhou)
-  const result = await WaMessageService.sendTemplate(
-    conversation.id,
-    config.templateName,
-    language,
-    components,
-    { senderType: 'WA_BOT' },
-  );
-
-  return {
-    success: true,
-    output: {
-      phone,
-      conversationId: conversation.id,
-      templateName: config.templateName,
+  try {
+    const result = await WaMessageService.sendTemplate(
+      conversation.id,
+      config.templateName,
       language,
-      smartSend: windowOpen ? 'fallback_template' : 'template',
-      messageId: result?.id || null,
-    },
-  };
+      components,
+      { senderType: 'WA_BOT' },
+    );
+
+    return {
+      success: true,
+      output: {
+        phone,
+        conversationId: conversation.id,
+        templateName: config.templateName,
+        language,
+        smartSend: windowOpen ? 'fallback_template' : 'template',
+        messageId: result?.id || null,
+      },
+    };
+  } catch (err: any) {
+    // Check for invalid phone before re-throwing
+    await handleInvalidPhoneError(err);
+    throw err; // Propagate — engine will mark enrollment as FAILED
+  }
 }
