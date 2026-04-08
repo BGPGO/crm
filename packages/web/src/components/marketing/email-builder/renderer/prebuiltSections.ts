@@ -80,7 +80,7 @@ export const PREBUILT_BLOCKS: PrebuiltBlock[] = [
       sec("pb-hero-btn", "button", {
         type: "button",
         text: "Agendar Reunião",
-        url: "https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp",
+        url: "https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp",
         alignment: "center",
         buttonColor: "#2563eb",
         textColor: "#ffffff",
@@ -131,7 +131,7 @@ export const PREBUILT_BLOCKS: PrebuiltBlock[] = [
       sec("pb-cta-btn", "button", {
         type: "button",
         text: "Agendar Reunião",
-        url: "https://calendly.com/d/cpk9-67q-mcq/diagnostico-financeiro-bgp",
+        url: "https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp",
         alignment: "center",
         buttonColor: "#22c55e",
         textColor: "#ffffff",
