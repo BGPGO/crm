@@ -533,7 +533,7 @@ export async function processEnrollments(): Promise<{ processed: number }> {
             const hasZapiInbound = !hasInbound ? await prisma.whatsAppMessage.findFirst({
               where: {
                 conversation: { contactId: enrollment.contactId },
-                direction: 'INBOUND',
+                sender: 'CLIENT',
               },
               select: { id: true },
             }).catch(() => null) : null;
@@ -552,10 +552,11 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
             await prisma.activity.create({
               data: {
-                type: 'DEAL_LOST',
+                type: 'STATUS_CHANGE',
                 content: `Negociação encerrada automaticamente — cadência "${enrollment.automation.name}" completou todas as etapas sem conversão. Motivo: ${everResponded ? 'Parou de dar retorno' : 'Nunca respondeu'}`,
                 contactId: enrollment.contactId,
                 dealId: openDeal.id,
+                userId: 'system',
               },
             });
 
