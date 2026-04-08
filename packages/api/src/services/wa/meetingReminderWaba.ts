@@ -25,6 +25,7 @@
 import prisma from '../../lib/prisma';
 import { WaMessageService } from './messageService';
 import { canSend, registerSent } from '../dailyLimitService';
+import { normalizePhone } from '../../utils/phoneNormalize';
 
 // ─── Mapeamento step (minutos antes) → template ──────────────────────────────
 
@@ -44,6 +45,11 @@ function getPhoneVariations(phone: string): string[] {
   // Remove caracteres não numéricos
   const digits = phone.replace(/\D/g, '');
   if (digits !== phone) variations.push(digits);
+
+  // Também incluir a versão normalizada (55+DDD+9+XXXXXXXX)
+  const normalized = normalizePhone(phone);
+  variations.push(normalized);
+
   // BR com 12 dígitos (55+DDD+8digits): tenta adicionar 9 após DDD
   if (digits.startsWith('55') && digits.length === 12) {
     const ddd = digits.substring(2, 4);
@@ -55,6 +61,24 @@ function getPhoneVariations(phone: string): string[] {
     const ddd = digits.substring(2, 4);
     const number = digits.substring(5);
     variations.push(`55${ddd}${number}`);
+  }
+  // Sem código do país (11 dígitos: DDD+9+8digits)
+  if (digits.startsWith('55') && digits.length === 13) {
+    variations.push(digits.substring(2)); // remove o 55
+  }
+  if (digits.startsWith('55') && digits.length === 12) {
+    variations.push(digits.substring(2)); // remove o 55
+  }
+  // Se não começa com 55, adicionar com 55
+  if (!digits.startsWith('55') && (digits.length === 10 || digits.length === 11)) {
+    variations.push('55' + digits);
+    // E com/sem o 9
+    if (digits.length === 10) {
+      variations.push('55' + digits.slice(0, 2) + '9' + digits.slice(2));
+    }
+    if (digits.length === 11) {
+      variations.push('55' + digits.slice(0, 2) + digits.slice(3)); // sem 9
+    }
   }
   return [...new Set(variations)];
 }
@@ -80,8 +104,8 @@ async function findOrCreateWaConversation(phone: string, contactId: string | nul
   });
 
   if (!conversation) {
-    // Criar nova conversa usando o telefone normalizado (sem caracteres especiais)
-    const normalizedPhone = phone.replace(/\D/g, '');
+    // Criar nova conversa usando o telefone normalizado (55+DDD+9+XXXXXXXX)
+    const normalizedPhone = normalizePhone(phone);
     try {
       conversation = await prisma.waConversation.create({
         data: {
