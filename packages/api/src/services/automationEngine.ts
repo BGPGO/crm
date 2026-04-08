@@ -58,20 +58,6 @@ export async function evaluateTriggers(
     const matches = doesTriggerMatch(triggerType, triggerConfig, data.metadata);
     if (!matches) continue;
 
-    // Check if the contact already has an enrollment IN PROGRESS (ACTIVE or PAUSED).
-    // ACTIVE = cadência rodando agora
-    // PAUSED = interrompida por mudança de etapa (pode voltar)
-    // COMPLETED = já terminou — pode enrolar de novo (deal novo do mesmo contato)
-    const existingEnrollment = await prisma.automationEnrollment.findFirst({
-      where: {
-        automationId: automation.id,
-        contactId: data.contactId,
-        status: { in: ['ACTIVE', 'PAUSED'] },
-      },
-    });
-
-    if (existingEnrollment) continue;
-
     // Find the root step (not referenced by any other step)
     const referencedIds = new Set<string>();
     automation.steps.forEach((s) => {
@@ -84,16 +70,42 @@ export async function evaluateTriggers(
       || automation.steps[0];
     if (!firstStep) continue;
 
-    // Create enrollment
-    await prisma.automationEnrollment.create({
-      data: {
-        automationId: automation.id,
-        contactId: data.contactId,
-        status: 'ACTIVE',
-        currentStepId: firstStep.id,
-        nextActionAt: new Date(),
-      },
-    });
+    // Atomic check-and-create inside a serializable transaction to prevent
+    // race conditions when multiple triggers fire simultaneously (e.g.
+    // CONTACT_CREATED + STAGE_CHANGED both in parallel).
+    let enrolled = false;
+    try {
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.automationEnrollment.findFirst({
+          where: {
+            automationId: automation.id,
+            contactId: data.contactId,
+            status: { in: ['ACTIVE', 'PAUSED'] },
+          },
+        });
+        if (existing) return; // already enrolled — skip
+
+        await tx.automationEnrollment.create({
+          data: {
+            automationId: automation.id,
+            contactId: data.contactId,
+            status: 'ACTIVE',
+            currentStepId: firstStep.id,
+            nextActionAt: new Date(),
+          },
+        });
+        enrolled = true;
+      }, { isolationLevel: 'Serializable' });
+    } catch (txErr: any) {
+      // Serialization failure = another transaction already enrolled this contact
+      if (txErr.code === 'P2034' || txErr.message?.includes('could not serialize')) {
+        console.log(`[AutomationEngine] Serialization conflict for ${automation.name} + contact ${data.contactId} — already enrolled`);
+        continue;
+      }
+      throw txErr;
+    }
+
+    if (!enrolled) continue;
 
     // Log activity on the contact's most recent open deal
     try {
