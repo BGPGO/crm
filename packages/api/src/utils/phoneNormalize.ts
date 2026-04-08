@@ -11,9 +11,15 @@
  *   "54996891536"     → "5554996891536"  (no country code — 11 digits)
  *   "5496891536"      → "5554996891536"  (no country code, no 9 — 10 digits)
  *   "+55 (54) 99689-1536" → "5554996891536"
+ *   "044997084116"        → "5544997084116"  (leading 0 + DDD, stripped and normalized)
  */
 export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
+  let digits = phone.replace(/\D/g, '');
+
+  // Strip leading 0 (some systems use 0+DDD format, e.g. 044997084116)
+  if (digits.startsWith('0') && !digits.startsWith('00')) {
+    digits = digits.slice(1);
+  }
 
   // 10 digits: DDD(2) + 8 digits — missing country code AND 9
   if (digits.length === 10) {
