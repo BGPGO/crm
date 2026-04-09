@@ -704,6 +704,82 @@ router.patch(
   }
 );
 
+// POST /api/deals/:id/no-show — mark deal as no-show, move back to "Marcar reunião", notify closer
+router.post('/:id/no-show', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: {
+        stage: true,
+        contact: { select: { id: true, name: true } },
+        pipeline: { include: { stages: { orderBy: { order: 'asc' } } } },
+        user: { select: { id: true, name: true } },
+      },
+    });
+    if (!existing) return next(createError('Deal not found', 404));
+
+    // Find "Marcar reunião" stage in the deal's pipeline
+    const marcarReuniaoStage = existing.pipeline.stages.find(
+      (s) => s.name.toLowerCase().includes('marcar reuni')
+    );
+    if (!marcarReuniaoStage) {
+      return next(createError('Stage "Marcar reunião" not found in pipeline', 400));
+    }
+
+    const actingUserId = (req as any).user?.id ?? existing.userId;
+    const fromStage = existing.stage.name;
+
+    // Update deal: flag noShow + move to "Marcar reunião"
+    const deal = await prisma.deal.update({
+      where: { id: req.params.id },
+      data: {
+        noShow: true,
+        noShowAt: new Date(),
+        stageId: marcarReuniaoStage.id,
+      },
+      include: dealInclude,
+    });
+
+    // Log activities
+    await logActivity({
+      type: 'STAGE_CHANGE',
+      content: `No-show: lead não compareceu à reunião. Movido de "${fromStage}" para "${marcarReuniaoStage.name}"`,
+      userId: actingUserId,
+      dealId: existing.id,
+      contactId: existing.contactId ?? undefined,
+      metadata: { fromStage, toStage: marcarReuniaoStage.name, noShow: true },
+    });
+
+    // Create task for the closer (deal owner) as notification
+    const closerUserId = existing.userId;
+    await prisma.task.create({
+      data: {
+        title: `No-show: ${existing.contact?.name || existing.title} não compareceu à reunião`,
+        type: 'CALL',
+        status: 'PENDING',
+        dueDate: new Date(),
+        dealId: existing.id,
+        userId: closerUserId,
+      },
+    });
+
+    // Trigger automation for new stage
+    if (deal.contactId) {
+      onStageChanged(deal.contactId, marcarReuniaoStage.id, deal.id);
+    }
+
+    // Cancel active CalendlyEvents for this deal
+    await prisma.calendlyEvent.updateMany({
+      where: { dealId: existing.id, status: 'active' },
+      data: { status: 'canceled' },
+    });
+
+    res.json({ data: deal });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /deals/:id/whatsapp-conversation — Check if deal has a linked WhatsApp conversation
 router.get('/:id/whatsapp-conversation', async (req, res, next) => {
   try {

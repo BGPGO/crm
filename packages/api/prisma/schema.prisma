@@ -351,6 +351,8 @@ model Deal {
   closedAt           DateTime?
   sdrActivatedAt     DateTime?
   status             DealStatus @default(OPEN)
+  noShow             Boolean    @default(false)
+  noShowAt           DateTime?
   classification     String?
   contaAzulCode      String?
   lostAtStage        String?
@@ -386,6 +388,7 @@ model Deal {
   dealContacts       DealContact[]
   contracts          Contract[]
   scheduledFollowUps ScheduledFollowUp[]
+  sentDocuments      SentDocument[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -992,6 +995,26 @@ model ContractWitness {
   updatedAt DateTime @updatedAt
 
   @@index([name])
+}
+
+model SentDocument {
+  id                   String    @id @default(cuid())
+  autentiqueDocumentId String
+  documentName         String
+  documentType         String    @default("contract") // "contract", "aditivo", "distrato"
+  signerEmails         String    // comma-separated emails
+  status               String    @default("pending") // "pending", "signed"
+  signedCount          Int       @default(0)
+  totalSigners         Int       @default(0)
+  lastCheckedAt        DateTime?
+  metadata             Json?     // full Autentique response with signer details
+  dealId               String?
+  deal                 Deal?     @relation(fields: [dealId], references: [id])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([dealId])
+  @@index([status])
 }
 
 // ─── WhatsApp / Conversas ───────────────────────────────────────────────────

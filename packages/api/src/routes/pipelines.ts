@@ -566,6 +566,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
           hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
           hasWabaConversation: deal.contactId ? contactsWithWabaConversation.has(deal.contactId) : false,
           phoneInvalid: (deal as any).contact?.phoneInvalid ?? false,
+          noShow: deal.noShow ?? false,
           nextTask: (deal as any).tasks?.[0] ?? null,
         })),
         total: result.total,

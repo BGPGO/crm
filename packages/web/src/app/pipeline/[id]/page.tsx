@@ -18,6 +18,7 @@ import {
   Pencil,
   Loader2,
   Trash2,
+  UserX,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -29,7 +30,7 @@ import DealTasks, { DealTask } from "@/components/deal/DealTasks";
 import CollapsibleSection from "@/components/deal/CollapsibleSection";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
-import ContractGenerator from "@/components/pipeline/ContractGenerator";
+import ContractHub from "@/components/pipeline/ContractHub";
 import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
 import WabaSidebar from "@/components/deal/WabaSidebar";
@@ -849,6 +850,23 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleNoShow = async () => {
+    if (!deal) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/deals/${dealId}/no-show`, {});
+      // Find "Marcar reunião" stage
+      const marcarStage = stages.find((s) => s.name.toLowerCase().includes("marcar reuni"));
+      setDeal((d) => d ? { ...d, stageId: marcarStage?.id ?? d.stageId } : d);
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao marcar no-show: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleStageClick = async (stageId: string) => {
     if (!deal || deal.status !== "active") return;
 
@@ -1325,6 +1343,18 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             )}
             {deal.status === "active" && (
               <>
+                {deal.stage && deal.stage.name.toLowerCase().includes("reunião agendada") && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleNoShow}
+                    disabled={submitting}
+                    className="border-orange-400 text-orange-600 hover:bg-orange-50 hover:border-orange-500"
+                  >
+                    <UserX size={14} />
+                    No-show
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   size="sm"
@@ -1837,9 +1867,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               </div>
             )}
 
-            {/* ── Contrato ── */}
+            {/* ── Contrato (Hub com Aditivo, Distrato, Enviados) ── */}
             {activeTab === "contrato" && showContractTab && (
-              <ContractGenerator
+              <ContractHub
                 dealId={dealId}
                 deal={{
                   title: deal.title,

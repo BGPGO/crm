@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Draggable } from "@hello-pangea/dnd";
-import { Star, User, Plus, MessageCircle, Calendar, PhoneOff } from "lucide-react";
+import { Star, User, Plus, MessageCircle, Calendar, PhoneOff, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import clsx from "clsx";
@@ -23,6 +23,7 @@ export interface Deal {
   hasWhatsAppConversation?: boolean;
   hasWabaConversation?: boolean;
   phoneInvalid?: boolean;
+  noShow?: boolean;
   nextTask?: { id: string; title: string; dueDate?: string; type: string } | null;
 }
 
@@ -76,8 +77,11 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           className={clsx(
-            "bg-white rounded-lg border border-gray-200 shadow-sm cursor-pointer select-none group",
-            "hover:border-gray-300 hover:shadow-md transition-all duration-150",
+            "bg-white rounded-lg border shadow-sm cursor-pointer select-none group",
+            "hover:shadow-md transition-all duration-150",
+            deal.noShow
+              ? "border-orange-400 border-2 hover:border-orange-500"
+              : "border-gray-200 hover:border-gray-300",
             snapshot.isDragging && "shadow-lg rotate-1 border-blue-300 opacity-90"
           )}
         >
@@ -91,6 +95,15 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             <div className="flex items-start justify-between mb-1.5">
               <div className="flex items-center gap-1.5">
                 <StatusBadge status={deal.status} />
+                {deal.noShow && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded"
+                    title="Lead não compareceu à reunião agendada"
+                  >
+                    <UserX size={10} />
+                    No-show
+                  </span>
+                )}
                 {deal.phoneInvalid && (
                   <span
                     className="inline-flex items-center gap-1 text-[10px] font-medium text-red-700 bg-red-50 px-1.5 py-0.5 rounded"
