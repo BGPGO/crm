@@ -763,9 +763,13 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
       },
     });
 
-    // Trigger automation for new stage
+    // No-show: NÃO disparar automações de etapa (onStageChanged).
+    // O lead volta pra "Marcar reunião" apenas para atendimento humano.
+    // Interromper cadências ativas para evitar mensagens automáticas.
     if (deal.contactId) {
-      onStageChanged(deal.contactId, marcarReuniaoStage.id, deal.id);
+      interruptCadenceOnStageChange(deal.contactId, null).catch((err) =>
+        console.error('[no-show] Erro ao interromper cadências:', err)
+      );
     }
 
     // Cancel active CalendlyEvents for this deal
