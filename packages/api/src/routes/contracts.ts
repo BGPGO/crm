@@ -211,16 +211,16 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       email: 'josi@bertuzzipatrimonial.com.br',
     };
 
-    const signers = [
-      { email: CONTRATADA.email, name: CONTRATADA.name, action: 'SIGN' },
-      { email: contract.emailRepresentante, name: contract.representante, action: 'SIGN' },
+    const signers: { email: string; name: string; action: string; delivery_order: number }[] = [
+      { email: CONTRATADA.email, name: CONTRATADA.name, action: 'SIGN', delivery_order: 1 },
+      { email: contract.emailRepresentante, name: contract.representante, action: 'SIGN', delivery_order: 2 },
     ];
 
     if (contract.testemunha1Email && contract.testemunha1Nome) {
-      signers.push({ email: contract.testemunha1Email, name: contract.testemunha1Nome, action: 'SIGN' });
+      signers.push({ email: contract.testemunha1Email, name: contract.testemunha1Nome, action: 'SIGN', delivery_order: signers.length + 1 });
     }
     if (contract.testemunha2Email && contract.testemunha2Nome) {
-      signers.push({ email: contract.testemunha2Email, name: contract.testemunha2Nome, action: 'SIGN' });
+      signers.push({ email: contract.testemunha2Email, name: contract.testemunha2Nome, action: 'SIGN', delivery_order: signers.length + 1 });
     }
 
     // Convert HTML to Base64
@@ -231,8 +231,13 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
     const query = 'mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) { createDocument(sandbox: false, document: $document, signers: $signers, file: $file) { id name created_at signatures { public_id name email created_at action { name } link { short_link } } } }';
 
     const variables = {
-      document: { name: fileName },
-      signers: signers.map(s => ({ email: s.email, action: s.action, name: s.name })),
+      document: { name: fileName, sortable: true },
+      signers: signers.map(s => ({
+        email: s.email,
+        action: s.action,
+        name: s.name,
+        delivery_order: s.delivery_order,
+      })),
       file: null,
     };
 

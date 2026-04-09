@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
+import SignerOrderEditor from "@/components/pipeline/SignerOrderEditor";
 import {
   FileText,
   Download,
@@ -941,9 +942,31 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [saving, setSaving] = useState(false);
   const [sendingAutentique, setSendingAutentique] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
+  const [orderedSigners, setOrderedSigners] = useState<Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}>>([]);
+  const [sortable, setSortable] = useState(true);
 
   const contractRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Build signers list from form state ──
+  const buildSignersList = useCallback(() => {
+    const signers: Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}> = [];
+    if (form.testemunha1Email?.trim()) {
+      signers.push({ email: form.testemunha1Email.trim(), name: form.testemunha1Nome || "Testemunha 1", action: "SIGN_AS_A_WITNESS", role: "testemunha1" });
+    }
+    if (form.testemunha2Email?.trim()) {
+      signers.push({ email: form.testemunha2Email.trim(), name: form.testemunha2Nome || "Testemunha 2", action: "SIGN_AS_A_WITNESS", role: "testemunha2" });
+    }
+    if (form.emailRepresentante?.trim()) {
+      signers.push({ email: form.emailRepresentante.trim(), name: form.representante || "Contratante", action: "SIGN", role: "contratante" });
+    }
+    signers.push({ email: RESPONSAVEL_LEGAL.email, name: RESPONSAVEL_LEGAL.nome, action: "SIGN", role: "contratada" });
+    setOrderedSigners(signers);
+  }, [form.testemunha1Email, form.testemunha1Nome, form.testemunha2Email, form.testemunha2Nome, form.emailRepresentante, form.representante]);
+
+  useEffect(() => {
+    buildSignersList();
+  }, [buildSignersList]);
 
   // ── Show toast helper ──
   const showToast = (type: "success" | "error" | "warning", message: string) => {
@@ -1182,8 +1205,16 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       const html = generateContractHTML();
       await api.put(`/contracts/${cId}`, { ...form, htmlContent: html });
 
+      // Build signers from orderedSigners state
+      const signers = orderedSigners.map((s, i) => ({
+        email: s.email,
+        name: s.name,
+        action: s.action,
+        delivery_order: sortable ? i + 1 : undefined,
+      }));
+
       // Send to Autentique
-      await api.post(`/contracts/${cId}/send-autentique`, {});
+      await api.post(`/contracts/${cId}/send-autentique`, { signers });
 
       setContractStatus("sent");
       showToast("success", "Contrato enviado para assinatura via Autentique com sucesso!");
@@ -1362,6 +1393,14 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             </button>
           </div>
         </div>
+
+        {/* Signer order editor */}
+        <SignerOrderEditor
+          signers={orderedSigners}
+          onSignersChange={setOrderedSigners}
+          sortable={sortable}
+          onSortableChange={setSortable}
+        />
 
         {/* Contract preview */}
         <div
