@@ -927,6 +927,16 @@ async function markLost(
   contactId: string,
   config: { lostReasonId?: string }
 ): Promise<ActionResult> {
+  // Guard: don't mark as lost if lead has an active scheduled meeting
+  const hasActiveMeeting = await prisma.calendlyEvent.findFirst({
+    where: { contactId, status: 'active' },
+    select: { id: true },
+  });
+  if (hasActiveMeeting) {
+    console.log(`[markLost] Contact ${contactId} has active meeting — skipping MARK_LOST`);
+    return { success: false, output: 'Lead has active scheduled meeting — skipping' };
+  }
+
   // Find all OPEN deals for this contact
   const deals = await prisma.deal.findMany({
     where: {

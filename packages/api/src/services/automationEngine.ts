@@ -530,49 +530,62 @@ export async function processEnrollments(): Promise<{ processed: number }> {
             select: { id: true, stageId: true },
           });
           if (openDeal) {
-            const LOST_REASON_NUNCA_RESPONDEU = '64fb7515ea4eb400219457cb';
-            const LOST_REASON_PAROU_RETORNO = '67cf41a6f638130017ff61ec';
-
-            // Check if lead ever responded (has any inbound WA message)
-            const hasInbound = await prisma.waMessage.findFirst({
-              where: {
-                conversation: { contactId: enrollment.contactId },
-                direction: 'INBOUND',
-              },
+            // Guard: don't auto-close if the lead has an active scheduled meeting
+            const hasActiveMeeting = await prisma.calendlyEvent.findFirst({
+              where: { contactId: enrollment.contactId, status: 'active' },
               select: { id: true },
             });
-            // Also check Z-API conversations
-            const hasZapiInbound = !hasInbound ? await prisma.whatsAppMessage.findFirst({
-              where: {
-                conversation: { contactId: enrollment.contactId },
-                sender: 'CLIENT',
-              },
-              select: { id: true },
-            }).catch(() => null) : null;
+            if (hasActiveMeeting) {
+              console.log(`[AutomationEngine] Deal ${openDeal.id} has active meeting — skipping auto-close for cadence "${enrollment.automation.name}"`);
+            } else {
+              const LOST_REASON_NUNCA_RESPONDEU = '64fb7515ea4eb400219457cb';
+              const LOST_REASON_PAROU_RETORNO = '67cf41a6f638130017ff61ec';
+              const SYSTEM_USER_ID = '652d44fd439afa0017e1044b'; // BGP CRM
 
-            const everResponded = !!(hasInbound || hasZapiInbound);
-            const lostReasonId = everResponded ? LOST_REASON_PAROU_RETORNO : LOST_REASON_NUNCA_RESPONDEU;
+              // Check if lead ever responded (has any inbound WA message)
+              const hasInbound = await prisma.waMessage.findFirst({
+                where: {
+                  conversation: { contactId: enrollment.contactId },
+                  direction: 'INBOUND',
+                },
+                select: { id: true },
+              });
+              // Also check Z-API conversations
+              const hasZapiInbound = !hasInbound ? await prisma.whatsAppMessage.findFirst({
+                where: {
+                  conversation: { contactId: enrollment.contactId },
+                  sender: 'CLIENT',
+                },
+                select: { id: true },
+              }).catch(() => null) : null;
 
-            await prisma.deal.update({
-              where: { id: openDeal.id },
-              data: {
-                status: 'LOST',
-                lostReasonId,
-                closedAt: new Date(),
-              },
-            });
+              const everResponded = !!(hasInbound || hasZapiInbound);
+              const lostReasonId = everResponded ? LOST_REASON_PAROU_RETORNO : LOST_REASON_NUNCA_RESPONDEU;
+              const reason = everResponded ? 'Parou de dar retorno' : 'Nunca respondeu';
 
-            await prisma.activity.create({
-              data: {
-                type: 'STATUS_CHANGE',
-                content: `Negociação encerrada automaticamente — cadência "${enrollment.automation.name}" completou todas as etapas sem conversão. Motivo: ${everResponded ? 'Parou de dar retorno' : 'Nunca respondeu'}`,
-                contactId: enrollment.contactId,
-                dealId: openDeal.id,
-                userId: 'system',
-              },
-            });
+              // Transaction: deal update + activity must succeed together
+              await prisma.$transaction([
+                prisma.deal.update({
+                  where: { id: openDeal.id },
+                  data: {
+                    status: 'LOST',
+                    lostReasonId,
+                    closedAt: new Date(),
+                  },
+                }),
+                prisma.activity.create({
+                  data: {
+                    type: 'STATUS_CHANGE',
+                    content: `Negociação encerrada automaticamente — cadência "${enrollment.automation.name}" completou todas as etapas sem conversão. Motivo: ${reason}`,
+                    contactId: enrollment.contactId,
+                    dealId: openDeal.id,
+                    userId: SYSTEM_USER_ID,
+                  },
+                }),
+              ]);
 
-            console.log(`[AutomationEngine] Deal ${openDeal.id} auto-closed as LOST (${everResponded ? 'parou retorno' : 'nunca respondeu'}) — cadence "${enrollment.automation.name}" exhausted`);
+              console.log(`[AutomationEngine] Deal ${openDeal.id} auto-closed as LOST (${everResponded ? 'parou retorno' : 'nunca respondeu'}) — cadence "${enrollment.automation.name}" exhausted`);
+            }
           }
         }
       }
