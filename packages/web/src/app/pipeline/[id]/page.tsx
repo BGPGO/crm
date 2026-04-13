@@ -200,7 +200,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
         type: task.type as string,
         dueDate: task.dueDate as string | undefined,
         done: task.status === "COMPLETED",
-        meetingSource: (task.meetingSource as string | null | undefined) ?? null,
+        meetingSource: (task.meetingSource as DealTask["meetingSource"]) ?? null,
       };
     }),
     dealProducts: (((data.dealProducts ?? data.products) as unknown[]) ?? []).map((dp: unknown) => {

@@ -490,12 +490,14 @@ router.post('/', async (req: Request, res: Response) => {
             },
           });
 
+          // Detect meeting source from UTMs embedded in the Calendly link
+          // (hoisted out of `if (startTime)` because it's also used later
+          // in sendMeetingNotifications)
+          const meetingSource = detectMeetingSourceFromUtm(utmSource, utmMedium);
+          console.log(`[calendly-webhook] meetingSource=${meetingSource} (utm_source="${utmSource}", utm_medium="${utmMedium}")`);
+
           // 7. Create Task with meeting date/time
           if (startTime) {
-            // Detect meeting source from UTMs embedded in the Calendly link
-            const meetingSource = detectMeetingSourceFromUtm(utmSource, utmMedium);
-            console.log(`[calendly-webhook] meetingSource=${meetingSource} (utm_source="${utmSource}", utm_medium="${utmMedium}")`);
-
             await prisma.task.create({
               data: {
                 title: `Reunião: ${eventType || 'Diagnóstico Financeiro'}`,
