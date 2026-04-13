@@ -1,6 +1,20 @@
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 
+type MeetingSourceEnum = 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'SDR_IA' | 'HUMANO';
+
+const MEETING_SOURCE_LABELS: Record<MeetingSourceEnum, string> = {
+  CALENDLY_EMAIL: 'Calendly (via email marketing)',
+  CALENDLY_LP: 'Calendly (via landing page)',
+  SDR_IA: 'SDR IA (BIA) no WhatsApp',
+  HUMANO: 'Atendimento humano',
+};
+
+function formatMeetingSource(source: MeetingSourceEnum | null | undefined): string {
+  if (!source) return 'Origem não identificada';
+  return MEETING_SOURCE_LABELS[source] ?? 'Origem não identificada';
+}
+
 interface MeetingNotificationData {
   contactName: string;
   contactEmail?: string | null;
@@ -13,6 +27,7 @@ interface MeetingNotificationData {
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
+  meetingSource?: MeetingSourceEnum | null;
 }
 
 export async function sendMeetingNotifications(data: MeetingNotificationData): Promise<void> {
@@ -86,6 +101,7 @@ function buildMeetingEmailHtml(data: MeetingNotificationData): string {
           ${row('Telefone', data.contactPhone)}
           ${row('Tipo', data.eventType)}
           ${row('Data/Hora', formattedDate)}
+          <tr><td style="padding:8px 0;color:#6b7280;font-size:14px;">🎯 Origem</td><td style="padding:8px 0;font-weight:bold;font-size:14px;color:#059669;">${esc(formatMeetingSource(data.meetingSource))}</td></tr>
           ${row('Closer', data.hostName)}
           ${row('UTM Source', data.utmSource)}
           ${row('UTM Medium', data.utmMedium)}

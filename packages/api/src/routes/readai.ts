@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
+import { triggerMeetingAnalysis, analyzeMeeting } from '../services/meetingAnalyzer';
 
 const router = Router();
 
@@ -62,7 +63,7 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
     }
 
     // Store the meeting data
-    await prisma.readAiMeeting.upsert({
+    const storedMeeting = await prisma.readAiMeeting.upsert({
       where: { sessionId: String(sessionId) },
       create: {
         sessionId: String(sessionId),
@@ -94,6 +95,11 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
     });
 
     console.log(`[Read.ai] Meeting ${sessionId} stored (deal: ${dealId || 'none'}, contact: ${contactId || 'none'})`);
+
+    // Trigger AI analysis in background if transcript is available (non-blocking)
+    if (transcript) {
+      triggerMeetingAnalysis(storedMeeting.id);
+    }
 
     // If we found a deal, log an activity
     if (dealId) {
@@ -156,6 +162,8 @@ router.get('/meetings', requireAuth, async (req: Request, res: Response, next: N
         participants: true,
         dealId: true,
         contactId: true,
+        aiAnalysis: true,
+        aiAnalyzedAt: true,
         createdAt: true,
       },
     });
@@ -192,6 +200,34 @@ router.put('/meetings/:id/link', requireAuth, async (req: Request, res: Response
       data: { dealId },
     });
     res.json({ data: meeting });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/readai/meetings/:id/analyze — (Re)generate AI analysis for a meeting
+ * Can be called manually (button "Reanalisar") or programmatically.
+ */
+router.post('/meetings/:id/analyze', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const meeting = await prisma.readAiMeeting.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, transcript: true, title: true },
+    });
+
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+    if (!meeting.transcript) return res.status(422).json({ error: 'Meeting has no transcript to analyze' });
+
+    const { analyzeMeeting: runAnalysis } = await import('../services/meetingAnalyzer');
+    const analysis = await runAnalysis(meeting.transcript, meeting.title);
+
+    const updated = await prisma.readAiMeeting.update({
+      where: { id: meeting.id },
+      data: { aiAnalysis: analysis as any, aiAnalyzedAt: new Date() },
+    });
+
+    res.json({ data: { aiAnalysis: updated.aiAnalysis, aiAnalyzedAt: updated.aiAnalyzedAt } });
   } catch (err) {
     next(err);
   }

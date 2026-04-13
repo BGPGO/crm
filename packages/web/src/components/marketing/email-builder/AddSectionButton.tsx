@@ -84,7 +84,7 @@ export function createDefaultSection(type: SectionType): EmailSection {
         data: {
           type: "button",
           text: "Agendar Reunião",
-          url: "https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp",
+          url: "https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp?utm_source=email_cadencia&utm_medium=crm",
           alignment: "center",
           buttonColor: "#2563eb",
           textColor: "#ffffff",

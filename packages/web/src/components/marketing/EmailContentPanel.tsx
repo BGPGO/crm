@@ -179,7 +179,7 @@ export default function EmailContentPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState("");
   const [btnText, setBtnText] = useState("Agendar Reunião");
-  const [btnUrl, setBtnUrl] = useState("https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp");
+  const [btnUrl, setBtnUrl] = useState("https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp?utm_source=email_cadencia&utm_medium=crm");
   const [btnColor, setBtnColor] = useState("#2563eb");
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

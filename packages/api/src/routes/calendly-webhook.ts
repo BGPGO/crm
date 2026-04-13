@@ -46,6 +46,31 @@ function verifySignature(
 }
 
 /**
+ * Determine MeetingSource from Calendly UTM parameters.
+ * Convention:
+ *   utm_source=email_cadencia | utm_medium=crm  → CALENDLY_EMAIL
+ *   utm_source=lp | utm_medium=greatpages       → CALENDLY_LP
+ *   Otherwise                                   → HUMANO (no UTM or unrecognised)
+ */
+function detectMeetingSourceFromUtm(utmSource: string, utmMedium: string): 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'SDR_IA' | 'HUMANO' {
+  const src = utmSource.toLowerCase();
+  const med = utmMedium.toLowerCase();
+  if (src === 'sdr_ia' || med === 'waba' || med === 'whatsapp') {
+    return 'SDR_IA';
+  }
+  if (src.includes('email') || med === 'crm' || src === 'email_cadencia') {
+    return 'CALENDLY_EMAIL';
+  }
+  if (src === 'lp' || med === 'greatpages' || src.includes('landing')) {
+    return 'CALENDLY_LP';
+  }
+  if (src || med) {
+    console.log(`[calendly-webhook] Unrecognised UTMs (utm_source="${src}", utm_medium="${med}") — defaulting to HUMANO`);
+  }
+  return 'HUMANO';
+}
+
+/**
  * Extract phone number from Calendly questions_and_answers if available.
  */
 function extractPhoneFromQA(questionsAndAnswers: Array<{ question: string; answer: string }> | undefined): string | null {
@@ -107,6 +132,11 @@ router.post('/', async (req: Request, res: Response) => {
       // scheduled_event contains the actual event details
       const scheduledEvent = payload.scheduled_event || {};
       const scheduledEventUri = scheduledEvent.uri || '';
+
+      // UTM tracking — Calendly passes these in payload.tracking (object with utm_* keys)
+      const tracking = payload.tracking || {};
+      const utmSource: string = (tracking.utm_source || '').toLowerCase();
+      const utmMedium: string = (tracking.utm_medium || '').toLowerCase();
 
       // Use invitee URI as the unique key (each invitee is unique per event)
       const calendlyEventId = inviteeUri || scheduledEventUri;
@@ -462,6 +492,10 @@ router.post('/', async (req: Request, res: Response) => {
 
           // 7. Create Task with meeting date/time
           if (startTime) {
+            // Detect meeting source from UTMs embedded in the Calendly link
+            const meetingSource = detectMeetingSourceFromUtm(utmSource, utmMedium);
+            console.log(`[calendly-webhook] meetingSource=${meetingSource} (utm_source="${utmSource}", utm_medium="${utmMedium}")`);
+
             await prisma.task.create({
               data: {
                 title: `Reunião: ${eventType || 'Diagnóstico Financeiro'}`,
@@ -472,9 +506,10 @@ router.post('/', async (req: Request, res: Response) => {
                 userId: activityUserId,
                 dealId: deal.id,
                 contactId: contact.id,
+                meetingSource,
               },
             });
-            console.log(`[calendly-webhook] Task created for meeting at ${startTime}`);
+            console.log(`[calendly-webhook] Task created for meeting at ${startTime} (source=${meetingSource})`);
           }
 
           // Mark conversation as meetingBooked and pause active cadences
@@ -526,6 +561,7 @@ router.post('/', async (req: Request, res: Response) => {
               utmSource: tracking?.utmSource ?? null,
               utmMedium: tracking?.utmMedium ?? null,
               utmCampaign: tracking?.utmCampaign ?? null,
+              meetingSource,
             });
           }).catch(err => console.error('[calendly-webhook] Meeting notification error:', err));
 

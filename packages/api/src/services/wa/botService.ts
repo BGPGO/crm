@@ -25,6 +25,22 @@ import { WaMessageService } from './messageService';
 import { WindowService } from './windowService';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
 
+// ─── UTM Helper ─────────────────────────────────────────────────────────────
+
+function appendUtmsToLink(url: string, params: Record<string, string>): string {
+  try {
+    const parsed = new URL(url);
+    for (const [key, value] of Object.entries(params)) {
+      if (!parsed.searchParams.has(key)) {
+        parsed.searchParams.set(key, value);
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 // ─── Debounce ────────────────────────────────────────────────────────────────
 
 const debounceMap = new Map<string, NodeJS.Timeout>();
@@ -594,13 +610,15 @@ export class WaBotService {
 
       if (shouldSendLink) {
         await delay(2000);
+        // Tag with SDR IA UTMs so the Calendly webhook can identify the source
+        const taggedMeetingLink = appendUtmsToLink(meetingLink, { utm_source: 'sdr_ia', utm_medium: 'waba' });
         try {
           const client = await WhatsAppCloudClient.fromDB();
           await client.sendCtaUrl(
             phone,
             'Clique abaixo para escolher o melhor horário:',
             'Agendar Reuniao',
-            meetingLink,
+            taggedMeetingLink,
           );
           console.log(`[WaBot] CTA URL button enviado para ${phone}`);
 
@@ -617,7 +635,7 @@ export class WaBotService {
           });
         } catch (ctaErr) {
           console.warn(`[WaBot] Falha ao enviar CTA URL button, enviando como texto:`, ctaErr);
-          await WaMessageService.sendText(conversationId, meetingLink, { senderType: 'WA_BOT' });
+          await WaMessageService.sendText(conversationId, taggedMeetingLink, { senderType: 'WA_BOT' });
         }
       } else {
         console.log(`[WaBot] Link já enviado anteriormente para ${phone}, não reenviando`);

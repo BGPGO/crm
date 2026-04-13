@@ -172,7 +172,7 @@ router.post(
   validate({ title: 'required', userId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { title, type, dueDate, userId, dealId, contactId, description } = req.body;
+      const { title, type, dueDate, userId, dealId, contactId, description, meetingSource } = req.body;
       let parsedDueDate = dueDate;
       if (typeof dueDate === 'string' && dueDate.length > 0) {
         // If date-only (no time component), set to noon UTC to avoid timezone shift
@@ -182,8 +182,10 @@ router.post(
           parsedDueDate = new Date(dueDate);
         }
       }
+      // When creating a MEETING task manually, default to HUMANO unless caller specifies otherwise
+      const resolvedMeetingSource = meetingSource ?? (type === 'MEETING' ? 'HUMANO' : undefined);
       const task = await prisma.task.create({
-        data: { title, type, dueDate: parsedDueDate, userId, dealId, contactId, description },
+        data: { title, type, dueDate: parsedDueDate, userId, dealId, contactId, description, meetingSource: resolvedMeetingSource },
         include: {
           user: { select: { id: true, name: true } },
           deal: { select: { id: true, title: true } },

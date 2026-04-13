@@ -96,6 +96,13 @@ enum SegmentFilterOperator {
   BETWEEN
 }
 
+enum MeetingSource {
+  CALENDLY_EMAIL
+  CALENDLY_LP
+  SDR_IA
+  HUMANO
+}
+
 enum ImportStatus {
   PENDING
   PROCESSING
@@ -469,13 +476,14 @@ model DealContact {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  type        TaskType   @default(OTHER)
-  dueDate     DateTime?
-  completedAt DateTime?
-  status      TaskStatus @default(PENDING)
+  id            String         @id @default(cuid())
+  title         String
+  description   String?
+  type          TaskType       @default(OTHER)
+  dueDate       DateTime?
+  completedAt   DateTime?
+  status        TaskStatus     @default(PENDING)
+  meetingSource MeetingSource?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -1416,6 +1424,10 @@ model ReadAiMeeting {
   meetingDate  DateTime?
   participants Json?
   rawData      Json?
+
+  /// Relatório estruturado gerado por IA (10 campos de análise de vendas)
+  aiAnalysis      Json?
+  aiAnalyzedAt    DateTime?
 
   dealId    String?
   contactId String?

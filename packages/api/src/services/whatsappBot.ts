@@ -296,6 +296,22 @@ export async function sendBotMessages(
 const MEETING_INTENT_REGEX = /agend|reuni[aã]o|marcar\b|hor[aá]rio|diagn[oó]stico|vou te (mandar|enviar)|te (mando|envio)|link|bora combinar|vamos combinar/i;
 const URL_REGEX = /https?:\/\/[^\s),]+/;
 
+/** Append UTM params to a Calendly URL without duplicating existing params. */
+function appendUtms(url: string, params: Record<string, string>): string {
+  try {
+    const parsed = new URL(url);
+    for (const [key, value] of Object.entries(params)) {
+      if (!parsed.searchParams.has(key)) {
+        parsed.searchParams.set(key, value);
+      }
+    }
+    return parsed.toString();
+  } catch {
+    // If URL parsing fails, return original
+    return url;
+  }
+}
+
 export async function ensureMeetingLink(
   client: { sendText: (phone: string, text: string) => Promise<unknown> },
   phone: string,
@@ -309,8 +325,11 @@ export async function ensureMeetingLink(
   const meetingLink = config?.meetingLink;
   if (!meetingLink) return;
 
+  // Tag as SDR IA origin
+  const taggedLink = appendUtms(meetingLink, { utm_source: 'sdr_ia', utm_medium: 'waba' });
+
   await new Promise(r => setTimeout(r, 2000));
-  await client.sendText(phone, meetingLink);
+  await client.sendText(phone, taggedLink);
   console.log(`[Bot] Link do Calendly enviado automaticamente (IA mencionou reunião sem link)`);
 }
 

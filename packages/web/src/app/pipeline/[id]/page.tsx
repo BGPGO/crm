@@ -200,6 +200,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
         type: task.type as string,
         dueDate: task.dueDate as string | undefined,
         done: task.status === "COMPLETED",
+        meetingSource: (task.meetingSource as string | null | undefined) ?? null,
       };
     }),
     dealProducts: (((data.dealProducts ?? data.products) as unknown[]) ?? []).map((dp: unknown) => {
@@ -628,8 +629,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     duration: number | null;
     meetingDate: string | null;
     participants: any;
+    aiAnalysis: Record<string, string> | null;
+    aiAnalyzedAt: string | null;
   }>>([]);
   const [readAiLoading, setReadAiLoading] = useState(false);
+  const [reanalyzingId, setReanalyzingId] = useState<string | null>(null);
 
   // Auto-select tab from ?tab= query param
   useEffect(() => {
@@ -754,6 +758,27 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (activeTab === 'readai') fetchReadAiMeetings();
   }, [activeTab, fetchReadAiMeetings]);
+
+  const reanalyzeMeeting = useCallback(async (meetingId: string) => {
+    setReanalyzingId(meetingId);
+    try {
+      const res = await api.post<{ data: { aiAnalysis: Record<string, string>; aiAnalyzedAt: string } }>(
+        `/readai/meetings/${meetingId}/analyze`,
+        {}
+      );
+      setReadAiMeetings(prev =>
+        prev.map(m =>
+          m.id === meetingId
+            ? { ...m, aiAnalysis: res.data?.aiAnalysis ?? null, aiAnalyzedAt: res.data?.aiAnalyzedAt ?? null }
+            : m
+        )
+      );
+    } catch {
+      alert('Erro ao reanalisar reunião. Tente novamente.');
+    } finally {
+      setReanalyzingId(null);
+    }
+  }, []);
 
   // ── Item 5: Update browser tab title with deal name ───────────────────
   useEffect(() => {
@@ -1974,25 +1999,123 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                                 {meeting.duration}min
                               </span>
                             )}
+                            {meeting.aiAnalyzedAt && (
+                              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+                                IA analisou
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <a
-                          href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          Ver no Read.ai
-                        </a>
+                        <div className="flex items-center gap-2">
+                          {meeting.transcript && (
+                            <button
+                              onClick={() => reanalyzeMeeting(meeting.id)}
+                              disabled={reanalyzingId === meeting.id}
+                              className="flex items-center gap-1.5 text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-md font-medium transition-colors disabled:opacity-50"
+                              title="Regenerar análise com IA"
+                            >
+                              {reanalyzingId === meeting.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <RotateCcw size={12} />
+                              )}
+                              {reanalyzingId === meeting.id ? 'Analisando...' : 'Reanalisar'}
+                            </button>
+                          )}
+                          <a
+                            href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            Ver no Read.ai
+                          </a>
+                        </div>
                       </div>
 
                       <div className="p-4 space-y-4">
-                        {/* Summary */}
-                        {meeting.summary && (
-                          <div>
-                            <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Resumo</h5>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{meeting.summary}</p>
+
+                        {/* ── AI Analysis Report ── */}
+                        {meeting.aiAnalysis ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold text-purple-700 uppercase tracking-wide">Relatório de Diagnóstico (IA)</span>
+                              {meeting.aiAnalyzedAt && (
+                                <span className="text-[10px] text-gray-400">
+                                  gerado em {new Date(meeting.aiAnalyzedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                  {' · '}{(meeting.aiAnalysis as any).modelo_usado || 'gpt-4o-mini'}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Grid of analysis cards */}
+                            {([
+                              { key: 'empresa_negocio', label: 'Empresa & Negócio', color: 'blue' },
+                              { key: 'situacao_atual', label: 'Situação Atual', color: 'amber' },
+                              { key: 'sistema_atual', label: 'Sistema Atual', color: 'gray' },
+                              { key: 'principais_dores', label: 'Principais Dores', color: 'red' },
+                              { key: 'gatilhos_conexao', label: 'Gatilhos de Conexão', color: 'green' },
+                              { key: 'o_que_chamou_atencao', label: 'O que chamou atenção', color: 'purple' },
+                              { key: 'proposta_de_valor', label: 'Proposta de Valor', color: 'indigo' },
+                              { key: 'preco_apresentado', label: 'Preço Apresentado', color: 'emerald' },
+                              { key: 'objecoes', label: 'Objeções', color: 'orange' },
+                              { key: 'proximos_passos', label: 'Próximos Passos', color: 'teal' },
+                            ] as const).map(({ key, label, color }) => {
+                              const value = (meeting.aiAnalysis as any)?.[key];
+                              if (!value || value === 'Não mencionado') return null;
+                              const colorMap: Record<string, string> = {
+                                blue: 'border-blue-200 bg-blue-50/40',
+                                amber: 'border-amber-200 bg-amber-50/40',
+                                gray: 'border-gray-200 bg-gray-50',
+                                red: 'border-red-200 bg-red-50/40',
+                                green: 'border-green-200 bg-green-50/40',
+                                purple: 'border-purple-200 bg-purple-50/40',
+                                indigo: 'border-indigo-200 bg-indigo-50/40',
+                                emerald: 'border-emerald-200 bg-emerald-50/40',
+                                orange: 'border-orange-200 bg-orange-50/40',
+                                teal: 'border-teal-200 bg-teal-50/40',
+                              };
+                              const labelColorMap: Record<string, string> = {
+                                blue: 'text-blue-700', amber: 'text-amber-700', gray: 'text-gray-600',
+                                red: 'text-red-700', green: 'text-green-700', purple: 'text-purple-700',
+                                indigo: 'text-indigo-700', emerald: 'text-emerald-700',
+                                orange: 'text-orange-700', teal: 'text-teal-700',
+                              };
+                              return (
+                                <div key={key} className={`rounded-lg border p-3 ${colorMap[color]}`}>
+                                  <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${labelColorMap[color]}`}>{label}</p>
+                                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{value}</p>
+                                </div>
+                              );
+                            })}
+
+                            <hr className="border-gray-100" />
                           </div>
+                        ) : meeting.transcript ? (
+                          <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-600">
+                                <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-purple-800">Análise de IA pendente</p>
+                              <p className="text-xs text-purple-600">A transcrição está disponível. Clique em Reanalisar para gerar o relatório.</p>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* Summary from Read.ai (fallback / original) */}
+                        {meeting.summary && (
+                          <details>
+                            <summary className="text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-600 select-none">
+                              Resumo do Read.ai
+                              <span className="font-normal ml-1">(original)</span>
+                            </summary>
+                            <div className="mt-2">
+                              <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{meeting.summary}</p>
+                            </div>
+                          </details>
                         )}
 
                         {/* Action Items */}

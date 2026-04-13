@@ -5,12 +5,15 @@ import { formatDate } from "@/lib/formatters";
 import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import clsx from "clsx";
 
+export type MeetingSource = "CALENDLY_EMAIL" | "CALENDLY_LP" | "SDR_IA" | "HUMANO";
+
 export interface DealTask {
   id: string;
   title: string;
   dueDate?: string | Date;
   type: string;
   done: boolean;
+  meetingSource?: MeetingSource | null;
 }
 
 interface DealTasksProps {
@@ -32,6 +35,16 @@ const TYPE_COLORS: Record<string, string> = {
 function taskTypeColor(type: string): string {
   return TYPE_COLORS[type] ?? "bg-gray-100 text-gray-600";
 }
+
+const MEETING_SOURCE_CONFIG: Record<
+  MeetingSource,
+  { label: string; className: string }
+> = {
+  SDR_IA:         { label: "SDR IA",  className: "bg-green-100 text-green-700" },
+  CALENDLY_EMAIL: { label: "Email",   className: "bg-blue-100 text-blue-700" },
+  CALENDLY_LP:    { label: "LP",      className: "bg-purple-100 text-purple-700" },
+  HUMANO:         { label: "Humano",  className: "bg-gray-100 text-gray-600" },
+};
 
 function EmptyState({ onAdd }: { onAdd?: () => void }) {
   return (
@@ -206,6 +219,17 @@ function TaskRow({
           >
             {task.type}
           </span>
+          {task.meetingSource && task.type === "MEETING" && (() => {
+            const cfg = MEETING_SOURCE_CONFIG[task.meetingSource];
+            return cfg ? (
+              <span
+                className={clsx("text-xs font-medium px-1.5 py-0.5 rounded", cfg.className)}
+                title="Origem da reunião"
+              >
+                {cfg.label}
+              </span>
+            ) : null;
+          })()}
           {task.dueDate && (
             <span className={clsx(
               "flex items-center gap-1 text-xs",
