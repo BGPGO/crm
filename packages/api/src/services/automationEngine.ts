@@ -345,23 +345,38 @@ export async function processEnrollments(): Promise<{ processed: number }> {
         (s) => s.actionType === 'SEND_WA_TEMPLATE'
       );
 
+      // PROTEÇÃO ANTI-BAN: bloqueia QUALQUER envio WhatsApp (cadência ou não)
+      // quando o contato está em atendimento humano. Checa as DUAS tabelas —
+      // WaConversation (WABA, novo) e WhatsAppConversation (Z-API, antigo) —
+      // porque a UI atualiza WaConversation mas automações legadas podem ler
+      // WhatsAppConversation.
+      if (isWhatsAppAction && enrollment.contactId) {
+        const [waConv, zapConv] = await Promise.all([
+          prisma.waConversation.findFirst({
+            where: { contactId: enrollment.contactId },
+            select: { needsHumanAttention: true },
+          }),
+          prisma.whatsAppConversation.findFirst({
+            where: { contactId: enrollment.contactId },
+            select: { needsHumanAttention: true },
+          }),
+        ]);
+        if (waConv?.needsHumanAttention || zapConv?.needsHumanAttention) {
+          console.log(`[AutomationEngine] Envio WhatsApp bloqueado — atendimento humano ativo (enrollment ${enrollment.id})`);
+          // Pausa o enrollment para não reprocessar em loop
+          await prisma.automationEnrollment.update({
+            where: { id: enrollment.id },
+            data: { status: 'PAUSED' },
+          }).catch(() => {});
+          continue;
+        }
+      }
+
       if (isCadence) {
         // WABA cadences always run. Z-API cadences need cadenceEnabled flag.
         if (!isWabaAutomation) {
           const waConfig = await prisma.whatsAppConfig.findFirst({ select: { cadenceEnabled: true } });
           if (!waConfig?.cadenceEnabled) {
-            continue;
-          }
-        }
-
-        // Check if conversation is in human attention mode — pause cadence
-        if (enrollment.contactId) {
-          const conv = await prisma.whatsAppConversation.findFirst({
-            where: { contactId: enrollment.contactId },
-            select: { needsHumanAttention: true },
-          });
-          if (conv?.needsHumanAttention) {
-            console.log(`[AutomationEngine] Cadência pausada — atendimento humano ativo para enrollment ${enrollment.id}`);
             continue;
           }
         }

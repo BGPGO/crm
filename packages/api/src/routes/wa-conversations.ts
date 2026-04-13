@@ -1013,6 +1013,58 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
       },
     });
 
+    // PROTEÇÃO ANTI-BAN: ao ATIVAR atendimento humano, pausar automações
+    // ativas e cancelar lembretes pendentes para evitar colisão de mensagens
+    // bot + humano (que historicamente causou bans do WhatsApp).
+    if (needsHumanAttention === true && existing.needsHumanAttention !== true && conversation.contactId) {
+      try {
+        // Espelha o flag na WhatsAppConversation (Z-API) caso exista, para
+        // sistemas legados que ainda consultam essa tabela
+        await prisma.whatsAppConversation.updateMany({
+          where: { contactId: conversation.contactId },
+          data: { needsHumanAttention: true },
+        });
+
+        // Coleta IDs para cancelar scheduled follow-ups:
+        //  - por conversationId (follow-ups pós-conversa)
+        //  - por meetingId (lembretes de reunião — CalendlyEvent.contactId)
+        const [zapConvs, calendlyEvents] = await Promise.all([
+          prisma.whatsAppConversation.findMany({
+            where: { contactId: conversation.contactId },
+            select: { id: true },
+          }),
+          prisma.calendlyEvent.findMany({
+            where: { contactId: conversation.contactId },
+            select: { id: true },
+          }),
+        ]);
+        const convIds = zapConvs.map(c => c.id);
+        const meetingIds = calendlyEvents.map(e => e.id);
+
+        const orConditions: Array<Record<string, unknown>> = [];
+        if (convIds.length > 0) orConditions.push({ conversationId: { in: convIds } });
+        if (meetingIds.length > 0) orConditions.push({ meetingId: { in: meetingIds } });
+
+        const pausedEnrollments = await prisma.automationEnrollment.updateMany({
+          where: { contactId: conversation.contactId, status: 'ACTIVE' },
+          data: { status: 'PAUSED' },
+        });
+        const cancelledFollowUps = orConditions.length > 0
+          ? await prisma.scheduledFollowUp.updateMany({
+              where: { status: 'PENDING', OR: orConditions },
+              data: { status: 'CANCELLED', cancelledAt: new Date() },
+            })
+          : { count: 0 };
+        console.log(
+          `[wa-conversations] Takeover humano ativado contact=${conversation.contactId} ` +
+          `— pausou ${pausedEnrollments.count} enrollments, cancelou ${cancelledFollowUps.count} scheduled follow-ups`
+        );
+      } catch (pauseErr) {
+        // Não falha o request — o flag principal já foi setado
+        console.error('[wa-conversations] Erro ao pausar automações no takeover:', pauseErr);
+      }
+    }
+
     res.json({ data: conversation });
   } catch (err) {
     next(err);

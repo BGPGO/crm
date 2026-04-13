@@ -116,13 +116,22 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
           .replace(/\{\{hora\}\}/gi, timeStr)
           .replace(/\{\{falta\}\}/gi, faltaStr);
 
-        // Verificar opt-out antes de enviar (buscar por contactId, mais robusto que phone)
-        const conv = await prisma.whatsAppConversation.findFirst({
-          where: { contactId: meeting.contact!.id },
-          select: { optedOut: true, phone: true },
-        });
-        if (conv?.optedOut) {
-          console.log(`[meeting-reminder] Pulando ${meeting.contact!.phone} — opt-out`);
+        // Verificar opt-out ou atendimento humano (checa as DUAS tabelas — WaConversation
+        // é onde a UI seta o flag de takeover humano; WhatsAppConversation tem os campos Z-API)
+        const [zapConv, waConv] = await Promise.all([
+          prisma.whatsAppConversation.findFirst({
+            where: { contactId: meeting.contact!.id },
+            select: { optedOut: true, needsHumanAttention: true, phone: true },
+          }),
+          prisma.waConversation.findFirst({
+            where: { contactId: meeting.contact!.id },
+            select: { needsHumanAttention: true },
+          }),
+        ]);
+        const humanAttention = zapConv?.needsHumanAttention || waConv?.needsHumanAttention;
+        if (zapConv?.optedOut || humanAttention) {
+          const reason = zapConv?.optedOut ? 'opt-out' : 'atendimento humano';
+          console.log(`[meeting-reminder] Pulando ${meeting.contact!.phone} — ${reason}`);
           await prisma.scheduledFollowUp.updateMany({
             where: { meetingId: meeting.id, stepNumber: step.minutesBefore, status: 'PENDING' },
             data: { status: 'CANCELLED', cancelledAt: new Date() },

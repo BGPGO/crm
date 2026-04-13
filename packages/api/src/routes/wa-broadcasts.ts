@@ -338,17 +338,29 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             }
           }
 
-          // Check opt-out
+          // Check opt-out ou atendimento humano ativo
           const existingConv = await prisma.waConversation.findUnique({
             where: { phone: contact.phone },
-            select: { optedOut: true },
+            select: { optedOut: true, needsHumanAttention: true, contactId: true },
           });
-          if (existingConv?.optedOut) {
+          // Fallback: também checa WhatsAppConversation (Z-API) pelo contactId,
+          // caso takeover tenha sido ativado na conversa antiga
+          let zapHumanAttention = false;
+          if (existingConv?.contactId) {
+            const zap = await prisma.whatsAppConversation.findFirst({
+              where: { contactId: existingConv.contactId },
+              select: { needsHumanAttention: true },
+            });
+            zapHumanAttention = !!zap?.needsHumanAttention;
+          }
+          const humanAttention = existingConv?.needsHumanAttention || zapHumanAttention;
+          if (existingConv?.optedOut || humanAttention) {
+            const reason = existingConv?.optedOut ? 'opt-out' : 'atendimento humano';
             await prisma.waBroadcastContact.update({
               where: { id: contact.id },
               data: { status: 'WA_BC_SKIPPED' },
             });
-            console.log(`[wa-broadcast] Pulando ${contact.phone} — opt-out`);
+            console.log(`[wa-broadcast] Pulando ${contact.phone} — ${reason}`);
             continue;
           }
 

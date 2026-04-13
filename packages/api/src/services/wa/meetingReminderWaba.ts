@@ -94,13 +94,13 @@ async function isEnabled(): Promise<boolean> {
 
 // ─── Encontrar ou criar WaConversation pelo telefone ─────────────────────────
 
-async function findOrCreateWaConversation(phone: string, contactId: string | null): Promise<{ id: string; optedOut: boolean } | null> {
+async function findOrCreateWaConversation(phone: string, contactId: string | null): Promise<{ id: string; optedOut: boolean; needsHumanAttention: boolean } | null> {
   const variations = getPhoneVariations(phone);
 
   // Tenta encontrar por qualquer variação do número
   let conversation = await prisma.waConversation.findFirst({
     where: { phone: { in: variations } },
-    select: { id: true, optedOut: true },
+    select: { id: true, optedOut: true, needsHumanAttention: true },
   });
 
   if (!conversation) {
@@ -113,14 +113,14 @@ async function findOrCreateWaConversation(phone: string, contactId: string | nul
           contactId: contactId || null,
           status: 'WA_OPEN',
         },
-        select: { id: true, optedOut: true },
+        select: { id: true, optedOut: true, needsHumanAttention: true },
       });
     } catch (e: any) {
       // Corrida entre processos — tenta buscar novamente
       if (e.code === 'P2002') {
         conversation = await prisma.waConversation.findFirst({
           where: { phone: { in: [normalizedPhone, ...variations] } },
-          select: { id: true, optedOut: true },
+          select: { id: true, optedOut: true, needsHumanAttention: true },
         });
       } else {
         throw e;
@@ -233,9 +233,10 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     return;
   }
 
-  // Verificar opt-out
-  if (waConversation.optedOut) {
-    console.log(`[waba-meeting-reminder] Contato ${meeting.contact.phone} com opt-out — cancelando lembrete`);
+  // Verificar opt-out ou atendimento humano ativo
+  if (waConversation.optedOut || waConversation.needsHumanAttention) {
+    const reason = waConversation.optedOut ? 'opt-out' : 'atendimento humano';
+    console.log(`[waba-meeting-reminder] Contato ${meeting.contact.phone} com ${reason} — cancelando lembrete`);
     await prisma.scheduledFollowUp.update({
       where: { id: scheduledFollowUpId },
       data: { status: 'CANCELLED', cancelledAt: new Date() },

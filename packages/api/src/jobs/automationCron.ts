@@ -101,12 +101,21 @@ async function processOverdueReminders(): Promise<void> {
         continue;
       }
 
-      // Verificar opt-out
-      const conv = await prisma.whatsAppConversation.findFirst({
-        where: { contactId: meeting.contact.id },
-        select: { optedOut: true },
-      });
-      if (conv?.optedOut) {
+      // Verificar opt-out ou atendimento humano (checa as DUAS tabelas)
+      const [zapConv, waConv] = await Promise.all([
+        prisma.whatsAppConversation.findFirst({
+          where: { contactId: meeting.contact.id },
+          select: { optedOut: true, needsHumanAttention: true },
+        }),
+        prisma.waConversation.findFirst({
+          where: { contactId: meeting.contact.id },
+          select: { needsHumanAttention: true },
+        }),
+      ]);
+      const humanAttention = zapConv?.needsHumanAttention || waConv?.needsHumanAttention;
+      if (zapConv?.optedOut || humanAttention) {
+        const reason = zapConv?.optedOut ? 'opt-out' : 'atendimento humano';
+        console.log(`[meeting-reminder-backup] Cancelando lembrete ${reminder.id} — ${reason}`);
         await prisma.scheduledFollowUp.update({
           where: { id: reminder.id },
           data: { status: 'CANCELLED', cancelledAt: now },
