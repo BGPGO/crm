@@ -47,9 +47,23 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   const str = (key: string) => query[key] as string | undefined;
 
   if (str('status')) where.status = str('status');
-  if (str('userId')) where.userId = str('userId');
+  // userId: supports single value (back-compat) OR comma-separated list via userIds
+  const userIds = str('userIds');
+  if (userIds) {
+    const ids = userIds.split(',').filter(Boolean);
+    where.userId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('userId')) {
+    where.userId = str('userId');
+  }
   if (str('stageId')) where.stageId = str('stageId');
-  if (str('sourceId')) where.sourceId = str('sourceId');
+  // sourceId: supports single value OR comma-separated list via sourceIds
+  const sourceIds = str('sourceIds');
+  if (sourceIds) {
+    const ids = sourceIds.split(',').filter(Boolean);
+    where.sourceId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('sourceId')) {
+    where.sourceId = str('sourceId');
+  }
   const campaignIds = str('campaignIds');
   if (campaignIds) {
     where.campaignId = { in: campaignIds.split(',').filter(Boolean) };
@@ -60,7 +74,14 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
   if (str('productId')) {
     where.products = { some: { productId: str('productId') } };
   }
-  if (str('lostReasonId')) where.lostReasonId = str('lostReasonId');
+  // lostReasonId: supports single value OR comma-separated list via lostReasonIds
+  const lostReasonIds = str('lostReasonIds');
+  if (lostReasonIds) {
+    const ids = lostReasonIds.split(',').filter(Boolean);
+    where.lostReasonId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('lostReasonId')) {
+    where.lostReasonId = str('lostReasonId');
+  }
   if (str('organizationId')) where.organizationId = str('organizationId');
   if (str('contactId')) where.contactId = str('contactId');
   if (str('classification')) where.classification = str('classification');

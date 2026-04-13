@@ -134,6 +134,7 @@ const INITIAL_FORM: ContractFormData = {
 const DEFAULT_WITNESSES = [
   { name: "Fernanda Brunisaki Bertuzzi", cpf: "85677558087", email: "fernanda@bertuzzipatrimonial.com.br" },
   { name: "Maria Vitória Dias Neves", cpf: "86449168072", email: "mariavitoria@bertuzzipatrimonial.com.br" },
+  { name: "João Pedro Soares Lopes", cpf: "02455759016", email: "joao.lopes@bertuzzipatrimonial.com.br" },
 ];
 
 function validateContractForm(form: ContractFormData): string[] {

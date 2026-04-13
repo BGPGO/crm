@@ -75,10 +75,31 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     if (str('pipelineId')) where.pipelineId = str('pipelineId');
     if (str('stageId')) where.stageId = str('stageId');
-    if (str('userId')) where.userId = str('userId');
+    // userId: supports single value (back-compat) OR comma-separated list via userIds
+    const userIds = str('userIds');
+    if (userIds) {
+      const ids = userIds.split(',').filter(Boolean);
+      where.userId = ids.length === 1 ? ids[0] : { in: ids };
+    } else if (str('userId')) {
+      where.userId = str('userId');
+    }
     if (str('status')) where.status = str('status');
-    if (str('sourceId')) where.sourceId = str('sourceId');
-    if (str('lostReasonId')) where.lostReasonId = str('lostReasonId');
+    // sourceId: supports single value OR comma-separated list via sourceIds
+    const sourceIds = str('sourceIds');
+    if (sourceIds) {
+      const ids = sourceIds.split(',').filter(Boolean);
+      where.sourceId = ids.length === 1 ? ids[0] : { in: ids };
+    } else if (str('sourceId')) {
+      where.sourceId = str('sourceId');
+    }
+    // lostReasonId: supports single value OR comma-separated list via lostReasonIds
+    const lostReasonIds = str('lostReasonIds');
+    if (lostReasonIds) {
+      const ids = lostReasonIds.split(',').filter(Boolean);
+      where.lostReasonId = ids.length === 1 ? ids[0] : { in: ids };
+    } else if (str('lostReasonId')) {
+      where.lostReasonId = str('lostReasonId');
+    }
     if (str('contactId')) where.contactId = str('contactId');
     if (str('organizationId')) where.organizationId = str('organizationId');
     if (str('classification')) where.classification = str('classification');
@@ -750,9 +771,18 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
       metadata: { fromStage, toStage: marcarReuniaoStage.name, noShow: true },
     });
 
+    await logActivity({
+      type: 'TASK_NO_SHOW',
+      content: `Lead não compareceu à reunião (no-show)`,
+      userId: actingUserId,
+      dealId: existing.id,
+      contactId: existing.contactId ?? undefined,
+      metadata: { fromStage, noShow: true },
+    });
+
     // Create task for the closer (deal owner) as notification
     const closerUserId = existing.userId;
-    await prisma.task.create({
+    const noShowTask = await prisma.task.create({
       data: {
         title: `No-show: ${existing.contact?.name || existing.title} não compareceu à reunião`,
         type: 'CALL',
@@ -761,6 +791,15 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
         dealId: existing.id,
         userId: closerUserId,
       },
+    });
+
+    await logActivity({
+      type: 'TASK_CREATED',
+      content: `Tarefa "${noShowTask.title}" criada para ${new Date().toLocaleDateString('pt-BR')}`,
+      userId: actingUserId,
+      dealId: existing.id,
+      contactId: existing.contactId ?? undefined,
+      metadata: { taskId: noShowTask.id, taskTitle: noShowTask.title, dueDate: noShowTask.dueDate },
     });
 
     // No-show: NÃO disparar automações de etapa (onStageChanged).

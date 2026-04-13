@@ -31,6 +31,8 @@ import {
   X,
   SlidersHorizontal,
   XCircle,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import type { Deal } from "@/components/pipeline/DealCard";
 import DuplicateAlerts from "@/components/pipeline/DuplicateAlerts";
@@ -153,6 +155,103 @@ function StatusBadge({ status }: { status: Deal["status"] }) {
   );
 }
 
+// ─── UserMultiSelect ──────────────────────────────────────────────────────────
+
+function UserMultiSelect({
+  users,
+  value,
+  onChange,
+  selectClass,
+}: {
+  users: ApiUser[];
+  value: string; // comma-separated IDs, empty = "all"
+  onChange: (val: string) => void;
+  selectClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = value ? value.split(",").filter(Boolean) : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((s) => s !== id)
+      : [...selected, id];
+    onChange(next.join(","));
+  };
+
+  const label =
+    selected.length === 0
+      ? "Todas as negociações"
+      : selected.length === 1
+        ? users.find((u) => u.id === selected[0])?.name ?? "1 responsável"
+        : `${selected.length} responsáveis`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`${selectClass} flex items-center gap-1.5 ${selected.length > 0 ? "text-blue-700 border-blue-300 bg-blue-50" : "text-gray-600"}`}
+      >
+        <span className="truncate max-w-[140px]">{label}</span>
+        {selected.length > 0 && (
+          <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={13} className="text-gray-400 shrink-0 ml-auto" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[200px] max-h-64 overflow-y-auto">
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left border-b border-gray-100 ${selected.length === 0 ? "font-medium text-blue-700" : "text-gray-700"}`}
+          >
+            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.length === 0 ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"}`}>
+              {selected.length === 0 && <Check size={12} />}
+            </span>
+            Todos
+          </button>
+          {users.map((u) => {
+            const isSel = selected.includes(u.id);
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggle(u.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
+              >
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSel ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"}`}>
+                  {isSel && <Check size={12} />}
+                </span>
+                <span className="truncate">{u.name}</span>
+              </button>
+            );
+          })}
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="w-full px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left"
+            >
+              Limpar seleção
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const LIST_PAGE_SIZE = 50;
@@ -203,7 +302,11 @@ export default function PipelinePage() {
 
   const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "active") as FilterType);
   const setFilter = (v: FilterType) => { setFilterRaw(v); writeSession("filter", v); };
-  const [userFilter, setUserFilterRaw] = useState<string>(() => readSession("userFilter", "all"));
+  // userFilter: comma-separated user IDs, "" means "all"
+  const [userFilter, setUserFilterRaw] = useState<string>(() => {
+    const saved = readSession("userFilter", "");
+    return saved === "all" ? "" : saved; // migrate old "all" value
+  });
   const setUserFilter = (v: string) => { setUserFilterRaw(v); writeSession("userFilter", v); };
   const [periodFilter, setPeriodFilterRaw] = useState<PeriodFilter>(() => readSession("periodFilter", "all") as PeriodFilter);
   const setPeriodFilter = (v: PeriodFilter) => { setPeriodFilterRaw(v); writeSession("periodFilter", v); };
@@ -257,7 +360,7 @@ export default function PipelinePage() {
 
   const apiFilters = useMemo(() => ({
     status: filter,
-    userId: userFilter,
+    userIds: userFilter || undefined,
     period: periodFilter,
     search: searchQuery || undefined,
     ...advancedFilters,
@@ -275,6 +378,9 @@ export default function PipelinePage() {
         params.set("status", statusMap[val] || val);
       } else if (key === "sortBy") {
         params.set("sortBy", val);
+      } else if (key === "userId") {
+        // legacy single userId — map to userIds for back-compat
+        params.set("userIds", val);
       } else {
         params.set(key, val);
       }
@@ -341,7 +447,7 @@ export default function PipelinePage() {
   // Build opts object from all filters
   const allFilterOpts = useMemo(() => ({
     status: filter,
-    userId: userFilter,
+    userIds: userFilter || undefined,
     period: periodFilter,
     search: searchQuery || undefined,
     sortBy,
@@ -451,7 +557,7 @@ export default function PipelinePage() {
       const id = e.target.value;
       setPipelineId(id);
       setFilter("all");
-      setUserFilter("all");
+      setUserFilter("");
       setPeriodFilter("all");
       setSearchInput("");
       setSearchQuery("");
@@ -759,24 +865,13 @@ export default function PipelinePage() {
           </span>
         </div>
 
-        {/* User dropdown */}
-        <div className="relative">
-          <select
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            className={`${SELECT_CLASS} text-gray-600`}
-          >
-            <option value="all">Todas as negociações</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-            ▾
-          </span>
-        </div>
+        {/* User multi-select */}
+        <UserMultiSelect
+          users={users}
+          value={userFilter}
+          onChange={setUserFilter}
+          selectClass={SELECT_CLASS}
+        />
 
         {/* Período dropdown */}
         <div className="relative">

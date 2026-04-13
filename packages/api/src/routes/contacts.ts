@@ -4,6 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { onContactCreated } from '../services/automationTriggerListener';
 import { isValidEmail } from './email-tracking';
+import { normalizePhone } from '../utils/phoneNormalize';
 
 const router = Router();
 
@@ -112,8 +113,10 @@ router.post(
         return next(createError('Email inválido', 400));
       }
 
+      const normalizedPhone = phone ? normalizePhone(phone) : undefined;
+
       const contact = await prisma.contact.create({
-        data: { name, email, phone, position, birthday, instagram, notes, organizationId },
+        data: { name, email, phone: normalizedPhone, position, birthday, instagram, notes, organizationId },
         include: {
           organization: { select: { id: true, name: true } },
         },

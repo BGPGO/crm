@@ -13,7 +13,12 @@ export type TimelineEventType =
   | "NOTE"
   | "STAGE_CHANGE"
   | "STATUS_CHANGE"
+  | "TASK_CREATED"
   | "TASK_COMPLETED"
+  | "TASK_RESCHEDULED"
+  | "TASK_CANCELLED"
+  | "TASK_NO_SHOW"
+  | "TASK_REASSIGNED"
   | "DEAL_CREATED"
   | "EMAIL"
   | "CALL"
@@ -88,6 +93,32 @@ function eventLabel(type: TimelineEventType, content: string, user?: string): Re
         </div>
       );
     }
+    case "TASK_CREATED":
+    case "TASK_RESCHEDULED":
+    case "TASK_REASSIGNED":
+      return (
+        <span className="text-sm text-gray-700">
+          {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
+          {userName && " "}
+          {content}
+        </span>
+      );
+    case "TASK_CANCELLED":
+      return (
+        <span className="text-sm text-gray-700 line-through-none">
+          {userName && <strong className="font-semibold text-gray-900">{userName}</strong>}
+          {userName && " "}
+          <span className="text-red-600">{content}</span>
+        </span>
+      );
+    case "TASK_NO_SHOW":
+      return (
+        <span className="text-sm text-orange-700 font-medium">
+          {userName && <strong className="font-semibold text-orange-900">{userName}</strong>}
+          {userName && " "}
+          {content}
+        </span>
+      );
     case "TASK_COMPLETED":
       return (
         <span className="text-sm text-gray-700">
@@ -132,7 +163,11 @@ const FILTER_OPTIONS = [
   { value: "CALL", label: "Ligações" },
   { value: "EMAIL", label: "E-mails" },
   { value: "MEETING", label: "Reuniões" },
-  { value: "TASK_COMPLETED", label: "Tarefas" },
+  { value: "TASK_COMPLETED", label: "Tarefas concluídas" },
+  { value: "TASK_CREATED", label: "Tarefas criadas" },
+  { value: "TASK_RESCHEDULED", label: "Tarefas reagendadas" },
+  { value: "TASK_CANCELLED", label: "Tarefas canceladas" },
+  { value: "TASK_NO_SHOW", label: "No-show" },
 ];
 
 const TASK_TYPE_LABELS: Record<string, string> = {

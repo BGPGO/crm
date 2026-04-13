@@ -17,10 +17,12 @@ interface ListResponse<T = Option> {
 }
 
 export interface AdvancedFilters {
-  sourceId?: string;
+  sourceIds?: string;   // comma-separated (multi-select)
+  sourceId?: string;    // legacy single value (back-compat)
   productId?: string;
   campaignIds?: string;
-  lostReasonId?: string;
+  lostReasonIds?: string; // comma-separated (multi-select)
+  lostReasonId?: string;  // legacy single value (back-compat)
   organizationId?: string;
   contactId?: string;
   classification?: string;
@@ -59,6 +61,102 @@ const INPUT =
 
 function countActive(f: AdvancedFilters): number {
   return Object.values(f).filter((v) => v !== undefined && v !== "").length;
+}
+
+// ── Generic Multi-Select ─────────────────────────────────────────────────────
+
+function MultiSelect({
+  label,
+  placeholder,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: Option[];
+  value: string; // comma-separated IDs
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = value ? value.split(",").filter(Boolean) : [];
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggle = (id: string) => {
+    const next = selected.includes(id)
+      ? selected.filter((s) => s !== id)
+      : [...selected, id];
+    onChange(next.join(","));
+  };
+
+  const displayLabel =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? options.find((o) => o.id === selected[0])?.name ?? `1 selecionado`
+        : `${selected.length} selecionados`;
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={SEL + " flex items-center justify-between text-left"}
+      >
+        <span className={selected.length === 0 ? "text-gray-500" : "text-gray-900 truncate"}>
+          {displayLabel}
+        </span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {options.length === 0 && (
+            <div className="px-3 py-2 text-sm text-gray-400">Nenhuma opção</div>
+          )}
+          {options.map((o) => {
+            const isSelected = selected.includes(o.id);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => toggle(o.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
+              >
+                <span
+                  className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    isSelected
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : "border-gray-300"
+                  }`}
+                >
+                  {isSelected && <Check size={12} />}
+                </span>
+                <span className="truncate">{o.name}</span>
+              </button>
+            );
+          })}
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="w-full px-3 py-2 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-50 border-t border-gray-100 text-left"
+            >
+              Limpar seleção
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Campaign Multi-Select ────────────────────────────────────────────────────
@@ -232,19 +330,13 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
       <div className="space-y-5">
         {/* Row 1: Source + Campaign */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Fonte</label>
-            <select
-              value={draft.sourceId ?? ""}
-              onChange={(e) => set("sourceId", e.target.value)}
-              className={SEL}
-            >
-              <option value="">Todas as fontes</option>
-              {sources.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          <MultiSelect
+            label="Fonte"
+            placeholder="Todas as fontes"
+            options={sources}
+            value={draft.sourceIds ?? ""}
+            onChange={(val) => setDraft((prev) => ({ ...prev, sourceIds: val || undefined, sourceId: undefined }))}
+          />
           <CampaignMultiSelect
             campaigns={campaigns}
             value={draft.campaignIds ?? ""}
@@ -344,19 +436,13 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
 
         {/* Row 3: Lost reason + Classification */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Motivo de Perda</label>
-            <select
-              value={draft.lostReasonId ?? ""}
-              onChange={(e) => set("lostReasonId", e.target.value)}
-              className={SEL}
-            >
-              <option value="">Todos os motivos</option>
-              {lostReasons.map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </div>
+          <MultiSelect
+            label="Motivo de Perda"
+            placeholder="Todos os motivos"
+            options={lostReasons}
+            value={draft.lostReasonIds ?? ""}
+            onChange={(val) => setDraft((prev) => ({ ...prev, lostReasonIds: val || undefined, lostReasonId: undefined }))}
+          />
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Classificação</label>
             <input

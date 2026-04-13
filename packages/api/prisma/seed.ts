@@ -106,6 +106,38 @@ async function main() {
 
   console.log("WebhookConfig de exemplo criado.");
 
+  // ─── Default Contract Witnesses ─────────────────────────────────────────────
+  const defaultWitnesses = [
+    {
+      id: "witness-fernanda",
+      name: "Fernanda Brunisaki Bertuzzi",
+      cpf: "85677558087",
+      email: "fernanda@bertuzzipatrimonial.com.br",
+    },
+    {
+      id: "witness-mariavitoria",
+      name: "Maria Vitória Dias Neves",
+      cpf: "86449168072",
+      email: "mariavitoria@bertuzzipatrimonial.com.br",
+    },
+    {
+      id: "witness-joaopedro",
+      name: "João Pedro Soares Lopes",
+      cpf: "02455759016",
+      email: "joao.lopes@bertuzzipatrimonial.com.br",
+    },
+  ];
+
+  for (const w of defaultWitnesses) {
+    await prisma.contractWitness.upsert({
+      where: { id: w.id },
+      update: { name: w.name, cpf: w.cpf, email: w.email },
+      create: { id: w.id, name: w.name, cpf: w.cpf, email: w.email },
+    });
+  }
+
+  console.log(`${defaultWitnesses.length} testemunhas padrão criadas.`);
+
   console.log("Seed concluído com sucesso!");
 }
 

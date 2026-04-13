@@ -653,6 +653,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   // Add-contact picker
   const [contactSearch, setContactSearch] = useState("");
   const [selectedContactId, setSelectedContactId] = useState("");
+  // Contact modal mode: "link" = vincular existente, "create" = criar novo
+  const [contactModalMode, setContactModalMode] = useState<"link" | "create">("link");
+  const [newContactForm, setNewContactForm] = useState({ name: "", phone: "", email: "", position: "" });
 
   // Add-product picker
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -1173,6 +1176,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
     setSelectedContactId("");
     setContactSearch("");
+    setContactModalMode("link");
+    setNewContactForm({ name: "", phone: "", email: "", position: "" });
     setShowAddContact(true);
   };
 
@@ -1190,6 +1195,36 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     } catch (err: unknown) {
       const e = err as { message?: string };
       alert(`Erro ao adicionar contato: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCreateAndLinkContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deal || !newContactForm.name.trim()) return;
+    setSubmitting(true);
+    try {
+      // 1. Create the contact
+      const created = await api.post<{ data: { id: string; name: string; phone?: string; email?: string } }>("/contacts", {
+        name: newContactForm.name.trim(),
+        phone: newContactForm.phone.trim() || undefined,
+        email: newContactForm.email.trim() || undefined,
+        position: newContactForm.position.trim() || undefined,
+      });
+      const newContact = created.data;
+      // 2. Link to deal
+      const linked = await api.post<{ data: DealContactLink }>(`/deals/${dealId}/contacts`, {
+        contactId: newContact.id,
+        isPrimary: deal.dealContacts.length === 0,
+      });
+      setDeal((d) => d ? { ...d, dealContacts: [...d.dealContacts, linked.data] } : d);
+      // Also add to contactOptions cache so it appears in link list
+      setContactOptions((opts) => [...opts, { id: newContact.id, name: newContact.name, phone: newContact.phone, email: newContact.email }]);
+      setShowAddContact(false);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao criar contato: ${e?.message ?? "Tente novamente."}`);
     } finally {
       setSubmitting(false);
     }
@@ -2124,50 +2159,137 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         size="sm"
       >
         <div className="space-y-4">
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">Buscar contato</label>
-            <input
-              autoFocus
-              value={contactSearch}
-              onChange={(e) => setContactSearch(e.target.value)}
-              placeholder="Nome ou e-mail..."
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md divide-y divide-gray-100">
-            {filteredContactOptions.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">Nenhum contato encontrado.</p>
-            )}
-            {filteredContactOptions.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setSelectedContactId(c.id)}
-                className={clsx(
-                  "w-full text-left px-3 py-2 text-sm transition-colors",
-                  selectedContactId === c.id
-                    ? "bg-blue-50 text-blue-700"
-                    : "hover:bg-gray-50 text-gray-700"
-                )}
-              >
-                <span className="font-medium">{c.name}</span>
-                {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button variant="secondary" size="sm" onClick={() => setShowAddContact(false)}>
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              disabled={!selectedContactId || submitting}
-              onClick={handleAddContact}
+          {/* Tab switcher */}
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setContactModalMode("link")}
+              className={clsx(
+                "flex-1 py-2 text-xs font-medium transition-colors",
+                contactModalMode === "link"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-gray-50"
+              )}
             >
-              {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
-              Vincular Contato
-            </Button>
+              Vincular existente
+            </button>
+            <button
+              type="button"
+              onClick={() => setContactModalMode("create")}
+              className={clsx(
+                "flex-1 py-2 text-xs font-medium transition-colors",
+                contactModalMode === "create"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-500 hover:bg-gray-50"
+              )}
+            >
+              Criar novo
+            </button>
           </div>
+
+          {/* Mode: link existing */}
+          {contactModalMode === "link" && (
+            <>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Buscar contato</label>
+                <input
+                  autoFocus
+                  value={contactSearch}
+                  onChange={(e) => setContactSearch(e.target.value)}
+                  placeholder="Nome ou e-mail..."
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md divide-y divide-gray-100">
+                {filteredContactOptions.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-4">Nenhum contato encontrado.</p>
+                )}
+                {filteredContactOptions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSelectedContactId(c.id)}
+                    className={clsx(
+                      "w-full text-left px-3 py-2 text-sm transition-colors",
+                      selectedContactId === c.id
+                        ? "bg-blue-50 text-blue-700"
+                        : "hover:bg-gray-50 text-gray-700"
+                    )}
+                  >
+                    <span className="font-medium">{c.name}</span>
+                    {c.email && <span className="text-xs text-gray-400 ml-2">{c.email}</span>}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="secondary" size="sm" onClick={() => setShowAddContact(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!selectedContactId || submitting}
+                  onClick={handleAddContact}
+                >
+                  {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+                  Vincular Contato
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* Mode: create new */}
+          {contactModalMode === "create" && (
+            <form onSubmit={handleCreateAndLinkContact} className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Nome *</label>
+                <input
+                  autoFocus
+                  required
+                  value={newContactForm.name}
+                  onChange={(e) => setNewContactForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Nome completo"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Telefone</label>
+                <input
+                  value={newContactForm.phone}
+                  onChange={(e) => setNewContactForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Email</label>
+                <input
+                  type="email"
+                  value={newContactForm.email}
+                  onChange={(e) => setNewContactForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="email@exemplo.com"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Cargo</label>
+                <input
+                  value={newContactForm.position}
+                  onChange={(e) => setNewContactForm((f) => ({ ...f, position: e.target.value }))}
+                  placeholder="Ex: Diretor Comercial"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddContact(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" size="sm" disabled={!newContactForm.name.trim() || submitting}>
+                  {submitting ? <Loader2 size={13} className="animate-spin" /> : null}
+                  Criar e Vincular
+                </Button>
+              </div>
+            </form>
+          )}
         </div>
       </Modal>
 

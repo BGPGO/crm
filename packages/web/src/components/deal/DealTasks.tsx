@@ -148,9 +148,11 @@ function TaskRow({
     return dueDateDay.getTime() === today.getTime();
   })();
 
-  // Format time part
+  // Format time part — use UTC hours/minutes because datetime-local inputs save
+  // the user-entered time as-is (treated as UTC by the API), so reading it back
+  // with getHours()/getMinutes() would apply a local timezone offset incorrectly.
   const timeStr = dueDate
-    ? `${String(dueDate.getHours()).padStart(2, "0")}:${String(dueDate.getMinutes()).padStart(2, "0")}`
+    ? `${String(dueDate.getUTCHours()).padStart(2, "0")}:${String(dueDate.getUTCMinutes()).padStart(2, "0")}`
     : null;
   const hasTime = timeStr && timeStr !== "00:00" && timeStr !== "12:00";
 

@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { logActivity } from '../services/activityLogger';
 
 const router = Router();
 
@@ -189,6 +190,25 @@ router.post(
           contact: { select: { id: true, name: true } },
         },
       });
+
+      // Log activity on the associated deal
+      if (task.dealId) {
+        const actingUserId = (req as any).user?.id ?? userId;
+        const dueDateStr = parsedDueDate
+          ? new Date(parsedDueDate).toLocaleDateString('pt-BR')
+          : null;
+        await logActivity({
+          type: 'TASK_CREATED',
+          content: dueDateStr
+            ? `Tarefa "${title}" criada para ${dueDateStr}`
+            : `Tarefa "${title}" criada`,
+          userId: actingUserId,
+          dealId: task.dealId,
+          contactId: task.contactId ?? undefined,
+          metadata: { taskId: task.id, taskTitle: title, dueDate: parsedDueDate ?? null },
+        });
+      }
+
       res.status(201).json({ data: task });
     } catch (err) {
       next(err);
@@ -236,6 +256,59 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         contact: { select: { id: true, name: true } },
       },
     });
+
+    // Log activity on the associated deal
+    if (task.dealId) {
+      const actingUserId = (req as any).user?.id ?? existing.userId;
+
+      // Status change: COMPLETED
+      if (data.status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+        await logActivity({
+          type: 'TASK_COMPLETED',
+          content: `Tarefa "${task.title}" concluída`,
+          userId: actingUserId,
+          dealId: task.dealId,
+          contactId: task.contactId ?? undefined,
+          metadata: { taskId: task.id, taskTitle: task.title },
+        });
+      }
+      // dueDate changed (reschedule) — only when not also changing status
+      else if (
+        data.dueDate !== undefined &&
+        existing.dueDate?.toISOString() !== (data.dueDate instanceof Date ? data.dueDate.toISOString() : undefined)
+      ) {
+        const oldDateStr = existing.dueDate
+          ? existing.dueDate.toLocaleDateString('pt-BR')
+          : 'sem data';
+        const newDateStr = task.dueDate
+          ? task.dueDate.toLocaleDateString('pt-BR')
+          : 'sem data';
+        if (oldDateStr !== newDateStr) {
+          await logActivity({
+            type: 'TASK_RESCHEDULED',
+            content: `Tarefa "${task.title}" reagendada de ${oldDateStr} para ${newDateStr}`,
+            userId: actingUserId,
+            dealId: task.dealId,
+            contactId: task.contactId ?? undefined,
+            metadata: { taskId: task.id, taskTitle: task.title, fromDate: existing.dueDate, toDate: task.dueDate },
+          });
+        }
+      }
+
+      // Responsible changed (reassigned)
+      if (data.userId !== undefined && data.userId !== existing.userId) {
+        const newUser = task.user?.name ?? String(data.userId);
+        await logActivity({
+          type: 'TASK_REASSIGNED',
+          content: `Tarefa "${task.title}" reatribuída para ${newUser}`,
+          userId: actingUserId,
+          dealId: task.dealId,
+          contactId: task.contactId ?? undefined,
+          metadata: { taskId: task.id, taskTitle: task.title, fromUserId: existing.userId, toUserId: data.userId },
+        });
+      }
+    }
+
     res.json({ data: task });
   } catch (err) {
     next(err);
@@ -249,6 +322,20 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
     if (!existing) return next(createError('Task not found', 404));
 
     await prisma.task.delete({ where: { id: req.params.id } });
+
+    // Log cancellation on the associated deal
+    if (existing.dealId) {
+      const actingUserId = (req as any).user?.id ?? existing.userId;
+      await logActivity({
+        type: 'TASK_CANCELLED',
+        content: `Tarefa "${existing.title}" excluída`,
+        userId: actingUserId,
+        dealId: existing.dealId,
+        contactId: existing.contactId ?? undefined,
+        metadata: { taskId: existing.id, taskTitle: existing.title },
+      });
+    }
+
     res.status(204).send();
   } catch (err) {
     next(err);
