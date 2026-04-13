@@ -205,29 +205,59 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       return next(createError('Nome do representante é obrigatório para enviar para assinatura.', 400));
     }
 
-    // Build signers
+    // Build signers — prefer signers sent from frontend (respects UI order + witness actions);
+    // fall back to DB-based construction when body is missing (backward compat)
+    type SignerInput = { email: string; name: string; action: string };
     const CONTRATADA = {
       name: 'Josiane Luiza Bertuzzi',
       email: 'josi@bertuzzipatrimonial.com.br',
     };
 
-    const signers: { email: string; name: string; action: string; delivery_order: number }[] = [
-      { email: CONTRATADA.email, name: CONTRATADA.name, action: 'SIGN', delivery_order: 1 },
-      { email: contract.emailRepresentante, name: contract.representante, action: 'SIGN', delivery_order: 2 },
-    ];
+    const VALID_ACTIONS = new Set(['SIGN', 'SIGN_AS_A_WITNESS', 'APPROVE', 'ACKNOWLEDGE', 'RECOGNIZE']);
+    const bodySigners: unknown = (req.body && (req.body as { signers?: unknown }).signers);
+    let signers: SignerInput[];
 
-    if (contract.testemunha1Email && contract.testemunha1Nome) {
-      signers.push({ email: contract.testemunha1Email, name: contract.testemunha1Nome, action: 'SIGN', delivery_order: signers.length + 1 });
-    }
-    if (contract.testemunha2Email && contract.testemunha2Nome) {
-      signers.push({ email: contract.testemunha2Email, name: contract.testemunha2Nome, action: 'SIGN', delivery_order: signers.length + 1 });
+    if (Array.isArray(bodySigners) && bodySigners.length > 0) {
+      signers = [];
+      for (const raw of bodySigners) {
+        if (!raw || typeof raw !== 'object') continue;
+        const s = raw as { email?: unknown; name?: unknown; action?: unknown };
+        const email = typeof s.email === 'string' ? s.email.trim() : '';
+        const name = typeof s.name === 'string' ? s.name.trim() : '';
+        const action = typeof s.action === 'string' ? s.action : 'SIGN';
+        if (!email || !email.includes('@')) {
+          return next(createError(`Signatário com email inválido: "${email}"`, 400));
+        }
+        if (!name) {
+          return next(createError(`Signatário sem nome (${email})`, 400));
+        }
+        if (!VALID_ACTIONS.has(action)) {
+          return next(createError(`Signatário com action inválido: "${action}" (${email})`, 400));
+        }
+        signers.push({ email, name, action });
+      }
+      if (signers.length === 0) {
+        return next(createError('Nenhum signatário válido no request.', 400));
+      }
+    } else {
+      // Fallback: build from contract DB fields
+      signers = [
+        { email: CONTRATADA.email, name: CONTRATADA.name, action: 'SIGN' },
+        { email: contract.emailRepresentante, name: contract.representante, action: 'SIGN' },
+      ];
+      if (contract.testemunha1Email && contract.testemunha1Nome) {
+        signers.push({ email: contract.testemunha1Email, name: contract.testemunha1Nome, action: 'SIGN_AS_A_WITNESS' });
+      }
+      if (contract.testemunha2Email && contract.testemunha2Nome) {
+        signers.push({ email: contract.testemunha2Email, name: contract.testemunha2Nome, action: 'SIGN_AS_A_WITNESS' });
+      }
     }
 
-    // Convert HTML to Base64
-    const htmlBase64 = Buffer.from(contract.htmlContent, 'utf-8').toString('base64');
     const fileName = `Contrato_${contract.razaoSocial.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
 
     // GraphQL mutation for Autentique — use regular string to avoid $ interpolation
+    // Ordem dos signatários segue a ordem do array quando sortable=true.
+    // NÃO enviar `delivery_order` — esse campo não existe em SignerInput (V2).
     const query = 'mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) { createDocument(sandbox: false, document: $document, signers: $signers, file: $file) { id name created_at signatures { public_id name email created_at action { name } link { short_link } } } }';
 
     const variables = {
@@ -236,7 +266,6 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
         email: s.email,
         action: s.action,
         name: s.name,
-        delivery_order: s.delivery_order,
       })),
       file: null,
     };
@@ -262,7 +291,11 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
     const autentiqueData = response.data?.data?.createDocument;
     if (!autentiqueData?.id) {
       console.error('[contracts] Autentique error:', JSON.stringify(response.data));
-      return next(createError('Autentique API error: ' + JSON.stringify(response.data?.errors || 'unknown'), 400));
+      const errs = response.data?.errors as Array<{ message?: string }> | undefined;
+      const firstMsg = Array.isArray(errs) && errs[0]?.message
+        ? errs[0].message
+        : 'Resposta inesperada da Autentique';
+      return next(createError(`Autentique: ${firstMsg}`, 400));
     }
 
     // Update contract status
@@ -275,14 +308,27 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       },
     });
 
-    // Create signature records
-    const signatureRecords = signers.map((s, i) => ({
-      contractId: contract.id,
-      signerName: s.name,
-      signerEmail: s.email,
-      signerRole: i === 0 ? 'contratada' : i === 1 ? 'contratante' : `testemunha${i - 1}`,
-      status: 'pending',
-    }));
+    // Create signature records — derive role from action/email (not array position,
+    // since frontend may send signers in any order).
+    let testemunhaCount = 0;
+    const signatureRecords = signers.map(s => {
+      let role: string;
+      if (s.action === 'SIGN_AS_A_WITNESS') {
+        testemunhaCount += 1;
+        role = `testemunha${testemunhaCount}`;
+      } else if (s.email.toLowerCase() === CONTRATADA.email.toLowerCase()) {
+        role = 'contratada';
+      } else {
+        role = 'contratante';
+      }
+      return {
+        contractId: contract.id,
+        signerName: s.name,
+        signerEmail: s.email,
+        signerRole: role,
+        status: 'pending',
+      };
+    });
 
     await prisma.contractSignatureRecord.createMany({ data: signatureRecords });
 
