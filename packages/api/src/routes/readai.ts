@@ -5,6 +5,54 @@ import { triggerMeetingAnalysis, analyzeMeeting } from '../services/meetingAnaly
 
 const router = Router();
 
+// Domínios de email dos consultores BGP — nunca devem ser usados para matching
+// de reunião com lead, apenas os emails externos (do cliente).
+const INTERNAL_EMAIL_DOMAINS = ['@bertuzzipatrimonial.com.br', '@bgpgo.com'];
+
+function isInternalEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  return INTERNAL_EMAIL_DOMAINS.some(d => lower.endsWith(d));
+}
+
+/**
+ * Dado uma lista de emails dos participantes, encontra o lead correspondente.
+ * - Ignora emails internos (consultores BGP)
+ * - Tenta cada email externo um a um, até achar um com deal OPEN
+ * - Se nenhum tem deal OPEN, retorna o contact achado (ainda útil) sem deal
+ * - Se nenhum email externo bate com contact, retorna null
+ */
+async function matchParticipantsToLead(participantEmails: string[]): Promise<{ contactId: string | null; dealId: string | null }> {
+  const externalEmails = participantEmails.filter(e => !isInternalEmail(e));
+  if (externalEmails.length === 0) return { contactId: null, dealId: null };
+
+  let fallbackContactId: string | null = null;
+
+  for (const email of externalEmails) {
+    const contact = await prisma.contact.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: {
+        id: true,
+        deals: {
+          where: { status: 'OPEN' },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, userId: true },
+          take: 1,
+        },
+      },
+    });
+    if (!contact) continue;
+
+    if (contact.deals.length > 0) {
+      // Match ideal: contact com deal OPEN
+      return { contactId: contact.id, dealId: contact.deals[0].id };
+    }
+    // Guarda o primeiro contact encontrado mesmo sem deal (fallback)
+    if (!fallbackContactId) fallbackContactId = contact.id;
+  }
+
+  return { contactId: fallbackContactId, dealId: null };
+}
+
 /**
  * POST /api/readai/webhook — Receives data from Read.ai when meeting ends
  * Read.ai sends the full meeting payload directly in the webhook body.
@@ -46,21 +94,8 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
       .filter(Boolean)
       .map((e: string) => e.toLowerCase());
 
-    // Try to match to a deal via participant emails
-    let dealId: string | null = null;
-    let contactId: string | null = null;
-
-    if (participantEmails.length > 0) {
-      const contacts = await prisma.contact.findMany({
-        where: { email: { in: participantEmails, mode: 'insensitive' } },
-        select: { id: true, deals: { where: { status: 'OPEN' }, select: { id: true, userId: true }, take: 1 } },
-      });
-
-      if (contacts.length > 0) {
-        contactId = contacts[0].id;
-        dealId = contacts[0].deals?.[0]?.id || null;
-      }
-    }
+    // Try to match to a deal via participant emails (ignora consultores BGP)
+    let { contactId, dealId } = await matchParticipantsToLead(participantEmails);
 
     // Store the meeting data
     const storedMeeting = await prisma.readAiMeeting.upsert({
@@ -306,15 +341,9 @@ router.post('/performance-report', async (req: Request, res: Response, next: Nex
         .map((e: string) => e.toLowerCase());
 
       if (participantEmails.length > 0) {
-        const contacts = await prisma.contact.findMany({
-          where: { email: { in: participantEmails, mode: 'insensitive' } },
-          select: { id: true, deals: { where: { status: 'OPEN' }, select: { id: true, userId: true }, take: 1 } },
-        });
-
-        if (contacts.length > 0) {
-          contactId = contacts[0].id;
-          dealId = contacts[0].deals?.[0]?.id || null;
-        }
+        const matched = await matchParticipantsToLead(participantEmails);
+        contactId = matched.contactId;
+        dealId = matched.dealId;
       }
     }
 
