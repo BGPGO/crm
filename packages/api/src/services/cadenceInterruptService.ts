@@ -67,6 +67,12 @@ export async function interruptCadenceOnStageChange(contactId: string, newStageI
       const triggerConfig = enrollment.automation.triggerConfig as Record<string, unknown> | null;
       if (!triggerConfig?.isCadence) continue;
 
+      // Hardening: automações de email por etapa (kind='email-by-stage') têm
+      // ciclo de vida próprio e NÃO devem ser canceladas quando o lead muda
+      // de etapa — deixamos cada fluxo de email concluir seu SEND_EMAIL + WAIT
+      // naturalmente, independente de cadência WhatsApp.
+      if (triggerConfig?.kind === 'email-by-stage') continue;
+
       // Don't cancel the cadence that matches the NEW stage (it will be the one starting)
       if (triggerConfig.stageId === newStageId) continue;
 
@@ -127,6 +133,11 @@ export async function interruptCadenceOnResponse(contactId: string): Promise<num
 
       // Only cancel if the automation is marked as a cadence (isCadence: true in triggerConfig)
       if (!triggerConfig?.isCadence) continue;
+
+      // Hardening: emails por etapa não são pausados quando lead responde no
+      // WhatsApp — fluxos de email têm cadência própria (WAIT 24h entre emails)
+      // e não devem ser interrompidos por interação em outro canal.
+      if (triggerConfig?.kind === 'email-by-stage') continue;
 
       await prisma.automationEnrollment.update({
         where: { id: enrollment.id },
