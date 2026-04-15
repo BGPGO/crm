@@ -17,7 +17,7 @@ const BATCH_DELAY_MS = 1000;
  * Removes: <!DOCTYPE>, <html>, <head>…</head>, <body …>, </body>, </html>,
  * and the outer layout tables (background + content wrapper).
  */
-function stripOuterWrapper(html: string): string {
+export function stripOuterWrapper(html: string): string {
   let s = html;
 
   // Remove doctype, html, head, body tags

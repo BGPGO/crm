@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'path';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -87,6 +88,13 @@ app.use('/api/contracts/webhook', webhookLimiter);
 // Converts Prisma Decimal→number in responses, sanitizes empty strings in inputs
 app.use(responseSerializer());
 app.use(inputSanitizer());
+
+// ─── Static assets (public, no auth) ─────────────────────────────────────────
+// Served at /email-assets (outside /api) — URL: ${API_URL_base}/email-assets/...
+app.use('/email-assets', express.static(path.join(__dirname, '../public/email-assets'), {
+  maxAge: '7d',
+  immutable: true,
+}));
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

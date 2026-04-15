@@ -2,6 +2,7 @@ import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 import { isUnsubscribed } from './unsubscribeManager';
 import { wrapInBrandTemplate } from './emailTemplate';
+import { stripOuterWrapper } from './emailSender';
 import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
@@ -228,12 +229,34 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
     subject = config.subject || 'BGPGO — Informações para você';
   } else if (config.templateId) {
-    // Template-based email — already wrapped if created via the template editor
+    // Template-based email — stored in compileFullHtml() format (DOCTYPE + outer
+    // layout tables + raw body, WITHOUT BGP brand shell). We strip that outer
+    // wrapper then re-apply wrapInBrandTemplate() to get the final email —
+    // same flow used by sendCampaignEmails() in emailSender.ts.
     const template = await prisma.emailTemplate.findUniqueOrThrow({
       where: { id: config.templateId },
     });
     subject = template.subject || template.name;
-    htmlContent = template.htmlContent;
+
+    // Substituir placeholders antes de strip/wrap (compatível com padrão Mailchimp e {{var}})
+    const firstName = (contact.name || '').split(' ')[0] || '';
+    const fullName = contact.name || '';
+    const rawHtml = template.htmlContent
+      .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
+      .replace(/\{\{primeiro_nome\}\}/g, firstName)
+      .replace(/\{\{nome\}\}/g, fullName);
+    subject = subject
+      .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
+      .replace(/\{\{primeiro_nome\}\}/g, firstName)
+      .replace(/\{\{nome\}\}/g, fullName);
+
+    // Unsubscribe URL para este lead
+    const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';
+    const emailB64 = Buffer.from(contact.email, 'utf-8').toString('base64url');
+    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe/email/${emailB64}`;
+
+    const bodyHtml = stripOuterWrapper(rawHtml);
+    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
   } else {
     return { success: false, output: 'No email template or AI prompt provided' };
   }

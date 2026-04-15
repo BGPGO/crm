@@ -8,7 +8,7 @@ import AutomationCard from "@/components/automations/AutomationCard";
 import AutomationCreateModal from "@/components/automations/AutomationCreateModal";
 import EnrollmentsPanel from "@/components/automations/EnrollmentsPanel";
 import Button from "@/components/ui/Button";
-import { Plus, Zap, Users, CheckCircle2, AlertCircle, Activity, Save, Trash2, ChevronDown, ChevronUp, Bell, MessageSquare, Clock } from "lucide-react";
+import { Plus, Zap, Users, CheckCircle2, AlertCircle, Activity, Save, Trash2, ChevronDown, ChevronUp, Bell, MessageSquare, Clock, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import clsx from "clsx";
 
@@ -149,7 +149,14 @@ export default function ConversasAutomacoesPage() {
   };
 
   const cadences = automations.filter((a) => (a.triggerConfig as any)?.isCadence === true);
-  const regularAutomations = automations.filter((a) => (a.triggerConfig as any)?.isCadence !== true);
+  const emailByStage = automations.filter(
+    (a) => (a.triggerConfig as any)?.kind === 'email-by-stage'
+  );
+  const regularAutomations = automations.filter(
+    (a) =>
+      (a.triggerConfig as any)?.isCadence !== true &&
+      (a.triggerConfig as any)?.kind !== 'email-by-stage'
+  );
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -330,14 +337,55 @@ export default function ConversasAutomacoesPage() {
               </div>
             )}
 
-            {cadences.length > 0 && regularAutomations.length > 0 && (
+            {cadences.length > 0 && (emailByStage.length > 0 || regularAutomations.length > 0) && (
+              <div className="border-t border-gray-200" />
+            )}
+
+            {/* Emails por etapa do funil */}
+            {emailByStage.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Mail size={16} className="text-indigo-600" />
+                  <h3 className="text-sm font-semibold text-indigo-700 uppercase tracking-wider">
+                    Emails por etapa
+                  </h3>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                    {emailByStage.length}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    dispara quando lead entra na coluna
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[...emailByStage]
+                    .sort((a, b) =>
+                      String((a.triggerConfig as any)?.stageName || '').localeCompare(
+                        String((b.triggerConfig as any)?.stageName || '')
+                      )
+                    )
+                    .map((automation) => (
+                      <div key={automation.id} className="ring-2 ring-indigo-200 rounded-xl">
+                        <AutomationCard
+                          automation={automation}
+                          onActivate={handleActivate}
+                          onPause={handlePause}
+                          onDelete={handleDelete}
+                          onViewEnrollments={(id, name) => setViewEnrollments({ id, name })}
+                        />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {emailByStage.length > 0 && regularAutomations.length > 0 && (
               <div className="border-t border-gray-200" />
             )}
 
             {/* Automações regulares */}
             {regularAutomations.length > 0 && (
               <div className="space-y-4">
-                {cadences.length > 0 && (
+                {(cadences.length > 0 || emailByStage.length > 0) && (
                   <div className="flex items-center gap-3">
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
                       Automações
