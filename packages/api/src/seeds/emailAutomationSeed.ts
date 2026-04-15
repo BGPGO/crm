@@ -223,7 +223,7 @@ async function seed() {
         data: {
           order,
           actionType: step.actionType as any,
-          config,
+          config: config as any,
           automationId: automation.id,
         },
       });

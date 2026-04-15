@@ -30,21 +30,31 @@ async function run() {
 
   const rows: Row[] = [];
   for (const t of templates) {
+    // jsonContent é tipado como Prisma.JsonValue (string | number | boolean | object | array | null).
+    // Pra inspeção, normalizamos pra string (se não for string, stringify).
+    const jsonStr: string =
+      typeof t.jsonContent === 'string'
+        ? t.jsonContent
+        : t.jsonContent == null
+          ? ''
+          : JSON.stringify(t.jsonContent);
+    const htmlStr: string = t.htmlContent || '';
+
     const row: Row = {
       id: t.id,
       name: t.name,
-      hasHtml: !!t.htmlContent && t.htmlContent.length > 0,
-      hasJson: !!t.jsonContent && t.jsonContent.length > 0,
+      hasHtml: htmlStr.length > 0,
+      hasJson: jsonStr.length > 0,
       jsonParsed: false,
       jsonHasBodyHtml: false,
       jsonKeys: [],
-      htmlLen: t.htmlContent?.length ?? 0,
-      jsonLen: t.jsonContent?.length ?? 0,
+      htmlLen: htmlStr.length,
+      jsonLen: jsonStr.length,
     };
 
-    if (t.jsonContent) {
+    if (jsonStr) {
       try {
-        const parsed = JSON.parse(t.jsonContent);
+        const parsed = JSON.parse(jsonStr);
         row.jsonParsed = true;
         row.jsonKeys = Object.keys(parsed || {});
         row.jsonHasBodyHtml = typeof parsed?.bodyHtml === 'string' && parsed.bodyHtml.length > 0;

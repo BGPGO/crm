@@ -29,11 +29,18 @@ async function run() {
   let skippedNoHtml = 0;
 
   for (const t of templates) {
-    // Parse existing jsonContent (if any)
+    // Parse existing jsonContent (if any). jsonContent é Prisma.JsonValue —
+    // normaliza pra string antes de parsear.
     let existingJson: Record<string, unknown> = {};
-    if (t.jsonContent) {
+    const jsonStr: string =
+      typeof t.jsonContent === 'string'
+        ? t.jsonContent
+        : t.jsonContent == null
+          ? ''
+          : JSON.stringify(t.jsonContent);
+    if (jsonStr) {
       try {
-        const parsed = JSON.parse(t.jsonContent);
+        const parsed = JSON.parse(jsonStr);
         if (parsed && typeof parsed === 'object') existingJson = parsed;
       } catch {
         // invalid JSON — treat as empty
