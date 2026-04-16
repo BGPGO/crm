@@ -31,6 +31,8 @@ export async function evaluateTriggers(
     },
   });
 
+  console.log(`[AutomationEngine] evaluateTriggers ${triggerType} — ${automations.length} automations ACTIVE, contactId=${data.contactId}, metadata=${JSON.stringify(data.metadata || {})}`);
+
   // Pre-check cadence flags (Z-API cadences need cadenceEnabled; WABA cadences always run)
   let cadenceEnabledChecked = false;
   let cadenceEnabled = false;
@@ -56,6 +58,7 @@ export async function evaluateTriggers(
 
     // Check if the contact matches the trigger config
     const matches = doesTriggerMatch(triggerType, triggerConfig, data.metadata);
+    console.log(`[AutomationEngine]   → "${automation.name}" kind=${triggerConfig?.kind || 'N/A'} isCadence=${triggerConfig?.isCadence || false} match=${matches} stageId=${triggerConfig?.stageId}`);
     if (!matches) continue;
 
     // Find the root step (not referenced by any other step)
@@ -102,8 +105,11 @@ export async function evaluateTriggers(
         console.log(`[AutomationEngine] Serialization conflict for ${automation.name} + contact ${data.contactId} — already enrolled`);
         continue;
       }
+      console.error(`[AutomationEngine] ❌ Enrollment FAILED for "${automation.name}" contact=${data.contactId}:`, txErr.message || txErr);
       throw txErr;
     }
+
+    console.log(`[AutomationEngine]   → ${enrolled ? '✅ ENROLLED' : '⏭️ SKIPPED (already enrolled)'} "${automation.name}" contact=${data.contactId}`);
 
     if (!enrolled) continue;
 
