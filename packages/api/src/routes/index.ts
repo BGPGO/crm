@@ -60,6 +60,7 @@ import reportsRouter from './reports';
 import readaiRouter from './readai';
 import duplicateAlertsRouter from './duplicate-alerts';
 import internalRouter from './internal';
+import analyticsExportRouter from './analytics-export';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -80,6 +81,7 @@ router.use('/webhooks', webhooksRouter);  // Incoming lead webhooks (public — 
 router.use('/readai', readaiRouter);
 router.use('/t', trackRouter); // Click tracking redirect (public)
 router.use('/internal', internalRouter); // Edge Function callbacks (public)
+router.use('/analytics', analyticsExportRouter); // Analytics export — API key protected (no JWT)
 
 // ─── Require auth for all other routes ───────────────────────────────────────
 // All routes below this middleware require a valid authentication token.
