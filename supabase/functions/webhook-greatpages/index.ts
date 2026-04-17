@@ -249,40 +249,73 @@ async function processLead(
     createdAt: now,
   });
 
-  // ── Deal ──────────────────────────────────────────────────────────
+  // ── Deal (reutiliza deal OPEN existente; não cria duplicado nem reseta stage) ──
 
-  const dealId = cuid();
-  await supabase.from("Deal").insert({
-    id: dealId,
-    title: dealTitle ?? `Lead - ${contactName}`,
-    value: dealValue ? parseFloat(dealValue) : null,
-    status: "OPEN",
-    pipelineId: DEFAULT_PIPELINE_ID,
-    stageId: DEFAULT_STAGE_ID,
-    contactId,
-    organizationId,
-    userId: DEFAULT_USER_ID,
-    sourceId,
-    campaignId,
-    createdAt: now,
-    updatedAt: now,
-  });
+  let dealId: string;
+  let reusedDeal = false;
+  let reusedStageId: string | null = null;
+
+  const { data: existingDeal } = await supabase
+    .from("Deal")
+    .select("id, stageId")
+    .eq("contactId", contactId)
+    .eq("status", "OPEN")
+    .order("createdAt", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingDeal) {
+    dealId = existingDeal.id;
+    reusedDeal = true;
+    reusedStageId = existingDeal.stageId;
+    await supabase
+      .from("Deal")
+      .update({ updatedAt: now })
+      .eq("id", dealId);
+  } else {
+    dealId = cuid();
+    await supabase.from("Deal").insert({
+      id: dealId,
+      title: dealTitle ?? `Lead - ${contactName}`,
+      value: dealValue ? parseFloat(dealValue) : null,
+      status: "OPEN",
+      pipelineId: DEFAULT_PIPELINE_ID,
+      stageId: DEFAULT_STAGE_ID,
+      contactId,
+      organizationId,
+      userId: DEFAULT_USER_ID,
+      sourceId,
+      campaignId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   // ── Activities ────────────────────────────────────────────────────
 
-  await supabase.from("Activity").insert([
+  const activities: Record<string, unknown>[] = [
     {
       id: cuid(),
       type: "WEBHOOK_RECEIVED",
-      content: "Lead recebido via webhook GreatPages",
+      content: reusedDeal
+        ? "Lead reentrou via webhook GreatPages (deal OPEN existente reutilizado)"
+        : "Lead recebido via webhook GreatPages",
       userId: DEFAULT_USER_ID,
       contactId,
       dealId,
-      metadata: { source: "greatpages", payload: body },
+      metadata: {
+        source: "greatpages",
+        reused: reusedDeal,
+        reusedStageId,
+        payload: body,
+      },
       createdAt: now,
       updatedAt: now,
     },
-    {
+  ];
+
+  if (!reusedDeal) {
+    activities.push({
       id: cuid(),
       type: "DEAL_CREATED",
       content: "Negociação criada automaticamente via webhook",
@@ -292,8 +325,10 @@ async function processLead(
       metadata: { pipelineName: "Vendas", stageName: "LEAD", source: sourceName, campaign: campaignRef },
       createdAt: now,
       updatedAt: now,
-    },
-  ]);
+    });
+  }
+
+  await supabase.from("Activity").insert(activities);
 
   // ── Notify team + trigger automations via API (fire-and-forget) ────
   if (API_URL) {
