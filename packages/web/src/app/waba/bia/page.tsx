@@ -299,6 +299,8 @@ export default function BiaPage() {
         const raw = configRes.data || ({} as Partial<WhatsAppConfig>);
         const withDefaults: Partial<WhatsAppConfig> = {
           ...raw,
+          conversationRules: raw.conversationRules ?? DEFAULT_CONVERSATION_RULES,
+          funnelInstructions: raw.funnelInstructions ?? DEFAULT_FUNNEL,
           botOpeningPrompt: raw.botOpeningPrompt ?? DEFAULT_OPENING_PROMPT,
           botMessageFormat: raw.botMessageFormat ?? DEFAULT_MESSAGE_FORMAT,
           botKpi: raw.botKpi ?? DEFAULT_KPI,
@@ -556,13 +558,8 @@ export default function BiaPage() {
             rows={8}
             value={config.conversationRules || ""}
             onChange={(e) => setConfig((c) => ({ ...c, conversationRules: e.target.value }))}
-            placeholder={DEFAULT_CONVERSATION_RULES}
             className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 flex items-center gap-1">
-            <Info size={11} />
-            Vazio = usa o texto padrão mostrado no placeholder
-          </p>
         </Card>
 
         {/* 3. Fluxo do Funil */}
@@ -584,13 +581,8 @@ export default function BiaPage() {
             rows={10}
             value={config.funnelInstructions || ""}
             onChange={(e) => setConfig((c) => ({ ...c, funnelInstructions: e.target.value }))}
-            placeholder={DEFAULT_FUNNEL}
             className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 flex items-center gap-1">
-            <Info size={11} />
-            Vazio = usa o fluxo padrão mostrado no placeholder
-          </p>
         </Card>
 
         {/* 4. Objeções (resumo) */}
