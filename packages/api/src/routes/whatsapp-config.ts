@@ -52,6 +52,13 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       'conversationRules', 'funnelInstructions', 'welcomeMessage',
       // Modo avançado (prompt bruto — override)
       'botSystemPrompt',
+      // Blocos do prompt WABA (wa/botService.ts)
+      'botOpeningPrompt', 'botMessageFormat', 'botKpi', 'botErrorFallback',
+      // Instruções por etapa do funil
+      'stagePromptMeetingScheduled', 'stagePromptProposalSent',
+      'stagePromptWaitingData', 'stagePromptWaitingSignature',
+      // Parâmetros OpenAI
+      'aiModel', 'aiTemperature', 'aiMaxTokens', 'botDebounceSeconds',
       // Tons de follow-up customizados
       'followUpToneCasual', 'followUpToneReforco', 'followUpToneEncerramento',
       // Contato frio

@@ -44,7 +44,40 @@ function appendUtmsToLink(url: string, params: Record<string, string>): string {
 // ─── Debounce ────────────────────────────────────────────────────────────────
 
 const debounceMap = new Map<string, NodeJS.Timeout>();
-const DEBOUNCE_MS = 25_000;
+const DEFAULT_DEBOUNCE_SECONDS = 25;
+
+// ─── AI Defaults ─────────────────────────────────────────────────────────────
+
+const DEFAULT_AI_MODEL = 'gpt-4o-mini';
+const DEFAULT_AI_TEMPERATURE = 0.7;
+const DEFAULT_AI_MAX_TOKENS = 200;
+
+// ─── Prompt Block Defaults ───────────────────────────────────────────────────
+// Placeholders: {botName}, {botCompany}. botErrorFallback também aceita {nome}.
+
+const DEFAULT_OPENING_PROMPT =
+  'Você é a {botName}, SDR da {botCompany}. SEMPRE se apresente como {botName} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro.';
+
+const DEFAULT_MESSAGE_FORMAT =
+  'FORMATO: Responda em 1-3 frases curtas e naturais. Se precisar separar em mais de uma mensagem, pule uma linha entre elas (linha em branco). NÃO envie URLs no texto — o sistema envia botões clicáveis automaticamente.';
+
+const DEFAULT_KPI = 'KPI: reunião agendada. Seja prática, rápida e humana.';
+
+const DEFAULT_ERROR_FALLBACK =
+  'Oi{nome}! Sou a {botName} da *{botCompany}*! To com uma instabilidade aqui, mas um consultor vai te atender em breve.';
+
+const DEFAULT_STAGE_MEETING_SCHEDULED =
+  'REUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião. Seja cordial e tire dúvidas se o lead perguntar algo.';
+const DEFAULT_STAGE_PROPOSAL_SENT =
+  'Proposta já foi enviada. Pergunte se o lead tem dúvidas sobre a proposta e reforce o valor do serviço.';
+const DEFAULT_STAGE_WAITING_DATA =
+  'O lead está na fase de aguardando dados/documentos. Pergunte se precisa de ajuda para enviar os dados pendentes.';
+const DEFAULT_STAGE_WAITING_SIGNATURE =
+  'O contrato já foi enviado. Pergunte se precisa de alguma orientação para assinar o documento.';
+
+function fillTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
 
 // ─── Meeting Intent Detection ────────────────────────────────────────────────
 
@@ -119,9 +152,13 @@ async function buildPromptFromBlocks(): Promise<string> {
 
   const botName = config?.botName || 'Bia';
   const botCompany = config?.botCompany || 'Bertuzzi Patrimonial';
+  const vars = { botName, botCompany };
 
-  let prompt = `Você é a ${botName}, SDR da ${botCompany}. SEMPRE se apresente como ${botName} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro.\n\n`;
-  prompt += `FORMATO: Responda em 1-3 frases curtas e naturais. Se precisar separar em mais de uma mensagem, pule uma linha entre elas (linha em branco). NÃO envie URLs no texto — o sistema envia botões clicáveis automaticamente.\n\n`;
+  const opening = fillTemplate(config?.botOpeningPrompt?.trim() || DEFAULT_OPENING_PROMPT, vars);
+  const format = fillTemplate(config?.botMessageFormat?.trim() || DEFAULT_MESSAGE_FORMAT, vars);
+
+  let prompt = opening + '\n\n';
+  prompt += format + '\n\n';
   prompt += (config?.conversationRules?.trim() || DEFAULT_CONVERSATION_RULES) + '\n\n';
   prompt += (config?.funnelInstructions?.trim() || DEFAULT_FUNNEL) + '\n\n';
 
@@ -152,7 +189,7 @@ async function buildPromptFromBlocks(): Promise<string> {
     prompt += `EMPRESA:\n- ${botCompany} — soluções financeiras para empresas\n- GoBI: BI financeiro, dashboards, integra ERPs — a partir de R$397/mês\n- GoControladoria: controladoria, DRE, compliance — a partir de R$1.997/mês\n- Valores variam — direcione pra demo\n\n`;
   }
 
-  prompt += `KPI: reunião agendada. Seja prática, rápida e humana.`;
+  prompt += config?.botKpi?.trim() || DEFAULT_KPI;
   return prompt;
 }
 
@@ -240,22 +277,25 @@ export class WaBotService {
       return;
     }
 
-    // ── Debounce: wait 25s after last message before responding ──
+    // ── Debounce: wait N seconds after last message before responding ──
     const existingTimer = debounceMap.get(phone);
     if (existingTimer) {
       clearTimeout(existingTimer);
       console.log(`[WaBot] Debounce reset para ${phone} (mais mensagens chegando)`);
     }
 
+    const debounceSeconds = config?.botDebounceSeconds ?? DEFAULT_DEBOUNCE_SECONDS;
+    const debounceMs = debounceSeconds * 1000;
+
     const timer = setTimeout(() => {
       debounceMap.delete(phone);
       WaBotService.generateAndSend(conversationId, phone, pushName).catch((err) => {
         console.error(`[WaBot] Erro no debounced response para ${phone}:`, err);
       });
-    }, DEBOUNCE_MS);
+    }, debounceMs);
 
     debounceMap.set(phone, timer);
-    console.log(`[WaBot] Debounce agendado para ${phone} (${DEBOUNCE_MS / 1000}s)`);
+    console.log(`[WaBot] Debounce agendado para ${phone} (${debounceSeconds}s)`);
   }
 
   // ─── Debounced Response Generator ────────────────────────────────────────
@@ -454,7 +494,11 @@ export class WaBotService {
       // AI error — flag for human attention
       const botName = config.botName || 'Bia';
       const botCompany = config.botCompany || 'Bertuzzi Patrimonial';
-      const fallbackText = `Oi${pushName ? `, ${pushName}` : ''}! Sou a ${botName} da *${botCompany}*! To com uma instabilidade aqui, mas um consultor vai te atender em breve.`;
+      const fallbackText = fillTemplate(config.botErrorFallback?.trim() || DEFAULT_ERROR_FALLBACK, {
+        botName,
+        botCompany,
+        nome: pushName ? `, ${pushName}` : '',
+      });
 
       try {
         await WaMessageService.sendText(conversationId, fallbackText, { senderType: 'WA_BOT' });
@@ -486,10 +530,15 @@ export class WaBotService {
     if (hasAssistantHistory) {
       const config = await prisma.whatsAppConfig.findFirst();
       const botName = config?.botName || 'Bia';
-      systemMessage = systemMessage.replace(
+      const noReintroRule = `Você já está em contato com este lead. NÃO se apresente novamente. NÃO diga "sou a ${botName}" ou "aqui é a ${botName}". Continue a conversa de forma natural.`;
+      // Remove qualquer frase "SEMPRE se apresente como X" da abertura (idempotente)
+      const replaced = systemMessage.replace(
         new RegExp(`SEMPRE se apresente como ${botName} na primeira mensagem\\.?`, 'i'),
-        `Você já está em contato com este lead. NÃO se apresente novamente. NÃO diga "sou a ${botName}" ou "aqui é a ${botName}". Continue a conversa de forma natural.`,
+        noReintroRule,
       );
+      systemMessage = replaced === systemMessage
+        ? systemMessage + '\n\n' + noReintroRule  // fallback: se abertura customizada não tem a frase, appenda a regra
+        : replaced;
     }
 
     if (pushName) {
@@ -506,15 +555,18 @@ export class WaBotService {
       systemMessage += '\n\n' + extraContext;
     }
 
+    const aiConfig = await prisma.whatsAppConfig.findFirst({
+      select: { aiModel: true, aiTemperature: true, aiMaxTokens: true },
+    });
     const openai = await getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: aiConfig?.aiModel || DEFAULT_AI_MODEL,
       messages: [
         { role: 'system', content: systemMessage },
         ...history,
       ],
-      max_tokens: 200,
-      temperature: 0.7,
+      max_tokens: aiConfig?.aiMaxTokens ?? DEFAULT_AI_MAX_TOKENS,
+      temperature: aiConfig?.aiTemperature ?? DEFAULT_AI_TEMPERATURE,
     });
 
     let reply = completion.choices[0].message.content || '';
@@ -725,15 +777,27 @@ export class WaBotService {
     ctx += `\nEtapa atual: ${stageName}`;
 
     const stageLC = stageName.toLowerCase();
+    const cfg = await prisma.whatsAppConfig.findFirst({
+      select: {
+        stagePromptMeetingScheduled: true,
+        stagePromptProposalSent: true,
+        stagePromptWaitingData: true,
+        stagePromptWaitingSignature: true,
+      },
+    });
+
+    let stagePrompt: string | null = null;
     if (stageLC.includes('reunião agendada') || stageLC.includes('reuniao agendada')) {
-      ctx += `\nREUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião. Seja cordial e tire dúvidas se o lead perguntar algo.`;
+      stagePrompt = cfg?.stagePromptMeetingScheduled?.trim() || DEFAULT_STAGE_MEETING_SCHEDULED;
     } else if (stageLC.includes('proposta')) {
-      ctx += `\nProposta já foi enviada. Pergunte se o lead tem dúvidas sobre a proposta e reforce o valor do serviço.`;
+      stagePrompt = cfg?.stagePromptProposalSent?.trim() || DEFAULT_STAGE_PROPOSAL_SENT;
     } else if (stageLC.includes('aguardando dados')) {
-      ctx += `\nO lead está na fase de aguardando dados/documentos. Pergunte se precisa de ajuda para enviar os dados pendentes.`;
+      stagePrompt = cfg?.stagePromptWaitingData?.trim() || DEFAULT_STAGE_WAITING_DATA;
     } else if (stageLC.includes('aguardando assinatura')) {
-      ctx += `\nO contrato já foi enviado. Pergunte se precisa de alguma orientação para assinar o documento.`;
+      stagePrompt = cfg?.stagePromptWaitingSignature?.trim() || DEFAULT_STAGE_WAITING_SIGNATURE;
     }
+
+    if (stagePrompt) ctx += '\n' + stagePrompt;
 
     return ctx;
   }

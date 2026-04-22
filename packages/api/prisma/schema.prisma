@@ -1111,6 +1111,25 @@ model WhatsAppConfig {
   conversationRules  String? @db.Text
   funnelInstructions String? @db.Text
 
+  // Prompt blocks (WABA bot — wa/botService.ts). null = usa default do código.
+  // botOpeningPrompt/botErrorFallback aceitam placeholders {botName},{botCompany}; errorFallback também {nome}.
+  botOpeningPrompt String? @db.Text
+  botMessageFormat String? @db.Text
+  botKpi           String? @db.Text
+  botErrorFallback String? @db.Text
+
+  // Prompt por etapa do funil (injetado via buildDealContext)
+  stagePromptMeetingScheduled String? @db.Text
+  stagePromptProposalSent     String? @db.Text
+  stagePromptWaitingData      String? @db.Text
+  stagePromptWaitingSignature String? @db.Text
+
+  // Parâmetros da chamada OpenAI (null = default do código)
+  aiModel            String?
+  aiTemperature      Float?
+  aiMaxTokens        Int?
+  botDebounceSeconds Int?
+
   // Follow-up tone instructions (null = usa texto padrão do código)
   followUpToneCasual       String? @db.Text
   followUpToneReforco      String? @db.Text

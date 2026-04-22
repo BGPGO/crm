@@ -21,6 +21,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Info,
+  Target,
+  Layers,
+  Sparkles,
+  AlertTriangle,
+  Sliders,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -35,6 +40,21 @@ interface WhatsAppConfig {
   meetingLink: string | null;
   coldContactMaxMessages: number | null;
   botSystemPrompt: string | null;
+  // Blocos do prompt
+  botOpeningPrompt: string | null;
+  botMessageFormat: string | null;
+  botKpi: string | null;
+  botErrorFallback: string | null;
+  // Instruções por etapa do funil
+  stagePromptMeetingScheduled: string | null;
+  stagePromptProposalSent: string | null;
+  stagePromptWaitingData: string | null;
+  stagePromptWaitingSignature: string | null;
+  // Parâmetros OpenAI
+  aiModel: string | null;
+  aiTemperature: number | null;
+  aiMaxTokens: number | null;
+  botDebounceSeconds: number | null;
 }
 
 interface BotProduct {
@@ -84,6 +104,43 @@ IMPORTANTE:
 - Se o lead diz algo pessoal/off-topic, responda brevemente e volte pro assunto com naturalidade
 - Se o lead diz "nao quero" ou demonstra desinteresse -> agradeca e encerre. NAO insista.
 - Se o lead tem duvidas sobre preco -> de o range e diga que na reuniao definem certinho`;
+
+// Defaults dos novos blocos. Aceitam placeholders {botName}/{botCompany}; errorFallback tb {nome}.
+const DEFAULT_OPENING_PROMPT =
+  "Você é a {botName}, SDR da {botCompany}. SEMPRE se apresente como {botName} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META é agendar uma reunião de Diagnóstico Financeiro.";
+
+const DEFAULT_MESSAGE_FORMAT =
+  "FORMATO: Responda em 1-3 frases curtas e naturais. Se precisar separar em mais de uma mensagem, pule uma linha entre elas (linha em branco). NÃO envie URLs no texto — o sistema envia botões clicáveis automaticamente.";
+
+const DEFAULT_KPI = "KPI: reunião agendada. Seja prática, rápida e humana.";
+
+const DEFAULT_ERROR_FALLBACK =
+  "Oi{nome}! Sou a {botName} da *{botCompany}*! To com uma instabilidade aqui, mas um consultor vai te atender em breve.";
+
+const DEFAULT_STAGE_MEETING_SCHEDULED =
+  "REUNIÃO JÁ MARCADA. NÃO tente marcar outra reunião. Apenas confirme que está tudo certo e aguarde o dia da reunião. Seja cordial e tire dúvidas se o lead perguntar algo.";
+const DEFAULT_STAGE_PROPOSAL_SENT =
+  "Proposta já foi enviada. Pergunte se o lead tem dúvidas sobre a proposta e reforce o valor do serviço.";
+const DEFAULT_STAGE_WAITING_DATA =
+  "O lead está na fase de aguardando dados/documentos. Pergunte se precisa de ajuda para enviar os dados pendentes.";
+const DEFAULT_STAGE_WAITING_SIGNATURE =
+  "O contrato já foi enviado. Pergunte se precisa de alguma orientação para assinar o documento.";
+
+const DEFAULT_AI_MODEL = "gpt-4o-mini";
+const DEFAULT_AI_TEMPERATURE = 0.7;
+const DEFAULT_AI_MAX_TOKENS = 200;
+const DEFAULT_DEBOUNCE_SECONDS = 25;
+
+const AI_MODEL_OPTIONS = [
+  { value: "gpt-4o-mini", label: "gpt-4o-mini (rápido/barato — atual)" },
+  { value: "gpt-4o", label: "gpt-4o (mais inteligente, mais caro)" },
+  { value: "gpt-4.1-mini", label: "gpt-4.1-mini" },
+  { value: "gpt-4.1", label: "gpt-4.1" },
+];
+
+function fillTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -146,17 +203,17 @@ function buildPromptPreview(
     return config.botSystemPrompt;
   }
 
+  const botName = config.botName || "Bia";
+  const botCompany = config.botCompany || "Bertuzzi Patrimonial";
+  const vars = { botName, botCompany };
+
   const parts: string[] = [];
 
-  // 1. Identidade
-  parts.push(
-    `Voce e a ${config.botName || "Bia"}, SDR da ${config.botCompany || "Bertuzzi Patrimonial"}. SEMPRE se apresente como ${config.botName || "Bia"} na primeira mensagem. Atende pelo WhatsApp como pessoa real — sua META e agendar uma reuniao de Diagnostico Financeiro.`
-  );
+  // 1. Abertura (editável)
+  parts.push(fillTemplate(config.botOpeningPrompt || DEFAULT_OPENING_PROMPT, vars));
 
-  // 2. Formato
-  parts.push(
-    "FORMATO: Responda em 1-3 frases curtas e naturais. Se precisar separar em mais de uma mensagem, pule uma linha entre elas (linha em branco). NAO envie URLs no texto — o sistema envia botoes clicaveis automaticamente."
-  );
+  // 2. Formato (editável)
+  parts.push(fillTemplate(config.botMessageFormat || DEFAULT_MESSAGE_FORMAT, vars));
 
   // 3. Regras
   parts.push(config.conversationRules || DEFAULT_CONVERSATION_RULES);
@@ -174,7 +231,7 @@ function buildPromptPreview(
 
   // 6. Produtos
   if (products.length > 0) {
-    let prodBlock = `EMPRESA:\n- ${config.botCompany || "Bertuzzi Patrimonial"} — solucoes financeiras para empresas\n`;
+    let prodBlock = `EMPRESA:\n- ${botCompany} — solucoes financeiras para empresas\n`;
     products
       .filter((p) => p.isActive)
       .forEach((p) => {
@@ -184,10 +241,10 @@ function buildPromptPreview(
     parts.push(prodBlock);
   }
 
-  // 7. KPI
-  parts.push("KPI: reuniao agendada. Seja pratica, rapida e humana.");
+  // 7. KPI (editável)
+  parts.push(config.botKpi || DEFAULT_KPI);
 
-  // 8. Contexto injetado
+  // 8. Contexto injetado (runtime)
   const now = new Date();
   const dias = [
     "domingo",
@@ -237,7 +294,27 @@ export default function BiaPage() {
           api.get<{ data: BotProduct[] }>("/whatsapp/bot-products"),
           api.get<{ data: BotObjection[] }>("/whatsapp/bot-objections"),
         ]);
-        setConfig(configRes.data || {});
+        // Pré-preenche campos novos com defaults quando vierem null/undefined
+        // para o usuário já ver o texto atual e editar só o que quiser.
+        const raw = configRes.data || ({} as Partial<WhatsAppConfig>);
+        const withDefaults: Partial<WhatsAppConfig> = {
+          ...raw,
+          botOpeningPrompt: raw.botOpeningPrompt ?? DEFAULT_OPENING_PROMPT,
+          botMessageFormat: raw.botMessageFormat ?? DEFAULT_MESSAGE_FORMAT,
+          botKpi: raw.botKpi ?? DEFAULT_KPI,
+          botErrorFallback: raw.botErrorFallback ?? DEFAULT_ERROR_FALLBACK,
+          stagePromptMeetingScheduled:
+            raw.stagePromptMeetingScheduled ?? DEFAULT_STAGE_MEETING_SCHEDULED,
+          stagePromptProposalSent: raw.stagePromptProposalSent ?? DEFAULT_STAGE_PROPOSAL_SENT,
+          stagePromptWaitingData: raw.stagePromptWaitingData ?? DEFAULT_STAGE_WAITING_DATA,
+          stagePromptWaitingSignature:
+            raw.stagePromptWaitingSignature ?? DEFAULT_STAGE_WAITING_SIGNATURE,
+          aiModel: raw.aiModel ?? DEFAULT_AI_MODEL,
+          aiTemperature: raw.aiTemperature ?? DEFAULT_AI_TEMPERATURE,
+          aiMaxTokens: raw.aiMaxTokens ?? DEFAULT_AI_MAX_TOKENS,
+          botDebounceSeconds: raw.botDebounceSeconds ?? DEFAULT_DEBOUNCE_SECONDS,
+        };
+        setConfig(withDefaults);
         setProducts(productsRes.data || []);
         setObjections(objectionsRes.data || []);
       } catch (err) {
@@ -261,6 +338,18 @@ export default function BiaPage() {
         meetingLink: config.meetingLink,
         coldContactMaxMessages: config.coldContactMaxMessages,
         botSystemPrompt: config.botSystemPrompt,
+        botOpeningPrompt: config.botOpeningPrompt,
+        botMessageFormat: config.botMessageFormat,
+        botKpi: config.botKpi,
+        botErrorFallback: config.botErrorFallback,
+        stagePromptMeetingScheduled: config.stagePromptMeetingScheduled,
+        stagePromptProposalSent: config.stagePromptProposalSent,
+        stagePromptWaitingData: config.stagePromptWaitingData,
+        stagePromptWaitingSignature: config.stagePromptWaitingSignature,
+        aiModel: config.aiModel,
+        aiTemperature: config.aiTemperature,
+        aiMaxTokens: config.aiMaxTokens,
+        botDebounceSeconds: config.botDebounceSeconds,
       });
       showToast("success", "Configurações salvas com sucesso!");
     } catch (err) {
@@ -377,6 +466,72 @@ export default function BiaPage() {
                   setConfig((c) => ({ ...c, coldContactMaxMessages: parseInt(e.target.value) || 2 }))
                 }
                 className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* 1.5 — Abertura, Formato e KPI */}
+        <Card>
+          <SectionHeader
+            icon={Target}
+            title="Abertura, Formato e KPI"
+            action={
+              <button
+                onClick={() =>
+                  setConfig((c) => ({
+                    ...c,
+                    botOpeningPrompt: DEFAULT_OPENING_PROMPT,
+                    botMessageFormat: DEFAULT_MESSAGE_FORMAT,
+                    botKpi: DEFAULT_KPI,
+                  }))
+                }
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+              >
+                <RotateCcw size={12} />
+                Restaurar padrão
+              </button>
+            }
+          />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Abertura / Identidade (início do prompt)
+              </label>
+              <textarea
+                rows={4}
+                value={config.botOpeningPrompt || ""}
+                onChange={(e) => setConfig((c) => ({ ...c, botOpeningPrompt: e.target.value }))}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
+                <Info size={11} />
+                Use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{"{botName}"}</code>{" "}
+                e{" "}
+                <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{"{botCompany}"}</code>{" "}
+                como placeholders.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Formato das mensagens
+              </label>
+              <textarea
+                rows={3}
+                value={config.botMessageFormat || ""}
+                onChange={(e) => setConfig((c) => ({ ...c, botMessageFormat: e.target.value }))}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                KPI / Objetivo final do prompt
+              </label>
+              <input
+                type="text"
+                value={config.botKpi || ""}
+                onChange={(e) => setConfig((c) => ({ ...c, botKpi: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
               />
             </div>
           </div>
@@ -553,6 +708,201 @@ export default function BiaPage() {
               )}
             </div>
           )}
+        </Card>
+
+        {/* 5.5 — Instruções por Etapa do Funil */}
+        <Card>
+          <SectionHeader
+            icon={Layers}
+            title="Instruções por Etapa do Funil"
+            action={
+              <button
+                onClick={() =>
+                  setConfig((c) => ({
+                    ...c,
+                    stagePromptMeetingScheduled: DEFAULT_STAGE_MEETING_SCHEDULED,
+                    stagePromptProposalSent: DEFAULT_STAGE_PROPOSAL_SENT,
+                    stagePromptWaitingData: DEFAULT_STAGE_WAITING_DATA,
+                    stagePromptWaitingSignature: DEFAULT_STAGE_WAITING_SIGNATURE,
+                  }))
+                }
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+              >
+                <RotateCcw size={12} />
+                Restaurar padrão
+              </button>
+            }
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-1">
+            <Info size={11} />
+            Texto injetado no prompt quando o lead está em cada etapa do CRM.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Reunião Agendada
+              </label>
+              <textarea
+                rows={3}
+                value={config.stagePromptMeetingScheduled || ""}
+                onChange={(e) =>
+                  setConfig((c) => ({ ...c, stagePromptMeetingScheduled: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Proposta Enviada
+              </label>
+              <textarea
+                rows={3}
+                value={config.stagePromptProposalSent || ""}
+                onChange={(e) =>
+                  setConfig((c) => ({ ...c, stagePromptProposalSent: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Aguardando Dados
+              </label>
+              <textarea
+                rows={3}
+                value={config.stagePromptWaitingData || ""}
+                onChange={(e) =>
+                  setConfig((c) => ({ ...c, stagePromptWaitingData: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Aguardando Assinatura
+              </label>
+              <textarea
+                rows={3}
+                value={config.stagePromptWaitingSignature || ""}
+                onChange={(e) =>
+                  setConfig((c) => ({ ...c, stagePromptWaitingSignature: e.target.value }))
+                }
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {/* 5.6 — Fallback de Erro */}
+        <Card>
+          <SectionHeader
+            icon={AlertTriangle}
+            title="Mensagem de Fallback (erro)"
+            action={
+              <button
+                onClick={() => setConfig((c) => ({ ...c, botErrorFallback: DEFAULT_ERROR_FALLBACK }))}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+              >
+                <RotateCcw size={12} />
+                Restaurar padrão
+              </button>
+            }
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-1">
+            <Info size={11} />
+            Enviada quando a IA falha. Placeholders:{" "}
+            <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{"{nome}"}</code>,{" "}
+            <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{"{botName}"}</code>,{" "}
+            <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{"{botCompany}"}</code>.
+          </p>
+          <textarea
+            rows={3}
+            value={config.botErrorFallback || ""}
+            onChange={(e) => setConfig((c) => ({ ...c, botErrorFallback: e.target.value }))}
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+          />
+        </Card>
+
+        {/* 5.7 — Parâmetros da IA */}
+        <Card>
+          <SectionHeader icon={Sliders} title="Parâmetros da IA" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                <span className="flex items-center gap-1">
+                  <Sparkles size={12} />
+                  Modelo OpenAI
+                </span>
+              </label>
+              <select
+                value={config.aiModel || DEFAULT_AI_MODEL}
+                onChange={(e) => setConfig((c) => ({ ...c, aiModel: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {AI_MODEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Temperature (0 = previsível, 2 = criativo)
+              </label>
+              <input
+                type="number"
+                step={0.1}
+                min={0}
+                max={2}
+                value={config.aiTemperature ?? DEFAULT_AI_TEMPERATURE}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    aiTemperature: e.target.value === "" ? null : parseFloat(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Max tokens (tamanho máx. da resposta)
+              </label>
+              <input
+                type="number"
+                min={50}
+                max={2000}
+                step={10}
+                value={config.aiMaxTokens ?? DEFAULT_AI_MAX_TOKENS}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    aiMaxTokens: e.target.value === "" ? null : parseInt(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                Debounce (segundos que espera depois da última mensagem antes de responder)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={config.botDebounceSeconds ?? DEFAULT_DEBOUNCE_SECONDS}
+                onChange={(e) =>
+                  setConfig((c) => ({
+                    ...c,
+                    botDebounceSeconds: e.target.value === "" ? null : parseInt(e.target.value),
+                  }))
+                }
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
         </Card>
 
         {/* 6. Preview do Prompt */}
