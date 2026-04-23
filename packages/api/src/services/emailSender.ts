@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import prisma from '../lib/prisma';
 import { createUnsubToken } from '../routes/email-tracking';
 import { wrapInBrandTemplate } from './emailTemplate';
+import { rewriteCalendlyLinksInHtml, EMAIL_CAMPAIGN_UTMS } from '../utils/calendlyLinks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -183,8 +184,11 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
 
   const fromAddress = `${campaign.fromName} <${campaign.fromEmail}>`;
 
+  // Tagueia links do Calendly com UTMs para o webhook classificar como CALENDLY_EMAIL
+  const calendlyTagged = rewriteCalendlyLinksInHtml(baseHtml, EMAIL_CAMPAIGN_UTMS);
+
   // Wrap links and create EmailLink records for this campaign
-  const { html: linkedHtml, links } = wrapLinksWithTracking(baseHtml, campaignId);
+  const { html: linkedHtml, links } = wrapLinksWithTracking(calendlyTagged, campaignId);
 
   // Persist EmailLink records
   for (const link of links) {
@@ -345,11 +349,14 @@ export async function sendTestEmail(campaignId: string, email: string): Promise<
     stripOuterWrapper(campaign.template.htmlContent),
   );
 
+  // Tagueia Calendly com UTMs (igual ao envio real)
+  const finalHtml = rewriteCalendlyLinksInHtml(brandedHtml, EMAIL_CAMPAIGN_UTMS);
+
   await resend.emails.send({
     from: fromAddress,
     to: email,
     replyTo: 'vitor@bertuzzipatrimonial.com.br',
     subject: `[TESTE] ${campaign.subject}`,
-    html: brandedHtml,
+    html: finalHtml,
   });
 }

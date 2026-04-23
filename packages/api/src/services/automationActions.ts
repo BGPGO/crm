@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { isUnsubscribed } from './unsubscribeManager';
 import { wrapInBrandTemplate } from './emailTemplate';
 import { stripOuterWrapper } from './emailSender';
+import { rewriteCalendlyLinksInHtml, EMAIL_CAMPAIGN_UTMS } from '../utils/calendlyLinks';
 import { ZApiClient } from '../services/zapiClient';
 import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
@@ -266,11 +267,14 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
   const emailB64Header = Buffer.from(contact.email, 'utf-8').toString('base64url');
   const unsubUrl = `${apiBase.replace('/api', '')}/api/unsubscribe/email/${emailB64Header}`;
 
+  // Tagueia links do Calendly com UTMs para o webhook classificar como CALENDLY_EMAIL
+  const taggedHtml = rewriteCalendlyLinksInHtml(htmlContent, EMAIL_CAMPAIGN_UTMS);
+
   const result = await resend.emails.send({
     from: `BGPGO CRM <noreply@bertuzzipatrimonial.app.br>`,
     to: contact.email,
     subject,
-    html: htmlContent,
+    html: taggedHtml,
     headers: {
       'List-Unsubscribe': `<${unsubUrl}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
