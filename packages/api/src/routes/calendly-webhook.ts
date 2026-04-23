@@ -49,13 +49,22 @@ function verifySignature(
 /**
  * Determine MeetingSource from Calendly UTM parameters.
  * Convention:
- *   utm_source=email_cadencia | utm_medium=crm  → CALENDLY_EMAIL
- *   utm_source=lp | utm_medium=greatpages       → CALENDLY_LP
- *   Otherwise                                   → HUMANO (no UTM or unrecognised)
+ *   utm_source=sdr_ia | utm_medium=waba/whatsapp → SDR_IA
+ *   utm_source=email_cadencia | utm_medium=crm   → CALENDLY_EMAIL
+ *   utm_source=lp | utm_medium=greatpages        → CALENDLY_LP
+ *   No UTMs → check contact's needsHumanAttention flag:
+ *     true  → HUMANO
+ *     false → CALENDLY_LP (link without UTMs configured)
  */
-function detectMeetingSourceFromUtm(utmSource: string, utmMedium: string): 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'SDR_IA' | 'HUMANO' {
+async function detectMeetingSource(
+  utmSource: string,
+  utmMedium: string,
+  contactId?: string | null,
+): Promise<'SDR_IA' | 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'HUMANO'> {
   const src = utmSource.toLowerCase();
   const med = utmMedium.toLowerCase();
+
+  // UTMs explícitas ganham prioridade
   if (src === 'sdr_ia' || med === 'waba' || med === 'whatsapp') {
     return 'SDR_IA';
   }
@@ -65,10 +74,27 @@ function detectMeetingSourceFromUtm(utmSource: string, utmMedium: string): 'CALE
   if (src === 'lp' || med === 'greatpages' || src.includes('landing')) {
     return 'CALENDLY_LP';
   }
-  if (src || med) {
-    console.log(`[calendly-webhook] Unrecognised UTMs (utm_source="${src}", utm_medium="${med}") — defaulting to HUMANO`);
+
+  // Sem UTMs reconhecidas: checa atendimento humano ativo
+  if (contactId) {
+    const [waHuman, zapHuman] = await Promise.all([
+      prisma.waConversation.findFirst({
+        where: { contactId, needsHumanAttention: true },
+        select: { id: true },
+      }),
+      prisma.whatsAppConversation.findFirst({
+        where: { contactId, needsHumanAttention: true },
+        select: { id: true },
+      }),
+    ]);
+    if (waHuman || zapHuman) return 'HUMANO';
   }
-  return 'HUMANO';
+
+  // Fallback: veio direto pela LP (link sem UTMs configuradas)
+  if (src || med) {
+    console.log(`[calendly-webhook] UTMs não reconhecidas (src=${src}, med=${med}) — assumindo CALENDLY_LP`);
+  }
+  return 'CALENDLY_LP';
 }
 
 /**
@@ -491,11 +517,18 @@ router.post('/', async (req: Request, res: Response) => {
             },
           });
 
-          // Detect meeting source from UTMs embedded in the Calendly link
+          // Detect meeting source from UTMs embedded in the Calendly link.
+          // Falls back to checking needsHumanAttention when no UTMs are present.
           // (hoisted out of `if (startTime)` because it's also used later
           // in sendMeetingNotifications)
-          const meetingSource = detectMeetingSourceFromUtm(utmSource, utmMedium);
+          const meetingSource = await detectMeetingSource(utmSource, utmMedium, contact.id);
           console.log(`[calendly-webhook] meetingSource=${meetingSource} (utm_source="${utmSource}", utm_medium="${utmMedium}")`);
+
+          // Persist meetingSource on the Deal so it's available for reporting/notifications
+          await prisma.deal.update({
+            where: { id: deal.id },
+            data: { meetingSource },
+          });
 
           // 7. Create Task with meeting date/time
           if (startTime) {

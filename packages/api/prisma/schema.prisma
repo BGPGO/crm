@@ -365,6 +365,8 @@ model Deal {
   status             DealStatus @default(OPEN)
   noShow             Boolean    @default(false)
   noShowAt           DateTime?
+  // Origem da reunião agendada — espelha o meetingSource da task MEETING mais recente
+  meetingSource      MeetingSource?
   classification     String?
   contaAzulCode      String?
   lostAtStage        String?

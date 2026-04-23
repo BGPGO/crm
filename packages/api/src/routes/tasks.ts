@@ -194,6 +194,14 @@ router.post(
         },
       });
 
+      // Mirror meetingSource to the Deal whenever a MEETING task is created manually
+      if (task.type === 'MEETING' && task.dealId && resolvedMeetingSource) {
+        await prisma.deal.update({
+          where: { id: task.dealId },
+          data: { meetingSource: resolvedMeetingSource },
+        });
+      }
+
       // Log activity on the associated deal
       if (task.dealId) {
         const actingUserId = (req as any).user?.id ?? userId;
@@ -225,7 +233,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Task not found', 404));
 
-    const { title, type, dueDate, userId, description, status } = req.body;
+    const { title, type, dueDate, userId, description, status, meetingSource } = req.body;
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (type !== undefined) data.type = type;
@@ -237,6 +245,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (userId !== undefined) data.userId = userId;
     if (description !== undefined) data.description = description;
     if (status !== undefined) data.status = status;
+    if (meetingSource !== undefined) data.meetingSource = meetingSource;
 
     if (data.status === 'COMPLETED') {
       data.completedAt = new Date();
@@ -253,6 +262,17 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         contact: { select: { id: true, name: true } },
       },
     });
+
+    // Mirror meetingSource to the Deal when task type is set to MEETING or
+    // when meetingSource is explicitly updated on an existing MEETING task
+    const effectiveType = (data.type as string | undefined) ?? existing.type;
+    const effectiveMeetingSource = (data.meetingSource as string | undefined) ?? undefined;
+    if (task.dealId && effectiveType === 'MEETING' && effectiveMeetingSource !== undefined) {
+      await prisma.deal.update({
+        where: { id: task.dealId },
+        data: { meetingSource: effectiveMeetingSource as 'SDR_IA' | 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'HUMANO' },
+      });
+    }
 
     // Log activity on the associated deal
     if (task.dealId) {

@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
 import { formatTaskTime, normalizeDueDate, getBRTParts } from "@/lib/taskDateTime";
 import clsx from "clsx";
+import MeetingSourceBadge from "./MeetingSourceBadge";
+import type { MeetingSource } from "./MeetingSourceBadge";
 
 // Shape returned by GET /api/pipelines/:id (deals array)
 export interface Deal {
@@ -25,6 +27,7 @@ export interface Deal {
   hasWabaConversation?: boolean;
   phoneInvalid?: boolean;
   noShow?: boolean;
+  meetingSource?: MeetingSource | null;
   nextTask?: { id: string; title: string; dueDate?: string; dueDateFormat?: string | null; type: string } | null;
 }
 
@@ -114,6 +117,7 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
                     Tel. invalido
                   </span>
                 )}
+                <MeetingSourceBadge source={deal.meetingSource} size="sm" />
               </div>
             </div>
 

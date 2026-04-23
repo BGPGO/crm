@@ -32,6 +32,8 @@ import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
 import ContractHub from "@/components/pipeline/ContractHub";
 import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
+import MeetingSourceBadge from "@/components/pipeline/MeetingSourceBadge";
+import type { MeetingSource } from "@/components/pipeline/MeetingSourceBadge";
 import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
 import WabaSidebar from "@/components/deal/WabaSidebar";
 import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
@@ -76,6 +78,7 @@ interface DealDetail {
   closedAt?: string;
   noShow?: boolean;
   noShowAt?: string;
+  meetingSource?: MeetingSource | null;
   classification?: number;
   contaAzulCode?: string;
   recurrence?: string;
@@ -170,6 +173,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     closedAt: data.closedAt as string | undefined,
     noShow: data.noShow as boolean | undefined,
     noShowAt: data.noShowAt as string | undefined,
+    meetingSource: data.meetingSource as MeetingSource | undefined,
     classification: data.classification as number | undefined,
     contaAzulCode: data.contaAzulCode as string | undefined,
     recurrence: data.recurrence as string | undefined,
@@ -1379,6 +1383,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 {formatCurrency(totalRecurrence || deal.value)}
               </button>
               <StatusBadge status={deal.status} />
+              <MeetingSourceBadge source={deal.meetingSource} size="md" />
               {(deal.classification ?? 0) > 0 && (
                 <StarRating value={deal.classification!} />
               )}

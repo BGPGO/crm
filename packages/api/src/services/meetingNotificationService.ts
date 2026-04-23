@@ -4,15 +4,29 @@ import { Resend } from 'resend';
 type MeetingSourceEnum = 'CALENDLY_EMAIL' | 'CALENDLY_LP' | 'SDR_IA' | 'HUMANO';
 
 const MEETING_SOURCE_LABELS: Record<MeetingSourceEnum, string> = {
-  CALENDLY_EMAIL: 'Calendly (via email marketing)',
-  CALENDLY_LP: 'Calendly (via landing page)',
-  SDR_IA: 'SDR IA (BIA) no WhatsApp',
-  HUMANO: 'Atendimento humano',
+  CALENDLY_EMAIL: 'Email marketing',
+  CALENDLY_LP:    'Direto (landing page)',
+  SDR_IA:         'BIA (WhatsApp)',
+  HUMANO:         'Atendimento humano',
+};
+
+const MEETING_SOURCE_COLORS: Record<MeetingSourceEnum, { bg: string; text: string; border: string }> = {
+  CALENDLY_EMAIL: { bg: '#DBEAFE', text: '#1E40AF', border: '#93C5FD' }, // azul
+  CALENDLY_LP:    { bg: '#F3F4F6', text: '#374151', border: '#D1D5DB' }, // cinza
+  SDR_IA:         { bg: '#DCFCE7', text: '#166534', border: '#86EFAC' }, // verde
+  HUMANO:         { bg: '#FFEDD5', text: '#9A3412', border: '#FDBA74' }, // laranja
 };
 
 function formatMeetingSource(source: MeetingSourceEnum | null | undefined): string {
   if (!source) return 'Origem não identificada';
   return MEETING_SOURCE_LABELS[source] ?? 'Origem não identificada';
+}
+
+function renderMeetingSourceBadge(source?: MeetingSourceEnum | null): string {
+  if (!source) return '—';
+  const label = MEETING_SOURCE_LABELS[source];
+  const colors = MEETING_SOURCE_COLORS[source];
+  return `<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;background:${colors.bg};color:${colors.text};border:1px solid ${colors.border};">${label}</span>`;
 }
 
 interface MeetingNotificationData {
@@ -101,7 +115,7 @@ function buildMeetingEmailHtml(data: MeetingNotificationData): string {
           ${row('Telefone', data.contactPhone)}
           ${row('Tipo', data.eventType)}
           ${row('Data/Hora', formattedDate)}
-          <tr><td style="padding:8px 0;color:#6b7280;font-size:14px;">🎯 Origem</td><td style="padding:8px 0;font-weight:bold;font-size:14px;color:#059669;">${esc(formatMeetingSource(data.meetingSource))}</td></tr>
+          <tr><td style="padding:8px 0;color:#6b7280;font-size:14px;">🎯 Origem</td><td style="padding:8px 0;">${renderMeetingSourceBadge(data.meetingSource)}</td></tr>
           ${row('Closer', data.hostName)}
           ${row('UTM Source', data.utmSource)}
           ${row('UTM Medium', data.utmMedium)}
