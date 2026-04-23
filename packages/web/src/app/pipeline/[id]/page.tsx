@@ -168,6 +168,8 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     expectedCloseDate: data.expectedCloseDate as string | undefined,
     expectedReturnDate: data.expectedReturnDate as string | undefined,
     closedAt: data.closedAt as string | undefined,
+    noShow: data.noShow as boolean | undefined,
+    noShowAt: data.noShowAt as string | undefined,
     classification: data.classification as number | undefined,
     contaAzulCode: data.contaAzulCode as string | undefined,
     recurrence: data.recurrence as string | undefined,
@@ -202,6 +204,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
         title: task.title as string,
         type: task.type as string,
         dueDate: task.dueDate as string | undefined,
+        dueDateFormat: task.dueDateFormat as string | undefined,
         done: task.status === "COMPLETED",
         meetingSource: (task.meetingSource as DealTask["meetingSource"]) ?? null,
       };
