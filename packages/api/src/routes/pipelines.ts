@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { buildDueDatePersist } from '../utils/taskDateTime';
 
 const router = Router();
 
@@ -192,10 +193,15 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string)
 
   // Filter: deals with at least one overdue task (dueDate < now and not completed)
   if (str('hasOverdueTask') === 'true') {
+    const now = new Date();
+    const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
     where.tasks = {
       some: {
         status: { not: 'COMPLETED' },
-        dueDate: { lt: new Date() },
+        OR: [
+          { dueDateFormat: 'UTC', dueDate: { lt: now } },
+          { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } },
+        ],
       },
     };
   }

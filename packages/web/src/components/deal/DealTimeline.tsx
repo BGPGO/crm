@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, CheckCircle2, Circle, Pencil, Calendar, Clock } from "lucide-react";
 import { formatDateTime, formatWhatsAppText } from "@/lib/formatters";
+import { formatTaskDate, formatTaskTime, normalizeDueDate, getBRTParts } from "@/lib/taskDateTime";
 import clsx from "clsx";
 import DOMPurify from "dompurify";
 import dynamic from "next/dynamic";
@@ -36,6 +37,7 @@ export interface PendingTask {
   id: string;
   title: string;
   dueDate?: string | Date;
+  dueDateFormat?: string | null;
   type: string;
   done: boolean;
 }
@@ -188,25 +190,34 @@ const TASK_TYPE_COLORS: Record<string, string> = {
   OTHER: "bg-gray-100 text-gray-600",
 };
 
-function taskUrgencyBadge(dueDate?: string | Date) {
-  if (!dueDate) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
+function taskUrgencyBadge(task: Pick<PendingTask, "dueDate" | "dueDateFormat">) {
+  if (!task.dueDate) return null;
+  const now = new Date();
+  const normalizedDate = normalizeDueDate(task);
+  const brtParts = getBRTParts(task);
+  if (!brtParts || !normalizedDate) return null;
+
+  const todayBrt = getBRTParts({ dueDate: now.toISOString() });
+  const tomorrowBrt = getBRTParts({ dueDate: new Date(now.getTime() + 86400000).toISOString() });
+
+  const isToday = todayBrt
+    ? brtParts.year === todayBrt.year && brtParts.month === todayBrt.month && brtParts.day === todayBrt.day
+    : false;
+  const isTomorrow = tomorrowBrt
+    ? brtParts.year === tomorrowBrt.year && brtParts.month === tomorrowBrt.month && brtParts.day === tomorrowBrt.day
+    : false;
+  const isOverdue = normalizedDate.getTime() < now.getTime();
 
   let badgeBg = "bg-gray-100 text-gray-600";
-  let badgeText = `${String(due.getDate()).padStart(2, "0")}/${String(due.getMonth() + 1).padStart(2, "0")}`;
+  let badgeText = `${String(brtParts.day).padStart(2, "0")}/${String(brtParts.month).padStart(2, "0")}`;
 
-  if (due.getTime() < today.getTime()) {
+  if (isOverdue && !isToday) {
     badgeBg = "bg-red-100 text-red-700";
     badgeText = "Atrasada";
-  } else if (due.getTime() === today.getTime()) {
+  } else if (isToday) {
     badgeBg = "bg-orange-100 text-orange-700";
     badgeText = "Hoje";
-  } else if (due.getTime() === tomorrow.getTime()) {
+  } else if (isTomorrow) {
     badgeBg = "bg-green-100 text-green-700";
     badgeText = "Amanhã";
   }
@@ -214,18 +225,13 @@ function taskUrgencyBadge(dueDate?: string | Date) {
   return { badgeBg, badgeText };
 }
 
-function formatTaskDateTime(dueDate: string | Date): string {
-  const d = typeof dueDate === "string" ? new Date(dueDate) : dueDate;
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  const hours = d.getHours();
-  const minutes = d.getMinutes();
-  if (hours === 12 && minutes === 0) {
-    // Noon UTC = date-only task (no time set)
-    return `${day}/${month}/${year}`;
+function formatPendingTaskDateTime(task: Pick<PendingTask, "dueDate" | "dueDateFormat">): string {
+  const timeStr = formatTaskTime(task);
+  // 00:00 BRT = date-only task (no time set)
+  if (!timeStr || timeStr === "00:00") {
+    return formatTaskDate(task);
   }
-  return `${day}/${month}/${year} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return `${formatTaskDate(task)} ${timeStr}`;
 }
 
 export default function DealTimeline({ events, onAddNote, pendingTasks, onToggleTask, onEditTask }: DealTimelineProps) {
@@ -289,7 +295,7 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
           <p className="text-xs font-semibold text-amber-800 mb-2">Tarefas pendentes</p>
           <div className="space-y-2">
             {pendingTasks.map((task) => {
-              const urgency = taskUrgencyBadge(task.dueDate);
+              const urgency = taskUrgencyBadge(task);
               return (
                 <div key={task.id} className="flex items-start gap-2 bg-white/60 rounded-md p-2 border border-amber-100">
                   {/* Toggle button */}
@@ -314,7 +320,7 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
                       <div className="flex items-center gap-2 mt-1">
                         <span className="flex items-center gap-1 text-xs text-gray-500">
                           <Calendar size={10} />
-                          {formatTaskDateTime(task.dueDate)}
+                          {formatPendingTaskDateTime(task)}
                         </span>
                         {urgency && (
                           <span className={clsx("text-[10px] font-medium px-1.5 py-0.5 rounded", urgency.badgeBg)}>

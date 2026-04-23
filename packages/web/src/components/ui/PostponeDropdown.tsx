@@ -46,6 +46,9 @@ const POSTPONE_OPTIONS: PostponeOption[] = [
     label: "Para próxima semana",
     getDate: (current) => {
       const monday = getNextMonday(current);
+      // getHours/setHours both use browser local TZ — symmetric pair, so
+      // "same time of day in BRT" is preserved as long as the user is in BRT.
+      // Date arithmetic elsewhere (getTime + delta) is already TZ-agnostic.
       monday.setHours(current.getHours(), current.getMinutes(), 0, 0);
       return monday;
     },

@@ -5,6 +5,7 @@ import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/me
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
 import { sendMeetingNotifications } from '../services/meetingNotificationService';
+import { buildDueDatePersist } from '../utils/taskDateTime';
 
 const router = Router();
 
@@ -503,7 +504,7 @@ router.post('/', async (req: Request, res: Response) => {
                 title: `Reunião: ${eventType || 'Diagnóstico Financeiro'}`,
                 description: `Agendado via Calendly. Participante: ${inviteeName || inviteeEmail}. Host: ${hostName || hostEmail || 'N/A'}`,
                 type: 'MEETING',
-                dueDate: new Date(startTime),
+                ...buildDueDatePersist(new Date(startTime)),
                 status: 'PENDING',
                 userId: activityUserId,
                 dealId: deal.id,

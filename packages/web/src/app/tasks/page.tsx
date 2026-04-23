@@ -17,6 +17,7 @@ import Badge from "@/components/ui/Badge";
 import { Plus, Phone, Mail, Calendar, MapPin, MoreHorizontal, CheckCircle, Clock, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
 import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import { formatDate } from "@/lib/formatters";
+import { formatTaskDate, normalizeDueDate, brtInputToUtcIso } from "@/lib/taskDateTime";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
@@ -42,6 +43,7 @@ interface Task {
   description: string | null;
   type: ApiTaskType;
   dueDate: string | null;
+  dueDateFormat?: string | null;
   status: ApiTaskStatus;
   completedAt: string | null;
   user: User;
@@ -285,8 +287,9 @@ export default function TasksPage() {
       if (batchAction === "delete") {
         await api.delete("/tasks/batch", { ids });
       } else {
+        // batchValue for dueDate comes from <input type="date"> → YYYY-MM-DD; convert BRT midnight → UTC
         const dataMap: Record<string, Record<string, string>> = {
-          dueDate: { dueDate: batchValue },
+          dueDate: { dueDate: brtInputToUtcIso(`${batchValue}T00:00`) },
           userId: { userId: batchValue },
           status: { status: batchValue },
           type: { type: batchValue },
@@ -342,11 +345,12 @@ export default function TasksPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      // form.dueDate is YYYY-MM-DD from <input type="date">; treat midnight BRT → UTC
       const payload = {
         title: form.title,
         type: form.type,
         userId: form.userId || authUser?.id,
-        dueDate: form.dueDate || undefined,
+        dueDate: form.dueDate ? brtInputToUtcIso(`${form.dueDate}T00:00`) : undefined,
         description: form.description || undefined,
       };
 
@@ -573,7 +577,7 @@ export default function TasksPage() {
               tasks.map((task) => {
                 const Icon = typeIcons[task.type] ?? Phone;
                 const isCompleted = task.status === "COMPLETED";
-                const isOverdue = task.status === "OVERDUE" || (task.status === "PENDING" && task.dueDate && new Date(task.dueDate) < new Date());
+                const isOverdue = task.status === "OVERDUE" || (task.status === "PENDING" && task.dueDate && (normalizeDueDate(task) ?? new Date(0)) < new Date());
                 const isSelected = selectedIds.has(task.id);
 
                 return (
@@ -642,11 +646,12 @@ export default function TasksPage() {
                       {task.dueDate
                         ? isOverdue
                           ? (() => {
-                              const days = Math.floor((Date.now() - new Date(task.dueDate).getTime()) / 86400000);
+                              const normalized = normalizeDueDate(task);
+                              const days = normalized ? Math.floor((Date.now() - normalized.getTime()) / 86400000) : 0;
                               if (days === 0) return "Vence hoje";
                               return `${days} dia${days !== 1 ? "s" : ""} atrasada`;
                             })()
-                          : formatDate(task.dueDate)
+                          : formatTaskDate(task)
                         : "—"}
                     </TableCell>
                     <TableCell>

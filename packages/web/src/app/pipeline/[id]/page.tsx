@@ -38,6 +38,7 @@ import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { brtInputToUtcIso, toDatetimeLocalInputBRT } from "@/lib/taskDateTime";
 import clsx from "clsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -73,6 +74,8 @@ interface DealDetail {
   expectedCloseDate?: string;
   expectedReturnDate?: string;
   closedAt?: string;
+  noShow?: boolean;
+  noShowAt?: string;
   classification?: number;
   contaAzulCode?: string;
   recurrence?: string;
@@ -885,11 +888,27 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       await api.post(`/deals/${dealId}/no-show`, {});
       // Find "Marcar reunião" stage
       const marcarStage = stages.find((s) => s.name.toLowerCase().includes("marcar reuni"));
-      setDeal((d) => d ? { ...d, stageId: marcarStage?.id ?? d.stageId } : d);
+      setDeal((d) => d ? { ...d, stageId: marcarStage?.id ?? d.stageId, noShow: true, noShowAt: new Date().toISOString() } : d);
       loadTimeline();
     } catch (err: unknown) {
       const e = err as { message?: string };
       alert(`Erro ao marcar no-show: ${e?.message ?? "Tente novamente."}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemoveNoShow = async () => {
+    if (!deal) return;
+    if (!confirm("Remover a tag de no-show deste lead?")) return;
+    setSubmitting(true);
+    try {
+      await api.delete(`/deals/${dealId}/no-show`);
+      setDeal((d) => d ? { ...d, noShow: false, noShowAt: undefined } : d);
+      loadTimeline();
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      alert(`Erro ao remover no-show: ${e?.message ?? "Tente novamente."}`);
     } finally {
       setSubmitting(false);
     }
@@ -1006,7 +1025,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       const res = await api.post<{ data: Record<string, unknown> }>("/tasks", {
         title: taskTitle.trim(),
         type: taskType,
-        dueDate: taskDueDate || undefined,
+        dueDate: taskDueDate ? brtInputToUtcIso(taskDueDate) : undefined,
         userId,
         dealId,
       });
@@ -1016,6 +1035,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         title: created.title as string,
         type: created.type as string,
         dueDate: created.dueDate as string | undefined,
+        dueDateFormat: created.dueDateFormat as string | null | undefined,
         done: false,
       };
       setDeal((d) => d ? { ...d, tasks: [...d.tasks, newTask] } : d);
@@ -1035,7 +1055,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     setEditingTask(task);
     setTaskTitle(task.title);
     setTaskType(task.type);
-    setTaskDueDate(task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : "");
+    setTaskDueDate(toDatetimeLocalInputBRT({ dueDate: task.dueDate, dueDateFormat: task.dueDateFormat }));
     setShowAddTask(true);
   };
 
@@ -1043,10 +1063,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     if (!editingTask || !taskTitle.trim()) return;
     setSubmitting(true);
     try {
+      const updatedDueDate = taskDueDate ? brtInputToUtcIso(taskDueDate) : undefined;
       await api.put(`/tasks/${editingTask.id}`, {
         title: taskTitle.trim(),
         type: taskType,
-        dueDate: taskDueDate || undefined,
+        dueDate: updatedDueDate,
       });
       setDeal((d) =>
         d
@@ -1054,7 +1075,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               ...d,
               tasks: d.tasks.map((t) =>
                 t.id === editingTask.id
-                  ? { ...t, title: taskTitle.trim(), type: taskType, dueDate: taskDueDate || undefined }
+                  ? { ...t, title: taskTitle.trim(), type: taskType, dueDate: updatedDueDate, dueDateFormat: "UTC" }
                   : t
               ),
             }
@@ -1403,7 +1424,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             )}
             {deal.status === "active" && (
               <>
-                {deal.stage && deal.stage.name.toLowerCase().includes("reunião agendada") && (
+                {deal.stage && deal.stage.name.toLowerCase().includes("reunião agendada") && !deal.noShow && (
                   <Button
                     variant="secondary"
                     size="sm"
@@ -1413,6 +1434,19 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   >
                     <UserX size={14} />
                     No-show
+                  </Button>
+                )}
+                {deal.noShow && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleRemoveNoShow}
+                    disabled={submitting}
+                    className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                    title="Remover a tag de no-show deste lead"
+                  >
+                    <UserX size={14} />
+                    Remover no-show
                   </Button>
                 )}
                 <Button

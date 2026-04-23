@@ -11,21 +11,24 @@ export function formatCurrency(value: number): string {
 }
 
 /**
- * Formata uma data ISO para o padrão pt-BR (dd/mm/aaaa)
+ * Formata uma data ISO para o padrão pt-BR (dd/mm/aaaa).
+ * Aceita `timeZone` opcional (ex: "America/Sao_Paulo") — sem ele, usa o fuso do navegador.
  */
-export function formatDate(date: string | Date): string {
+export function formatDate(date: string | Date, timeZone?: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    ...(timeZone ? { timeZone } : {}),
   }).format(d);
 }
 
 /**
- * Formata uma data ISO com horário
+ * Formata uma data ISO com horário.
+ * Aceita `timeZone` opcional (ex: "America/Sao_Paulo") — sem ele, usa o fuso do navegador.
  */
-export function formatDateTime(date: string | Date): string {
+export function formatDateTime(date: string | Date, timeZone?: string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -33,6 +36,7 @@ export function formatDateTime(date: string | Date): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
   }).format(d);
 }
 

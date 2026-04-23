@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { logActivity } from '../services/activityLogger';
+import { buildDueDatePersist, serializeTaskDueDate, normalizeDueDate } from '../utils/taskDateTime';
 
 const router = Router();
 
@@ -21,7 +22,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     if (dealId) where.dealId = dealId as string;
     if (status === 'OVERDUE') {
       where.status = 'PENDING';
-      where.dueDate = { lt: new Date() };
+      const now = new Date();
+      const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+      where.OR = [
+        { dueDateFormat: 'UTC', dueDate: { lt: now } },
+        { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } },
+      ];
     } else if (status) {
       where.status = status as string;
     }
@@ -49,7 +55,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     ]);
 
     res.json({
-      data,
+      data: data.map(serializeTaskDueDate),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -63,10 +69,12 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
     const where: Record<string, unknown> = {};
     if (req.query.userId) where.userId = req.query.userId as string;
 
+    const now = new Date();
+    const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
     const [pending, completed, overdue] = await Promise.all([
-      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDate: null }, { dueDate: { gte: new Date() } }] } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDate: null }, { dueDateFormat: 'UTC', dueDate: { gte: now } }, { dueDateFormat: 'LEGACY', dueDate: { gte: nowMinus3h } }] } }),
       prisma.task.count({ where: { ...where, status: 'COMPLETED' } }),
-      prisma.task.count({ where: { ...where, status: 'PENDING', dueDate: { lt: new Date() } } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDateFormat: 'UTC', dueDate: { lt: now } }, { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } }] } }),
     ]);
 
     const all = pending + completed + overdue;
@@ -106,14 +114,11 @@ router.patch('/batch', async (req: Request, res: Response, next: NextFunction) =
       updateData.completedAt = null;
     }
 
-    // Convert dueDate string to Date if present
-    if (typeof updateData.dueDate === 'string') {
-      const dateStr = updateData.dueDate as string;
-      if (dateStr.length === 10) {
-        updateData.dueDate = new Date(dateStr + 'T12:00:00Z');
-      } else {
-        updateData.dueDate = new Date(dateStr);
-      }
+    // Convert dueDate string to Date if present, marking as UTC format
+    if (updateData.dueDate !== undefined) {
+      const duePayload = buildDueDatePersist(updateData.dueDate as string | Date | null | undefined);
+      updateData.dueDate = duePayload.dueDate;
+      updateData.dueDateFormat = duePayload.dueDateFormat;
     }
 
     const result = await prisma.task.updateMany({
@@ -160,7 +165,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
     if (!task) return next(createError('Task not found', 404));
 
-    res.json({ data: task });
+    res.json({ data: serializeTaskDueDate(task) });
   } catch (err) {
     next(err);
   }
@@ -173,19 +178,15 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { title, type, dueDate, userId, dealId, contactId, description, meetingSource } = req.body;
-      let parsedDueDate = dueDate;
-      if (typeof dueDate === 'string' && dueDate.length > 0) {
-        // If date-only (no time component), set to noon UTC to avoid timezone shift
-        if (dueDate.length === 10) { // "YYYY-MM-DD"
-          parsedDueDate = new Date(dueDate + 'T12:00:00Z');
-        } else {
-          parsedDueDate = new Date(dueDate);
-        }
-      }
+      const duePayload = buildDueDatePersist(dueDate);
       // When creating a MEETING task manually, default to HUMANO unless caller specifies otherwise
       const resolvedMeetingSource = meetingSource ?? (type === 'MEETING' ? 'HUMANO' : undefined);
       const task = await prisma.task.create({
-        data: { title, type, dueDate: parsedDueDate, userId, dealId, contactId, description, meetingSource: resolvedMeetingSource },
+        data: {
+          title, type, userId, dealId, contactId, description,
+          meetingSource: resolvedMeetingSource,
+          ...duePayload,
+        },
         include: {
           user: { select: { id: true, name: true } },
           deal: { select: { id: true, title: true } },
@@ -196,8 +197,8 @@ router.post(
       // Log activity on the associated deal
       if (task.dealId) {
         const actingUserId = (req as any).user?.id ?? userId;
-        const dueDateStr = parsedDueDate
-          ? new Date(parsedDueDate).toLocaleDateString('pt-BR')
+        const dueDateStr = duePayload.dueDate
+          ? duePayload.dueDate.toLocaleDateString('pt-BR')
           : null;
         await logActivity({
           type: 'TASK_CREATED',
@@ -207,11 +208,11 @@ router.post(
           userId: actingUserId,
           dealId: task.dealId,
           contactId: task.contactId ?? undefined,
-          metadata: { taskId: task.id, taskTitle: title, dueDate: parsedDueDate ?? null },
+          metadata: { taskId: task.id, taskTitle: title, dueDate: duePayload.dueDate ?? null },
         });
       }
 
-      res.status(201).json({ data: task });
+      res.status(201).json({ data: serializeTaskDueDate(task) });
     } catch (err) {
       next(err);
     }
@@ -229,15 +230,9 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (title !== undefined) data.title = title;
     if (type !== undefined) data.type = type;
     if (dueDate !== undefined) {
-      if (typeof dueDate === 'string' && dueDate.length > 0) {
-        if (dueDate.length === 10) {
-          data.dueDate = new Date(dueDate + 'T12:00:00Z');
-        } else {
-          data.dueDate = new Date(dueDate);
-        }
-      } else {
-        data.dueDate = dueDate;
-      }
+      const duePayload = buildDueDatePersist(dueDate);
+      data.dueDate = duePayload.dueDate;
+      data.dueDateFormat = duePayload.dueDateFormat;
     }
     if (userId !== undefined) data.userId = userId;
     if (description !== undefined) data.description = description;
@@ -277,10 +272,11 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       // dueDate changed (reschedule) — only when not also changing status
       else if (
         data.dueDate !== undefined &&
-        existing.dueDate?.toISOString() !== (data.dueDate instanceof Date ? data.dueDate.toISOString() : undefined)
+        normalizeDueDate(existing)?.toISOString() !== (data.dueDate instanceof Date ? data.dueDate.toISOString() : undefined)
       ) {
-        const oldDateStr = existing.dueDate
-          ? existing.dueDate.toLocaleDateString('pt-BR')
+        const normalizedOld = normalizeDueDate(existing);
+        const oldDateStr = normalizedOld
+          ? normalizedOld.toLocaleDateString('pt-BR')
           : 'sem data';
         const newDateStr = task.dueDate
           ? task.dueDate.toLocaleDateString('pt-BR')
@@ -311,7 +307,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       }
     }
 
-    res.json({ data: task });
+    res.json({ data: serializeTaskDueDate(task) });
   } catch (err) {
     next(err);
   }

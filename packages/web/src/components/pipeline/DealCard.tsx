@@ -5,6 +5,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { Star, User, Plus, MessageCircle, Calendar, PhoneOff, UserX } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/formatters";
+import { formatTaskTime, normalizeDueDate, getBRTParts } from "@/lib/taskDateTime";
 import clsx from "clsx";
 
 // Shape returned by GET /api/pipelines/:id (deals array)
@@ -24,7 +25,7 @@ export interface Deal {
   hasWabaConversation?: boolean;
   phoneInvalid?: boolean;
   noShow?: boolean;
-  nextTask?: { id: string; title: string; dueDate?: string; type: string } | null;
+  nextTask?: { id: string; title: string; dueDate?: string; dueDateFormat?: string | null; type: string } | null;
 }
 
 interface DealCardProps {
@@ -155,31 +156,33 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
 
             {/* Next task row */}
             {deal.nextTask && (() => {
+              const taskShape = { dueDate: deal.nextTask.dueDate, dueDateFormat: deal.nextTask.dueDateFormat };
               const now = new Date();
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const tomorrow = new Date(today);
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              const rawDueDate = deal.nextTask.dueDate ? new Date(deal.nextTask.dueDate) : null;
-              const dueDateDay = rawDueDate ? new Date(rawDueDate) : null;
-              if (dueDateDay) dueDateDay.setHours(0, 0, 0, 0);
+              const normalizedDate = normalizeDueDate(taskShape);
+              const brtParts = getBRTParts(taskShape);
 
-              const isOverdue = rawDueDate ? rawDueDate.getTime() < now.getTime() : false;
-              const isToday = dueDateDay ? dueDateDay.getTime() === today.getTime() : false;
-              const isTomorrow = dueDateDay ? dueDateDay.getTime() === tomorrow.getTime() : false;
+              const todayBrt = getBRTParts({ dueDate: now.toISOString() });
+              const tomorrowDate = new Date(now.getTime() + 86400000);
+              const tomorrowBrt = getBRTParts({ dueDate: tomorrowDate.toISOString() });
+
+              const isOverdue = normalizedDate ? normalizedDate.getTime() < now.getTime() : false;
+              const isToday = brtParts && todayBrt
+                ? brtParts.year === todayBrt.year && brtParts.month === todayBrt.month && brtParts.day === todayBrt.day
+                : false;
+              const isTomorrow = brtParts && tomorrowBrt
+                ? brtParts.year === tomorrowBrt.year && brtParts.month === tomorrowBrt.month && brtParts.day === tomorrowBrt.day
+                : false;
 
               let badgeBg = "bg-gray-100 text-gray-600";
-              let badgeText = dueDateDay
-                ? `${String(dueDateDay.getDate()).padStart(2, "0")}/${String(dueDateDay.getMonth() + 1).padStart(2, "0")}`
+              let badgeText = brtParts
+                ? `${String(brtParts.day).padStart(2, "0")}/${String(brtParts.month).padStart(2, "0")}`
                 : "";
 
-              // Format time part (HH:mm)
-              const timeStr = rawDueDate
-                ? `${String(rawDueDate.getHours()).padStart(2, "0")}:${String(rawDueDate.getMinutes()).padStart(2, "0")}`
-                : null;
+              // Format time part in BRT (HH:mm)
+              const timeStr = deal.nextTask.dueDate ? formatTaskTime(taskShape) : null;
               const hasTime = timeStr && timeStr !== "00:00" && timeStr !== "12:00";
 
-              if (dueDateDay) {
+              if (brtParts) {
                 if (isOverdue && !isToday) {
                   badgeBg = "bg-red-100 text-red-700";
                   badgeText = "Atrasada";

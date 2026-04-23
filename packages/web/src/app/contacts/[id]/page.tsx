@@ -29,6 +29,7 @@ import {
   formatCurrency,
   formatRelativeTime,
 } from "@/lib/formatters";
+import { formatTaskDate } from "@/lib/taskDateTime";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ interface Task {
   id: string;
   title: string;
   dueDate: string | null;
+  dueDateFormat?: string | null;
   completed: boolean;
 }
 
@@ -584,7 +586,7 @@ export default function ContactDetailPage() {
                             </p>
                             {task.dueDate && (
                               <p className="text-xs text-gray-400 mt-0.5">
-                                Vence em {formatDate(task.dueDate)}
+                                Vence em {formatTaskDate(task)}
                               </p>
                             )}
                           </div>

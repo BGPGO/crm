@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, CheckCircle2, Circle } from "lucide-react";
-import { formatDate } from "@/lib/formatters";
+import { formatTaskDate, formatTaskTime, normalizeDueDate, getBRTParts } from "@/lib/taskDateTime";
 import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import clsx from "clsx";
 
@@ -11,6 +11,7 @@ export interface DealTask {
   id: string;
   title: string;
   dueDate?: string | Date;
+  dueDateFormat?: string | null;
   type: string;
   done: boolean;
   meetingSource?: MeetingSource | null;
@@ -150,23 +151,18 @@ function TaskRow({
   onPostpone?: (taskId: string, newDate: Date) => void | Promise<void>;
 }) {
   const now = new Date();
-  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-  const isOverdue = !task.done && dueDate ? dueDate.getTime() < now.getTime() : false;
+  const normalizedDate = normalizeDueDate(task);
+  const isOverdue = !task.done && normalizedDate ? normalizedDate.getTime() < now.getTime() : false;
   const isToday = (() => {
-    if (!dueDate || task.done) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueDateDay = new Date(dueDate);
-    dueDateDay.setHours(0, 0, 0, 0);
-    return dueDateDay.getTime() === today.getTime();
+    if (!task.dueDate || task.done) return false;
+    const brtParts = getBRTParts(task);
+    const todayBrt = getBRTParts({ dueDate: now.toISOString() });
+    if (!brtParts || !todayBrt) return false;
+    return brtParts.year === todayBrt.year && brtParts.month === todayBrt.month && brtParts.day === todayBrt.day;
   })();
 
-  // Format time part — use UTC hours/minutes because datetime-local inputs save
-  // the user-entered time as-is (treated as UTC by the API), so reading it back
-  // with getHours()/getMinutes() would apply a local timezone offset incorrectly.
-  const timeStr = dueDate
-    ? `${String(dueDate.getUTCHours()).padStart(2, "0")}:${String(dueDate.getUTCMinutes()).padStart(2, "0")}`
-    : null;
+  // Format time part in BRT using the helper (handles LEGACY and UTC formats)
+  const timeStr = task.dueDate ? formatTaskTime(task) : null;
   const hasTime = timeStr && timeStr !== "00:00" && timeStr !== "12:00";
 
   return (
@@ -236,7 +232,7 @@ function TaskRow({
               isOverdue ? "text-red-500 font-semibold" : isToday ? "text-orange-600 font-medium" : "text-gray-400"
             )}>
               <Calendar size={11} />
-              {formatDate(task.dueDate)}
+              {formatTaskDate(task)}
               {hasTime && (
                 <span className={clsx(isOverdue ? "text-red-500" : isToday ? "text-orange-600" : "text-gray-500")}>
                   {timeStr}

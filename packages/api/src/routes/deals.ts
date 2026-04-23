@@ -10,6 +10,7 @@ import { sendSaleNotifications } from '../services/saleNotificationService';
 import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { interruptCadenceOnStageChange } from '../services/cadenceInterruptService';
+import { buildDueDatePersist } from '../utils/taskDateTime';
 
 const router = Router();
 
@@ -161,10 +162,15 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     // Overdue task filter
     if (str('hasOverdueTask') === 'true') {
+      const now = new Date();
+      const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
       where.tasks = {
         some: {
           status: { not: 'COMPLETED' },
-          dueDate: { lt: new Date() },
+          OR: [
+            { dueDateFormat: 'UTC', dueDate: { lt: now } },
+            { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } },
+          ],
         },
       };
     }
@@ -787,7 +793,7 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
         title: `No-show: ${existing.contact?.name || existing.title} não compareceu à reunião`,
         type: 'CALL',
         status: 'PENDING',
-        dueDate: new Date(),
+        ...buildDueDatePersist(new Date()),
         dealId: existing.id,
         userId: closerUserId,
       },
@@ -815,6 +821,39 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
     await prisma.calendlyEvent.updateMany({
       where: { dealId: existing.id, status: 'active' },
       data: { status: 'canceled' },
+    });
+
+    res.json({ data: deal });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/deals/:id/no-show — remover tag de no-show (não reverte stage nem deleta task criada)
+router.delete('/:id/no-show', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, noShow: true, userId: true, contactId: true },
+    });
+    if (!existing) return next(createError('Deal not found', 404));
+    if (!existing.noShow) return next(createError('Deal não está marcado como no-show', 400));
+
+    const actingUserId = (req as any).user?.id ?? existing.userId;
+
+    const deal = await prisma.deal.update({
+      where: { id: req.params.id },
+      data: { noShow: false, noShowAt: null },
+      include: dealInclude,
+    });
+
+    await logActivity({
+      type: 'TAG_REMOVED',
+      content: `Tag de no-show removida`,
+      userId: actingUserId,
+      dealId: existing.id,
+      contactId: existing.contactId ?? undefined,
+      metadata: { tag: 'no-show', noShow: false },
     });
 
     res.json({ data: deal });

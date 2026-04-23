@@ -476,14 +476,18 @@ model DealContact {
 }
 
 model Task {
-  id            String         @id @default(cuid())
-  title         String
-  description   String?
-  type          TaskType       @default(OTHER)
-  dueDate       DateTime?
-  completedAt   DateTime?
-  status        TaskStatus     @default(PENDING)
-  meetingSource MeetingSource?
+  id             String         @id @default(cuid())
+  title          String
+  description    String?
+  type           TaskType       @default(OTHER)
+  dueDate        DateTime?
+  // "UTC" = dueDate é UTC real (convenção timezone-aware correta)
+  // "LEGACY" = dueDate é UTC literal representando BRT (dados pré-fix de 2026-04-23)
+  // Novos registros sempre "UTC". Legacy migra lazy ao editar.
+  dueDateFormat  String         @default("UTC")
+  completedAt    DateTime?
+  status         TaskStatus     @default(PENDING)
+  meetingSource  MeetingSource?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])

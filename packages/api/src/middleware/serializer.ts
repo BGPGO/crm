@@ -3,8 +3,9 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 // ─── DateTime fields (all DateTime? optional columns in the schema) ──────────
 // Empty strings "" from the frontend must become null before hitting Prisma.
+// NOTE: 'dueDate' is intentionally excluded — Task.dueDate uses buildDueDatePersist
+// (which interprets date-only strings as BRT midnight, not UTC midnight).
 const DATETIME_FIELDS = new Set([
-  'dueDate',
   'expectedCloseDate',
   'closedAt',
   'completedAt',
