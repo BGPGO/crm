@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { ZApiClient } from './zapiClient';
+import { safeFirstName } from '../utils/nameSanitizer';
 
 // In-memory map of scheduled timeouts: meetingId -> timeout[]
 const scheduledReminders = new Map<string, NodeJS.Timeout[]>();
@@ -111,7 +112,7 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
         else faltaStr = `${minutesLeft} minutos`;
 
         const message = step.message
-          .replace(/\{\{nome\}\}/gi, meeting.contact?.name || '')
+          .replace(/\{\{nome\}\}/gi, safeFirstName(meeting.contact?.name))
           .replace(/\{\{data\}\}/gi, dateStr)
           .replace(/\{\{hora\}\}/gi, timeStr)
           .replace(/\{\{falta\}\}/gi, faltaStr);

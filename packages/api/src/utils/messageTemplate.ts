@@ -9,6 +9,8 @@
  *   Output: "Olá, João Silva! Tudo bem?"
  */
 
+import { sanitizeGreetingName } from './nameSanitizer';
+
 export interface ContactData {
   name?: string | null;
   phone?: string;
@@ -28,24 +30,63 @@ function resolveSpin(template: string): string {
 
 /**
  * Resolve variáveis de personalização: {nome}, {empresa}, etc.
+ *
+ * Nomes ofensivos/inválidos (xingamento cadastrado, só dígitos, etc.) passam
+ * pelo nameSanitizer — se reprovados, {nome} e {nome_completo} viram vazio.
  */
 function resolveVariables(template: string, contact: ContactData): string {
-  const firstName = contact.name?.split(' ')[0] || '';
+  const sanitized = sanitizeGreetingName(contact.name);
+  const firstName = sanitized.safe;
+  const fullName = sanitized.flagged ? '' : (contact.name || '');
   return template
-    .replace(/\{nome\}/gi, firstName || contact.name || '')
-    .replace(/\{nome_completo\}/gi, contact.name || '')
+    .replace(/\{nome\}/gi, firstName)
+    .replace(/\{nome_completo\}/gi, fullName)
     .replace(/\{empresa\}/gi, contact.company || '')
     .replace(/\{email\}/gi, contact.email || '')
     .replace(/\{telefone\}/gi, contact.phone || '');
 }
 
 /**
- * Processa o template completo: primeiro spin, depois variáveis.
+ * Limpa pontuação órfã que sobra quando uma variável vira vazio.
+ * Ex.: "Oi, ! Tudo bem, ?" → "Oi! Tudo bem?"
+ *      ", olha só..." → "Olha só..."
+ *      "Oi!, tudo bem?" → "Oi! Tudo bem?"
+ */
+function cleanupOrphanPunctuation(text: string): string {
+  let out = text;
+
+  // Aplica múltiplas vezes até estabilizar — substituições podem gerar novas correspondências.
+  for (let i = 0; i < 5; i++) {
+    const before = out;
+    out = out
+      // vírgula imediatamente antes de outra pontuação terminal: "Oi, !" ou "Oi!," → "Oi!"
+      .replace(/,\s*([!?.;:])/g, '$1')
+      .replace(/([!?.;:])\s*,/g, '$1')
+      // espaço antes de pontuação: "Oi !" → "Oi!"
+      .replace(/\s+([!?.;:,])/g, '$1')
+      // espaços duplos → um só
+      .replace(/[ \t]{2,}/g, ' ')
+      // início de linha com pontuação órfã: ", olha" → "Olha" | "! olha" → "Olha"
+      .replace(/^[\s,;:]+/gm, '')
+      // capitaliza primeira letra de cada linha quando possível
+      .replace(/^([a-záéíóúâêôãõç])/gm, (m) => m.toUpperCase())
+      // vírgula/espaço no final de linha → remove
+      .replace(/[\s,]+$/gm, '');
+    if (out === before) break;
+  }
+
+  return out.trim();
+}
+
+/**
+ * Processa o template completo: primeiro spin, depois variáveis, depois limpeza.
  * A ordem importa: spin primeiro garante que variáveis dentro de spins também funcionem.
+ * O cleanup final remove pontuação órfã quando o nome é sanitizado para vazio.
  */
 export function processMessageTemplate(template: string, contact: ContactData): string {
   const afterSpin = resolveSpin(template);
-  return resolveVariables(afterSpin, contact);
+  const afterVars = resolveVariables(afterSpin, contact);
+  return cleanupOrphanPunctuation(afterVars);
 }
 
 /**

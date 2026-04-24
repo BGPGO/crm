@@ -24,6 +24,7 @@ import prisma from '../../lib/prisma';
 import { WaMessageService } from './messageService';
 import { WindowService } from './windowService';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
+import { sanitizeGreetingName } from '../../utils/nameSanitizer';
 
 // ─── UTM Helper ─────────────────────────────────────────────────────────────
 
@@ -409,12 +410,15 @@ export class WaBotService {
       // 7. Build system prompt + deal context
       const dealContext = await WaBotService.buildDealContext(conversation.contactId);
 
-      // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name)
-      const contactName = conversation.contact?.name || pushName;
+      // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name).
+      // Ambos passam pelo sanitizer: se CRM name for ofensivo/inválido, tenta pushName.
+      // Se os dois falharem, a BIA recebe string vazia e usa tratamento neutro.
+      const crmSafe = sanitizeGreetingName(conversation.contact?.name).safe;
+      const safeGreet = crmSafe || sanitizeGreetingName(pushName).safe;
 
       const aiReply = await WaBotService.getAIResponse(
         history,
-        contactName,
+        safeGreet,
         config.meetingLink || null,
         dealContext || undefined,
       );
@@ -494,10 +498,11 @@ export class WaBotService {
       // AI error — flag for human attention
       const botName = config.botName || 'Bia';
       const botCompany = config.botCompany || 'Bertuzzi Patrimonial';
+      const fallbackName = sanitizeGreetingName(pushName).safe;
       const fallbackText = fillTemplate(config.botErrorFallback?.trim() || DEFAULT_ERROR_FALLBACK, {
         botName,
         botCompany,
-        nome: pushName ? `, ${pushName}` : '',
+        nome: fallbackName ? `, ${fallbackName}` : '',
       });
 
       try {
@@ -771,7 +776,12 @@ export class WaBotService {
     const stageName = deal.stage?.name || 'Desconhecida';
     let ctx = `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
     if (deal.contact?.name) {
-      ctx += `\nNome do lead no CRM: ${deal.contact.name}`;
+      const nameCheck = sanitizeGreetingName(deal.contact.name);
+      if (nameCheck.flagged) {
+        ctx += `\nNome do lead no CRM: (indisponível ou inválido). NÃO tente adivinhar nem usar qualquer parte do cadastro. Trate o cliente apenas por "você"; se precisar de um tratamento mais caloroso, use "tudo bem?" sem nome.`;
+      } else {
+        ctx += `\nNome do lead no CRM: ${deal.contact.name}`;
+      }
     }
     ctx += `\nEmpresa: ${deal.organization?.name || deal.title}`;
     ctx += `\nEtapa atual: ${stageName}`;

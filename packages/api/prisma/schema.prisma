@@ -1149,6 +1149,10 @@ model WhatsAppConfig {
   businessHoursEndWeekday  Int @default(18)
   businessHoursEndSaturday Int @default(12)
 
+  // Custom name blacklist — termos adicionais à baseline hardcoded do nameSanitizer.
+  // Vazio = usa só o baseline. Aditivo: nunca remove termos do baseline.
+  nameBlacklist String[] @default([])
+
   followUpSteps WhatsAppFollowUpStep[]
   botProducts   BotProduct[]
   botObjections BotObjection[]

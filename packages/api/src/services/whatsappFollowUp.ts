@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { EvolutionApiClient } from './evolutionApiClient';
 import { DEFAULT_SYSTEM_PROMPT, sendBotMessages, ensureMeetingLink } from './whatsappBot';
 import { MessageSender, FollowUpTone } from '@prisma/client';
+import { safeFirstName } from '../utils/nameSanitizer';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,8 @@ export function getFollowUpInstruction(
   totalSteps: number,
   pushName: string,
 ): string {
-  const nameRef = pushName ? `O nome do cliente é ${pushName}. Use o nome dele.` : '';
+  const safeName = safeFirstName(pushName);
+  const nameRef = safeName ? `O nome do cliente é ${safeName}. Use o nome dele.` : '';
 
   const noReintro = 'IMPORTANTE: Você JÁ se apresentou como Bia em mensagens anteriores. NÃO se apresente novamente, NÃO diga "sou a Bia" ou "aqui é a Bia". Vá direto ao ponto.';
 
@@ -86,7 +88,8 @@ export function getFollowUpInstructionWithCustom(
 ): string {
   const customText = customTones?.[tone as keyof typeof customTones];
   if (customText?.trim()) {
-    const nameRef = pushName ? `O nome do cliente é ${pushName}. Use o nome dele.` : '';
+    const safeName = safeFirstName(pushName);
+    const nameRef = safeName ? `O nome do cliente é ${safeName}. Use o nome dele.` : '';
     const noReintro = 'IMPORTANTE: Você JÁ se apresentou em mensagens anteriores. NÃO se apresente novamente. Vá direto ao ponto.';
     return `${nameRef}\n${noReintro}\nCONTEXTO: Follow-up #${stepNumber} de ${totalSteps}.\n\n${customText.trim()}\n\nNÃO use ---. Mande apenas 1 mensagem curta.`;
   }

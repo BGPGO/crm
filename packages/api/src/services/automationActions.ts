@@ -9,6 +9,7 @@ import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { interruptCadenceOnStageChange } from './cadenceInterruptService';
+import { sanitizeGreetingName, safeFirstName } from '../utils/nameSanitizer';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -217,7 +218,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
 
     // Convert plain text paragraphs to HTML
     const paragraphs = rawContent.split(/\n\n+/).map(p => p.trim()).filter(p => p);
-    const firstName = (contact.name || '').split(' ')[0] || '';
+    const firstName = safeFirstName(contact.name);
     const greeting = firstName ? `<p style="margin:0 0 20px;font-size:16px;color:#1e3a5f;font-weight:600;">Olá, ${firstName}!</p>` : '';
     const bodyHtml = greeting + paragraphs.map(p => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${p.replace(/\n/g, '<br>')}</p>`).join('');
 
@@ -239,9 +240,11 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     });
     subject = template.subject || template.name;
 
-    // Substituir placeholders antes de strip/wrap (compatível com padrão Mailchimp e {{var}})
-    const firstName = (contact.name || '').split(' ')[0] || '';
-    const fullName = contact.name || '';
+    // Substituir placeholders antes de strip/wrap (compatível com padrão Mailchimp e {{var}}).
+    // Nomes ofensivos/inválidos viram string vazia pra não sair "Olá, <palavrão>".
+    const nameGuard = sanitizeGreetingName(contact.name);
+    const firstName = nameGuard.safe;
+    const fullName = nameGuard.flagged ? '' : (contact.name || '');
     const rawHtml = template.htmlContent
       .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
       .replace(/\{\{primeiro_nome\}\}/g, firstName)
@@ -410,7 +413,7 @@ async function sendWhatsApp(
     }
     // Replace placeholders
     messageText = template.content
-      .replace(/\{\{nome\}\}/gi, contact.name || '')
+      .replace(/\{\{nome\}\}/gi, safeFirstName(contact.name))
       .replace(/\{\{email\}\}/gi, contact.email || '')
       .replace(/\{\{telefone\}\}/gi, contact.phone || '')
       .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')
@@ -419,7 +422,7 @@ async function sendWhatsApp(
       .replace(/\{\{empresa\}\}/gi, (contact as any).organization?.name || '');
   } else if (config.customMessage) {
     messageText = config.customMessage
-      .replace(/\{\{nome\}\}/gi, contact.name || '')
+      .replace(/\{\{nome\}\}/gi, safeFirstName(contact.name))
       .replace(/\{\{email\}\}/gi, contact.email || '')
       .replace(/\{\{telefone\}\}/gi, contact.phone || '')
       .replace(/\{\{cidade\}\}/gi, (contact as any).city || '')

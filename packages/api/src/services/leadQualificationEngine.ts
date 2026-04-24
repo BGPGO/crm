@@ -6,6 +6,7 @@ import { normalizePhone } from '../utils/phoneNormalize';
 import { canSend, registerSent } from './dailyLimitService';
 import { isBusinessHours, msUntilNextBusinessHour, BYPASS_SDR_BUSINESS_HOURS } from '../utils/sendingWindow';
 import { evaluateTriggers } from './automationEngine';
+import { sanitizeGreetingName } from '../utils/nameSanitizer';
 
 // Re-export for existing consumers
 export { normalizePhone };
@@ -20,8 +21,12 @@ function buildCampaignContext(params: {
   sourceName?: string | null;
   landingPage?: string | null;
 }): string {
+  const nameCheck = sanitizeGreetingName(params.contactName);
+  const nameLine = nameCheck.flagged
+    ? '- Nome: (não disponível — NÃO invente nem use qualquer apelido do cadastro; trate o lead por "você")'
+    : `- Nome: ${params.contactName}`;
   return `CONTEXTO DO LEAD (use para personalizar a primeira abordagem):
-- Nome: ${params.contactName}
+${nameLine}
 - Campanha: ${params.campaignName || 'Não identificada'}
 - Fonte: ${params.sourceName || 'Não identificada'}
 - Página de entrada: ${params.landingPage || 'Não identificada'}
@@ -185,9 +190,14 @@ export async function activateSdrIa(contactId: string, dealId: string): Promise<
     campaignContext = await prisma.campaignContext.findFirst({ where: { isDefault: true } });
   }
 
+  const nameCheck = sanitizeGreetingName(contact.name);
+  const safeNameLine = nameCheck.flagged
+    ? '- Nome: (não disponível — NÃO invente nem use qualquer apelido do cadastro; trate o lead por "você")'
+    : `- Nome: ${contact.name}`;
+
   if (campaignContext) {
     contextString = `CONTEXTO DO LEAD (use para personalizar a primeira abordagem):
-- Nome: ${contact.name}
+${safeNameLine}
 - Campanha: ${deal.campaign?.name || 'Não identificada'}
 - Fonte: ${deal.source?.name || 'Não identificada'}
 - Página de entrada: ${tracking?.landingPage || 'Não identificada'}
@@ -263,9 +273,11 @@ ${campaignContext.context}
     }
   }
 
-  // Call getAIResponse with context (empty history = first message)
+  // Call getAIResponse with context (empty history = first message).
+  // Passa primeiro nome sanitizado — se lead cadastrou xingamento no nome,
+  // a BIA recebe string vazia e usa tratamento neutro (sem "Oi <palavrão>").
   console.log(`[LeadQualification] Gerando resposta IA para ${contact.name} (etapa: ${deal.stage?.name})...`);
-  const aiReply = await getAIResponse([], contact.name || 'Lead', config.meetingLink, contextString);
+  const aiReply = await getAIResponse([], nameCheck.safe, config.meetingLink, contextString);
   console.log(`[LeadQualification] Resposta IA gerada (${aiReply.length} chars)`);
 
   // 11. Save WhatsAppMessage (sender: BOT)
@@ -563,9 +575,14 @@ export async function simulateLeadEntry(params: {
     campaignContext = await prisma.campaignContext.findFirst({ where: { isDefault: true } });
   }
 
+  const simNameCheck = sanitizeGreetingName(params.contactName);
+  const simNameLine = simNameCheck.flagged
+    ? '- Nome: (não disponível — NÃO invente nem use qualquer apelido do cadastro; trate o lead por "você")'
+    : `- Nome: ${params.contactName}`;
+
   if (campaignContext) {
     contextString = `CONTEXTO DO LEAD (use para personalizar a primeira abordagem):
-- Nome: ${params.contactName}
+${simNameLine}
 - Campanha: ${params.campaignName || 'Não identificada'}
 - Fonte: ${params.sourceName || 'Não identificada'}
 - Página de entrada: Não identificada
@@ -589,7 +606,7 @@ ${campaignContext.context}
   const meetingLink = config?.meetingLink || null;
 
   // Does NOT create real records — only builds context and calls AI
-  const aiReply = await getAIResponse([], params.contactName, meetingLink, contextString);
+  const aiReply = await getAIResponse([], simNameCheck.safe, meetingLink, contextString);
 
   console.log(`[LeadQualification] Simulação concluída para ${params.contactName}`);
 

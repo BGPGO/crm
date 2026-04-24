@@ -26,6 +26,8 @@ import {
   Sparkles,
   AlertTriangle,
   Sliders,
+  Ban,
+  ChevronDown,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -55,6 +57,8 @@ interface WhatsAppConfig {
   aiTemperature: number | null;
   aiMaxTokens: number | null;
   botDebounceSeconds: number | null;
+  // Blacklist de nomes custom (aditivo ao baseline do código)
+  nameBlacklist: string[] | null;
 }
 
 interface BotProduct {
@@ -280,6 +284,9 @@ export default function BiaPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [blacklistText, setBlacklistText] = useState("");
+  const [baselineTerms, setBaselineTerms] = useState<string[]>([]);
+  const [showBaseline, setShowBaseline] = useState(false);
 
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -289,10 +296,11 @@ export default function BiaPage() {
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [configRes, productsRes, objectionsRes] = await Promise.all([
+        const [configRes, productsRes, objectionsRes, baselineRes] = await Promise.all([
           api.get<{ data: WhatsAppConfig }>("/whatsapp/config"),
           api.get<{ data: BotProduct[] }>("/whatsapp/bot-products"),
           api.get<{ data: BotObjection[] }>("/whatsapp/bot-objections"),
+          api.get<{ data: string[] }>("/whatsapp/config/name-blacklist/baseline"),
         ]);
         // Pré-preenche campos novos com defaults quando vierem null/undefined
         // para o usuário já ver o texto atual e editar só o que quiser.
@@ -319,6 +327,8 @@ export default function BiaPage() {
         setConfig(withDefaults);
         setProducts(productsRes.data || []);
         setObjections(objectionsRes.data || []);
+        setBaselineTerms(baselineRes.data || []);
+        setBlacklistText((raw.nameBlacklist ?? []).join("\n"));
       } catch (err) {
         console.error("Erro ao carregar configs da BIA:", err);
         showToast("error", "Erro ao carregar configurações");
@@ -332,6 +342,15 @@ export default function BiaPage() {
   async function handleSave() {
     setSaving(true);
     try {
+      // Parse blacklist: uma linha por termo, ignora vazias, trim e dedup
+      const parsedBlacklist = Array.from(
+        new Set(
+          blacklistText
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0),
+        ),
+      );
       await api.put("/whatsapp/config", {
         botName: config.botName,
         botCompany: config.botCompany,
@@ -352,6 +371,7 @@ export default function BiaPage() {
         aiTemperature: config.aiTemperature,
         aiMaxTokens: config.aiMaxTokens,
         botDebounceSeconds: config.botDebounceSeconds,
+        nameBlacklist: parsedBlacklist,
       });
       showToast("success", "Configurações salvas com sucesso!");
     } catch (err) {
@@ -933,6 +953,65 @@ export default function BiaPage() {
             <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-800">
               <AlertCircle size={13} />
               Modo avançado ativo — o prompt abaixo substitui todos os blocos
+            </div>
+          )}
+        </Card>
+
+        {/* 6.5 — Blacklist de Nomes (proteção anti-xingamento) */}
+        <Card>
+          <SectionHeader
+            icon={Ban}
+            title="Blacklist de Nomes"
+            badge={
+              blacklistText
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0).length
+            }
+          />
+          <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2.5 mb-3">
+            <Info size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+              Termos adicionais que você quer bloquear no nome dos leads. A BIA nunca vai chamar o lead por um termo aqui — trata por &quot;você&quot; se detectar. Já existem <strong>{baselineTerms.length} termos built-in</strong> sempre ativos; esta lista é <strong>aditiva</strong>. <strong>Um termo por linha</strong>. Aceita palavras isoladas (&ldquo;otario&rdquo;) ou expressões (&ldquo;filho da mae&rdquo;). Case e acentos são normalizados automaticamente.
+            </p>
+          </div>
+          <textarea
+            rows={8}
+            value={blacklistText}
+            onChange={(e) => setBlacklistText(e.target.value)}
+            placeholder={"corno\nvagabunda\nfilho da puta\n..."}
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+          />
+          <button
+            type="button"
+            onClick={() => setShowBaseline((v) => !v)}
+            className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+          >
+            <ChevronDown
+              size={12}
+              className={clsx("transition-transform", showBaseline && "rotate-180")}
+            />
+            Ver termos built-in ({baselineTerms.length})
+          </button>
+          {showBaseline && (
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto">
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-2 italic">
+                Somente leitura. Para alterar, edite{" "}
+                <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">
+                  utils/nameSanitizer.ts
+                </code>
+                .
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {baselineTerms.map((term) => (
+                  <span
+                    key={term}
+                    className="inline-block px-2 py-0.5 text-[11px] font-mono bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded text-gray-600 dark:text-gray-300"
+                  >
+                    {term}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </Card>

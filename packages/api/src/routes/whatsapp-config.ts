@@ -65,6 +65,8 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       'coldContactMaxMessages',
       // Horário comercial
       'businessHoursStart', 'businessHoursEndWeekday', 'businessHoursEndSaturday',
+      // Blacklist de nomes custom (string[])
+      'nameBlacklist',
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -72,6 +74,24 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       if (req.body[field] !== undefined) {
         updateData[field] = req.body[field];
       }
+    }
+
+    // Normaliza nameBlacklist: aceita array OU string (textarea separada por newline/vírgula).
+    // Ignora linhas vazias, faz trim e remove duplicatas no próprio endpoint (fail-loud se for tipo inválido).
+    if (updateData.nameBlacklist !== undefined) {
+      const raw = updateData.nameBlacklist;
+      let list: string[];
+      if (Array.isArray(raw)) {
+        list = raw.filter((x: unknown): x is string => typeof x === 'string');
+      } else if (typeof raw === 'string') {
+        list = raw.split(/[\n,]/);
+      } else {
+        return next(createError('nameBlacklist must be array of strings or newline/comma-separated string', 400));
+      }
+      const cleaned = Array.from(
+        new Set(list.map((s) => s.trim()).filter((s) => s.length > 0)),
+      );
+      updateData.nameBlacklist = cleaned;
     }
 
     // Don't overwrite secrets with masked values
@@ -112,6 +132,12 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
       );
     }
 
+    // Recarrega a custom blacklist no cache em memória quando foi alterada
+    if (updateData.nameBlacklist !== undefined) {
+      const { setCustomBlacklist } = await import('../utils/nameSanitizer');
+      setCustomBlacklist(updated.nameBlacklist);
+    }
+
     // Mask sensitive fields in response
     const maskSecret = (val: string | null) =>
       val ? `${val.slice(0, 8)}...${val.slice(-4)}` : null;
@@ -124,6 +150,17 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
     };
 
     res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/whatsapp-config/name-blacklist/baseline — Retorna termos built-in (read-only)
+// para a UI da BIA mostrar "o que já está coberto" no accordion
+router.get('/name-blacklist/baseline', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { getBaselineTerms } = await import('../utils/nameSanitizer');
+    res.json({ data: getBaselineTerms() });
   } catch (err) {
     next(err);
   }

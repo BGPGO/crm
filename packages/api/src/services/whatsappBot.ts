@@ -6,6 +6,7 @@ import { transcribeAudio } from './audioTranscriber';
 import { MessageSender } from '@prisma/client';
 import { scheduleNextFollowUp, cancelFollowUp } from './followUpScheduler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
+import { sanitizeGreetingName } from '../utils/nameSanitizer';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -354,7 +355,9 @@ export async function getAIResponse(
       'Você já está em contato com este lead. NÃO se apresente novamente. NÃO diga "sou a Bia" ou "aqui é a Bia". Continue a conversa de forma natural.'
     );
   }
-  if (pushName) systemMessage += `\n\nO nome do cliente é ${pushName}. Use o primeiro nome dele na conversa.`;
+  // pushName vem sanitizado pelos consumidores; ainda filtra como defesa extra
+  const safePushName = sanitizeGreetingName(pushName).safe;
+  if (safePushName) systemMessage += `\n\nO nome do cliente é ${safePushName}. Use o primeiro nome dele na conversa.`;
   if (meetingLink) systemMessage += `\n\nLINK DE AGENDAMENTO (use exatamente este): ${meetingLink}\nREGRA ABSOLUTA: quando enviar o link, cole EXATAMENTE "${meetingLink}" sozinho em uma mensagem. NUNCA use markdown [texto](url). NUNCA escreva "calendly.com" genérico. SEMPRE o link completo acima.`;
   else systemMessage += `\nNão há link de agendamento configurado — combine dia e horário diretamente com o cliente.`;
   if (extraContext) {
@@ -689,7 +692,12 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
         const stageName = deal.stage?.name || 'Desconhecida';
         dealContext += `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
         if (deal.contact?.name) {
-          dealContext += `\nNome do lead no CRM: ${deal.contact.name}`;
+          const nameCheck = sanitizeGreetingName(deal.contact.name);
+          if (nameCheck.flagged) {
+            dealContext += `\nNome do lead no CRM: (indisponível ou inválido). NÃO tente adivinhar nem usar qualquer parte do cadastro. Trate o cliente apenas por "você".`;
+          } else {
+            dealContext += `\nNome do lead no CRM: ${deal.contact.name}`;
+          }
         }
         dealContext += `\nEmpresa: ${deal.organization?.name || deal.title}`;
         dealContext += `\nEtapa atual: ${stageName}`;
@@ -706,8 +714,10 @@ async function generateAndSendResponse(conversationId: string, phone: string, pu
       }
     }
 
-    // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name)
-    const contactName = conversation.contact?.name || pushName;
+    // Prefer CRM contact name over WhatsApp pushName (pushName can be a nickname/wrong name).
+    // Sanitiza: se CRM tiver xingamento, tenta pushName; se ambos reprovarem, passa vazio.
+    const crmSafe = sanitizeGreetingName(conversation.contact?.name).safe;
+    const contactName = crmSafe || sanitizeGreetingName(pushName).safe;
     const reply = await getAIResponse(history, contactName, config.meetingLink, dealContext || undefined);
 
     // Save bot message

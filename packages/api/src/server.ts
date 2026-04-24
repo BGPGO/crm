@@ -127,6 +127,11 @@ app.listen(PORT, async () => {
     });
     if (cfg) setBusinessHours(cfg.businessHoursStart, cfg.businessHoursEndWeekday, cfg.businessHoursEndSaturday);
   } catch { /* non-fatal */ }
+  // Carrega blacklist de nomes custom do DB (aditivo ao baseline hardcoded)
+  try {
+    const { loadNameBlacklistFromDB } = await import('./services/nameBlacklistLoader');
+    await loadNameBlacklistFromDB();
+  } catch { /* non-fatal — baseline continua ativo */ }
   startAllJobs();
 });
 

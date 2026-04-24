@@ -18,6 +18,7 @@
  */
 
 import prisma from '../lib/prisma';
+import { sanitizeGreetingName } from './nameSanitizer';
 
 interface VariableMapping {
   var: string;    // "{{1}}", "{{2}}", etc.
@@ -158,6 +159,11 @@ export async function resolveTemplateVariables(
         const c = await getContact();
         const field = source.slice('contact.'.length) as keyof NonNullable<typeof c>;
         value = String(c?.[field] ?? '');
+        // Se o campo é o nome, sanitiza: xingamentos/inválidos viram vazio
+        // para não mandar palavrão no parâmetro do template WABA.
+        if (field === 'name') {
+          value = sanitizeGreetingName(value).safe;
+        }
 
       } else if (source.startsWith('organization.')) {
         const org = await getOrganization();
