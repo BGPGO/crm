@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
-import { buildSegmentWhere, buildSegmentWhereFromGroups, SegmentFilter, FilterGroup } from '../services/segmentEngine';
 
 const router = Router();
 
@@ -193,67 +192,19 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 // POST /api/email-campaigns/:id/send
 router.post('/:id/send', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const campaign = await prisma.emailCampaign.findUnique({
-      where: { id: req.params.id },
-      include: { segment: true },
-    });
-
+    const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return next(createError('Email campaign not found', 404));
 
     if (campaign.status !== 'DRAFT' && campaign.status !== 'SCHEDULED') {
       return next(createError('Campaign must be DRAFT or SCHEDULED to send', 400));
     }
 
-    let contacts;
-
-    // Priority: inline filterGroups > saved segment > all contacts with email
-    const inlineFilterGroups = campaign.filters as unknown as FilterGroup[] | null;
-    if (inlineFilterGroups && Array.isArray(inlineFilterGroups) && inlineFilterGroups.length > 0) {
-      const where = buildSegmentWhereFromGroups(inlineFilterGroups);
-      contacts = await prisma.contact.findMany({
-        where: { ...where, email: { not: null } },
-        select: { id: true, email: true },
-      });
-    } else if (campaign.segmentId && campaign.segment) {
-      const filters = campaign.segment.filters as unknown as SegmentFilter[] | FilterGroup[];
-      const where = buildSegmentWhere(filters);
-      contacts = await prisma.contact.findMany({
-        where: { ...where, email: { not: null } },
-        select: { id: true, email: true },
-      });
-    } else {
-      contacts = await prisma.contact.findMany({
-        where: { email: { not: null } },
-        select: { id: true, email: true },
-      });
+    const sendTeamCopy = req.body.sendTeamCopy !== false;
+    const { dispatchEmailCampaign } = await import('../services/emailDispatcher');
+    const updated = await dispatchEmailCampaign(req.params.id, { sendTeamCopy });
+    if (!updated) {
+      return next(createError('Campaign is no longer eligible to send', 409));
     }
-
-    await prisma.emailSend.createMany({
-      data: contacts.map((contact) => ({
-        emailCampaignId: campaign.id,
-        contactId: contact.id,
-        status: 'QUEUED' as const,
-      })),
-    });
-
-    const updated = await prisma.emailCampaign.update({
-      where: { id: campaign.id },
-      data: {
-        status: 'SENDING',
-        totalRecipients: contacts.length,
-        sentAt: new Date(),
-      },
-    });
-
-    const sendTeamCopy = req.body.sendTeamCopy !== false; // default true
-    const { sendCampaignEmails } = await import('../services/emailSender');
-    sendCampaignEmails(campaign.id, { sendTeamCopy }).catch(async (error) => {
-      console.error(`Failed to send campaign ${campaign.id}:`, error);
-      await prisma.emailCampaign.update({
-        where: { id: campaign.id },
-        data: { status: 'FAILED' },
-      });
-    });
 
     res.json({ data: updated });
   } catch (err) {

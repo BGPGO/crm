@@ -9,6 +9,7 @@ import { initFollowUpScheduler } from '../services/followUpScheduler';
 import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
 import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 import { startDailyReportCron } from './dailyReportCron';
+import { startScheduledEmailCron } from './scheduledEmailCron';
 
 export function startAllJobs() {
   // Recovery: campanhas que ficaram RUNNING após restart
@@ -30,6 +31,9 @@ export function startAllJobs() {
 
   // Relatório diário do funil por email (7h BRT)
   startDailyReportCron();
+
+  // Email campaigns agendadas (status=SCHEDULED com scheduledAt passado)
+  startScheduledEmailCron();
 
   console.log('[jobs] All cron jobs started');
 }
