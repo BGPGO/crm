@@ -3,6 +3,14 @@ import prisma from '../lib/prisma';
 import { createUnsubToken } from '../routes/email-tracking';
 import { wrapInBrandTemplate } from './emailTemplate';
 import { rewriteCalendlyLinksInHtml, EMAIL_CAMPAIGN_UTMS } from '../utils/calendlyLinks';
+import { sanitizeGreetingName } from '../utils/nameSanitizer';
+
+function personalizeContent(s: string, firstName: string, fullName: string): string {
+  return s
+    .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
+    .replace(/\{\{primeiro_nome\}\}/gi, firstName)
+    .replace(/\{\{nome\}\}/gi, fullName);
+}
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -229,9 +237,17 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
           const unsubToken = createUnsubToken(send.id);
           const unsubUrl = `${TRACKING_BASE_URL.replace('/api', '')}/api/unsubscribe/${unsubToken}`;
 
+          // Personalização por contato (Mailchimp *|PRIMEIRO_NOME|* + {{nome}}/{{primeiro_nome}}).
+          // Nome ofensivo/inválido vira string vazia pra não sair "Olá, <palavrão>".
+          const nameGuard = sanitizeGreetingName(send.contact.name);
+          const firstName = nameGuard.safe;
+          const fullName = nameGuard.flagged ? '' : (send.contact.name || '');
+
           // Wrap in brand template with unsubscribe link, then inject tracking pixel
           const brandedHtml = wrapInBrandTemplate(linkedHtml, unsubUrl);
-          const finalHtml = injectTrackingPixel(brandedHtml, send.id);
+          const personalizedHtml = personalizeContent(brandedHtml, firstName, fullName);
+          const finalHtml = injectTrackingPixel(personalizedHtml, send.id);
+          const personalizedSubject = personalizeContent(campaign.subject, firstName, fullName);
 
           // Generate plain text from HTML (strip tags)
           const plainText = finalHtml
@@ -254,7 +270,7 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
             from: fromAddress,
             to: send.contact.email,
             replyTo: 'vitor@bertuzzipatrimonial.com.br',
-            subject: campaign.subject,
+            subject: personalizedSubject,
             html: finalHtml,
             text: plainText,
             headers: {
