@@ -188,13 +188,15 @@ export class DigitalChannelsSection implements ReportSection {
     const cliques  = metrics.clicked;
     const bounce   = metrics.bounced;
 
-    // Reuniões agendadas via Calendly criadas após sentAt + até 24h
+    // Reuniões agendadas vindas do email — filtra por Deal.meetingSource = CALENDLY_EMAIL
+    // (UTM tag injetado nos links Calendly do email é detectado pelo webhook
+    // Calendly e classificado em Deal.meetingSource).
     const sentAt = campaign.sentAt;
     const windowEnd = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000);
-    const reunAgend = await prisma.calendlyEvent.count({
+    const reunAgend = await prisma.deal.count({
       where: {
-        createdAt: { gte: sentAt, lt: windowEnd },
-        status: 'active',
+        meetingSource: 'CALENDLY_EMAIL',
+        updatedAt: { gte: sentAt, lt: windowEnd },
       },
     });
 
