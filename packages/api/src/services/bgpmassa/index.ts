@@ -1,0 +1,1 @@
+export { getBgpMessengerDailyStats } from './client';

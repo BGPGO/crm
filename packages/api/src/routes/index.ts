@@ -61,6 +61,7 @@ import readaiRouter from './readai';
 import duplicateAlertsRouter from './duplicate-alerts';
 import internalRouter from './internal';
 import analyticsExportRouter from './analytics-export';
+import googleAdsRouter from './googleAds';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -137,5 +138,7 @@ router.use('/sent-documents', sentDocumentsRouter);
 router.use('/notification-config', notificationConfigRouter);
 router.use('/reports', reportsRouter);
 router.use('/duplicate-alerts', duplicateAlertsRouter);
+// ── Google Ads — importação manual (fase 1) ─────────────────────────────────
+router.use('/google-ads', googleAdsRouter);
 
 export default router;

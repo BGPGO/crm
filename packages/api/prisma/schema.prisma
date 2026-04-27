@@ -1911,3 +1911,31 @@ model DuplicateAlert {
 
   @@index([status])
 }
+
+// ─── Daily Report — Tráfego Pago (Meta Ads / Google Ads) ────────────────────
+
+enum AdSource {
+  META_ADS
+  GOOGLE_ADS
+}
+
+model AdSpend {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  source          AdSource
+  campaignId      String
+  campaignName    String
+  spend           Decimal  @db.Decimal(12, 2)
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  leads           Int      @default(0)
+  conversions     Int      @default(0)
+  conversionValue Decimal  @default(0) @db.Decimal(12, 2)
+  meta            Json?
+  syncedAt        DateTime @default(now())
+
+  @@unique([date, source, campaignId])
+  @@index([date, source])
+  @@index([campaignName])
+  @@map("ad_spend")
+}
