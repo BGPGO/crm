@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { sendLeadNotifications } from '../services/leadNotificationService';
 import { onLeadCreated } from '../services/leadQualificationEngine';
+import { sendDailyReport } from '../services/dailyReportService';
 
 const router = Router();
 
@@ -47,6 +48,26 @@ router.post('/lead-created', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[internal/lead-created] Error:', err);
     return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
+ * POST /api/internal/send-daily-report
+ * Dispara o relatório diário das 7h manualmente.
+ * Auth via header x-internal-secret (reusa META_ADS_INTERNAL_SECRET do Coolify).
+ */
+router.post('/send-daily-report', async (req: Request, res: Response) => {
+  const secret = req.header('x-internal-secret');
+  const expected = process.env.META_ADS_INTERNAL_SECRET;
+  if (!expected || secret !== expected) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+  try {
+    await sendDailyReport();
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error('[internal/send-daily-report] erro:', err);
+    return res.status(500).json({ error: 'Erro ao gerar relatório' });
   }
 });
 
