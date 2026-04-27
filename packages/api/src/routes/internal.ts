@@ -63,8 +63,19 @@ router.post('/send-daily-report', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Não autorizado' });
   }
   try {
-    await sendDailyReport();
-    return res.status(200).json({ success: true });
+    // Suporta override de destinatários via query (?to=email1,email2) ou body.recipients[]
+    const toRaw = (req.query.to as string | undefined) ?? '';
+    const bodyRecipients = Array.isArray(req.body?.recipients) ? req.body.recipients as string[] : [];
+    const queryRecipients = toRaw.split(',').map(e => e.trim()).filter(Boolean);
+    const recipients = [...queryRecipients, ...bodyRecipients];
+
+    const subjectPrefix = (req.query.prefix as string | undefined) ?? (recipients.length > 0 ? '[TESTE] ' : '');
+
+    await sendDailyReport({
+      recipients: recipients.length > 0 ? recipients : undefined,
+      subjectPrefix,
+    });
+    return res.status(200).json({ success: true, sentTo: recipients.length > 0 ? recipients : 'config padrão' });
   } catch (err) {
     console.error('[internal/send-daily-report] erro:', err);
     return res.status(500).json({ error: 'Erro ao gerar relatório' });
