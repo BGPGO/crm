@@ -82,12 +82,16 @@ async function countLeadsCreatedOn(date: Date): Promise<number> {
 async function countMeetingsScheduledOn(date: Date): Promise<number> {
   const dayStart = startOfDayBRT(date);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  return prisma.activity.count({
+  // Webhook do Calendly cria CalendlyEvent (não Activity STAGE_CHANGE).
+  // CalendlyEvent é a fonte autoritativa pra reuniões agendadas.
+  // Não há @relation deal explícita no schema — filtramos por dealId não-null
+  // pra pegar só reuniões vinculadas a deal do CRM (descarta agendamentos
+  // sem contato cadastrado).
+  return prisma.calendlyEvent.count({
     where: {
-      type: 'STAGE_CHANGE',
       createdAt: { gte: dayStart, lt: dayEnd },
-      deal: { pipelineId: PIPELINE_ID },
-      metadata: { path: ['toStage'], string_contains: 'Reunião agendada' },
+      status: 'active',
+      dealId: { not: null },
     },
   });
 }

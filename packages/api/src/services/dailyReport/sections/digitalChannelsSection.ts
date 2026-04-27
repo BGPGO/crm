@@ -188,17 +188,18 @@ export class DigitalChannelsSection implements ReportSection {
     const cliques  = metrics.clicked;
     const bounce   = metrics.bounced;
 
-    // Reuniões agendadas vindas do email — filtra por Deal.meetingSource = CALENDLY_EMAIL
-    // (UTM tag injetado nos links Calendly do email é detectado pelo webhook
-    // Calendly e classificado em Deal.meetingSource).
-    const sentAt = campaign.sentAt;
-    const windowEnd = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000);
+    // Reuniões agendadas via email no DIA DE REFERÊNCIA (ontem em BRT).
+    // Janela 24h pós-sentAt era cega: campanhas antigas perdiam reuniões recentes
+    // e campanhas recém-enviadas não tinham tempo de gerar reuniões. Trocar pra
+    // dia de referência cobre todas as reuniões classificadas como CALENDLY_EMAIL
+    // pelo webhook (UTM source=email_cadencia, medium=crm) que aconteceram no dia.
     const reunAgend = await prisma.deal.count({
       where: {
         meetingSource: 'CALENDLY_EMAIL',
-        updatedAt: { gte: sentAt, lt: windowEnd },
+        updatedAt: { gte: from, lt: to },
       },
     });
+    const sentAt = campaign.sentAt;
 
     return {
       subject:      campaign.subject,
