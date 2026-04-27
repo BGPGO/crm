@@ -87,17 +87,18 @@ export class DigitalChannelsSection implements ReportSection {
   // ─── Coleta de dados ────────────────────────────────────────────────────────
 
   private async gatherData(): Promise<DigitalChannelsData> {
-    // "Ontem" em BRT
-    const todayBRT  = startOfDayBRT(this.referenceDate);
-    const yesterdayBRT = new Date(todayBRT.getTime() - 24 * 60 * 60 * 1000);
+    // referenceDate JÁ é "ontem em BRT" (composer passa getYesterdayBRT()).
+    // O bug antigo deslocava 1 dia a mais — buscava dados de anteontem.
+    const dayStart = startOfDayBRT(this.referenceDate);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const [bia, calendly, email] = await Promise.all([
-      this.gatherBia(yesterdayBRT, todayBRT),
-      this.gatherCalendly(yesterdayBRT, todayBRT),
-      this.gatherEmail(yesterdayBRT, todayBRT),
+      this.gatherBia(dayStart, dayEnd),
+      this.gatherCalendly(dayStart, dayEnd),
+      this.gatherEmail(dayStart, dayEnd),
     ]);
 
-    return { referenceDate: yesterdayBRT, bia, calendly, email };
+    return { referenceDate: dayStart, bia, calendly, email };
   }
 
   private async gatherBia(from: Date, to: Date): Promise<BiaData> {
@@ -169,10 +170,13 @@ export class DigitalChannelsSection implements ReportSection {
     return { total: events.length, names };
   }
 
-  private async gatherEmail(from: Date, to: Date): Promise<EmailData | null> {
-    // Última campanha com status SENT
+  private async gatherEmail(_from: Date, _dayEnd: Date): Promise<EmailData | null> {
+    // Última campanha SENT com pelo menos 12h de envio (madura).
+    // Evita escolher campanha recém-enviada (poucas horas antes do report)
+    // que ainda não teve tempo de gerar reuniões.
+    const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const campaign = await prisma.emailCampaign.findFirst({
-      where: { status: 'SENT' },
+      where: { status: 'SENT', sentAt: { lt: cutoff } },
       orderBy: { sentAt: 'desc' },
     });
 
@@ -188,18 +192,17 @@ export class DigitalChannelsSection implements ReportSection {
     const cliques  = metrics.clicked;
     const bounce   = metrics.bounced;
 
-    // Reuniões agendadas via email no DIA DE REFERÊNCIA (ontem em BRT).
-    // Janela 24h pós-sentAt era cega: campanhas antigas perdiam reuniões recentes
-    // e campanhas recém-enviadas não tinham tempo de gerar reuniões. Trocar pra
-    // dia de referência cobre todas as reuniões classificadas como CALENDLY_EMAIL
-    // pelo webhook (UTM source=email_cadencia, medium=crm) que aconteceram no dia.
+    // Reuniões agendadas via email — TODA a campanha (desde sentAt até agora).
+    // O webhook do Calendly classifica origem em Deal.meetingSource via UTM
+    // (utm_source=email_cadencia, medium=crm). Sem upper bound — uma reunião
+    // pode chegar dias depois do envio (lead esfria e responde depois).
+    const sentAt = campaign.sentAt;
     const reunAgend = await prisma.deal.count({
       where: {
         meetingSource: 'CALENDLY_EMAIL',
-        updatedAt: { gte: from, lt: to },
+        updatedAt: { gte: sentAt },
       },
     });
-    const sentAt = campaign.sentAt;
 
     return {
       subject:      campaign.subject,
