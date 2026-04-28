@@ -137,17 +137,39 @@ export class PaidTrafficSection implements ReportSection {
         countMeetingsScheduledOn(this.referenceDate),
       ]);
 
+    // Reconciliação: se o totalSpend agregado vier zerado mas as campanhas tiverem
+    // spend, recomputa o total a partir das campanhas. Protege contra snapshots
+    // corrompidos no upstream (ContIA) — bug observado em 2026-04-28.
+    function reconcile(daily: DailyAdsSpend): DailyAdsSpend {
+      const sumSpend = daily.campaigns.reduce((a, c) => a + c.spend, 0);
+      const sumLeads = daily.campaigns.reduce((a, c) => a + c.leads, 0);
+      if (daily.totalSpend === 0 && sumSpend > 0) {
+        console.warn(
+          `[paidTrafficSection] reconciliando ${daily.source}: totalSpend=0 mas campanhas somam ${sumSpend}. Usando soma das campanhas.`,
+        );
+        return {
+          ...daily,
+          totalSpend: sumSpend,
+          totalLeads: daily.totalLeads === 0 ? sumLeads : daily.totalLeads,
+        };
+      }
+      return daily;
+    }
+
+    const reconciledMeta = reconcile(metaDaily);
+    const reconciledGoogle = reconcile(googleDaily);
+
     const allCampaigns: AdsCampaignSpend[] = [
-      ...metaDaily.campaigns,
-      ...googleDaily.campaigns,
+      ...reconciledMeta.campaigns,
+      ...reconciledGoogle.campaigns,
     ];
 
     const meetingsPerCampaign = await getMeetingsPerCampaign(allCampaigns, this.referenceDate);
 
     return {
       referenceDate: this.referenceDate,
-      metaDaily,
-      googleDaily,
+      metaDaily: reconciledMeta,
+      googleDaily: reconciledGoogle,
       mtdMeta,
       mtdGoogle,
       leadsTotalDay,
