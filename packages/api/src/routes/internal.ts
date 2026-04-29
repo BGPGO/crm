@@ -91,6 +91,28 @@ router.post('/send-daily-report', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/internal/preview-daily-report
+ * Renderiza o HTML do relatório direto (sem mandar email) pra inspeção.
+ * Auth: x-internal-secret.
+ */
+router.get('/preview-daily-report', async (req: Request, res: Response) => {
+  const secret = req.header('x-internal-secret');
+  const expected = process.env.META_ADS_INTERNAL_SECRET;
+  if (!expected || secret !== expected) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+  try {
+    const { buildDailyReportHtml } = await import('../services/dailyReport');
+    const html = await buildDailyReportHtml();
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (err) {
+    console.error('[internal/preview-daily-report] erro:', err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
+/**
  * GET /api/internal/validate-daily-report?date=YYYY-MM-DD
  * Devolve JSON com cada métrica calculada por múltiplos caminhos pra cross-check.
  * Auth: x-internal-secret (mesmo do send-daily-report).
