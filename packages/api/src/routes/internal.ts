@@ -369,6 +369,27 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       };
     }
 
+    // ── Broadcasts WhatsApp (todos OU só do dia, pra ver se a query do report bate) ─
+    const broadcastsAll = await prisma.waBroadcast.findMany({
+      orderBy: [{ startedAt: 'desc' }],
+      take: 10,
+      select: {
+        id: true, name: true, status: true, totalContacts: true,
+        sentCount: true, deliveredCount: true, readCount: true,
+        startedAt: true, completedAt: true, createdAt: true,
+      },
+    });
+    const broadcastsYesterday = await prisma.waBroadcast.findMany({
+      where: {
+        OR: [
+          { startedAt: { gte: dayStart, lt: dayEnd } },
+          { completedAt: { gte: dayStart, lt: dayEnd } },
+          { contacts: { some: { sentAt: { gte: dayStart, lt: dayEnd } } } },
+        ],
+      },
+      select: { id: true, name: true, status: true, sentCount: true, startedAt: true },
+    });
+
     // ── UTM dos leads criados ontem ─────────────────────────────────────────
     const yesterdayDeals = await prisma.deal.findMany({
       where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
@@ -402,6 +423,8 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       window: { dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString(), monthStart: monthStart.toISOString() },
       yesterdayLeadsUtms,
       utmSourceCounts,
+      broadcastsAll,
+      broadcastsYesterday,
       funnel: {
         leadsCreatedYesterday,
         stageMovements: {
