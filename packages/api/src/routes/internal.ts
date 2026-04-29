@@ -102,8 +102,15 @@ router.get('/preview-daily-report', async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Não autorizado' });
   }
   try {
+    const dateParam = (req.query.date as string | undefined) || '';
+    let refDate: Date | undefined;
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      const [y, m, d] = dateParam.split('-').map(Number);
+      // 00:00 BRT do dia solicitado em UTC = 03:00 UTC
+      refDate = new Date(Date.UTC(y, m - 1, d, 3, 0, 0));
+    }
     const { buildDailyReportHtml } = await import('../services/dailyReport');
-    const html = await buildDailyReportHtml();
+    const html = await buildDailyReportHtml(refDate);
     res.set('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
   } catch (err) {
