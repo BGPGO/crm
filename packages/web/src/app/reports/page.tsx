@@ -283,7 +283,7 @@ export default function ReportsPage() {
             </div>
           </Card>
 
-          {/* Monthly chart */}
+          {/* Monthly chart + table */}
           <div className="lg:col-span-2">
             <Card padding="md">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Vendas por mês</h3>
@@ -309,7 +309,7 @@ export default function ReportsPage() {
                   );
                 })}
               </div>
-              <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-4 mt-3 mb-4">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-sm bg-blue-500" />
                   <span className="text-[10px] text-gray-400">Mensal</span>
@@ -318,6 +318,39 @@ export default function ReportsPage() {
                   <span className="w-3 h-3 rounded-sm bg-orange-400" />
                   <span className="text-[10px] text-gray-400">Setup</span>
                 </div>
+              </div>
+
+              {/* Tabela detalhada */}
+              <div className="overflow-x-auto border-t border-gray-100 pt-3">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Mês</th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Mensal</th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Setup</th>
+                      <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyTrend.map((m, i) => {
+                      const total = m.totalMonthly + m.totalSetup;
+                      return (
+                        <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                          <td className="py-2 px-3 text-gray-800 capitalize">{m.month}</td>
+                          <td className="py-2 px-3 text-right text-blue-600 font-medium">
+                            {m.totalMonthly > 0 ? formatCurrency(m.totalMonthly) : "—"}
+                          </td>
+                          <td className="py-2 px-3 text-right text-orange-500">
+                            {m.totalSetup > 0 ? formatCurrency(m.totalSetup) : "—"}
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold text-gray-900">
+                            {total > 0 ? formatCurrency(total) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </Card>
           </div>

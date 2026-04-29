@@ -162,7 +162,7 @@ interface DealSummary {
 
 // ─── Filter type ──────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "open" | "bot" | "human" | "zapi";
+type FilterKey = "all" | "open" | "unread" | "bot" | "human" | "zapi";
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
@@ -761,6 +761,7 @@ export default function WabaChatPage() {
     }
     return conversations.filter((conv) => {
       if (activeFilter === "open") return conv.status === "WA_OPEN";
+      if (activeFilter === "unread") return conv.unreadCount > 0;
       if (activeFilter === "bot") {
         const lastMsg = conv.messages[0];
         return lastMsg && lastMsg.senderType === "WA_BOT";
@@ -1020,6 +1021,7 @@ export default function WabaChatPage() {
               [
                 { key: "all" as FilterKey, label: "Todos", count: stats.total, color: null },
                 { key: "open" as FilterKey, label: "Abertos", count: stats.open, color: null },
+                { key: "unread" as FilterKey, label: "Não lidos", count: conversations.reduce((s, c) => s + (c.unreadCount > 0 ? 1 : 0), 0) || null, color: null },
                 { key: "bot" as FilterKey, label: "Bot", count: null, color: null },
                 { key: "human" as FilterKey, label: "Humano", count: stats.needsHuman, color: null },
                 { key: "zapi" as FilterKey, label: "Z-API", count: legacyConversations.length || null, color: "amber" },
