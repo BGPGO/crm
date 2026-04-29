@@ -51,6 +51,10 @@ function buildUrl(apiUrl: string, empresaId: string, dateStr: string): string {
   return `${apiUrl}/api/internal/meta-ads/insights?date=${dateStr}&empresa_id=${empresaId}`;
 }
 
+function buildLiveUrl(apiUrl: string, empresaId: string, dateStr: string): string {
+  return `${apiUrl}/api/internal/meta-ads/live?date=${dateStr}&empresa_id=${empresaId}`;
+}
+
 // ── Helper: fetch com timeout ─────────────────────────────────────────────────
 
 async function fetchInsights(
@@ -91,8 +95,39 @@ export async function getMetaAdsDaily(date: Date): Promise<DailyAdsSpend> {
   }
 
   const dateStr = date.toISOString().slice(0, 10);
-  const url = buildUrl(apiUrl, empresaId, dateStr);
 
+  // 1ª tentativa: endpoint LIVE (fetch direto Meta API). Funciona pra "ontem"
+  // mesmo quando o snapshot do dia ainda não foi consolidado pelo cron das 4h.
+  try {
+    const liveData = await fetchInsights(buildLiveUrl(apiUrl, empresaId, dateStr), secret);
+    if (liveData && (liveData.totalSpend > 0 || liveData.totalLeads > 0 || (liveData.campaigns?.length ?? 0) > 0)) {
+      const campaigns: AdsCampaignSpend[] = liveData.campaigns.map((c) => ({
+        campaignId: c.id,
+        campaignName: c.name,
+        spend: c.spend,
+        leads: c.leads,
+        meetingsScheduled: 0,
+        costPerLead: c.leads > 0 ? c.spend / c.leads : null,
+        costPerMeeting: null,
+      }));
+      return {
+        source: 'META_ADS',
+        date: liveData.date,
+        totalSpend: liveData.totalSpend,
+        totalLeads: liveData.totalLeads,
+        campaigns,
+        connectionStatus: 'OK',
+      };
+    }
+    // Live retornou vazio — pode ser que Meta realmente tem 0 OU live falhou silenciosamente.
+    // Fallback pro snapshot abaixo (que pode ter dados pré-consolidados de cron passado).
+    console.warn('[metaAds] live retornou vazio — caindo pro snapshot');
+  } catch (err) {
+    console.warn('[metaAds] live falhou — caindo pro snapshot:', err instanceof Error ? err.message : err);
+  }
+
+  // 2ª tentativa: snapshot do banco (cache atualizado pelo cron 04h BRT do ContIA)
+  const url = buildUrl(apiUrl, empresaId, dateStr);
   try {
     const data = await fetchInsights(url, secret);
     if (!data) return emptyResponse(date, 'ERROR');
