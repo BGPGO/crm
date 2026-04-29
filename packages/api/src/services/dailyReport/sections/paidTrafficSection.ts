@@ -223,44 +223,21 @@ export class PaidTrafficSection implements ReportSection {
         countMeetingsScheduledOn(this.referenceDate),
       ]);
 
-    // Reconciliação: se o totalSpend agregado vier zerado mas as campanhas tiverem
-    // spend, recomputa o total a partir das campanhas. Protege contra snapshots
-    // corrompidos no upstream (ContIA) — bug observado em 2026-04-28.
-    function reconcile(daily: DailyAdsSpend): DailyAdsSpend {
-      const sumSpend = daily.campaigns.reduce((a, c) => a + c.spend, 0);
-      const sumLeads = daily.campaigns.reduce((a, c) => a + c.leads, 0);
-      if (daily.totalSpend === 0 && sumSpend > 0) {
-        console.warn(
-          `[paidTrafficSection] reconciliando ${daily.source}: totalSpend=0 mas campanhas somam ${sumSpend}. Usando soma das campanhas.`,
-        );
-        return {
-          ...daily,
-          totalSpend: sumSpend,
-          totalLeads: daily.totalLeads === 0 ? sumLeads : daily.totalLeads,
-        };
-      }
-      return daily;
-    }
-
-    const reconciledMeta = reconcile(metaDaily);
-    const reconciledGoogle = reconcile(googleDaily);
-
-    const allCampaigns: AdsCampaignSpend[] = [
-      ...reconciledMeta.campaigns,
-      ...reconciledGoogle.campaigns,
-    ];
-
-    const meetingsPerCampaign = await getMeetingsPerCampaign(allCampaigns, this.referenceDate);
+    // ⚠️ ContIA/finhub retorna o array `campaigns` como dados ACUMULADOS (lifetime),
+    // não diários. Apenas `totalSpend` e `totalLeads` são realmente do dia. Por isso
+    // confiamos só nos totais agregados — o reconcile antigo somava campaigns e
+    // gerava números falsos (ex: 856 leads "ontem" quando o dia foi zero real).
+    // Per-campaign breakdown está desabilitado até ContIA expor dados diários por campanha.
 
     return {
       referenceDate: this.referenceDate,
-      metaDaily: reconciledMeta,
-      googleDaily: reconciledGoogle,
+      metaDaily,
+      googleDaily,
       mtdMeta,
       mtdGoogle,
       leadsTotalDay,
       meetingsScheduledDay,
-      meetingsPerCampaign,
+      meetingsPerCampaign: new Map(),
     };
   }
 
@@ -320,8 +297,7 @@ export class PaidTrafficSection implements ReportSection {
       </div>
     </div>
 
-    <!-- ── Detalhamento por Campanha ── -->
-    ${noAds ? '' : this.buildCampaignTable(d, dateLabel)}
+    <!-- Detalhamento por Campanha removido: array de campanhas do ContIA é acumulado, nao diario -->
 
     <!-- ── Google Ads sem dados ── -->
     ${this.buildGoogleAdsNote(d, dateLabelFull)}
