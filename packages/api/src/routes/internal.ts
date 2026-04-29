@@ -369,9 +369,39 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       };
     }
 
+    // ── UTM dos leads criados ontem ─────────────────────────────────────────
+    const yesterdayDeals = await prisma.deal.findMany({
+      where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
+      select: { id: true, title: true, contactId: true },
+    });
+    const yesterdayContactIds = yesterdayDeals.map((d) => d.contactId).filter((id): id is string => !!id);
+    const yesterdayTrackings = yesterdayContactIds.length > 0
+      ? await prisma.leadTracking.findMany({
+          where: { contactId: { in: yesterdayContactIds } },
+          orderBy: { createdAt: 'asc' },
+          select: { contactId: true, utmSource: true, utmMedium: true, utmCampaign: true, landingPage: true, createdAt: true },
+        })
+      : [];
+    const trackingByContact = new Map<string, typeof yesterdayTrackings[0]>();
+    for (const t of yesterdayTrackings) {
+      if (!trackingByContact.has(t.contactId)) trackingByContact.set(t.contactId, t);
+    }
+    const yesterdayLeadsUtms = yesterdayDeals.map((d) => ({
+      dealId: d.id,
+      title: d.title,
+      tracking: d.contactId ? trackingByContact.get(d.contactId) ?? null : null,
+    }));
+    const utmSourceCounts: Record<string, number> = {};
+    for (const l of yesterdayLeadsUtms) {
+      const src = l.tracking?.utmSource ?? '(sem utm)';
+      utmSourceCounts[src] = (utmSourceCounts[src] ?? 0) + 1;
+    }
+
     res.json({
       referenceDate: dayStart.toISOString(),
       window: { dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString(), monthStart: monthStart.toISOString() },
+      yesterdayLeadsUtms,
+      utmSourceCounts,
       funnel: {
         leadsCreatedYesterday,
         stageMovements: {
