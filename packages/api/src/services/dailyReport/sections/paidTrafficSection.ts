@@ -55,6 +55,13 @@ function formatMonthName(d: Date): string {
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
+interface CrmCampaignRow {
+  utmCampaign: string;
+  utmSource: string | null;
+  leads: number;
+  meetings: number;
+}
+
 interface PaidTrafficData {
   referenceDate: Date;
   metaDaily: DailyAdsSpend;
@@ -64,6 +71,7 @@ interface PaidTrafficData {
   leadsTotalDay: number;
   meetingsScheduledDay: number;
   meetingsPerCampaign: Map<string, number>;
+  crmCampaigns: CrmCampaignRow[]; // detalhamento por campanha vindo do CRM (UTMs reais)
 }
 
 // ─── Queries no CRM ──────────────────────────────────────────────────────────
@@ -111,6 +119,79 @@ async function countMeetingsScheduledOn(date: Date): Promise<number> {
   }
 
   return calendlyCount;
+}
+
+/**
+ * Detalhamento por campanha baseado nos LEADS DO CRM (não no array de campanhas
+ * do ContIA, que é global aggregate). Usa LeadTracking pra atribuir cada lead
+ * à primeira campanha que o trouxe, e cruza com CalendlyEvents do mesmo dia
+ * pra contar reuniões por campanha.
+ *
+ * Vantagem: funciona mesmo quando Meta Ads ainda não consolidou o spend do
+ * dia anterior (delay de 24-48h). O usuário sempre vê de onde vieram os leads
+ * do dia, mesmo que a coluna de gasto venha vazia.
+ */
+async function getCrmCampaignBreakdown(date: Date): Promise<CrmCampaignRow[]> {
+  const dayStart = startOfDayBRT(date);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+
+  // Deals criados ontem
+  const yesterdayDeals = await prisma.deal.findMany({
+    where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
+    select: { contactId: true },
+  });
+  const yesterdayContactIds = yesterdayDeals
+    .map((d) => d.contactId)
+    .filter((id): id is string => !!id);
+
+  // Reuniões agendadas ontem (contactIds)
+  const yesterdayCalendly = await prisma.calendlyEvent.findMany({
+    where: { createdAt: { gte: dayStart, lt: dayEnd }, status: 'active', contactId: { not: null } },
+    select: { contactId: true },
+  });
+  const yesterdayMeetingContactIds = new Set(
+    yesterdayCalendly.map((e) => e.contactId).filter((id): id is string => !!id),
+  );
+
+  // Toda contactId que precisamos de UTM
+  const allContactIds = Array.from(
+    new Set([...yesterdayContactIds, ...yesterdayMeetingContactIds]),
+  );
+  if (allContactIds.length === 0) return [];
+
+  const trackings = await prisma.leadTracking.findMany({
+    where: { contactId: { in: allContactIds }, utmCampaign: { not: null } },
+    orderBy: { createdAt: 'asc' },
+    select: { contactId: true, utmSource: true, utmCampaign: true },
+  });
+  const utmByContact = new Map<string, { source: string | null; campaign: string }>();
+  for (const t of trackings) {
+    if (t.utmCampaign && !utmByContact.has(t.contactId)) {
+      utmByContact.set(t.contactId, { source: t.utmSource, campaign: t.utmCampaign });
+    }
+  }
+
+  // Agrega por campanha
+  const rowsByCampaign = new Map<string, CrmCampaignRow>();
+  const ensureRow = (campaign: string, source: string | null) => {
+    if (!rowsByCampaign.has(campaign)) {
+      rowsByCampaign.set(campaign, { utmCampaign: campaign, utmSource: source, leads: 0, meetings: 0 });
+    }
+    return rowsByCampaign.get(campaign)!;
+  };
+
+  for (const dealContactId of yesterdayContactIds) {
+    const utm = utmByContact.get(dealContactId);
+    if (!utm) continue;
+    ensureRow(utm.campaign, utm.source).leads += 1;
+  }
+  for (const meetingContactId of yesterdayMeetingContactIds) {
+    const utm = utmByContact.get(meetingContactId);
+    if (!utm) continue;
+    ensureRow(utm.campaign, utm.source).meetings += 1;
+  }
+
+  return Array.from(rowsByCampaign.values()).sort((a, b) => b.leads - a.leads);
 }
 
 /**
@@ -224,10 +305,11 @@ export class PaidTrafficSection implements ReportSection {
       ]);
 
     // ⚠️ ContIA/finhub retorna o array `campaigns` como dados ACUMULADOS (lifetime),
-    // não diários. Apenas `totalSpend` e `totalLeads` são realmente do dia. Por isso
-    // confiamos só nos totais agregados — o reconcile antigo somava campaigns e
-    // gerava números falsos (ex: 856 leads "ontem" quando o dia foi zero real).
-    // Per-campaign breakdown está desabilitado até ContIA expor dados diários por campanha.
+    // não diários. Confiamos só em totalSpend/totalLeads pra valores diários.
+    // Pro detalhamento por campanha, usamos a LeadTracking do próprio CRM (funciona
+    // mesmo quando Meta atrasa em consolidar o spend do dia anterior).
+
+    const crmCampaigns = await getCrmCampaignBreakdown(this.referenceDate);
 
     return {
       referenceDate: this.referenceDate,
@@ -238,6 +320,7 @@ export class PaidTrafficSection implements ReportSection {
       leadsTotalDay,
       meetingsScheduledDay,
       meetingsPerCampaign: new Map(),
+      crmCampaigns,
     };
   }
 
@@ -245,15 +328,26 @@ export class PaidTrafficSection implements ReportSection {
 
   private buildHtml(d: PaidTrafficData): string {
     const totalSpend = d.metaDaily.totalSpend + d.googleDaily.totalSpend;
-    const leadsPaid = d.metaDaily.totalLeads + d.googleDaily.totalLeads;
     const mtdTotalSpend = d.mtdMeta.spend + d.mtdGoogle.spend;
     const mtdTotalLeads = d.mtdMeta.leads + d.mtdGoogle.leads;
 
-    const noAds = totalSpend === 0 && leadsPaid === 0;
+    // Leads pagos: usa contagem do CRM (LeadTracking com utm_source de fonte paga).
+    // Meta às vezes atrasa em consolidar leads do dia anterior (delay 24-48h),
+    // mas o CRM registra a hora que o lead chega via webhook GreatPages com UTMs.
+    const PAID_SOURCE_RX = /facebook|instagram|meta|google|adwords|youtube/i;
+    const leadsPaid = d.crmCampaigns.reduce(
+      (sum, r) => sum + ((r.utmSource ?? '').match(PAID_SOURCE_RX) ? r.leads : 0),
+      0,
+    );
 
-    const costPerLeadPaid = leadsPaid > 0 ? totalSpend / leadsPaid : null;
+    // "Sem investimento" só se TUDO está zerado: spend daily, leads do CRM e
+    // sem dados de campanha. Antes ocultava a seção mesmo quando havia leads
+    // tracked do CRM (Meta com delay).
+    const noAds = totalSpend === 0 && leadsPaid === 0 && d.crmCampaigns.length === 0;
+
+    const costPerLeadPaid = leadsPaid > 0 && totalSpend > 0 ? totalSpend / leadsPaid : null;
     const mtdCPL = mtdTotalLeads > 0 ? mtdTotalSpend / mtdTotalLeads : null;
-    const costPerMeeting = d.meetingsScheduledDay > 0 ? totalSpend / d.meetingsScheduledDay : null;
+    const costPerMeeting = d.meetingsScheduledDay > 0 && totalSpend > 0 ? totalSpend / d.meetingsScheduledDay : null;
 
     const dateLabel = formatDate(d.referenceDate);
     const dateLabelFull = formatDateFull(d.referenceDate);
@@ -297,7 +391,8 @@ export class PaidTrafficSection implements ReportSection {
       </div>
     </div>
 
-    <!-- Detalhamento por Campanha removido: array de campanhas do ContIA é acumulado, nao diario -->
+    <!-- ── Detalhamento por Campanha (vindo do CRM via LeadTracking) ── -->
+    ${this.buildCrmCampaignTable(d, dateLabel)}
 
     <!-- ── Google Ads sem dados ── -->
     ${this.buildGoogleAdsNote(d, dateLabelFull)}
@@ -403,7 +498,91 @@ export class PaidTrafficSection implements ReportSection {
     </div>`;
   }
 
-  // ─── Tabela de campanhas ──────────────────────────────────────────────────────
+  // ─── Tabela de campanhas vindo do CRM (LeadTracking) ─────────────────────────
+
+  private buildCrmCampaignTable(d: PaidTrafficData, dateLabel: string): string {
+    const rows = d.crmCampaigns;
+    const totalLeads = rows.reduce((s, r) => s + r.leads, 0);
+    const totalMeetings = rows.reduce((s, r) => s + r.meetings, 0);
+    const totalSpend = d.metaDaily.totalSpend + d.googleDaily.totalSpend;
+
+    if (rows.length === 0) {
+      return `
+    <div style="margin-top:24px;">
+      <p style="font-size:13px;font-weight:bold;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px;">
+        Detalhamento por Campanha — ${dateLabel}
+      </p>
+      <p style="font-size:13px;color:#9ca3af;text-align:center;padding:16px;border:1px solid #e5e7eb;border-radius:8px;">
+        Nenhum lead vindo de campanha rastreada (UTM) ontem.
+      </p>
+    </div>`;
+    }
+
+    // Banner se Meta zerou mas CRM tem leads pagos — sinal de delay no Meta
+    const metaIsBlankWithPaidLeads =
+      d.metaDaily.totalSpend === 0 &&
+      rows.some((r) => (r.utmSource ?? '').toLowerCase().match(/facebook|instagram|meta/));
+    const delayBanner = metaIsBlankWithPaidLeads
+      ? `<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#92400e;">
+           ⚠ Meta Ads ainda não consolidou o gasto de ${dateLabel} (delay de 24-48h é normal). Os leads abaixo são reais — o spend aparece com mais precisão amanhã ou depois.
+         </div>`
+      : '';
+
+    const campaignRows = rows
+      .map((r) => {
+        const sourceTag = (r.utmSource ?? '').toLowerCase();
+        const tag = sourceTag.match(/facebook|instagram|meta/)
+          ? '[M]'
+          : sourceTag.match(/google|adwords/)
+          ? '[G]'
+          : sourceTag
+          ? `[${r.utmSource?.slice(0, 3).toUpperCase()}]`
+          : '';
+        return `
+        <tr>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <span style="font-size:10px;color:#9ca3af;margin-right:4px;">${tag}</span>${this.escapeHtml(r.utmCampaign)}
+          </td>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${r.leads}</td>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${r.meetings}</td>
+        </tr>`;
+      })
+      .join('');
+
+    return `
+    <div style="margin-top:24px;">
+      <p style="font-size:13px;font-weight:bold;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px;">
+        Detalhamento por Campanha — ${dateLabel}
+      </p>
+      ${delayBanner}
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <thead>
+          <tr style="background:#f9fafb;">
+            <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Campanha (UTM)</th>
+            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Leads</th>
+            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Reuniões</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${campaignRows}
+          <tr style="font-weight:bold;background:#f9fafb;border-top:2px solid #e5e7eb;">
+            <td style="padding:10px 12px;font-size:13px;color:#374151;">TOTAL</td>
+            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalLeads}</td>
+            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalMeetings}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:11px;color:#9ca3af;margin:8px 0 0;">
+        Fonte: leads e reuniões do CRM (LeadTracking + CalendlyEvent). Gasto do dia: ${formatBRL(totalSpend)} (Meta + Google).
+      </p>
+    </div>`;
+  }
+
+  private escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ─── Tabela de campanhas (LEGADO — usava array global do ContIA) ─────────────
 
   private buildCampaignTable(d: PaidTrafficData, dateLabel: string): string {
     const allCampaigns: AdsCampaignSpend[] = [
