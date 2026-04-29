@@ -114,18 +114,87 @@ async function countMeetingsScheduledOn(date: Date): Promise<number> {
 }
 
 /**
- * Tenta cruzar reuniões por campanha via Deal.utmCampaign.
- * Deal não tem utmCampaign diretamente — a tabela LeadTracking tem, mas não há
- * join direto via Activity. Retorna map vazio (fallback gracioso).
+ * Cruza reuniões por campanha via CalendlyEvent → Contact → LeadTracking → utmCampaign.
+ *
+ * Estratégia: pra cada CalendlyEvent criado ontem com contactId, busca o
+ * LeadTracking MAIS ANTIGO desse contato com utmCampaign não-nulo (= primeira
+ * fonte de aquisição). Conta reuniões agrupadas por utmCampaign, depois casa
+ * com o nome OU id da campanha vinda do Meta/Google.
+ *
+ * Match: tenta exato no campaignName, depois exato no campaignId, depois
+ * substring (utm contém name ou name contém utm) pra tolerar variações de
+ * encoding/case.
  */
 async function getMeetingsPerCampaign(
-  _campaigns: AdsCampaignSpend[],
-  _date: Date,
+  campaigns: AdsCampaignSpend[],
+  date: Date,
 ): Promise<Map<string, number>> {
-  // Deal.utmCampaign não existe no schema (está em LeadTracking).
-  // Fallback: todas as campanhas ficam com meetings = 0.
-  // Quando o schema suportar o cruzamento, implementar aqui.
-  return new Map<string, number>();
+  if (campaigns.length === 0) return new Map();
+
+  const dayStart = startOfDayBRT(date);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+
+  const events = await prisma.calendlyEvent.findMany({
+    where: {
+      createdAt: { gte: dayStart, lt: dayEnd },
+      status: 'active',
+      contactId: { not: null },
+    },
+    select: { contactId: true },
+  });
+
+  const contactIds = events
+    .map((e) => e.contactId)
+    .filter((id): id is string => !!id);
+  if (contactIds.length === 0) return new Map();
+
+  const trackings = await prisma.leadTracking.findMany({
+    where: { contactId: { in: contactIds }, utmCampaign: { not: null } },
+    orderBy: { createdAt: 'asc' },
+    select: { contactId: true, utmCampaign: true },
+  });
+
+  // Primeira utmCampaign por contato = fonte de aquisição
+  const utmByContact = new Map<string, string>();
+  for (const t of trackings) {
+    if (t.utmCampaign && !utmByContact.has(t.contactId)) {
+      utmByContact.set(t.contactId, t.utmCampaign);
+    }
+  }
+
+  // Agrega por utmCampaign
+  const meetingsByUtm = new Map<string, number>();
+  for (const event of events) {
+    if (!event.contactId) continue;
+    const utm = utmByContact.get(event.contactId);
+    if (!utm) continue;
+    meetingsByUtm.set(utm, (meetingsByUtm.get(utm) ?? 0) + 1);
+  }
+
+  // Casa utmCampaign com Meta/Google campaigns (exact, depois fuzzy)
+  const result = new Map<string, number>();
+  for (const [utm, count] of meetingsByUtm) {
+    const utmLower = utm.toLowerCase();
+    const matched = campaigns.find((c) => {
+      const nameLower = c.campaignName.toLowerCase();
+      return (
+        c.campaignName === utm ||
+        c.campaignId === utm ||
+        nameLower === utmLower ||
+        nameLower.includes(utmLower) ||
+        utmLower.includes(nameLower)
+      );
+    });
+    if (matched) {
+      result.set(matched.campaignId, (result.get(matched.campaignId) ?? 0) + count);
+    } else {
+      console.log(
+        `[paidTrafficSection] utmCampaign "${utm}" (${count} reuniões) sem match com nenhuma campanha ativa do dia.`,
+      );
+    }
+  }
+
+  return result;
 }
 
 // ─── PaidTrafficSection ──────────────────────────────────────────────────────
