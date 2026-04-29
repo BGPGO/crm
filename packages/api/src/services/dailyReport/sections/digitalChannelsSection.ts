@@ -62,11 +62,26 @@ interface EmailData {
   sentAt: Date;
 }
 
+interface BroadcastRow {
+  id: string;
+  name: string;
+  totalContacts: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  clicked: number;
+  failed: number;
+  replies: number;
+  startedAt: Date | null;
+  completedAt: Date | null;
+}
+
 interface DigitalChannelsData {
   referenceDate: Date;
   bia: BiaData;
   calendly: CalendlyData;
   email: EmailData | null;
+  broadcasts: BroadcastRow[];
 }
 
 // ─── Classe principal ─────────────────────────────────────────────────────────
@@ -92,13 +107,87 @@ export class DigitalChannelsSection implements ReportSection {
     const dayStart = startOfDayBRT(this.referenceDate);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-    const [bia, calendly, email] = await Promise.all([
+    const [bia, calendly, email, broadcasts] = await Promise.all([
       this.gatherBia(dayStart, dayEnd),
       this.gatherCalendly(dayStart, dayEnd),
       this.gatherEmail(dayStart, dayEnd),
+      this.gatherBroadcasts(dayStart, dayEnd),
     ]);
 
-    return { referenceDate: dayStart, bia, calendly, email };
+    return { referenceDate: dayStart, bia, calendly, email, broadcasts };
+  }
+
+  private async gatherBroadcasts(from: Date, to: Date): Promise<BroadcastRow[]> {
+    // Broadcasts cujo envio (startedAt) caiu no dia OU cujos contatos foram
+    // marcados como sent no dia. Capturamos os que tiveram atividade ontem.
+    const broadcasts = await prisma.waBroadcast.findMany({
+      where: {
+        OR: [
+          { startedAt: { gte: from, lt: to } },
+          { completedAt: { gte: from, lt: to } },
+          { contacts: { some: { sentAt: { gte: from, lt: to } } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        totalContacts: true,
+        sentCount: true,
+        deliveredCount: true,
+        readCount: true,
+        clickedCount: true,
+        failedCount: true,
+        startedAt: true,
+        completedAt: true,
+        contacts: {
+          where: { sentAt: { gte: from, lt: to } },
+          select: { phone: true, sentAt: true },
+        },
+      },
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    if (broadcasts.length === 0) return [];
+
+    // Replies: contagem de WaMessage INBOUND por telefone após sentAt do contato
+    // do broadcast e dentro de 48h. Faz uma query agregada por broadcast.
+    const rows: BroadcastRow[] = [];
+    for (const b of broadcasts) {
+      let replies = 0;
+      if (b.contacts.length > 0) {
+        // Janela de 48h após o broadcast pra capturar reply tardio
+        const phones = b.contacts.map((c) => c.phone);
+        const earliestSent = b.contacts.reduce<Date | null>((acc, c) => {
+          if (!c.sentAt) return acc;
+          return acc === null || c.sentAt < acc ? c.sentAt : acc;
+        }, null);
+        if (earliestSent) {
+          const replyWindow = new Date(earliestSent.getTime() + 48 * 60 * 60 * 1000);
+          replies = await prisma.waMessage.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: earliestSent, lt: replyWindow },
+              conversation: { phone: { in: phones } },
+            },
+          });
+        }
+      }
+
+      rows.push({
+        id: b.id,
+        name: b.name,
+        totalContacts: b.totalContacts,
+        sent: b.sentCount,
+        delivered: b.deliveredCount,
+        read: b.readCount,
+        clicked: b.clickedCount,
+        failed: b.failedCount,
+        replies,
+        startedAt: b.startedAt,
+        completedAt: b.completedAt,
+      });
+    }
+    return rows;
   }
 
   private async gatherBia(from: Date, to: Date): Promise<BiaData> {
@@ -225,7 +314,7 @@ export class DigitalChannelsSection implements ReportSection {
   // ─── Build HTML ─────────────────────────────────────────────────────────────
 
   private buildHtml(data: DigitalChannelsData): string {
-    const { bia, calendly, email } = data;
+    const { bia, calendly, email, broadcasts } = data;
     const refLabel = formatDateBRT(data.referenceDate);
 
     const allBiaZero =
@@ -259,6 +348,9 @@ export class DigitalChannelsSection implements ReportSection {
       : this.buildBiaCards(bia)
     }
 
+    <!-- Broadcasts WhatsApp -->
+    ${broadcasts.length > 0 ? this.buildBroadcastsTable(broadcasts) : ''}
+
     <!-- Calendly -->
     ${calendly.total > 0 ? this.buildCalendlyBox(calendly) : ''}
 
@@ -271,6 +363,71 @@ export class DigitalChannelsSection implements ReportSection {
     </p>
   </div>
 </div>`;
+  }
+
+  private buildBroadcastsTable(rows: BroadcastRow[]): string {
+    const totals = rows.reduce(
+      (acc, r) => ({
+        sent: acc.sent + r.sent,
+        delivered: acc.delivered + r.delivered,
+        read: acc.read + r.read,
+        clicked: acc.clicked + r.clicked,
+        failed: acc.failed + r.failed,
+        replies: acc.replies + r.replies,
+      }),
+      { sent: 0, delivered: 0, read: 0, clicked: 0, failed: 0, replies: 0 },
+    );
+
+    const pct = (num: number, denom: number): string => {
+      if (denom <= 0) return '—';
+      return ((num / denom) * 100).toFixed(0) + '%';
+    };
+
+    const tableRows = rows
+      .map((r) => `
+        <tr>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${this.escapeHtml(r.name)}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${r.sent}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${r.delivered} <span style="color:#9ca3af;">(${pct(r.delivered, r.sent)})</span></td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${r.read} <span style="color:#9ca3af;">(${pct(r.read, r.sent)})</span></td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${r.clicked}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#16a34a;text-align:center;font-weight:600;">${r.replies}</td>
+          <td style="padding:8px 10px;font-size:12px;color:${r.failed > 0 ? '#dc2626' : '#374151'};text-align:center;">${r.failed}</td>
+        </tr>`)
+      .join('');
+
+    return `
+    <p style="margin:20px 0 12px;font-size:13px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;">
+      Broadcasts WhatsApp (WABA)
+    </p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:8px;">
+      <thead>
+        <tr style="background:#f9fafb;">
+          <th style="padding:9px 10px;text-align:left;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Campanha</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Enviados</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Entregues</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Lidos</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Cliques</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Respostas</th>
+          <th style="padding:9px 10px;text-align:center;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Falhas</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRows}
+        <tr style="background:#f9fafb;border-top:2px solid #e5e7eb;font-weight:700;">
+          <td style="padding:8px 10px;font-size:12px;color:#374151;">TOTAL</td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${totals.sent}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${totals.delivered} <span style="color:#9ca3af;font-weight:400;">(${pct(totals.delivered, totals.sent)})</span></td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${totals.read} <span style="color:#9ca3af;font-weight:400;">(${pct(totals.read, totals.sent)})</span></td>
+          <td style="padding:8px 10px;font-size:12px;color:#374151;text-align:center;">${totals.clicked}</td>
+          <td style="padding:8px 10px;font-size:12px;color:#16a34a;text-align:center;">${totals.replies}</td>
+          <td style="padding:8px 10px;font-size:12px;color:${totals.failed > 0 ? '#dc2626' : '#374151'};text-align:center;">${totals.failed}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:0 0 16px;font-size:11px;color:#9ca3af;">
+      Respostas: mensagens INBOUND nos 48h após o envio (cobertura best-effort por telefone).
+    </p>`;
   }
 
   private buildBiaCards(bia: BiaData): string {
