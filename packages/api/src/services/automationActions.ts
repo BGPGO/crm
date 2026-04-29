@@ -225,7 +225,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     // Build unsubscribe URL for branded template (email-based, no token needed for automations)
     const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';
     const emailB64 = Buffer.from(contact.email, 'utf-8').toString('base64url');
-    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe/email/${emailB64}`;
+    const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
     // Wrap in the same branded template used by campaigns
     htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
@@ -257,7 +257,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     // Unsubscribe URL para este lead
     const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';
     const emailB64 = Buffer.from(contact.email, 'utf-8').toString('base64url');
-    const unsubUrlForTemplate = `${apiBaseForUnsub.replace('/api', '')}/api/unsubscribe/email/${emailB64}`;
+    const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
     const bodyHtml = stripOuterWrapper(rawHtml);
     htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
@@ -268,7 +268,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
   // Build unsubscribe URL for List-Unsubscribe header
   const apiBase = process.env.API_URL || 'http://localhost:3001/api';
   const emailB64Header = Buffer.from(contact.email, 'utf-8').toString('base64url');
-  const unsubUrl = `${apiBase.replace('/api', '')}/api/unsubscribe/email/${emailB64Header}`;
+  const unsubUrl = `${apiBase}/unsubscribe/email/${emailB64Header}`;
 
   // Tagueia links do Calendly com UTMs para o webhook classificar como CALENDLY_EMAIL
   const taggedHtml = rewriteCalendlyLinksInHtml(htmlContent, EMAIL_CAMPAIGN_UTMS);

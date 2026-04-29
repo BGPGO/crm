@@ -235,7 +235,7 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
 
           // Generate unsubscribe URL for this send
           const unsubToken = createUnsubToken(send.id);
-          const unsubUrl = `${TRACKING_BASE_URL.replace('/api', '')}/api/unsubscribe/${unsubToken}`;
+          const unsubUrl = `${TRACKING_BASE_URL}/unsubscribe/${unsubToken}`;
 
           // Personalização por contato (Mailchimp *|PRIMEIRO_NOME|* + {{nome}}/{{primeiro_nome}}).
           // Nome ofensivo/inválido vira string vazia pra não sair "Olá, <palavrão>".

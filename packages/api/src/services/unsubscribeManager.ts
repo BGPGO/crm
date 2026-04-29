@@ -46,8 +46,9 @@ export async function unsubscribe(params: UnsubscribeParams): Promise<void> {
 }
 
 export async function isUnsubscribed(email: string): Promise<boolean> {
-  const entry = await prisma.unsubscribeList.findUnique({
-    where: { email },
+  const entry = await prisma.unsubscribeList.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+    select: { email: true },
   });
 
   return entry !== null;
