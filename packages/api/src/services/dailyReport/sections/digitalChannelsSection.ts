@@ -129,12 +129,16 @@ export class DigitalChannelsSection implements ReportSection {
         connectionStatus: 'ERROR' as ConnectionStatus,
       })),
 
-      // REUNIÕES AGENDADAS via BIA: WaConversation com meetingBooked=true
-      // atualizado ontem (updatedAt dentro do dia)
-      prisma.waConversation.count({
+      // REUNIÕES AGENDADAS via BIA: Activity MEETING criada ontem cuja Deal
+      // tem meetingSource=SDR_IA. updatedAt do WaConversation era ruim porque
+      // qualquer mudança (recebimento de msg, mudança de status) tocava o campo.
+      // Activity só é criada no webhook do Calendly quando a reunião é
+      // efetivamente agendada e vinculada a um deal.
+      prisma.activity.count({
         where: {
-          meetingBooked: true,
-          updatedAt: { gte: from, lt: to },
+          type: 'MEETING',
+          createdAt: { gte: from, lt: to },
+          deal: { meetingSource: 'SDR_IA' },
         },
       }),
     ]);
@@ -193,14 +197,16 @@ export class DigitalChannelsSection implements ReportSection {
     const bounce   = metrics.bounced;
 
     // Reuniões agendadas via email — TODA a campanha (desde sentAt até agora).
-    // O webhook do Calendly classifica origem em Deal.meetingSource via UTM
-    // (utm_source=email_cadencia, medium=crm). Sem upper bound — uma reunião
-    // pode chegar dias depois do envio (lead esfria e responde depois).
+    // O webhook do Calendly cria Activity MEETING + seta Deal.meetingSource via UTM
+    // (utm_source=email_cadencia, medium=crm). Conta via Activity.createdAt (signal
+    // confiável de "reunião realmente agendada"), em vez de Deal.updatedAt (que é
+    // tocado por qualquer mudança no deal e gerava overcount).
     const sentAt = campaign.sentAt;
-    const reunAgend = await prisma.deal.count({
+    const reunAgend = await prisma.activity.count({
       where: {
-        meetingSource: 'CALENDLY_EMAIL',
-        updatedAt: { gte: sentAt },
+        type: 'MEETING',
+        createdAt: { gte: sentAt },
+        deal: { meetingSource: 'CALENDLY_EMAIL' },
       },
     });
 

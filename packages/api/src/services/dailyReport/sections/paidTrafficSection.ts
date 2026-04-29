@@ -82,18 +82,35 @@ async function countLeadsCreatedOn(date: Date): Promise<number> {
 async function countMeetingsScheduledOn(date: Date): Promise<number> {
   const dayStart = startOfDayBRT(date);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  // Webhook do Calendly cria CalendlyEvent (não Activity STAGE_CHANGE).
-  // CalendlyEvent é a fonte autoritativa pra reuniões agendadas.
-  // Não há @relation deal explícita no schema — filtramos por dealId não-null
-  // pra pegar só reuniões vinculadas a deal do CRM (descarta agendamentos
-  // sem contato cadastrado).
-  return prisma.calendlyEvent.count({
+  // CalendlyEvent é a fonte autoritativa: o webhook upserta o registro antes
+  // de qualquer outra etapa (find contact, find/create deal). Se algo falhar
+  // adiante, o evento ainda existe com dealId=null. Por isso NÃO filtramos
+  // por dealId — queremos contar TODAS as reuniões reportadas pelo Calendly
+  // ontem, mesmo que o link com o CRM tenha falhado parcialmente.
+  const calendlyCount = await prisma.calendlyEvent.count({
     where: {
       createdAt: { gte: dayStart, lt: dayEnd },
       status: 'active',
-      dealId: { not: null },
     },
   });
+
+  // Sanity check: conta também via Activity (criadas só quando deal é vinculado).
+  // Se Calendly diverge muito da Activity, log warning — sintoma de webhook quebrando
+  // entre o upsert do CalendlyEvent e a criação do Activity/dealId.
+  const activityCount = await prisma.activity.count({
+    where: {
+      type: 'MEETING',
+      createdAt: { gte: dayStart, lt: dayEnd },
+    },
+  });
+
+  if (calendlyCount > activityCount) {
+    console.warn(
+      `[paidTrafficSection] Discrepância Calendly vs Activity: ${calendlyCount} eventos Calendly mas só ${activityCount} Activities. Webhook pode estar quebrando entre upsert e link com Deal.`,
+    );
+  }
+
+  return calendlyCount;
 }
 
 /**
