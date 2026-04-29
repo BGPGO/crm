@@ -187,7 +187,10 @@ export default function ReportsPage() {
   const funnelMax = funnelSteps[0].count || 1;
 
   // Monthly chart max
-  const maxMonthly = Math.max(...monthlyTrend.map(m => m.totalMonthly + m.totalSetup), 1);
+  const maxMonthly = Math.max(
+    ...monthlyTrend.flatMap(m => [m.totalMonthly, m.totalSetup]),
+    1,
+  );
 
   // Category values
   const controladoriaValue = salesByCategory?.['Controladoria']?.monthlyTotal || 0;
@@ -287,21 +290,31 @@ export default function ReportsPage() {
           <div className="lg:col-span-2">
             <Card padding="md">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Vendas por mês</h3>
-              <div className="flex items-end gap-3 h-52">
+              <div className="flex items-end gap-3 h-56">
                 {monthlyTrend.map((m, i) => {
-                  const total = m.totalMonthly + m.totalSetup;
-                  const heightPct = maxMonthly > 0 ? (total / maxMonthly) * 100 : 0;
-                  const monthlyPctBar = total > 0 ? (m.totalMonthly / total) * 100 : 100;
+                  const monthlyPct = maxMonthly > 0 ? (m.totalMonthly / maxMonthly) * 100 : 0;
+                  const setupPct = maxMonthly > 0 ? (m.totalSetup / maxMonthly) * 100 : 0;
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[10px] text-gray-500 font-medium">
-                        {total > 0 ? formatCurrency(total) : "—"}
-                      </span>
-                      <div className="w-full flex flex-col justify-end" style={{ height: '180px' }}>
-                        <div className="w-full rounded-t-md overflow-hidden transition-all duration-700"
-                          style={{ height: `${Math.max(heightPct, 3)}%` }}>
-                          <div className="bg-blue-500 w-full" style={{ height: `${monthlyPctBar}%` }} />
-                          <div className="bg-orange-400 w-full" style={{ height: `${100 - monthlyPctBar}%` }} />
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                      {/* Par de barras lado a lado */}
+                      <div className="w-full flex items-end justify-center gap-1" style={{ height: '180px' }}>
+                        <div className="flex-1 flex flex-col justify-end items-center" title={`Mensal: ${formatCurrency(m.totalMonthly)}`}>
+                          <span className="text-[9px] text-blue-600 font-medium mb-0.5 whitespace-nowrap">
+                            {m.totalMonthly > 0 ? formatCurrency(m.totalMonthly) : ""}
+                          </span>
+                          <div
+                            className="w-full bg-blue-500 rounded-t-md transition-all duration-700"
+                            style={{ height: `${Math.max(monthlyPct, m.totalMonthly > 0 ? 2 : 0)}%`, maxWidth: '24px' }}
+                          />
+                        </div>
+                        <div className="flex-1 flex flex-col justify-end items-center" title={`Setup: ${formatCurrency(m.totalSetup)}`}>
+                          <span className="text-[9px] text-orange-500 font-medium mb-0.5 whitespace-nowrap">
+                            {m.totalSetup > 0 ? formatCurrency(m.totalSetup) : ""}
+                          </span>
+                          <div
+                            className="w-full bg-orange-400 rounded-t-md transition-all duration-700"
+                            style={{ height: `${Math.max(setupPct, m.totalSetup > 0 ? 2 : 0)}%`, maxWidth: '24px' }}
+                          />
                         </div>
                       </div>
                       <span className="text-[10px] text-gray-500 capitalize">{m.month}</span>
