@@ -78,10 +78,12 @@ router.post('/send-daily-report', async (req: Request, res: Response) => {
     const recipients = [...queryRecipients, ...bodyRecipients];
 
     const subjectPrefix = (req.query.prefix as string | undefined) ?? (recipients.length > 0 ? '[TESTE] ' : '');
+    const referenceDate = req.query.date as string | undefined;
 
     await sendDailyReport({
       recipients: recipients.length > 0 ? recipients : undefined,
       subjectPrefix,
+      referenceDate,
     });
     return res.status(200).json({ success: true, sentTo: recipients.length > 0 ? recipients : 'config padrão' });
   } catch (err) {

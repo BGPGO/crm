@@ -10,28 +10,35 @@ export interface SendDailyReportOptions {
   recipients?: string[];
   /** Subject prefix opcional (ex: "[TESTE] "). */
   subjectPrefix?: string;
+  /** Override de data de referência (formato YYYY-MM-DD em BRT) pra disparos de teste. */
+  referenceDate?: string;
+}
+
+function startOfDayBRT(year: number, monthIndex: number, day: number): { dayStart: Date; dayEnd: Date } {
+  const dayStart = new Date(Date.UTC(year, monthIndex, day) - BRT_OFFSET_MS);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  return { dayStart, dayEnd };
 }
 
 function startOfYesterdayBRT(now = new Date()): { dayStart: Date; dayEnd: Date } {
   const brtNow = new Date(now.getTime() + BRT_OFFSET_MS);
-  const yesterdayUtc = new Date(
-    Date.UTC(brtNow.getUTCFullYear(), brtNow.getUTCMonth(), brtNow.getUTCDate() - 1),
+  return startOfDayBRT(
+    brtNow.getUTCFullYear(),
+    brtNow.getUTCMonth(),
+    brtNow.getUTCDate() - 1,
   );
-  const dayStart = new Date(yesterdayUtc.getTime() - BRT_OFFSET_MS);
-  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  return { dayStart, dayEnd };
 }
 
 /**
  * Resumo enxuto pra montar o subject — 3 queries paralelas, ~5ms.
  */
-async function buildSubjectSummary(): Promise<{
+async function buildSubjectSummary(window: { dayStart: Date; dayEnd: Date }): Promise<{
   leads: number;
   meetings: number;
   wonCount: number;
   wonValue: number;
 }> {
-  const { dayStart, dayEnd } = startOfYesterdayBRT();
+  const { dayStart, dayEnd } = window;
   const [leads, meetings, wonDeals] = await Promise.all([
     prisma.deal.count({
       where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
@@ -76,15 +83,25 @@ export async function sendDailyReport(options: SendDailyReportOptions = {}): Pro
       return;
     }
 
-    console.log('[daily-report] Building report...');
+    // Resolve referenceDate (override de teste) ou usa "ontem em BRT"
+    let refDate: Date | undefined;
+    let window: { dayStart: Date; dayEnd: Date };
+    if (options.referenceDate && /^\d{4}-\d{2}-\d{2}$/.test(options.referenceDate)) {
+      const [y, m, d] = options.referenceDate.split('-').map(Number);
+      window = startOfDayBRT(y, m - 1, d);
+      refDate = window.dayStart;
+    } else {
+      window = startOfYesterdayBRT();
+    }
+
+    console.log('[daily-report] Building report for', window.dayStart.toISOString());
     const [html, summary] = await Promise.all([
-      buildDailyReportHtml(),
-      buildSubjectSummary(),
+      buildDailyReportHtml(refDate),
+      buildSubjectSummary(window),
     ]);
 
     // Subject dinâmico — destaca o que realmente importa pro time
-    const yesterday = new Date(Date.now() - 86400000);
-    const subjectDate = yesterday.toLocaleDateString('pt-BR', {
+    const subjectDate = window.dayStart.toLocaleDateString('pt-BR', {
       day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
     });
 
