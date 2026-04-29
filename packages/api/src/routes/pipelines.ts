@@ -469,6 +469,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
           contact: { select: { id: true, name: true, phoneInvalid: true } },
           organization: { select: { id: true, name: true } },
           user: { select: { id: true, name: true } },
+          products: { select: { setupPrice: true } },
           tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
         },
       }),
@@ -488,7 +489,14 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     }
 
     res.json({
-      data: sortedData.map((deal) => ({ ...deal, nextTask: deal.tasks?.[0] ?? null })),
+      data: sortedData.map((deal) => {
+        const setupTotal = (deal.products ?? []).reduce(
+          (sum: number, p: { setupPrice: unknown }) => sum + (p.setupPrice ? Number(p.setupPrice) : 0),
+          0
+        );
+        const { products: _products, ...rest } = deal;
+        return { ...rest, setupTotal, nextTask: deal.tasks?.[0] ?? null };
+      }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -526,6 +534,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
       organization: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
       dealContacts: { include: { contact: { select: { id: true, name: true } } } },
+      products: { select: { setupPrice: true } },
       tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
     };
 
@@ -588,14 +597,23 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
     const stages: Record<string, { deals: unknown[]; total: number }> = {};
     for (const result of stageResults) {
       stages[result.stageId] = {
-        deals: result.deals.map((deal) => ({
-          ...deal,
-          hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
-          hasWabaConversation: deal.contactId ? contactsWithWabaConversation.has(deal.contactId) : false,
-          phoneInvalid: (deal as any).contact?.phoneInvalid ?? false,
-          noShow: deal.noShow ?? false,
-          nextTask: (deal as any).tasks?.[0] ?? null,
-        })),
+        deals: result.deals.map((deal) => {
+          const products = (deal as any).products ?? [];
+          const setupTotal = products.reduce(
+            (sum: number, p: { setupPrice: unknown }) => sum + (p.setupPrice ? Number(p.setupPrice) : 0),
+            0
+          );
+          const { products: _products, ...rest } = deal as any;
+          return {
+            ...rest,
+            setupTotal,
+            hasWhatsAppConversation: deal.contactId ? contactsWithConversation.has(deal.contactId) : false,
+            hasWabaConversation: deal.contactId ? contactsWithWabaConversation.has(deal.contactId) : false,
+            phoneInvalid: (deal as any).contact?.phoneInvalid ?? false,
+            noShow: deal.noShow ?? false,
+            nextTask: (deal as any).tasks?.[0] ?? null,
+          };
+        }),
         total: result.total,
       };
     }

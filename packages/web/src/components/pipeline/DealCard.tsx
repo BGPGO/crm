@@ -15,6 +15,7 @@ export interface Deal {
   id: string;
   title: string;
   value: number;
+  setupTotal?: number;
   status: "OPEN" | "WON" | "LOST";
   contact?: { id: string; name: string } | null;
   organization?: { id: string; name: string } | null;
@@ -233,8 +234,18 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
                 <User size={11} className="text-gray-400" />
                 {contactCount}
               </span>
-              <span className="font-semibold text-gray-700 ml-auto">
-                {formatCurrency(deal.value ?? 0)}
+              <span className="ml-auto flex items-baseline gap-1">
+                <span className="font-semibold text-gray-700">
+                  {formatCurrency(deal.value ?? 0)}
+                </span>
+                {(deal.setupTotal ?? 0) > 0 && (
+                  <span
+                    className="text-[10px] text-gray-400"
+                    title="Setup (valor único)"
+                  >
+                    + {formatCurrency(deal.setupTotal ?? 0)}
+                  </span>
+                )}
               </span>
             </div>
           </div>
