@@ -60,6 +60,7 @@ interface CrmCampaignRow {
   utmSource: string | null;
   leads: number;
   meetings: number;
+  spend: number; // gasto do dia matched com Meta/Google ads pelo nome da campanha
 }
 
 interface PaidTrafficData {
@@ -72,6 +73,7 @@ interface PaidTrafficData {
   meetingsScheduledDay: number;
   meetingsPerCampaign: Map<string, number>;
   crmCampaigns: CrmCampaignRow[]; // detalhamento por campanha vindo do CRM (UTMs reais)
+  paidLeadsMTD: number; // contagem real de leads pagos no mês via CRM (LeadTracking)
 }
 
 // ─── Queries no CRM ──────────────────────────────────────────────────────────
@@ -85,6 +87,47 @@ async function countLeadsCreatedOn(date: Date): Promise<number> {
       createdAt: { gte: dayStart, lt: dayEnd },
     },
   });
+}
+
+/**
+ * Conta leads pagos do mês até a data de referência via CRM (LeadTracking).
+ *
+ * Por que não usar `monthToDate.leads` do Meta? O Meta conta como "lead"
+ * toda ação de form/click/iniciar mensagem — número infla 2-3x sobre o
+ * que efetivamente vira registro no CRM. Aqui contamos deals reais cuja
+ * primeira UTM source casa com /facebook|instagram|meta|google|adwords|youtube/i.
+ */
+const PAID_SOURCE_RX = /facebook|instagram|meta|google|adwords|youtube/i;
+async function countPaidLeadsMTD(referenceDate: Date): Promise<number> {
+  const monthStart = startOfMonthBRT(referenceDate);
+  const dayEnd = new Date(startOfDayBRT(referenceDate).getTime() + 86_400_000);
+
+  const monthDeals = await prisma.deal.findMany({
+    where: { pipelineId: PIPELINE_ID, createdAt: { gte: monthStart, lt: dayEnd } },
+    select: { contactId: true },
+  });
+  const contactIds = monthDeals
+    .map((d) => d.contactId)
+    .filter((id): id is string => !!id);
+  if (contactIds.length === 0) return 0;
+
+  const trackings = await prisma.leadTracking.findMany({
+    where: { contactId: { in: contactIds } },
+    orderBy: { createdAt: 'asc' },
+    select: { contactId: true, utmSource: true },
+  });
+  const firstUtmByContact = new Map<string, string | null>();
+  for (const t of trackings) {
+    if (!firstUtmByContact.has(t.contactId)) firstUtmByContact.set(t.contactId, t.utmSource);
+  }
+
+  let paid = 0;
+  for (const d of monthDeals) {
+    if (!d.contactId) continue;
+    const src = firstUtmByContact.get(d.contactId);
+    if (src && PAID_SOURCE_RX.test(src)) paid++;
+  }
+  return paid;
 }
 
 async function countMeetingsScheduledOn(date: Date): Promise<number> {
@@ -175,7 +218,7 @@ async function getCrmCampaignBreakdown(date: Date): Promise<CrmCampaignRow[]> {
   const rowsByCampaign = new Map<string, CrmCampaignRow>();
   const ensureRow = (campaign: string, source: string | null) => {
     if (!rowsByCampaign.has(campaign)) {
-      rowsByCampaign.set(campaign, { utmCampaign: campaign, utmSource: source, leads: 0, meetings: 0 });
+      rowsByCampaign.set(campaign, { utmCampaign: campaign, utmSource: source, leads: 0, meetings: 0, spend: 0 });
     }
     return rowsByCampaign.get(campaign)!;
   };
@@ -294,7 +337,7 @@ export class PaidTrafficSection implements ReportSection {
   }
 
   private async gatherData(): Promise<PaidTrafficData> {
-    const [metaDaily, googleDaily, mtdMeta, mtdGoogle, leadsTotalDay, meetingsScheduledDay] =
+    const [metaDaily, googleDaily, mtdMeta, mtdGoogle, leadsTotalDay, meetingsScheduledDay, paidLeadsMTD] =
       await Promise.all([
         getMetaAdsDaily(this.referenceDate),
         getGoogleAdsDaily(this.referenceDate),
@@ -302,6 +345,7 @@ export class PaidTrafficSection implements ReportSection {
         getGoogleAdsMTD(this.referenceDate),
         countLeadsCreatedOn(this.referenceDate),
         countMeetingsScheduledOn(this.referenceDate),
+        countPaidLeadsMTD(this.referenceDate),
       ]);
 
     // ⚠️ ContIA/finhub retorna o array `campaigns` como dados ACUMULADOS (lifetime),
@@ -310,6 +354,27 @@ export class PaidTrafficSection implements ReportSection {
     // mesmo quando Meta atrasa em consolidar o spend do dia anterior).
 
     const crmCampaigns = await getCrmCampaignBreakdown(this.referenceDate);
+
+    // Enriquece cada linha do CRM com spend matched do Meta/Google ads
+    // (match exato → fuzzy por substring/case-insensitive).
+    const allAdsCampaigns: AdsCampaignSpend[] = [
+      ...metaDaily.campaigns,
+      ...googleDaily.campaigns,
+    ];
+    for (const row of crmCampaigns) {
+      const utmLower = row.utmCampaign.toLowerCase();
+      const matched = allAdsCampaigns.find((c) => {
+        const nameLower = c.campaignName.toLowerCase();
+        return (
+          c.campaignName === row.utmCampaign ||
+          c.campaignId === row.utmCampaign ||
+          nameLower === utmLower ||
+          nameLower.includes(utmLower) ||
+          utmLower.includes(nameLower)
+        );
+      });
+      row.spend = matched?.spend ?? 0;
+    }
 
     return {
       referenceDate: this.referenceDate,
@@ -321,6 +386,7 @@ export class PaidTrafficSection implements ReportSection {
       meetingsScheduledDay,
       meetingsPerCampaign: new Map(),
       crmCampaigns,
+      paidLeadsMTD,
     };
   }
 
@@ -329,12 +395,14 @@ export class PaidTrafficSection implements ReportSection {
   private buildHtml(d: PaidTrafficData): string {
     const totalSpend = d.metaDaily.totalSpend + d.googleDaily.totalSpend;
     const mtdTotalSpend = d.mtdMeta.spend + d.mtdGoogle.spend;
-    const mtdTotalLeads = d.mtdMeta.leads + d.mtdGoogle.leads;
+    // Leads do mês: usa contagem do CRM, NÃO o monthToDate.leads do Meta API.
+    // Meta conta como "lead" toda ação (clique/iniciar mensagem) e infla 2-3x
+    // sobre o que efetivamente vira registro no CRM.
+    const mtdTotalLeads = d.paidLeadsMTD;
 
     // Leads pagos: usa contagem do CRM (LeadTracking com utm_source de fonte paga).
     // Meta às vezes atrasa em consolidar leads do dia anterior (delay 24-48h),
     // mas o CRM registra a hora que o lead chega via webhook GreatPages com UTMs.
-    const PAID_SOURCE_RX = /facebook|instagram|meta|google|adwords|youtube/i;
     const leadsPaid = d.crmCampaigns.reduce(
       (sum, r) => sum + ((r.utmSource ?? '').match(PAID_SOURCE_RX) ? r.leads : 0),
       0,
@@ -528,6 +596,9 @@ export class PaidTrafficSection implements ReportSection {
          </div>`
       : '';
 
+    const matchedSpendTotal = rows.reduce((s, r) => s + r.spend, 0);
+    const unattributedSpend = Math.max(0, totalSpend - matchedSpendTotal);
+
     const campaignRows = rows
       .map((r) => {
         const sourceTag = (r.utmSource ?? '').toLowerCase();
@@ -538,16 +609,24 @@ export class PaidTrafficSection implements ReportSection {
           : sourceTag
           ? `[${r.utmSource?.slice(0, 3).toUpperCase()}]`
           : '';
+        const cpl = r.leads > 0 && r.spend > 0 ? r.spend / r.leads : null;
+        const cpm = r.meetings > 0 && r.spend > 0 ? r.spend / r.meetings : null;
         return `
         <tr>
-          <td style="padding:10px 12px;font-size:13px;color:#374151;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <td style="padding:10px 12px;font-size:13px;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             <span style="font-size:10px;color:#9ca3af;margin-right:4px;">${tag}</span>${this.escapeHtml(r.utmCampaign)}
           </td>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${r.spend > 0 ? formatBRL(r.spend) : '—'}</td>
           <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${r.leads}</td>
           <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${r.meetings}</td>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${cpl !== null ? formatBRL(cpl) : '—'}</td>
+          <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${cpm !== null ? formatBRL(cpm) : '—'}</td>
         </tr>`;
       })
       .join('');
+
+    const totalCPL = totalLeads > 0 && totalSpend > 0 ? totalSpend / totalLeads : null;
+    const totalCPM = totalMeetings > 0 && totalSpend > 0 ? totalSpend / totalMeetings : null;
 
     return `
     <div style="margin-top:24px;">
@@ -559,79 +638,9 @@ export class PaidTrafficSection implements ReportSection {
         <thead>
           <tr style="background:#f9fafb;">
             <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Campanha (UTM)</th>
-            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Leads</th>
-            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Reuniões</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${campaignRows}
-          <tr style="font-weight:bold;background:#f9fafb;border-top:2px solid #e5e7eb;">
-            <td style="padding:10px 12px;font-size:13px;color:#374151;">TOTAL</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalLeads}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalMeetings}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="font-size:11px;color:#9ca3af;margin:8px 0 0;">
-        Fonte: leads e reuniões do CRM (LeadTracking + CalendlyEvent). Gasto do dia: ${formatBRL(totalSpend)} (Meta + Google).
-      </p>
-    </div>`;
-  }
-
-  private escapeHtml(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  // ─── Tabela de campanhas (LEGADO — usava array global do ContIA) ─────────────
-
-  private buildCampaignTable(d: PaidTrafficData, dateLabel: string): string {
-    const allCampaigns: AdsCampaignSpend[] = [
-      ...d.metaDaily.campaigns,
-      ...d.googleDaily.campaigns,
-    ];
-
-    const totalSpend = d.metaDaily.totalSpend + d.googleDaily.totalSpend;
-    const totalLeads = d.metaDaily.totalLeads + d.googleDaily.totalLeads;
-    const totalMeetings = d.meetingsScheduledDay; // total geral, não por campanha
-
-    const campaignRows = allCampaigns.length === 0
-      ? `<tr>
-          <td colspan="6" style="padding:16px 12px;font-size:13px;color:#9ca3af;text-align:center;">
-            Sem campanhas ativas
-          </td>
-        </tr>`
-      : allCampaigns.map(c => {
-          const meetings = d.meetingsPerCampaign.get(c.campaignId) ?? 0;
-          const cpl = c.leads > 0 ? c.spend / c.leads : null;
-          const cpm = meetings > 0 ? c.spend / meetings : null;
-          const source = c.campaignId.startsWith('google') ? '[G]' : '[M]';
-          return `
-          <tr>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              <span style="font-size:10px;color:#9ca3af;margin-right:4px;">${source}</span>${c.campaignName}
-            </td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${formatBRL(c.spend)}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${c.leads}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${meetings}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${cpl !== null ? formatBRL(cpl) : '—'}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${cpm !== null ? formatBRL(cpm) : '—'}</td>
-          </tr>`;
-        }).join('');
-
-    const totalCPL = totalLeads > 0 ? totalSpend / totalLeads : null;
-
-    return `
-    <div style="margin-top:24px;">
-      <p style="font-size:13px;font-weight:bold;color:#374151;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px;">
-        Detalhamento por Campanha — ${dateLabel}
-      </p>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
-        <thead>
-          <tr style="background:#f9fafb;">
-            <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Campanha</th>
             <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Gasto</th>
             <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Leads</th>
-            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Reunião Agendada</th>
+            <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Reuniões</th>
             <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Custo/Lead</th>
             <th style="padding:10px 12px;text-align:right;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;">Custo/Reunião</th>
           </tr>
@@ -644,11 +653,18 @@ export class PaidTrafficSection implements ReportSection {
             <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalLeads}</td>
             <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:center;">${totalMeetings}</td>
             <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${totalCPL !== null ? formatBRL(totalCPL) : '—'}</td>
-            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">—</td>
+            <td style="padding:10px 12px;font-size:13px;color:#374151;text-align:right;">${totalCPM !== null ? formatBRL(totalCPM) : '—'}</td>
           </tr>
         </tbody>
       </table>
+      <p style="font-size:11px;color:#9ca3af;margin:8px 0 0;">
+        Fonte: leads e reuniões do CRM (LeadTracking + CalendlyEvent); gasto por campanha do Meta/Google Ads via match de nome.${unattributedSpend > 0 ? ` Não atribuído a campanha do CRM: ${formatBRL(unattributedSpend)}.` : ''}
+      </p>
     </div>`;
+  }
+
+  private escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   // ─── Nota Google Ads ──────────────────────────────────────────────────────────
