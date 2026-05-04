@@ -16,6 +16,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
+import { Brand } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { requireApiKey } from '../middleware/apiKey';
 
@@ -98,10 +99,10 @@ function toEndOfDay(isoDate: string): Date {
 
 // ── Queries por seção ─────────────────────────────────────────────────────────
 
-async function queryLeads(dateFrom: Date, dateTo: Date): Promise<LeadsSection> {
+async function queryLeads(dateFrom: Date, dateTo: Date, brand: Brand): Promise<LeadsSection> {
   // Leads criados no período = contatos criados no período
   const newContacts = await prisma.contact.findMany({
-    where: { createdAt: { gte: dateFrom, lte: dateTo } },
+    where: { createdAt: { gte: dateFrom, lte: dateTo }, brand },
     include: { leadTrackings: true, leadScore: true },
   });
 
@@ -165,8 +166,9 @@ async function queryLeads(dateFrom: Date, dateTo: Date): Promise<LeadsSection> {
   };
 }
 
-async function queryFunnel(dateFrom: Date, dateTo: Date): Promise<FunnelSection> {
+async function queryFunnel(dateFrom: Date, dateTo: Date, brand: Brand): Promise<FunnelSection> {
   const pipeline = await prisma.pipeline.findFirst({
+    where: { brand },
     include: { stages: { orderBy: { order: 'asc' } } },
   });
 
@@ -182,13 +184,13 @@ async function queryFunnel(dateFrom: Date, dateTo: Date): Promise<FunnelSection>
 
   // Deals criados no período
   const totalEntered = await prisma.deal.count({
-    where: { pipelineId: pipeline.id, createdAt: { gte: dateFrom, lte: dateTo } },
+    where: { pipelineId: pipeline.id, brand, createdAt: { gte: dateFrom, lte: dateTo } },
   });
 
   // Deals por etapa (ativos no período)
   const stageCounts = await prisma.deal.groupBy({
     by: ['stageId'],
-    where: { pipelineId: pipeline.id, createdAt: { gte: dateFrom, lte: dateTo } },
+    where: { pipelineId: pipeline.id, brand, createdAt: { gte: dateFrom, lte: dateTo } },
     _count: { id: true },
   });
 
@@ -203,6 +205,7 @@ async function queryFunnel(dateFrom: Date, dateTo: Date): Promise<FunnelSection>
   const wonDealsData = await prisma.deal.aggregate({
     where: {
       status: 'WON',
+      brand,
       closedAt: { gte: dateFrom, lte: dateTo },
     },
     _count: { id: true },
@@ -222,11 +225,12 @@ async function queryFunnel(dateFrom: Date, dateTo: Date): Promise<FunnelSection>
   };
 }
 
-async function queryEmail(dateFrom: Date, dateTo: Date): Promise<EmailSection> {
+async function queryEmail(dateFrom: Date, dateTo: Date, brand: Brand): Promise<EmailSection> {
   // Campanhas com sends no período
   const campaigns = await prisma.emailCampaign.count({
     where: {
       status: 'SENT',
+      brand,
       sentAt: { gte: dateFrom, lte: dateTo },
     },
   });
@@ -269,7 +273,7 @@ async function queryEmail(dateFrom: Date, dateTo: Date): Promise<EmailSection> {
   };
 }
 
-async function queryWhatsApp(dateFrom: Date, dateTo: Date): Promise<WhatsAppSection> {
+async function queryWhatsApp(dateFrom: Date, dateTo: Date, brand: Brand): Promise<WhatsAppSection> {
   // Mensagens WhatsApp no período — usando modelos legados (WhatsAppMessage)
   // e Cloud API (CloudWaMessageLog) + WaMessage (v2)
   const [
@@ -330,6 +334,7 @@ async function queryWhatsApp(dateFrom: Date, dateTo: Date): Promise<WhatsAppSect
   const conversions = await prisma.deal.count({
     where: {
       status: 'WON',
+      brand,
       closedAt: { gte: dateFrom, lte: dateTo },
       contact: {
         whatsappConversations: { some: {} },
@@ -455,10 +460,10 @@ router.get(
 
       // ── Executa queries em paralelo ──────────────────────────────────────
       const [leadsData, funnelData, emailData, whatsappData, greatpagesData] = await Promise.all([
-        requestedMetrics.includes('leads') ? queryLeads(dateFrom, dateTo) : Promise.resolve(undefined),
-        requestedMetrics.includes('funnel') ? queryFunnel(dateFrom, dateTo) : Promise.resolve(undefined),
-        requestedMetrics.includes('email') ? queryEmail(dateFrom, dateTo) : Promise.resolve(undefined),
-        requestedMetrics.includes('whatsapp') ? queryWhatsApp(dateFrom, dateTo) : Promise.resolve(undefined),
+        requestedMetrics.includes('leads') ? queryLeads(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
+        requestedMetrics.includes('funnel') ? queryFunnel(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
+        requestedMetrics.includes('email') ? queryEmail(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
+        requestedMetrics.includes('whatsapp') ? queryWhatsApp(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
         requestedMetrics.includes('greatpages') ? queryGreatPages(dateFrom, dateTo) : Promise.resolve(undefined),
       ]);
 
@@ -648,7 +653,7 @@ router.get(
 
       // ── Query principal: contatos criados no período com UTM + deal ──────
       const contacts = await prisma.contact.findMany({
-        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+        where: { createdAt: { gte: dateFrom, lte: dateTo }, brand: req.brand },
         select: {
           id: true,
           name: true,
@@ -908,7 +913,7 @@ router.get(
       // ── Funil agregado (leads no período usando stage atual dos deals) ───
       // Busca todos os deals do período para o funil completo
       const allDeals = await prisma.deal.findMany({
-        where: { createdAt: { gte: dateFrom, lte: dateTo } },
+        where: { createdAt: { gte: dateFrom, lte: dateTo }, brand: req.brand },
         select: {
           status: true,
           value: true,

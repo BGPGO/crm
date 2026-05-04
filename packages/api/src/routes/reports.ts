@@ -27,6 +27,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
 
     // Get default pipeline
     const pipeline = await prisma.pipeline.findFirst({
+      where: { brand: req.brand },
       include: { stages: { orderBy: { order: 'asc' } } },
     });
     if (!pipeline) {
@@ -37,6 +38,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     // Includes OPEN + WON + LOST created in the selected date range
     const funnelBaseWhere: Record<string, unknown> = {
       pipelineId: pipeline.id,
+      brand: req.brand,
       createdAt: { gte: thisMonthStart, lte: thisMonthEnd },
       ...userWhere,
     };
@@ -82,14 +84,14 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
 
     // Total deals created in period (for conversion rate)
     const totalDealsInPeriod = await prisma.deal.count({
-      where: { pipelineId: pipeline.id, createdAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
+      where: { pipelineId: pipeline.id, brand: req.brand, createdAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
     });
 
     // ── 2. WON deals this month and last month ───────────────────────────
     const wonDateWhere = { closedAt: { gte: thisMonthStart, lte: thisMonthEnd } };
     const [wonThisMonth, wonLastMonth, lostThisMonth] = await Promise.all([
       prisma.deal.findMany({
-        where: { status: 'WON', ...wonDateWhere, ...userWhere },
+        where: { status: 'WON', brand: req.brand, ...wonDateWhere, ...userWhere },
         include: {
           products: { include: { product: { select: { name: true } } } },
           contact: { select: { name: true } },
@@ -97,13 +99,13 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
         },
       }),
       prisma.deal.findMany({
-        where: { status: 'WON', closedAt: { gte: lastMonthStart, lte: lastMonthEnd } },
+        where: { status: 'WON', brand: req.brand, closedAt: { gte: lastMonthStart, lte: lastMonthEnd } },
         include: {
           products: { include: { product: { select: { name: true } } } },
         },
       }),
       prisma.deal.aggregate({
-        where: { status: 'LOST', updatedAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
+        where: { status: 'LOST', brand: req.brand, updatedAt: { gte: thisMonthStart, lte: thisMonthEnd }, ...userWhere },
         _count: { id: true },
         _sum: { value: true },
       }),
@@ -166,7 +168,7 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
     // ── 5. Monthly sales trend (last 6 months) ──────────────────────────
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     const wonLast6Months = await prisma.deal.findMany({
-      where: { status: 'WON', closedAt: { gte: sixMonthsAgo } },
+      where: { status: 'WON', brand: req.brand, closedAt: { gte: sixMonthsAgo } },
       include: { products: { include: { product: { select: { name: true } } } } },
       orderBy: { closedAt: 'asc' },
     });

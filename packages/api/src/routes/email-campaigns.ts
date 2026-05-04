@@ -13,7 +13,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const { status } = req.query;
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { brand: req.brand };
     if (status) where.status = status as string;
 
     const [total, campaigns] = await Promise.all([

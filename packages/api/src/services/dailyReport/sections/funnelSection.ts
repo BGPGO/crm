@@ -112,7 +112,8 @@ export class FunnelSection implements ReportSection {
       Date.UTC(brtRef.getUTCFullYear(), brtRef.getUTCMonth(), 1) - BRT_OFFSET_MS,
     );
 
-    const openFilter = { pipelineId: PIPELINE_ID, status: 'OPEN' as const };
+    // Daily report é BGP-only (multi-brand pending)
+    const openFilter = { pipelineId: PIPELINE_ID, brand: 'BGP' as const, status: 'OPEN' as const };
 
     // Conta + soma valor de uma etapa (deals em aberto)
     const stageMetrics = async (stageId: string): Promise<StageMetrics> => {
@@ -130,7 +131,8 @@ export class FunnelSection implements ReportSection {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          // Daily report é BGP-only (multi-brand pending)
+          deal: { pipelineId: PIPELINE_ID, brand: 'BGP' },
           metadata: { path: ['toStage'], string_contains: toStageName },
         },
       });
@@ -142,7 +144,8 @@ export class FunnelSection implements ReportSection {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          // Daily report é BGP-only (multi-brand pending)
+          deal: { pipelineId: PIPELINE_ID, brand: 'BGP' },
           metadata: { path: ['fromStage'], string_contains: fromStageName },
         },
       });
@@ -152,6 +155,8 @@ export class FunnelSection implements ReportSection {
     const leadsYesterday = await prisma.deal.count({
       where: {
         pipelineId: PIPELINE_ID,
+        // Daily report é BGP-only (multi-brand pending)
+        brand: 'BGP',
         createdAt: { gte: dayStart, lt: dayEnd },
       },
     });
@@ -192,6 +197,8 @@ export class FunnelSection implements ReportSection {
     const ganhosOntem = await prisma.deal.findMany({
       where: {
         pipelineId: PIPELINE_ID,
+        // Daily report é BGP-only (multi-brand pending)
+        brand: 'BGP',
         status: 'WON',
         closedAt: { gte: dayStart, lt: dayEnd },
       },
@@ -206,6 +213,8 @@ export class FunnelSection implements ReportSection {
     const ganhosMes = await prisma.deal.findMany({
       where: {
         pipelineId: PIPELINE_ID,
+        // Daily report é BGP-only (multi-brand pending)
+        brand: 'BGP',
         status: 'WON',
         closedAt: { gte: monthStart, lt: dayEnd },
       },

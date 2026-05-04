@@ -1,3 +1,5 @@
+import type { Brand } from '@prisma/client';
+
 export interface SegmentFilter {
   field: string;
   operator: string;
@@ -321,34 +323,44 @@ function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
  *     { filters: [{ field: 'dealStageName', operator: 'EQUALS', value: 'Marcar Reunião' }, { field: 'dealStatus', operator: 'EQUALS', value: 'LOST' }] },
  *   ])
  */
-export function buildSegmentWhere(input: SegmentFilter[] | FilterGroup[]): Record<string, any> {
-  if (!Array.isArray(input) || input.length === 0) return {};
+export function buildSegmentWhere(
+  input: SegmentFilter[] | FilterGroup[],
+  brand?: Brand,
+): Record<string, any> {
+  if (!Array.isArray(input) || input.length === 0) {
+    return brand ? { brand } : {};
+  }
 
   if (isFilterGroupArray(input)) {
     // New format: array of FilterGroup
-    return buildSegmentWhereFromGroups(input);
+    return buildSegmentWhereFromGroups(input, brand);
   }
 
   // Old format: flat SegmentFilter[] — treat as single AND group (backward compatible)
   const conds = buildConditions(input as SegmentFilter[]);
-  return conds.length > 0 ? { AND: conds } : {};
+  const base = conds.length > 0 ? { AND: conds } : {};
+  return brand ? { ...base, brand } : base;
 }
 
 /**
  * Builds Prisma `where` for an array of FilterGroups (OR between groups, AND within each group).
  * Can be called directly when you already have the new FilterGroup format.
  */
-export function buildSegmentWhereFromGroups(filterGroups: FilterGroup[]): Record<string, any> {
+export function buildSegmentWhereFromGroups(
+  filterGroups: FilterGroup[],
+  brand?: Brand,
+): Record<string, any> {
   const validGroups = filterGroups.filter(g => g.filters && g.filters.length > 0);
-  if (validGroups.length === 0) return {};
+  if (validGroups.length === 0) return brand ? { brand } : {};
 
   const orBranches = validGroups.map(group => {
     const andConditions = buildConditions(group.filters);
     return andConditions.length > 0 ? { AND: andConditions } : null;
   }).filter(Boolean) as Record<string, any>[];
 
-  if (orBranches.length === 0) return {};
-  return orBranches.length === 1 ? orBranches[0] : { OR: orBranches };
+  if (orBranches.length === 0) return brand ? { brand } : {};
+  const base = orBranches.length === 1 ? orBranches[0] : { OR: orBranches };
+  return brand ? { ...base, brand } : base;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
