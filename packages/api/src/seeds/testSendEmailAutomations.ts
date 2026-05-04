@@ -23,8 +23,10 @@ import { wrapInBrandTemplate } from '../services/emailTemplate';
 const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const RECIPIENT = 'oliver@bertuzzipatrimonial.com.br';
-const FAKE_FULL_NAME = 'Oliver Bertuzzi';
+// Destinatário: passe como arg CLI (npx tsx ... email@x.com "Nome Completo")
+// ou use os defaults.
+const RECIPIENT = process.argv[2] || 'oliver@bertuzzipatrimonial.com.br';
+const FAKE_FULL_NAME = process.argv[3] || (RECIPIENT.split('@')[0].charAt(0).toUpperCase() + RECIPIENT.split('@')[0].slice(1) + ' Bertuzzi');
 const FROM = 'BGPGO CRM <noreply@bertuzzipatrimonial.app.br>';
 
 // Mesma ordem da cadência no funil

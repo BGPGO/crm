@@ -1110,12 +1110,19 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
     scheduleMeetingReminders(meeting.id).catch(console.error);
     scheduleWabaMeetingReminders(meeting.id).catch(console.error);
 
-    // Mark conversation as meetingBooked if exists
+    // Mark both Z-API and WABA conversations as meetingBooked if they exist
     if (deal.contact?.id) {
-      await prisma.whatsAppConversation.updateMany({
-        where: { contactId: deal.contact.id },
-        data: { meetingBooked: true },
-      });
+      const contactId = deal.contact.id;
+      await Promise.all([
+        prisma.whatsAppConversation.updateMany({
+          where: { contactId },
+          data: { meetingBooked: true },
+        }),
+        prisma.waConversation.updateMany({
+          where: { contactId },
+          data: { meetingBooked: true },
+        }),
+      ]);
     }
 
     // Create Activity

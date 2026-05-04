@@ -8,3 +8,24 @@ rd-data/
 rd-screenshots/
 rd-scraper.mjs
 *.tsbuildinfo
+
+# Config local do Claude Code (não commitar)
+.claude/
+
+# Scripts ad-hoc / investigação one-off — NÃO commitar.
+# A pasta packages/api/src/scripts/ tem scripts versionados legítimos,
+# então NÃO é ignorada inteira. Mas estes padrões cobrem os ad-hoc típicos
+# (auditX, backfillX, quickX, diagnoseX, gapX, inspectX, listX, rescheduleX,
+# runMigrationX, createUser, e qualquer pasta scripts/ fora do src/).
+packages/api/scripts/
+packages/api/src/scripts/audit*.ts
+packages/api/src/scripts/backfill*.ts
+packages/api/src/scripts/quick*.ts
+packages/api/src/scripts/diagnose*.ts
+packages/api/src/scripts/gap*.ts
+packages/api/src/scripts/inspect*.ts
+packages/api/src/scripts/list*.ts
+packages/api/src/scripts/reschedule*.ts
+packages/api/src/scripts/runMigration*.ts
+packages/api/src/scripts/createUser.ts
+packages/api/src/scripts/pedro-*
