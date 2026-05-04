@@ -25,6 +25,7 @@
  *   tsx src/seeds/aimoLeadsImport.ts --limit=all --no-dry-run --include-deals
  */
 
+import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Decimal } from '@prisma/client/runtime/library';

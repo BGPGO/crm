@@ -14,6 +14,7 @@
  * Uso: npm run seed:aimo --workspace=packages/api
  */
 
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
