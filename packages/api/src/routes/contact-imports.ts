@@ -1,21 +1,36 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { Brand } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { requireRole } from '../middleware/auth';
-import { parseCSV, processImport } from '../services/csvProcessor';
+import { parseCSV, processImport, RD_STATION_MAPPING } from '../services/csvProcessor';
 
 const router = Router();
 
 // POST /api/contact-imports — Start an import (ADMIN/MANAGER only)
 router.post('/', requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { fileName, csvContent, mapping } = req.body;
+    const { fileName, csvContent, mapping, brand: bodyBrand, tagIds } = req.body as {
+      fileName?: string;
+      csvContent?: string;
+      mapping?: Record<string, string>;
+      brand?: Brand;
+      tagIds?: string[];
+    };
 
-    if (!fileName || !csvContent || !mapping) {
-      return next(createError('fileName, csvContent e mapping são obrigatórios', 400));
+    if (!fileName || !csvContent) {
+      return next(createError('fileName e csvContent são obrigatórios', 400));
     }
 
+    // If mapping omitted/empty → fall back to RD Station preset.
+    const effectiveMapping =
+      mapping && Object.keys(mapping).length > 0 ? mapping : RD_STATION_MAPPING;
+
     const userId = (req as any).user?.id || 'system';
+
+    // brand precedence: body → req.brand (header) → 'BGP'
+    const brand: Brand = (bodyBrand as Brand) || (req as any).brand || 'BGP';
+    const safeTagIds = Array.isArray(tagIds) ? tagIds.filter((t) => typeof t === 'string' && t.length > 0) : [];
 
     // Count rows from CSV (excluding header)
     const { rows } = parseCSV(csvContent);
@@ -36,7 +51,7 @@ router.post('/', requireRole('ADMIN', 'MANAGER'), async (req: Request, res: Resp
     });
 
     // Process the import
-    await processImport(contactImport.id, csvContent, mapping);
+    await processImport(contactImport.id, csvContent, effectiveMapping, { brand, tagIds: safeTagIds });
 
     // Fetch updated record
     const updated = await prisma.contactImport.findUnique({

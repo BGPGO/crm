@@ -2,6 +2,29 @@ import { supabase } from "@/lib/supabase";
 
 const BASE_URL = "/api";
 
+/**
+ * Reads the active brand at request time (fresh, never cached) so every fetch
+ * uses the brand currently selected in the UI. Returns 'BGP' as default.
+ *
+ * SSR-safe: returns 'BGP' on the server.
+ */
+function getActiveBrand(): "BGP" | "AIMO" {
+  if (typeof window === "undefined") return "BGP";
+  try {
+    const stored = window.localStorage.getItem("crm.brand");
+    if (stored === "AIMO" || stored === "BGP") return stored;
+  } catch {
+    // ignore (storage disabled, etc.)
+  }
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)crm-brand=(BGP|AIMO)/);
+    if (match) return match[1] as "BGP" | "AIMO";
+  } catch {
+    // ignore
+  }
+  return "BGP";
+}
+
 type RequestOptions = {
   method?: string;
   body?: unknown;
@@ -71,6 +94,7 @@ async function request<T>(
     method,
     headers: {
       "Content-Type": "application/json",
+      "X-Brand": getActiveBrand(),
       ...authHeaders,
       ...headers,
     },
@@ -95,9 +119,10 @@ async function request<T>(
         ? refreshData.session.expires_at * 1000 - 60_000
         : Date.now() + 4 * 60 * 1000;
 
-      // Retry the request with the new token
+      // Retry the request with the new token (re-read brand in case it changed)
       config.headers = {
         ...config.headers,
+        "X-Brand": getActiveBrand(),
         Authorization: `Bearer ${cachedToken}`,
       };
       response = await fetch(`${BASE_URL}${path}`, config);
