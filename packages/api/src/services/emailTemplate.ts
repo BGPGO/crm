@@ -1,23 +1,48 @@
 /**
- * Standard BGP email wrapper — exact replica of the original Bertuzzi Patrimonial email design.
- * Structure: Logo header → White card body → Social icons → Footer with address + unsubscribe
+ * Brand-aware email wrapper.
+ *
+ * - BGP → wrapBgpTemplate: exact replica of the original Bertuzzi Patrimonial
+ *   email design (logo header → white card body → social icons → footer).
+ * - AIMO → wrapAimoTemplate: AIMO premium shell (logo → white rounded card →
+ *   minimal footer, no social icons, Space Grotesk + cobalt #1E3FFF).
+ *
+ * Default brand is BGP, so legacy callers keep working unchanged.
  */
 
 const LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/665130/Logo_BGP_16%20%282%29.png';
 const WHATSAPP_LINK = 'https://wa.me/5551992091726?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20o%20meu%20financeiro!';
 const FONT = "Montserrat,'Trebuchet MS','Lucida Grande','Lucida Sans Unicode','Lucida Sans',Tahoma,sans-serif";
 
+const AIMO_LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/aimo-logo.png';
+const AIMO_FONT = "'Space Grotesk','Inter','Helvetica Neue',Arial,sans-serif";
+const AIMO_PRIMARY = '#1E3FFF';
+
+export type Brand = 'BGP' | 'AIMO';
+
+export interface WrapTemplateOptions {
+  brand?: Brand;
+  unsubscribeUrl?: string;
+}
+
 /**
- * Wraps email body content in the BGP branded template.
- * @param bodyHtml The inner HTML content (text, buttons, images — NO html/head/body)
- * @param unsubscribeUrl The unsubscribe link for the footer
+ * Strips full-document tags so we can safely embed a body inside a wrapper.
  */
-export function wrapInBrandTemplate(bodyHtml: string, unsubscribeUrl?: string): string {
-  // Strip any existing full-document tags
-  const cleanBody = bodyHtml
+function cleanInnerBody(bodyHtml: string): string {
+  return bodyHtml
     .replace(/<\/?html[^>]*>/gi, '')
     .replace(/<head[\s\S]*?<\/head>/gi, '')
     .replace(/<\/?body[^>]*>/gi, '');
+}
+
+/**
+ * Original BGP wrapper — kept byte-for-byte identical to the legacy template
+ * so existing campaigns render exactly the same.
+ *
+ * @param bodyHtml The inner HTML content (text, buttons, images — NO html/head/body)
+ * @param unsubscribeUrl The unsubscribe link for the footer
+ */
+export function wrapBgpTemplate(bodyHtml: string, unsubscribeUrl?: string): string {
+  const cleanBody = cleanInnerBody(bodyHtml);
 
   const unsubLink = unsubscribeUrl
     ? `<a href="${unsubscribeUrl}" target="_blank" rel="noopener" style="text-decoration: underline; color: #8c8c8c;">cancele sua inscrição</a>`
@@ -86,5 +111,101 @@ ${cleanBody}
 </html>`;
 }
 
+/**
+ * AIMO premium wrapper — minimalist white card on light grey background, cobalt
+ * accents, Space Grotesk + Inter typography, no social icons (AIMO has no
+ * public profiles yet).
+ *
+ * @param bodyHtml The inner HTML content (text, buttons, images — NO html/head/body)
+ * @param unsubscribeUrl The unsubscribe link for the footer
+ */
+export function wrapAimoTemplate(bodyHtml: string, unsubscribeUrl?: string): string {
+  const cleanBody = cleanInnerBody(bodyHtml);
+
+  const unsubLink = unsubscribeUrl
+    ? `<a href="${unsubscribeUrl}" target="_blank" rel="noopener" style="text-decoration: underline; color: #8c8c8c;">cancele sua inscrição</a>`
+    : `<a href="#" style="text-decoration: underline; color: #8c8c8c;">cancele sua inscrição</a>`;
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>AiMO</title>
+<!--[if mso]><style>body,table,td{font-family:Arial,Helvetica,sans-serif!important}</style><![endif]-->
+<style>a{color:${AIMO_PRIMARY};}</style>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:${AIMO_FONT};-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="mso-table-lspace:0;mso-table-rspace:0;background-color:#f4f4f4;">
+<tbody><tr><td align="center">
+
+<!-- ═══ HEADER: AIMO logo ═══ -->
+<table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;border-radius:0;color:#000;width:605px;margin:0 auto" width="605">
+<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:8px;padding-right:8px;padding-top:48px;padding-bottom:24px;vertical-align:top">
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0">
+<tbody><tr><td style="width:100%;padding:0"><div align="center"><div style="max-width:200px">
+<a href="https://aimocorp.com.br" target="_blank"><img src="${AIMO_LOGO_URL}" style="display:block;height:auto;border:0;width:100%" width="200" alt="AiMO" title="AiMO" height="auto"></a>
+</div></div></td></tr></tbody></table>
+</td></tr></tbody></table>
+
+<!-- ═══ BODY: White rounded card ═══ -->
+<table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;background-color:#fff;border-radius:16px;color:#000;width:605px;margin:0 auto" width="605">
+<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:60px;padding-right:60px;padding-top:48px;padding-bottom:48px;vertical-align:top">
+<div style="font-family:${AIMO_FONT};font-size:16px;font-weight:400;line-height:1.6;color:#0a0a0a;">
+${cleanBody}
+</div>
+</td></tr></tbody></table>
+
+<!-- ═══ SPACER ═══ -->
+<table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0">
+<tbody><tr><td><div style="height:24px;line-height:24px;font-size:1px"> </div></td></tr></tbody></table>
+
+<!-- ═══ FOOTER (minimal) ═══ -->
+<table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;width:605px;margin:0 auto" width="605">
+<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-bottom:32px;vertical-align:top">
+<table width="100%" border="0" cellpadding="10" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;word-break:break-word">
+<tbody><tr><td><div style="font-family:${AIMO_FONT}"><div style="font-size:12px;color:#8c8c8c;line-height:1.6">
+<p style="margin:0;text-align:center;">
+<span style="font-size:11px;">Enviado por aimocorp.com.br</span><br>
+<span style="font-size:11px;">AiMO Corp — Inteligência aplicada à gestão patrimonial</span><br>
+<span style="font-size:11px;">Caso não queira mais receber estes e-mails, ${unsubLink}.</span>
+</p></div></div></td></tr></tbody></table>
+</td></tr></tbody></table>
+
+</td></tr></tbody></table>
+</body>
+</html>`;
+}
+
+/**
+ * Brand-aware dispatcher. Backward-compatible with the legacy signature
+ * `wrapInBrandTemplate(bodyHtml, unsubscribeUrl?)` — when the second arg is a
+ * string it's treated as the unsubscribe URL with brand=BGP (default).
+ *
+ * New callers should pass `{ brand, unsubscribeUrl }`:
+ *
+ *   wrapInBrandTemplate(html, { brand: 'AIMO', unsubscribeUrl: url });
+ */
+export function wrapInBrandTemplate(
+  bodyHtml: string,
+  unsubscribeUrlOrOptions?: string | WrapTemplateOptions,
+): string {
+  const opts: WrapTemplateOptions =
+    typeof unsubscribeUrlOrOptions === 'string'
+      ? { unsubscribeUrl: unsubscribeUrlOrOptions }
+      : (unsubscribeUrlOrOptions ?? {});
+
+  const brand: Brand = opts.brand ?? 'BGP';
+
+  if (brand === 'AIMO') {
+    return wrapAimoTemplate(bodyHtml, opts.unsubscribeUrl);
+  }
+  return wrapBgpTemplate(bodyHtml, opts.unsubscribeUrl);
+}
+
 /** Standard CTA button style (green #3ae056, Montserrat, matches original BGP emails) */
 export const CTA_BUTTON_STYLE = `background-color:#3ae056;color:#ffffff;display:inline-block;font-family:${FONT};font-size:14px;font-weight:bold;padding:10px 24px;border-radius:4px;text-decoration:none;text-align:center;`;
+
+/** AIMO CTA button style (cobalt #1E3FFF, Space Grotesk) */
+export const AIMO_CTA_BUTTON_STYLE = `background-color:${AIMO_PRIMARY};color:#ffffff;display:inline-block;font-family:${AIMO_FONT};font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;text-align:center;letter-spacing:0.2px;`;

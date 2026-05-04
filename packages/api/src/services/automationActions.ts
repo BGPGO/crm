@@ -44,7 +44,12 @@ export async function executeAction(
         return await removeTag(enrollment.contactId, config);
 
       case 'SEND_EMAIL':
-        return await sendEmail(enrollment.contactId, config, options?.generalContext);
+        return await sendEmail(
+          enrollment.contactId,
+          config,
+          options?.generalContext,
+          enrollment.automation?.brand,
+        );
 
       case 'WAIT':
         return await wait(enrollment, config);
@@ -161,12 +166,16 @@ function buildBrandedEmail(firstName: string, bodyHtml: string): string {
 async function sendEmail(
   contactId: string,
   config: { templateId?: string; subject?: string; prompt?: string; isAIGenerated?: boolean },
-  generalContext?: string
+  generalContext?: string,
+  brand?: 'BGP' | 'AIMO',
 ): Promise<ActionResult> {
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
     include: { organization: { select: { name: true } } },
   });
+
+  // Brand resolution: prefer explicit (from automation) → contact.brand → BGP fallback
+  const resolvedBrand: 'BGP' | 'AIMO' = brand ?? ((contact as any).brand === 'AIMO' ? 'AIMO' : 'BGP');
 
   if (!contact.email) {
     return { success: false, output: 'Contact has no email address' };
@@ -228,7 +237,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
     // Wrap in the same branded template used by campaigns
-    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
+    htmlContent = wrapInBrandTemplate(bodyHtml, { brand: resolvedBrand, unsubscribeUrl: unsubUrlForTemplate });
     subject = config.subject || 'BGPGO — Informações para você';
   } else if (config.templateId) {
     // Template-based email — stored in compileFullHtml() format (DOCTYPE + outer
@@ -260,7 +269,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
     const bodyHtml = stripOuterWrapper(rawHtml);
-    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
+    htmlContent = wrapInBrandTemplate(bodyHtml, { brand: resolvedBrand, unsubscribeUrl: unsubUrlForTemplate });
   } else {
     return { success: false, output: 'No email template or AI prompt provided' };
   }

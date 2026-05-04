@@ -14,6 +14,7 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { AIMO_LOGO_DATA_URL } from './aimoLogoBase64';
 
 const prisma = new PrismaClient();
 
@@ -29,8 +30,14 @@ async function main(): Promise<void> {
     throw new Error(`HTML nao encontrado em: ${HTML_FILE}`);
   }
 
-  const htmlContent: string = fs.readFileSync(HTML_FILE, 'utf-8');
-  console.log(`[aimoEmailTemplateSeed] HTML carregado (${htmlContent.length} chars)`);
+  const rawHtml: string = fs.readFileSync(HTML_FILE, 'utf-8');
+  // Inlinear a logo AIMO como data-URL base64 — substitui {{LOGO_URL}} no HTML
+  // antes do upsert. Resend deixa data-URLs passarem; clientes (Gmail web,
+  // Outlook 2016+, Apple Mail) renderizam normalmente.
+  const htmlContent: string = rawHtml.replace(/\{\{LOGO_URL\}\}/g, AIMO_LOGO_DATA_URL);
+  console.log(
+    `[aimoEmailTemplateSeed] HTML carregado (raw=${rawHtml.length} chars, com logo inline=${htmlContent.length} chars)`,
+  );
 
   const template = await prisma.emailTemplate.upsert({
     where: { id: TEMPLATE_ID },

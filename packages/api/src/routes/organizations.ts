@@ -24,6 +24,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.segment = segment as string;
     }
 
+    // Organization has no brand field — filter via contacts.some/deals.some.
+    // Orgs without any contacts/deals (manual) only show for BGP (legacy default).
+    const brandClauses: Array<Record<string, unknown>> = [
+      { contacts: { some: { brand: req.brand } } },
+      { deals: { some: { brand: req.brand } } },
+    ];
+    if (req.brand === 'BGP') {
+      brandClauses.push({ AND: [{ contacts: { none: {} } }, { deals: { none: {} } }] });
+    }
+    where.OR = brandClauses;
+
     const [total, data] = await Promise.all([
       prisma.organization.count({ where }),
       prisma.organization.findMany({

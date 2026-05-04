@@ -20,11 +20,14 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     if (userId) where.userId = userId as string;
     if (dealId) where.dealId = dealId as string;
+
+    // Brand-scoped status filter (need to merge with brand OR clause below)
+    let statusOR: Array<Record<string, unknown>> | undefined;
     if (status === 'OVERDUE') {
       where.status = 'PENDING';
       const now = new Date();
       const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-      where.OR = [
+      statusOR = [
         { dueDateFormat: 'UTC', dueDate: { lt: now } },
         { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } },
       ];
@@ -38,6 +41,21 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       if (dueDateTo) existing.lte = new Date(dueDateTo as string);
       where.dueDate = existing;
     }
+
+    // Brand filtering: Task has no brand field — filter via contact.brand or deal.brand.
+    // Orphan tasks (no contact AND no deal) are shown only for BGP (legacy default).
+    const brandClauses: Array<Record<string, unknown>> = [
+      { contact: { brand: req.brand } },
+      { deal: { brand: req.brand } },
+    ];
+    if (req.brand === 'BGP') {
+      brandClauses.push({ AND: [{ contactId: null }, { dealId: null }] });
+    }
+
+    // Merge brand filter with optional statusOR via AND
+    const andClauses: Array<Record<string, unknown>> = [{ OR: brandClauses }];
+    if (statusOR) andClauses.push({ OR: statusOR });
+    where.AND = andClauses;
 
     const [total, data] = await Promise.all([
       prisma.task.count({ where }),
@@ -69,12 +87,23 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
     const where: Record<string, unknown> = {};
     if (req.query.userId) where.userId = req.query.userId as string;
 
+    // Brand filter via JOIN with contact/deal (Task has no brand field).
+    // Orphans (no contact AND no deal) only count for BGP.
+    const brandClauses: Array<Record<string, unknown>> = [
+      { contact: { brand: req.brand } },
+      { deal: { brand: req.brand } },
+    ];
+    if (req.brand === 'BGP') {
+      brandClauses.push({ AND: [{ contactId: null }, { dealId: null }] });
+    }
+    const brandFilter = { OR: brandClauses };
+
     const now = new Date();
     const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
     const [pending, completed, overdue] = await Promise.all([
-      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDate: null }, { dueDateFormat: 'UTC', dueDate: { gte: now } }, { dueDateFormat: 'LEGACY', dueDate: { gte: nowMinus3h } }] } }),
-      prisma.task.count({ where: { ...where, status: 'COMPLETED' } }),
-      prisma.task.count({ where: { ...where, status: 'PENDING', OR: [{ dueDateFormat: 'UTC', dueDate: { lt: now } }, { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } }] } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, { OR: [{ dueDate: null }, { dueDateFormat: 'UTC', dueDate: { gte: now } }, { dueDateFormat: 'LEGACY', dueDate: { gte: nowMinus3h } }] }] } }),
+      prisma.task.count({ where: { ...where, status: 'COMPLETED', AND: [brandFilter] } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, { OR: [{ dueDateFormat: 'UTC', dueDate: { lt: now } }, { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } }] }] } }),
     ]);
 
     const all = pending + completed + overdue;

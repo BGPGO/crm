@@ -244,7 +244,7 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
           const fullName = nameGuard.flagged ? '' : (send.contact.name || '');
 
           // Wrap in brand template with unsubscribe link, then inject tracking pixel
-          const brandedHtml = wrapInBrandTemplate(linkedHtml, unsubUrl);
+          const brandedHtml = wrapInBrandTemplate(linkedHtml, { brand: campaign.brand, unsubscribeUrl: unsubUrl });
           const personalizedHtml = personalizeContent(brandedHtml, firstName, fullName);
           const finalHtml = injectTrackingPixel(personalizedHtml, send.id);
           const personalizedSubject = personalizeContent(campaign.subject, firstName, fullName);
@@ -317,7 +317,8 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
   if (shouldSendTeamCopy) {
     try {
       const teamHtml = wrapInBrandTemplate(
-        `<p style="margin:0 0 12px;font-size:12px;color:#999;background:#f5f5f5;padding:8px 12px;border-radius:4px;">📋 Cópia interna — Campanha: <strong>${campaign.name}</strong> (${sends.length} destinatários)</p>${linkedHtml}`
+        `<p style="margin:0 0 12px;font-size:12px;color:#999;background:#f5f5f5;padding:8px 12px;border-radius:4px;">📋 Cópia interna — Campanha: <strong>${campaign.name}</strong> (${sends.length} destinatários)</p>${linkedHtml}`,
+        { brand: campaign.brand },
       );
       await resend.emails.send({
         from: fromAddress,
@@ -363,6 +364,7 @@ export async function sendTestEmail(campaignId: string, email: string): Promise<
   // Wrap in the same brand template used for real sends so the test is faithful
   const brandedHtml = wrapInBrandTemplate(
     stripOuterWrapper(campaign.template.htmlContent),
+    { brand: campaign.brand },
   );
 
   // Tagueia Calendly com UTMs (igual ao envio real)
