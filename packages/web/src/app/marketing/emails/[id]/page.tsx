@@ -28,6 +28,7 @@ interface Campaign {
   sentAt: string | null;
   createdAt: string;
   updatedAt: string;
+  brand?: "BGP" | "AIMO";
   segment?: { id: string; name: string; contactCount: number } | null;
   totalRecipients?: number;
 }
@@ -238,6 +239,7 @@ export default function CampaignDetailPage() {
             html={campaign.htmlContent || "<p style='color:#999;text-align:center;padding:40px;'>Sem conteúdo</p>"}
             className="h-[500px]"
             branded
+            brand={campaign.brand ?? "BGP"}
           />
         </div>
       </main>

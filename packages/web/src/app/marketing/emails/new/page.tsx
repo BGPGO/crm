@@ -30,6 +30,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useBrand } from "@/contexts/BrandContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ function NewCampaignPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedTemplateId = searchParams.get("templateId");
+  const { brand } = useBrand();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [scheduling, setScheduling] = useState(false);
@@ -1291,6 +1293,7 @@ ${bodyHtml}
                     }
                     className="h-[450px]"
                     branded
+                    brand={brand}
                   />
                 </div>
               </div>

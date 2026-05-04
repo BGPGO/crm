@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Eye, X, Sparkles, FileText } from "lucide-react";
 import EmailPreview from "@/components/marketing/EmailPreview";
 import { api } from "@/lib/api";
+import { useBrand } from "@/contexts/BrandContext";
 
 interface SendEmailNodeProps {
   config: Record<string, any>;
@@ -22,6 +23,7 @@ interface EmailTemplateFull extends EmailTemplateSummary {
 }
 
 export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) {
+  const { brand } = useBrand();
   const [templates, setTemplates] = useState<EmailTemplateSummary[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -232,6 +234,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
                   html={previewHtml || "<p>Sem conteúdo</p>"}
                   className="h-[600px]"
                   branded
+                  brand={brand}
                 />
               )}
             </div>
