@@ -44,8 +44,21 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
     if (sortable !== undefined) {
       documentInput.sortable = sortable;
     }
-    if (emailTemplateId) {
-      documentInput.email_template_id = emailTemplateId;
+    // emailTemplateId — prioridade: 1) env var (override de prod sem
+    // precisar de deploy de front), 2) body, 3) ignora.
+    // Se a env var AUTENTIQUE_EMAIL_TEMPLATE_DISABLED=true, NUNCA envia
+    // o ID (Autentique usa template padrao). Util pra hotfix de
+    // template invalidado.
+    const envTemplateId = process.env.AUTENTIQUE_EMAIL_TEMPLATE_ID;
+    const disabled = process.env.AUTENTIQUE_EMAIL_TEMPLATE_DISABLED === 'true';
+    const finalTemplateId = disabled
+      ? undefined
+      : (envTemplateId ? Number(envTemplateId) : (emailTemplateId || undefined));
+    if (finalTemplateId) {
+      documentInput.email_template_id = finalTemplateId;
+      console.log(`[sent-documents:${reqId}] usando email_template_id=${finalTemplateId} (fonte=${envTemplateId ? 'env' : 'body'})`);
+    } else {
+      console.log(`[sent-documents:${reqId}] email_template_id ausente (disabled=${disabled}) — Autentique usara template padrao`);
     }
 
     const variables = {
