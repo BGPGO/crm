@@ -121,16 +121,23 @@ router.post(
         finalTemplateId = inlineTemplate.id;
       }
 
+      // Brand-aware defaults: AIMO usa AiMO + noreply@aimocorp.com.br,
+      // BGP mantém comportamento legado byte-for-byte.
+      const resolvedBrand = (req.body.brand ?? req.brand) as 'BGP' | 'AIMO';
+      const isAimo = resolvedBrand === 'AIMO';
+
       const campaign = await prisma.emailCampaign.create({
         data: {
           name,
           subject,
-          fromName: fromName || 'BGPGO',
-          fromEmail: fromEmail || 'noreply@bertuzzipatrimonial.com.br',
+          fromName: fromName || (isAimo ? 'AiMO' : 'BGPGO'),
+          fromEmail:
+            fromEmail || (isAimo ? 'noreply@aimocorp.com.br' : 'noreply@bertuzzipatrimonial.com.br'),
           templateId: finalTemplateId,
           segmentId: segmentId ?? null,
           filters: filterGroups ?? null,
           status: status ?? 'DRAFT',
+          brand: resolvedBrand,
         },
       });
 

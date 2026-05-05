@@ -140,9 +140,13 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
     throw new Error(`Campaign ${campaignId} has no template assigned`);
   }
 
-  // Strip the outer wrapper from compileFullHtml() to avoid double-wrapping
+  // BGP: strip the outer wrapper from compileFullHtml() to avoid double-wrapping
   // when wrapInBrandTemplate() adds the BGP branded shell later.
-  const baseHtml = stripOuterWrapper(campaign.template.htmlContent);
+  // AIMO: o template já é um documento self-contained — pass-through sem strip.
+  const isAimo = campaign.brand === 'AIMO';
+  const baseHtml = isAimo
+    ? campaign.template.htmlContent
+    : stripOuterWrapper(campaign.template.htmlContent);
 
   // ── Anti-spam: filter out unsubscribed, bounced, and invalid contacts ──
   const contactEmails = campaign.sends.map(s => s.contact.email).filter(Boolean) as string[];
@@ -211,9 +215,15 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
     });
   }
 
-  // Only skip TIME BGP members from normal sends when team copy is ON (to avoid duplicates)
-  const shouldSendTeamCopy = options?.sendTeamCopy !== false;
+  // Only skip TIME BGP members from normal sends when team copy is ON (to avoid duplicates).
+  // AIMO: cópia interna desativada (não há lista TIME_AIMO ainda) — não filtramos os emails.
+  const shouldSendTeamCopy = !isAimo && options?.sendTeamCopy !== false;
   const timeBgpSet = new Set(TIME_BGP_EMAILS.map(e => e.toLowerCase()));
+
+  // Brand-aware replyTo: AIMO ainda não tem inbox dedicado, então responde pra Oliver.
+  const replyToAddress = isAimo
+    ? 'oliver@bertuzzipatrimonial.com.br'
+    : 'vitor@bertuzzipatrimonial.com.br';
 
   // Process sends in batches
   const sends = campaign.sends.filter(s =>
@@ -269,7 +279,7 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
           const result = await resend.emails.send({
             from: fromAddress,
             to: send.contact.email,
-            replyTo: 'vitor@bertuzzipatrimonial.com.br',
+            replyTo: replyToAddress,
             subject: personalizedSubject,
             html: finalHtml,
             text: plainText,
@@ -316,14 +326,20 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
   // ── Send copy to TIME BGP (BCC-like, one email with all team members) ─────
   if (shouldSendTeamCopy) {
     try {
-      const teamHtml = wrapInBrandTemplate(
-        `<p style="margin:0 0 12px;font-size:12px;color:#999;background:#f5f5f5;padding:8px 12px;border-radius:4px;">📋 Cópia interna — Campanha: <strong>${campaign.name}</strong> (${sends.length} destinatários)</p>${linkedHtml}`,
-        { brand: campaign.brand },
-      );
+      // AIMO: linkedHtml já é o documento completo (pass-through). Não dá pra
+      // prefixar o badge "Cópia interna" sem quebrar o doc, então mandamos o
+      // email AIMO inteiro ao time exatamente como o lead recebe.
+      // BGP: comportamento original — prefixa badge antes do wrap.
+      const teamHtml = isAimo
+        ? wrapInBrandTemplate(linkedHtml, { brand: campaign.brand })
+        : wrapInBrandTemplate(
+            `<p style="margin:0 0 12px;font-size:12px;color:#999;background:#f5f5f5;padding:8px 12px;border-radius:4px;">📋 Cópia interna — Campanha: <strong>${campaign.name}</strong> (${sends.length} destinatários)</p>${linkedHtml}`,
+            { brand: campaign.brand },
+          );
       await resend.emails.send({
         from: fromAddress,
         to: TIME_BGP_EMAILS,
-        replyTo: 'vitor@bertuzzipatrimonial.com.br',
+        replyTo: replyToAddress,
         subject: `[TIME] ${campaign.subject}`,
         html: teamHtml,
       });
@@ -331,6 +347,8 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
     } catch (teamErr) {
       console.error('[emailSender] Falha ao enviar cópia pro TIME BGP:', teamErr);
     }
+  } else if (isAimo) {
+    console.log(`[emailSender] Campanha AIMO — cópia interna pulada (sem TIME_AIMO_EMAILS configurado)`);
   } else {
     console.log(`[emailSender] Cópia para TIME BGP desativada pelo remetente`);
   }
@@ -361,19 +379,26 @@ export async function sendTestEmail(campaignId: string, email: string): Promise<
 
   const fromAddress = `${campaign.fromName} <${campaign.fromEmail}>`;
 
-  // Wrap in the same brand template used for real sends so the test is faithful
-  const brandedHtml = wrapInBrandTemplate(
-    stripOuterWrapper(campaign.template.htmlContent),
-    { brand: campaign.brand },
-  );
+  // Wrap in the same brand template used for real sends so the test is faithful.
+  // AIMO: pass-through (template é doc completo). BGP: strip + wrap como antes.
+  const isAimo = campaign.brand === 'AIMO';
+  const baseHtml = isAimo
+    ? campaign.template.htmlContent
+    : stripOuterWrapper(campaign.template.htmlContent);
+  const brandedHtml = wrapInBrandTemplate(baseHtml, { brand: campaign.brand });
 
   // Tagueia Calendly com UTMs (igual ao envio real)
   const finalHtml = rewriteCalendlyLinksInHtml(brandedHtml, EMAIL_CAMPAIGN_UTMS);
 
+  // Brand-aware replyTo (mesma lógica de sendCampaignEmails)
+  const replyToAddress = isAimo
+    ? 'oliver@bertuzzipatrimonial.com.br'
+    : 'vitor@bertuzzipatrimonial.com.br';
+
   await resend.emails.send({
     from: fromAddress,
     to: email,
-    replyTo: 'vitor@bertuzzipatrimonial.com.br',
+    replyTo: replyToAddress,
     subject: `[TESTE] ${campaign.subject}`,
     html: finalHtml,
   });

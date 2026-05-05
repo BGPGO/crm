@@ -87,51 +87,38 @@ Caso não queira mais receber estes e-mails, <span style="text-decoration:underl
 }
 
 /**
- * AIMO brand preview — mirrors backend wrapAimoTemplate().
- * Card branco arredondado, Space Grotesk, cobalto #1E3FFF, sem social icons,
- * footer minimal.
+ * AIMO brand preview — pass-through inteligente.
+ * Se o html é doc completo (template AIMO self-contained), retorna intacto.
+ * Senão, aplica wrap minimal sem header/footer visual (evita duplicação).
  */
 export function wrapAimoPreview(bodyHtml: string): string {
-  const content = stripToInnerBody(bodyHtml);
+  // Detecta se já é doc HTML completo (template AIMO self-contained)
+  const isCompleteDoc = /<!DOCTYPE|<html[\s>]/i.test(bodyHtml.trim().slice(0, 200));
+  if (isCompleteDoc) {
+    return bodyHtml; // pass-through — respeita template completo
+  }
 
+  // Senão (snippet/body cru): wrap minimal sem header/footer visual
+  const content = stripToInnerBody(bodyHtml);
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>a { color: ${AIMO_PRIMARY}; }</style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+body { margin:0; padding:0; background:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
+a { color:#1E3FFF; }
+</style>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:${AIMO_FONT};-webkit-font-smoothing:antialiased;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
-<tbody><tr><td align="center">
-
-<!-- HEADER: Logo AIMO -->
-<table align="center" cellpadding="0" cellspacing="0" role="presentation" style="width:605px;margin:0 auto">
-<tbody><tr><td style="padding-top:48px;padding-bottom:24px;text-align:center">
-<a href="https://aimocorp.com.br" target="_blank"><img src="${AIMO_LOGO_URL}" style="display:inline-block;height:auto;border:0;width:200px" alt="AiMO"></a>
-</td></tr></tbody></table>
-
-<!-- BODY: White card rounded -->
-<table align="center" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#fff;border-radius:16px;width:605px;margin:0 auto">
-<tbody><tr><td style="padding:48px 60px;font-family:${AIMO_FONT};font-size:16px;font-weight:400;line-height:1.5;color:#0A0E1F;">
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F8;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;">
+<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
 ${content}
-</td></tr></tbody></table>
-
-<!-- SPACER -->
-<table align="center" cellpadding="0" cellspacing="0" role="presentation" style="width:605px;margin:0 auto">
-<tbody><tr><td style="height:24px;line-height:24px;font-size:1px">&nbsp;</td></tr></tbody></table>
-
-<!-- FOOTER minimal -->
-<table align="center" cellpadding="0" cellspacing="0" role="presentation" style="width:605px;margin:0 auto">
-<tbody><tr><td style="padding:0 10px 32px">
-<p style="font-family:${AIMO_FONT};font-size:11px;color:#8c8c8c;line-height:1.6;text-align:center;margin:0;letter-spacing:0.02em;">
-Enviado por aimocorp.com.br<br>
-AiMO Corp — Inteligência aplicada à gestão patrimonial<br>
-Caso não queira mais receber estes e-mails, <span style="text-decoration:underline;color:${AIMO_PRIMARY}">cancele sua inscrição</span>.
-</p>
-</td></tr></tbody></table>
-
-</td></tr></tbody></table>
+</td></tr></table>
+</td></tr></table>
 </body>
 </html>`;
 }

@@ -13,7 +13,6 @@ const LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/665130
 const WHATSAPP_LINK = 'https://wa.me/5551992091726?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20o%20meu%20financeiro!';
 const FONT = "Montserrat,'Trebuchet MS','Lucida Grande','Lucida Sans Unicode','Lucida Sans',Tahoma,sans-serif";
 
-const AIMO_LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/aimo-logo.png';
 const AIMO_FONT = "'Space Grotesk','Inter','Helvetica Neue',Arial,sans-serif";
 const AIMO_PRIMARY = '#1E3FFF';
 
@@ -112,68 +111,54 @@ ${cleanBody}
 }
 
 /**
- * AIMO premium wrapper — minimalist white card on light grey background, cobalt
- * accents, Space Grotesk + Inter typography, no social icons (AIMO has no
- * public profiles yet).
+ * AIMO wrapper — pass-through inteligente.
  *
- * @param bodyHtml The inner HTML content (text, buttons, images — NO html/head/body)
- * @param unsubscribeUrl The unsubscribe link for the footer
+ * O template AIMO canônico (seeds/aimoEmailTemplate.html) já é um documento HTML
+ * completo, com header/hero/footer/styles próprios. Aplicar wrap em cima dele
+ * duplica logo, footer e perde os styles do head. Por isso:
+ *
+ *  - Se o input já é um documento completo (DOCTYPE / <html>) → pass-through,
+ *    apenas injeta o {{unsubscribe_url}} se fornecido.
+ *  - Se é apenas um snippet de body (ex.: editor inline AIMO sem doctype) →
+ *    aplica um wrap mínimo (DOCTYPE + meta + body com fonte/bg AIMO), SEM
+ *    header/footer visual, evitando duplicação com qualquer template.
+ *
+ * @param bodyHtml HTML completo OU snippet de body
+ * @param unsubscribeUrl Substitui {{unsubscribe_url}} no doc completo / vira link no fallback
  */
 export function wrapAimoTemplate(bodyHtml: string, unsubscribeUrl?: string): string {
-  const cleanBody = cleanInnerBody(bodyHtml);
+  // Detecta se já é um documento HTML completo
+  const isCompleteDoc = /<!DOCTYPE|<html[\s>]/i.test(bodyHtml.trim().slice(0, 200));
 
+  if (isCompleteDoc) {
+    // Pass-through: respeita o template self-contained.
+    if (unsubscribeUrl) {
+      return bodyHtml.replace(/\{\{unsubscribe_url\}\}/g, unsubscribeUrl);
+    }
+    return bodyHtml;
+  }
+
+  // Snippet de body — wrap mínimo sem chrome visual (header/footer).
   const unsubLink = unsubscribeUrl
-    ? `<a href="${unsubscribeUrl}" target="_blank" rel="noopener" style="text-decoration: underline; color: #8c8c8c;">cancele sua inscrição</a>`
-    : `<a href="#" style="text-decoration: underline; color: #8c8c8c;">cancele sua inscrição</a>`;
+    ? `<a href="${unsubscribeUrl}" style="color:${AIMO_PRIMARY};text-decoration:underline">cancelar inscrição</a>`
+    : '';
 
   return `<!DOCTYPE html>
-<html lang="pt-BR" xmlns="http://www.w3.org/1999/xhtml">
+<html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<title>AiMO</title>
-<!--[if mso]><style>body,table,td{font-family:Arial,Helvetica,sans-serif!important}</style><![endif]-->
-<style>a{color:${AIMO_PRIMARY};}</style>
+<style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');body{margin:0;padding:0;background-color:#F4F5F8;font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif;color:#0A0E1F;}a{color:${AIMO_PRIMARY};}</style>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:${AIMO_FONT};-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="mso-table-lspace:0;mso-table-rspace:0;background-color:#f4f4f4;">
-<tbody><tr><td align="center">
-
-<!-- ═══ HEADER: AIMO logo ═══ -->
-<table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;border-radius:0;color:#000;width:605px;margin:0 auto" width="605">
-<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:8px;padding-right:8px;padding-top:48px;padding-bottom:24px;vertical-align:top">
-<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0">
-<tbody><tr><td style="width:100%;padding:0"><div align="center"><div style="max-width:200px">
-<a href="https://aimocorp.com.br" target="_blank"><img src="${AIMO_LOGO_URL}" style="display:block;height:auto;border:0;width:100%" width="200" alt="AiMO" title="AiMO" height="auto"></a>
-</div></div></td></tr></tbody></table>
-</td></tr></tbody></table>
-
-<!-- ═══ BODY: White rounded card ═══ -->
-<table class="row-content stack" align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;background-color:#fff;border-radius:16px;color:#000;width:605px;margin:0 auto" width="605">
-<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-left:60px;padding-right:60px;padding-top:48px;padding-bottom:48px;vertical-align:top">
-<div style="font-family:${AIMO_FONT};font-size:16px;font-weight:400;line-height:1.6;color:#0a0a0a;">
-${cleanBody}
-</div>
-</td></tr></tbody></table>
-
-<!-- ═══ SPACER ═══ -->
-<table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0">
-<tbody><tr><td><div style="height:24px;line-height:24px;font-size:1px"> </div></td></tr></tbody></table>
-
-<!-- ═══ FOOTER (minimal) ═══ -->
-<table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;width:605px;margin:0 auto" width="605">
-<tbody><tr><td width="100%" style="mso-table-lspace:0;mso-table-rspace:0;font-weight:400;text-align:left;padding-bottom:32px;vertical-align:top">
-<table width="100%" border="0" cellpadding="10" cellspacing="0" role="presentation" style="mso-table-lspace:0;mso-table-rspace:0;word-break:break-word">
-<tbody><tr><td><div style="font-family:${AIMO_FONT}"><div style="font-size:12px;color:#8c8c8c;line-height:1.6">
-<p style="margin:0;text-align:center;">
-<span style="font-size:11px;">Enviado por aimocorp.com.br</span><br>
-<span style="font-size:11px;">AiMO Corp — Inteligência aplicada à gestão patrimonial</span><br>
-<span style="font-size:11px;">Caso não queira mais receber estes e-mails, ${unsubLink}.</span>
-</p></div></div></td></tr></tbody></table>
-</td></tr></tbody></table>
-
-</td></tr></tbody></table>
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F5F8;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;">
+<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
+${bodyHtml}
+${unsubLink ? `<p style="margin-top:32px;padding-top:24px;border-top:1px solid #E6E8EF;font-size:12px;color:#6B7390;text-align:center;">Caso não queira mais receber, ${unsubLink}.</p>` : ''}
+</td></tr></table>
+</td></tr></table>
 </body>
 </html>`;
 }
