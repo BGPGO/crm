@@ -411,11 +411,12 @@ export default function DistratoGenerator({ dealId, deal, witnesses }: DistratoG
         td p { text-indent: 0; }
       </style></head><body>${rawHtml}</body></html>`;
 
-      const signers = orderedSigners.map((s, i) => ({
+      // Quando sortable=true, a Autentique respeita a ordem do array.
+      // NAO enviar delivery_order — campo nao existe em SignerInput V2.
+      const signers = orderedSigners.map((s) => ({
         email: s.email,
         name: s.name,
         action: s.action,
-        delivery_order: sortable ? i + 1 : undefined,
       }));
 
       await api.post("/sent-documents/send", {

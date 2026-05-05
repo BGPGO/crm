@@ -63,11 +63,13 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
 
     const variables = {
       document: documentInput,
-      signers: signers.map((s: { email: string; name?: string; action: string; delivery_order?: number }) => ({
+      // NAO enviar `delivery_order` — campo nao existe em SignerInput (V2 Autentique).
+      // Quando `sortable: true` no documento, a ordem das assinaturas e
+      // determinada pela posicao no array signers (signers[0] assina primeiro).
+      signers: signers.map((s: { email: string; name?: string; action: string }) => ({
         email: s.email,
         action: s.action || 'SIGN',
         name: s.name || undefined,
-        ...(s.delivery_order !== undefined ? { delivery_order: s.delivery_order } : {}),
       })),
       file: null,
     };

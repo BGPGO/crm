@@ -1206,12 +1206,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       const html = generateContractHTML();
       await api.put(`/contracts/${cId}`, { ...form, htmlContent: html });
 
-      // Build signers from orderedSigners state
-      const signers = orderedSigners.map((s, i) => ({
+      // Build signers from orderedSigners state.
+      // Quando sortable=true, a Autentique respeita a ordem do array.
+      // NAO enviar delivery_order — campo nao existe em SignerInput V2.
+      const signers = orderedSigners.map((s) => ({
         email: s.email,
         name: s.name,
         action: s.action,
-        delivery_order: sortable ? i + 1 : undefined,
       }));
 
       // Send to Autentique
