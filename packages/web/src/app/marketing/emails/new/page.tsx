@@ -252,17 +252,41 @@ function NewCampaignPageInner() {
     }
   }, []);
 
-  // ── Compile full email HTML (same template wrapping as template editor) ──
+  // ── Compile full email HTML (brand-aware) ─────────────────────────────────
   function compileFullHtml(): string {
-    // AIMO: se ja temos doc completo no state (template AIMO self-contained),
-    // retorna intacto. NAO embrulha em white card BGP-shaped.
-    if (
-      brand === "AIMO" &&
-      /<!DOCTYPE|<html[\s>]/i.test(htmlContent.trim().slice(0, 200))
-    ) {
-      return htmlContent;
-    }
     const bodyHtml = previewRef.current?.innerHTML ?? htmlContent;
+
+    if (brand === "AIMO") {
+      // Doc completo (template AIMO self-contained) → intacto.
+      if (/<!DOCTYPE|<html[\s>]/i.test(htmlContent.trim().slice(0, 200))) {
+        return htmlContent;
+      }
+      // Snippet (IA gerou, edicao livre, etc) → wrap minimal AIMO.
+      // Card branco, Space Grotesk, cobalto. SEM logo/social/footer BGP.
+      return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+body { margin:0; padding:0; background:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
+a { color:#1E3FFF; }
+</style>
+</head>
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F8;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;">
+<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
+${bodyHtml}
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`;
+    }
+
+    // BGP: comportamento legado byte-for-byte.
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:${design.bodyBg};font-family:${design.fontFamily};font-size:${design.fontSize}px;color:${design.textColor};">
