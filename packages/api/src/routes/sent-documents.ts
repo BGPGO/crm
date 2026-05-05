@@ -6,14 +6,19 @@ const router = Router();
 
 // POST /api/sent-documents/send — Send HTML document to Autentique for digital signature
 router.post('/send', async (req: Request, res: Response, next: NextFunction) => {
+  const reqId = Math.random().toString(36).slice(2, 8);
   try {
+    console.log(`[sent-documents:${reqId}] /send entrada — userId=${(req as any).user?.id ?? 'anon'} brand=${(req as any).brand ?? '?'} contentLength=${req.headers['content-length']}`);
+
     const AUTENTIQUE_TOKEN = process.env.AUTENTIQUE_API_TOKEN;
     if (!AUTENTIQUE_TOKEN) {
-      console.error('[sent-documents] AUTENTIQUE_API_TOKEN not set in .env');
+      console.error(`[sent-documents:${reqId}] AUTENTIQUE_API_TOKEN not set in .env`);
       return next(createError('AUTENTIQUE_API_TOKEN não configurado. Adicione o token no .env da API.', 400));
     }
 
     const { htmlContent, fileName, signers, emailTemplateId, sortable, dealId } = req.body;
+
+    console.log(`[sent-documents:${reqId}] payload — fileName=${fileName} htmlLen=${htmlContent?.length ?? 0} signers=${signers?.length ?? 0} emailTemplateId=${emailTemplateId ?? 'none'} sortable=${sortable} dealId=${dealId ?? 'none'}`);
 
     // Validate required fields
     if (!htmlContent) return next(createError('htmlContent é obrigatório.', 400));
@@ -24,6 +29,7 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
 
     for (const s of signers) {
       if (!s.email || !s.name || !s.action) {
+        console.error(`[sent-documents:${reqId}] signer invalido:`, JSON.stringify(s));
         return next(createError('Cada signer deve ter email, name e action.', 400));
       }
     }
@@ -63,19 +69,26 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
       contentType: 'text/html',
     });
 
+    console.log(`[sent-documents:${reqId}] enviando pra Autentique — multipart pronto`);
     const axios = (await import('axios')).default;
     const response = await axios.post('https://api.autentique.com.br/v2/graphql', form, {
       headers: {
         ...form.getHeaders(),
         Authorization: `Bearer ${AUTENTIQUE_TOKEN}`,
       },
+      timeout: 60000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
     });
+
+    console.log(`[sent-documents:${reqId}] Autentique respondeu — status=${response.status} hasData=${!!response.data?.data}`);
 
     const autentiqueData = response.data?.data?.createDocument;
     if (!autentiqueData?.id) {
-      console.error('[sent-documents] Autentique error:', JSON.stringify(response.data));
+      console.error(`[sent-documents:${reqId}] Autentique sem createDocument.id:`, JSON.stringify(response.data));
       return next(createError('Autentique API error: ' + JSON.stringify(response.data?.errors || 'unknown'), 400));
     }
+    console.log(`[sent-documents:${reqId}] Autentique OK — autentiqueDocId=${autentiqueData.id}`);
 
     // Infer document type from fileName
     const lowerName = fileName.toLowerCase();
@@ -129,11 +142,18 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
     });
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.error('[sent-documents] Send error:', errMsg);
+    const errStack = err instanceof Error ? err.stack : '';
+    console.error(`[sent-documents:${reqId}] Send error:`, errMsg);
+    if (errStack) console.error(`[sent-documents:${reqId}] stack:`, errStack);
     if (err && typeof err === 'object' && 'response' in err) {
       const axiosErr = err as any;
+      console.error(`[sent-documents:${reqId}] axios response status=${axiosErr.response?.status} data=`, JSON.stringify(axiosErr.response?.data));
       const detail = axiosErr.response?.data ? JSON.stringify(axiosErr.response.data) : errMsg;
       return next(createError(`Erro Autentique: ${detail}`, axiosErr.response?.status || 500));
+    }
+    if (err && typeof err === 'object' && 'code' in err) {
+      const errWithCode = err as any;
+      console.error(`[sent-documents:${reqId}] erro com code=${errWithCode.code} (provavel timeout ou rede)`);
     }
     next(createError(`Erro ao enviar documento: ${errMsg}`, 500));
   }
