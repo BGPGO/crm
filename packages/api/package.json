@@ -13,6 +13,7 @@
     "seed:aimo": "tsx src/seeds/aimoBrandSetup.ts",
     "seed:aimo-template": "tsx src/seeds/aimoEmailTemplateSeed.ts",
     "seed:no-show-cadence": "tsx src/seeds/noShowCadenceSeed.ts",
+    "seed:no-show-templates": "tsx src/seeds/noShowTemplatesSeed.ts",
     "import:aimo": "tsx src/seeds/aimoLeadsImport.ts",
     "test": "vitest run",
     "test:watch": "vitest"
