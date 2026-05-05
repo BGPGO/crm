@@ -89,7 +89,7 @@ Caso não queira mais receber estes e-mails, <span style="text-decoration:underl
 /**
  * AIMO brand preview — pass-through inteligente.
  * Se o html é doc completo (template AIMO self-contained), retorna intacto.
- * Senão, aplica wrap minimal sem header/footer visual (evita duplicação).
+ * Senão, aplica wrap institucional AIMO com header (logo) + footer dark.
  */
 export function wrapAimoPreview(bodyHtml: string): string {
   // Detecta se já é doc HTML completo (template AIMO self-contained)
@@ -98,7 +98,8 @@ export function wrapAimoPreview(bodyHtml: string): string {
     return bodyHtml; // pass-through — respeita template completo
   }
 
-  // Senão (snippet/body cru): wrap minimal sem header/footer visual
+  // Snippet (IA, edição livre, etc) — wrap institucional AIMO
+  // (mirror exato do wrapAimoTemplate backend).
   const content = stripToInnerBody(bodyHtml);
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -107,17 +108,57 @@ export function wrapAimoPreview(bodyHtml: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
-body { margin:0; padding:0; background:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
+body { margin:0; padding:0; background-color:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
 a { color:#1E3FFF; }
 </style>
 </head>
 <body>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F5F8;">
 <tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;">
-<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
+
+<!-- Container principal 600px -->
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
+
+<!-- Header com logo AIMO -->
+<tr>
+<td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid #E6E8EF;">
+<img src="/aimo-logo.png" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+</td>
+</tr>
+
+<!-- Body -->
+<tr>
+<td style="padding:40px;font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif;font-size:15px;line-height:1.65;color:#0A0E1F;">
 ${content}
-</td></tr></table>
+</td>
+</tr>
+
+<!-- Footer institucional AiMO (dark) -->
+<tr>
+<td style="padding:32px 40px 32px 40px;background-color:#0A0E1F;border-top:1px solid #1A2040;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="middle" style="padding-right:12px;">
+<img src="/aimo-logo.png" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" />
+</td>
+<td valign="middle">
+<span style="font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span>
+</td>
+</tr>
+</table>
+<p style="margin:18px 0 0 0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:12px;line-height:1.6;color:#6B7390;">
+Gestão patrimonial inteligente.<br />
+aimocorp.com.br
+</p>
+<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:11px;line-height:1.6;color:#6B7390;">
+Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO.
+</p>
+</td>
+</tr>
+
+</table>
+
 </td></tr></table>
 </body>
 </html>`;

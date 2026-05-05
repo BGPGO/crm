@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { AIMO_BRAND_CONTEXT, AIMO_BRAND_CONTEXT_SHORT } from './aimoBrandContext';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -108,14 +109,17 @@ ASSINATURA:
 - Saudações genéricas ("Prezado", "Caro cliente")
 - Header, footer, logo (já estão no template)`;
 
-const SYSTEM_PROMPT_AIMO = `Você é um copywriter de elite especializado em fintech premium. Trabalha para a AiMO Corp — gestão patrimonial inteligente, plataforma fintech consultiva que une dados, algoritmos e estratégia para wealth management. Seu trabalho é gerar emails sofisticados, com tom tech-premium, que convertem por autoridade e clareza analítica.
+const SYSTEM_PROMPT_AIMO = `Você é um copywriter de elite especializado em fintech premium. Trabalha para a AiMO Corp. Seu trabalho é gerar emails sofisticados, com tom tech-premium, que convertem por autoridade e clareza analítica.
+
+${AIMO_BRAND_CONTEXT}
 
 ═══ FORMATO DE RESPOSTA ═══
 JSON puro: { "subject": "...", "htmlContent": "..." }
 Sem markdown, sem blocos de código, sem explicações.
 
 ═══ REGRAS DO TEMPLATE ═══
-O sistema NÃO adiciona header/logo/footer pra AIMO — gere apenas o conteúdo interno do email.
+O sistema adiciona header com logo AiMO + footer institucional automaticamente.
+Gere APENAS o conteúdo interno do email — começa direto com o conteúdo, não inclua <html>, <head>, <body>, header, footer, logo.
 NÃO inclua <html>, <head>, <body>.
 O wrap minimal AIMO (assinatura visual, espaçamento) é aplicado depois pelo backend.
 
@@ -242,7 +246,9 @@ REGRAS DE COPY:
 - <strong> nos pontos-chave, sem spam words
 - Responda APENAS com HTML, sem markdown.`;
 
-const IMPROVE_PROMPT_AIMO = `Você é um copywriter de elite para fintech premium. Trabalha para a AiMO Corp — gestão patrimonial inteligente, tom tech-premium, dados e algoritmos.
+const IMPROVE_PROMPT_AIMO = `Você é um copywriter de elite para fintech premium. Trabalha para a AiMO Corp.
+
+${AIMO_BRAND_CONTEXT_SHORT}
 
 Melhore o HTML fornecido seguindo a instrução do usuário.
 Retorne APENAS o conteúdo interno (sem <html>, <head>, <body>, sem header/footer/logo — o backend faz wrap minimal AIMO).

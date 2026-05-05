@@ -261,8 +261,9 @@ function NewCampaignPageInner() {
       if (/<!DOCTYPE|<html[\s>]/i.test(htmlContent.trim().slice(0, 200))) {
         return htmlContent;
       }
-      // Snippet (IA gerou, edicao livre, etc) → wrap minimal AIMO.
-      // Card branco, Space Grotesk, cobalto. SEM logo/social/footer BGP.
+      // Snippet (IA gerou, edicao livre, etc) → wrap institucional AIMO
+      // com header (logo) + footer dark. Mirror exato do wrapAimoTemplate
+      // backend e wrapAimoPreview (EmailPreview.tsx).
       return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -270,17 +271,32 @@ function NewCampaignPageInner() {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
-body { margin:0; padding:0; background:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
+body { margin:0; padding:0; background-color:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
 a { color:#1E3FFF; }
 </style>
 </head>
 <body>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F5F8;">
 <tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:12px;">
-<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
+<tr><td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid #E6E8EF;">
+<img src="/aimo-logo.png" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+</td></tr>
+<tr><td style="padding:40px;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.65;color:#0A0E1F;">
 ${bodyHtml}
-</td></tr></table>
+</td></tr>
+<tr><td style="padding:32px 40px;background-color:#0A0E1F;border-top:1px solid #1A2040;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="middle" style="padding-right:12px;"><img src="/aimo-logo.png" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" /></td>
+<td valign="middle"><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span></td>
+</tr>
+</table>
+<p style="margin:18px 0 0 0;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;color:#6B7390;">Gestão patrimonial inteligente.<br />aimocorp.com.br</p>
+<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:'Inter',sans-serif;font-size:11px;line-height:1.6;color:#6B7390;">Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO.</p>
+</td></tr>
+</table>
 </td></tr></table>
 </body>
 </html>`;

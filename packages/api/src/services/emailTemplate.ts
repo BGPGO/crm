@@ -9,12 +9,18 @@
  * Default brand is BGP, so legacy callers keep working unchanged.
  */
 
+import { AIMO_LOGO_DATA_URL } from '../seeds/aimoLogoBase64';
+
 const LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/665130/Logo_BGP_16%20%282%29.png';
 const WHATSAPP_LINK = 'https://wa.me/5551992091726?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20o%20meu%20financeiro!';
 const FONT = "Montserrat,'Trebuchet MS','Lucida Grande','Lucida Sans Unicode','Lucida Sans',Tahoma,sans-serif";
 
 const AIMO_FONT = "'Space Grotesk','Inter','Helvetica Neue',Arial,sans-serif";
 const AIMO_PRIMARY = '#1E3FFF';
+const AIMO_DARK = '#0A0E1F';
+const AIMO_NEUTRAL_BG = '#F4F5F8';
+const AIMO_DIVIDER = '#E6E8EF';
+const AIMO_TEXT_MUTED = '#6B7390';
 
 export type Brand = 'BGP' | 'AIMO';
 
@@ -138,26 +144,69 @@ export function wrapAimoTemplate(bodyHtml: string, unsubscribeUrl?: string): str
     return bodyHtml;
   }
 
-  // Snippet de body — wrap mínimo sem chrome visual (header/footer).
+  // Snippet de body — wrap institucional AIMO com header (logo) + footer.
   const unsubLink = unsubscribeUrl
-    ? `<a href="${unsubscribeUrl}" style="color:${AIMO_PRIMARY};text-decoration:underline">cancelar inscrição</a>`
-    : '';
+    ? `<a href="${unsubscribeUrl}" style="color:${AIMO_TEXT_MUTED};text-decoration:underline">cancelar inscrição</a>`
+    : `<span style="text-decoration:underline">cancelar inscrição</span>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');body{margin:0;padding:0;background-color:#F4F5F8;font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif;color:#0A0E1F;}a{color:${AIMO_PRIMARY};}</style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+body { margin:0; padding:0; background-color:${AIMO_NEUTRAL_BG}; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:${AIMO_DARK}; }
+a { color:${AIMO_PRIMARY}; }
+</style>
 </head>
 <body>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F5F8;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${AIMO_NEUTRAL_BG};">
 <tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;">
-<tr><td style="padding:48px 40px;font-size:15px;line-height:1.6;color:#0A0E1F;">
+
+<!-- Container principal 600px -->
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
+
+<!-- Header com logo AIMO -->
+<tr>
+<td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid ${AIMO_DIVIDER};">
+<img src="${AIMO_LOGO_DATA_URL}" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+</td>
+</tr>
+
+<!-- Body do snippet -->
+<tr>
+<td style="padding:40px;font-family:${AIMO_FONT};font-size:15px;line-height:1.65;color:${AIMO_DARK};">
 ${bodyHtml}
-${unsubLink ? `<p style="margin-top:32px;padding-top:24px;border-top:1px solid #E6E8EF;font-size:12px;color:#6B7390;text-align:center;">Caso não queira mais receber, ${unsubLink}.</p>` : ''}
-</td></tr></table>
+</td>
+</tr>
+
+<!-- Footer institucional AiMO -->
+<tr>
+<td style="padding:32px 40px 32px 40px;background-color:${AIMO_DARK};border-top:1px solid #1A2040;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="middle" style="padding-right:12px;">
+<img src="${AIMO_LOGO_DATA_URL}" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" />
+</td>
+<td valign="middle">
+<span style="font-family:${AIMO_FONT};font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span>
+</td>
+</tr>
+</table>
+<p style="margin:18px 0 0 0;font-family:${AIMO_FONT};font-size:12px;line-height:1.6;color:${AIMO_TEXT_MUTED};">
+Gestão patrimonial inteligente.<br />
+aimocorp.com.br
+</p>
+<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:${AIMO_FONT};font-size:11px;line-height:1.6;color:${AIMO_TEXT_MUTED};">
+Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO. Caso não queira mais receber, ${unsubLink}.
+</p>
+</td>
+</tr>
+
+</table>
+
 </td></tr></table>
 </body>
 </html>`;
