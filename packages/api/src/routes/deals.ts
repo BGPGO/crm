@@ -4,7 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { logActivity } from '../services/activityLogger';
 import { dispatchWebhook } from '../services/webhookDispatcher';
-import { onStageChanged } from '../services/automationTriggerListener';
+import { onStageChanged, onTagAdded, onTagRemoved } from '../services/automationTriggerListener';
 import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
 import { sendSaleNotifications } from '../services/saleNotificationService';
 import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
@@ -817,6 +817,30 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
       );
     }
 
+    // Aplicar tag "no-show" ao contato + disparar Cadência No-Show
+    // (TAG_ADDED trigger). Se a tag não existe (seed nao rodado), apenas
+    // log warn e segue — graceful.
+    if (deal.contactId) {
+      try {
+        const noShowTag = await prisma.tag.findUnique({ where: { name: 'no-show' } });
+        if (noShowTag) {
+          await prisma.contactTag.upsert({
+            where: { contactId_tagId: { contactId: deal.contactId, tagId: noShowTag.id } },
+            create: { contactId: deal.contactId, tagId: noShowTag.id },
+            update: {},
+          });
+          // Dispara automação Cadência No-Show. evaluateTriggers internamente
+          // pula se ja houver enrollment ACTIVE/PAUSED — idempotente.
+          onTagAdded(deal.contactId, noShowTag.id);
+          console.log(`[no-show] Tag "no-show" aplicada ao contato ${deal.contactId} + automação disparada`);
+        } else {
+          console.warn('[no-show] Tag "no-show" não encontrada — rode seed:no-show-cadence pra criar');
+        }
+      } catch (err) {
+        console.error('[no-show] Erro ao aplicar tag no-show:', err);
+      }
+    }
+
     // Cancel active CalendlyEvents for this deal
     await prisma.calendlyEvent.updateMany({
       where: { dealId: existing.id, status: 'active' },
@@ -855,6 +879,28 @@ router.delete('/:id/no-show', async (req: Request, res: Response, next: NextFunc
       contactId: existing.contactId ?? undefined,
       metadata: { tag: 'no-show', noShow: false },
     });
+
+    // Remover tag "no-show" do contato (se existir).
+    // Comportamento: o enrollment ativo da Cadência No-Show é
+    // pausado automaticamente quando o lead voltar pra "Reunião
+    // Agendada" via interruptCadenceOnStageChange. Aqui só removemos
+    // a tag pra futuros no-shows (re-aplicar) reativarem a cadência.
+    if (existing.contactId) {
+      try {
+        const noShowTag = await prisma.tag.findUnique({ where: { name: 'no-show' } });
+        if (noShowTag) {
+          const removed = await prisma.contactTag.deleteMany({
+            where: { contactId: existing.contactId, tagId: noShowTag.id },
+          });
+          if (removed.count > 0) {
+            onTagRemoved(existing.contactId, noShowTag.id);
+            console.log(`[no-show] Tag "no-show" removida do contato ${existing.contactId}`);
+          }
+        }
+      } catch (err) {
+        console.error('[no-show] Erro ao remover tag no-show:', err);
+      }
+    }
 
     res.json({ data: deal });
   } catch (err) {
