@@ -33,6 +33,8 @@ import {
 import clsx from "clsx";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useBrand } from "@/contexts/BrandContext";
+import BrandSwitcher from "@/components/BrandSwitcher";
 import { api } from "@/lib/api";
 
 const baseNavItems = [
@@ -83,6 +85,7 @@ export default function TopNavbar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { brand } = useBrand();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -167,7 +170,17 @@ export default function TopNavbar() {
   const displayName = user?.name || "Usuário";
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-4 gap-4 md:gap-6 flex-shrink-0 z-30">
+    <header
+      className={clsx(
+        "h-14 bg-white border-b flex items-center px-4 gap-4 md:gap-6 flex-shrink-0 z-30 transition-colors",
+        brand === "AIMO" ? "border-l-2" : "border-gray-200"
+      )}
+      style={
+        brand === "AIMO"
+          ? { borderLeftColor: "#1E3FFF", borderBottomColor: "#E5E7EB" }
+          : undefined
+      }
+    >
       {/* Hamburger button - mobile only */}
       <button
         onClick={() => setMobileMenuOpen(true)}
@@ -212,8 +225,10 @@ export default function TopNavbar() {
       {/* Spacer for mobile to push right-side items */}
       <div className="flex-1 md:hidden" />
 
-      {/* Right side: search, notifications, avatar */}
+      {/* Right side: brand switcher, search, notifications, avatar */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Brand switcher (BGP / AIMO) */}
+        <BrandSwitcher />
         {/* Search */}
         <div className="relative hidden md:block">
           <Search

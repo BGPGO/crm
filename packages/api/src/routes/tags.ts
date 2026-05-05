@@ -14,8 +14,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const [total, tags] = await Promise.all([
-      prisma.tag.count(),
+      prisma.tag.count({ where: { brand: req.brand } }),
       prisma.tag.findMany({
+        where: { brand: req.brand },
         skip,
         take: limit,
         orderBy: { name: 'asc' },

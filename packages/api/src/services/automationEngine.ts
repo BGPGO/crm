@@ -33,12 +33,25 @@ export async function evaluateTriggers(
 
   console.log(`[AutomationEngine] evaluateTriggers ${triggerType} — ${automations.length} automations ACTIVE, contactId=${data.contactId}, metadata=${JSON.stringify(data.metadata || {})}`);
 
+  // Brand gate: busca brand do contato uma vez pra reusar no loop
+  const contactBrand = await prisma.contact.findUnique({
+    where: { id: data.contactId },
+    select: { brand: true },
+  });
+
   // Pre-check cadence flags (Z-API cadences need cadenceEnabled; WABA cadences always run)
   let cadenceEnabledChecked = false;
   let cadenceEnabled = false;
 
   for (const automation of automations) {
     const triggerConfig = automation.triggerConfig as any;
+
+    // Brand gate: automação só dispara pra contato da mesma marca.
+    // Se contato foi deletado (contactBrand=null), continuar (não quebrar fluxo).
+    if (contactBrand && contactBrand.brand !== automation.brand) {
+      console.log(`[AutomationEngine]   → SKIP "${automation.name}" — brand mismatch (automation=${automation.brand}, contact=${contactBrand.brand})`);
+      continue;
+    }
 
     // Determine if this is a WABA automation (has SEND_WA_TEMPLATE steps)
     const isWabaAutomation = automation.steps.some(

@@ -13,7 +13,7 @@ router.post('/generate-email', async (req: Request, res: Response, next: NextFun
       return next(createError('topic is required', 400));
     }
 
-    const result = await generateEmail({ topic, tone, audience, language });
+    const result = await generateEmail({ topic, tone, audience, language, brand: req.brand });
 
     res.json({ data: { subject: result.subject, htmlContent: result.htmlContent } });
   } catch (err) {
@@ -34,7 +34,7 @@ router.post('/improve-email', async (req: Request, res: Response, next: NextFunc
       return next(createError('instruction is required', 400));
     }
 
-    const result = await improveEmail({ htmlContent, instruction });
+    const result = await improveEmail({ htmlContent, instruction, brand: req.brand });
 
     res.json({ data: { htmlContent: result.htmlContent } });
   } catch (err) {

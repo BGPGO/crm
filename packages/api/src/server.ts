@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { responseSerializer, inputSanitizer } from './middleware/serializer';
+import { brandContext } from './middleware/brandContext';
 import { startAllJobs } from './jobs';
 
 const app = express();
@@ -88,6 +89,10 @@ app.use('/api/contracts/webhook', webhookLimiter);
 // Converts Prisma Decimal→number in responses, sanitizes empty strings in inputs
 app.use(responseSerializer());
 app.use(inputSanitizer());
+
+// ─── Brand context (multi-brand) ─────────────────────────────────────────────
+// Resolve req.brand from X-Brand header (default 'BGP'). Must come before routes.
+app.use(brandContext);
 
 // ─── Static assets (public, no auth) ─────────────────────────────────────────
 // Served at /email-assets (outside /api) — URL: ${API_URL_base}/email-assets/...

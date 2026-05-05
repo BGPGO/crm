@@ -21,6 +21,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     if (userId) where.userId = userId as string;
     if (type) where.type = type as string;
 
+    // Activity has no brand — filter via contact.brand or deal.brand.
+    // Orphan activities (no contact and no deal) only show for BGP.
+    const brandClauses: Array<Record<string, unknown>> = [
+      { contact: { brand: req.brand } },
+      { deal: { brand: req.brand } },
+    ];
+    if (req.brand === 'BGP') {
+      brandClauses.push({ AND: [{ contactId: null }, { dealId: null }] });
+    }
+    where.OR = brandClauses;
+
     const [total, data] = await Promise.all([
       prisma.activity.count({ where }),
       prisma.activity.findMany({

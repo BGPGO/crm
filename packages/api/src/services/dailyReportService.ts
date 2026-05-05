@@ -41,13 +41,15 @@ async function buildSubjectSummary(window: { dayStart: Date; dayEnd: Date }): Pr
   const { dayStart, dayEnd } = window;
   const [leads, meetings, wonDeals] = await Promise.all([
     prisma.deal.count({
-      where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
+      // Daily report é BGP-only (multi-brand pending)
+      where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
     }),
     prisma.calendlyEvent.count({
       where: { createdAt: { gte: dayStart, lt: dayEnd }, status: 'active' },
     }),
     prisma.deal.findMany({
-      where: { pipelineId: PIPELINE_ID, status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
+      // Daily report é BGP-only (multi-brand pending)
+      where: { pipelineId: PIPELINE_ID, brand: 'BGP', status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
       select: { value: true },
     }),
   ]);

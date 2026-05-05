@@ -560,6 +560,18 @@ router.post('/', async (req: Request, res: Response) => {
             console.log(`[calendly-webhook] meetingBooked=true for conversation ${conv.id}`);
           }
 
+          // Mark WABA conversation (BIA) as meetingBooked — NEW table, parallel to Z-API legacy above
+          const waConv = await prisma.waConversation.findFirst({
+            where: { contactId: contact.id },
+          });
+          if (waConv) {
+            await prisma.waConversation.update({
+              where: { id: waConv.id },
+              data: { meetingBooked: true },
+            });
+            console.log(`[calendly-webhook] meetingBooked=true for waConversation ${waConv.id}`);
+          }
+
           // Pause all active automation enrollments for this contact
           await prisma.automationEnrollment.updateMany({
             where: { contactId: contact.id, status: 'ACTIVE' },
@@ -610,13 +622,20 @@ router.post('/', async (req: Request, res: Response) => {
         const calDiretoTag = await prisma.tag.findUnique({ where: { name: 'Calendly Direto' } });
         const iaCalendlyTag = await prisma.tag.findUnique({ where: { name: 'IA → Calendly' } });
 
-        // Check if the contact has a WhatsAppConversation with bot messages
-        const hasConversation = await prisma.whatsAppConversation.findFirst({
-          where: { contactId: contact.id },
-          include: { messages: { where: { sender: 'BOT' }, take: 1 } },
-        });
+        // Check if the contact has bot messages — across both Z-API (WhatsAppConversation/Message)
+        // and WABA (WaConversation/WaMessage with senderType=WA_BOT). Either source counts as "BIA touched".
+        const [zapiConvWithBot, wabaBotMsg] = await Promise.all([
+          prisma.whatsAppConversation.findFirst({
+            where: { contactId: contact.id },
+            include: { messages: { where: { sender: 'BOT' }, take: 1 } },
+          }),
+          prisma.waMessage.findFirst({
+            where: { conversation: { contactId: contact.id }, senderType: 'WA_BOT' },
+            select: { id: true },
+          }),
+        ]);
 
-        const hasBotMessages = hasConversation && hasConversation.messages.length > 0;
+        const hasBotMessages = (zapiConvWithBot && zapiConvWithBot.messages.length > 0) || !!wabaBotMsg;
         const tagToApply = hasBotMessages ? iaCalendlyTag : calDiretoTag;
 
         if (tagToApply) {

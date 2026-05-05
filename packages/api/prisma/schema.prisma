@@ -19,6 +19,11 @@ enum UserRole {
   SELLER
 }
 
+enum Brand {
+  BGP
+  AIMO
+}
+
 enum DealStatus {
   OPEN
   WON
@@ -244,6 +249,7 @@ model Contact {
   instagram String?
   notes     String?
   sector    String?
+  brand     Brand     @default(BGP)
 
   phoneInvalid   Boolean   @default(false)
   phoneInvalidAt DateTime?
@@ -271,12 +277,14 @@ model Contact {
   @@index([email])
   @@index([organizationId])
   @@index([name])
+  @@index([brand])
 }
 
 model Pipeline {
   id        String  @id @default(cuid())
   name      String
   isDefault Boolean @default(false)
+  brand     Brand   @default(BGP)
 
   stages PipelineStage[]
   deals  Deal[]
@@ -355,15 +363,15 @@ model CampaignContext {
 }
 
 model Deal {
-  id                 String     @id @default(cuid())
+  id                 String         @id @default(cuid())
   title              String
-  value              Decimal?   @db.Decimal(15, 2)
+  value              Decimal?       @db.Decimal(15, 2)
   expectedCloseDate  DateTime?
   expectedReturnDate DateTime?
   closedAt           DateTime?
   sdrActivatedAt     DateTime?
-  status             DealStatus @default(OPEN)
-  noShow             Boolean    @default(false)
+  status             DealStatus     @default(OPEN)
+  noShow             Boolean        @default(false)
   noShowAt           DateTime?
   // Origem da reunião agendada — espelha o meetingSource da task MEETING mais recente
   meetingSource      MeetingSource?
@@ -371,6 +379,7 @@ model Deal {
   contaAzulCode      String?
   lostAtStage        String?
   recurrence         String?
+  brand              Brand          @default(BGP)
 
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id])
@@ -418,6 +427,7 @@ model Deal {
   @@index([pipelineId, status])
   @@index([status, createdAt])
   @@index([createdAt])
+  @@index([brand])
 }
 
 model Product {
@@ -478,18 +488,18 @@ model DealContact {
 }
 
 model Task {
-  id             String         @id @default(cuid())
-  title          String
-  description    String?
-  type           TaskType       @default(OTHER)
-  dueDate        DateTime?
+  id            String         @id @default(cuid())
+  title         String
+  description   String?
+  type          TaskType       @default(OTHER)
+  dueDate       DateTime?
   // "UTC" = dueDate é UTC real (convenção timezone-aware correta)
   // "LEGACY" = dueDate é UTC literal representando BRT (dados pré-fix de 2026-04-23)
   // Novos registros sempre "UTC". Legacy migra lazy ao editar.
-  dueDateFormat  String         @default("UTC")
-  completedAt    DateTime?
-  status         TaskStatus     @default(PENDING)
-  meetingSource  MeetingSource?
+  dueDateFormat String         @default("UTC")
+  completedAt   DateTime?
+  status        TaskStatus     @default(PENDING)
+  meetingSource MeetingSource?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
@@ -615,11 +625,14 @@ model Tag {
   id    String @id @default(cuid())
   name  String @unique
   color String @default("#6366f1")
+  brand Brand  @default(BGP)
 
   contacts ContactTag[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([brand])
 }
 
 model ContactTag {
@@ -647,6 +660,7 @@ model Segment {
   filters      Json
   isActive     Boolean @default(true)
   contactCount Int     @default(0)
+  brand        Brand   @default(BGP)
 
   emailCampaigns    EmailCampaign[]
   whatsappCampaigns WhatsAppCampaign[]
@@ -654,6 +668,8 @@ model Segment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([brand])
 }
 
 // ─── Marketing: Lead Scoring ────────────────────────────────────────────────
@@ -714,11 +730,14 @@ model EmailTemplate {
   jsonContent  Json?
   thumbnailUrl String?
   isActive     Boolean @default(true)
+  brand        Brand   @default(BGP)
 
   campaigns EmailCampaign[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([brand])
 }
 
 model EmailCampaign {
@@ -731,6 +750,7 @@ model EmailCampaign {
   scheduledAt     DateTime?
   sentAt          DateTime?
   totalRecipients Int         @default(0)
+  brand           Brand       @default(BGP)
 
   templateId String?
   template   EmailTemplate? @relation(fields: [templateId], references: [id])
@@ -738,7 +758,7 @@ model EmailCampaign {
   segmentId String?
   segment   Segment? @relation(fields: [segmentId], references: [id])
 
-  filters   Json?    // filterGroups inline — alternative to segmentId (OR groups format)
+  filters Json? // filterGroups inline — alternative to segmentId (OR groups format)
 
   sends EmailSend[]
   links EmailLink[]
@@ -748,6 +768,7 @@ model EmailCampaign {
 
   @@index([status])
   @@index([segmentId])
+  @@index([brand])
 }
 
 model EmailSend {
@@ -826,6 +847,7 @@ model Automation {
   status        AutomationStatus      @default(DRAFT)
   triggerType   AutomationTriggerType
   triggerConfig Json
+  brand         Brand                 @default(BGP)
 
   steps       AutomationStep[]
   enrollments AutomationEnrollment[]
@@ -834,6 +856,7 @@ model Automation {
   updatedAt DateTime @updatedAt
 
   @@index([status])
+  @@index([brand])
 }
 
 model AutomationStep {
@@ -1021,12 +1044,12 @@ model SentDocument {
   autentiqueDocumentId String
   documentName         String
   documentType         String    @default("contract") // "contract", "aditivo", "distrato"
-  signerEmails         String    // comma-separated emails
+  signerEmails         String // comma-separated emails
   status               String    @default("pending") // "pending", "signed"
   signedCount          Int       @default(0)
   totalSigners         Int       @default(0)
   lastCheckedAt        DateTime?
-  metadata             Json?     // full Autentique response with signer details
+  metadata             Json? // full Autentique response with signer details
   dealId               String?
   deal                 Deal?     @relation(fields: [dealId], references: [id])
   createdAt            DateTime  @default(now())
@@ -1455,8 +1478,8 @@ model ReadAiMeeting {
   rawData      Json?
 
   /// Relatório estruturado gerado por IA (10 campos de análise de vendas)
-  aiAnalysis      Json?
-  aiAnalyzedAt    DateTime?
+  aiAnalysis   Json?
+  aiAnalyzedAt DateTime?
 
   dealId    String?
   contactId String?
@@ -1516,7 +1539,7 @@ model CloudWaConfig {
   phoneStatus   String  @default("PENDING_SETUP") // CONNECTED, FLAGGED, RESTRICTED, PENDING_SETUP
 
   // ── Limites ──
-  dailyMessageLimit  Int   @default(250)  // Limite por tier
+  dailyMessageLimit  Int   @default(250) // Limite por tier
   dailySpendLimitBRL Float @default(40.0) // Limite de gasto diário em R$ (0 = sem limite)
 
   // ── Webhook ──
@@ -1714,10 +1737,10 @@ model WaConversation {
   contact   Contact? @relation(fields: [contactId], references: [id])
 
   assignedUserId String?
-  assignedUser   User? @relation("WaConversationAssignee", fields: [assignedUserId], references: [id])
+  assignedUser   User?   @relation("WaConversationAssignee", fields: [assignedUserId], references: [id])
 
-  messages   WaMessage[]
-  aiHistory  WaAIHistory[]
+  messages      WaMessage[]
+  aiHistory     WaAIHistory[]
   followUpState WaFollowUpState?
 
   createdAt DateTime @default(now())
@@ -1737,7 +1760,7 @@ model WaMessage {
   id String @id @default(cuid())
 
   // ── Identificação Meta ──
-  waMessageId String? @unique // wamid.HBgN... (ID da Meta)
+  waMessageId String?            @unique // wamid.HBgN... (ID da Meta)
   direction   WaMessageDirection
   senderType  WaMessageSender
 
@@ -1745,7 +1768,7 @@ model WaMessage {
   type          WaMessageType @default(TEXT)
   body          String?       @db.Text
   mediaUrl      String?
-  mediaId       String?       // Media ID da Meta (expira 30 dias)
+  mediaId       String? // Media ID da Meta (expira 30 dias)
   mediaFileName String?
   mediaMimeType String?
 
@@ -1780,7 +1803,7 @@ model WaMessage {
   conversation   WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   senderUserId String?
-  senderUser   User? @relation("WaMessageSender", fields: [senderUserId], references: [id])
+  senderUser   User?   @relation("WaMessageSender", fields: [senderUserId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1833,6 +1856,7 @@ model WaBroadcast {
   id     String            @id @default(cuid())
   name   String
   status WaBroadcastStatus @default(WA_DRAFT)
+  brand  Brand             @default(BGP)
 
   // ── Template obrigatório (Meta exige para bulk) ──
   templateId     String?
@@ -1846,7 +1870,7 @@ model WaBroadcast {
   stageId String?
   stage   PipelineStage? @relation(fields: [stageId], references: [id])
 
-  stageIds   Json?   // Array de stageIds quando multi-select
+  stageIds   Json? // Array de stageIds quando multi-select
   dealStatus String? // OPEN | WON | LOST — filtro de andamento usado
 
   // ── Scheduling ──
@@ -1870,16 +1894,17 @@ model WaBroadcast {
 
   @@index([status])
   @@index([scheduledAt])
+  @@index([brand])
 }
 
 model WaBroadcastContact {
-  id        String                  @id @default(cuid())
+  id        String                   @id @default(cuid())
   phone     String
   contactId String?
   status    WaBroadcastContactStatus @default(WA_BC_PENDING)
 
   waMessageId    String? // link para WaMessage após envio
-  templateParams Json?   // override por contato
+  templateParams Json? // override por contato
 
   sentAt      DateTime?
   deliveredAt DateTime?
@@ -1902,12 +1927,12 @@ model WaBroadcastContact {
 // ─── Duplicate Detection ───────────────────────────────────────────────────────
 
 model DuplicateAlert {
-  id          String   @id @default(cuid())
-  contactAId  String   // contato recém-criado (ex: via Calendly)
-  contactBId  String   // possível duplicata (ex: via GreatPages)
-  reason      String   // ex: "Mesmo nome, criado 27s antes"
-  status      String   @default("PENDING") // PENDING | MERGED | DISMISSED
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  contactAId String // contato recém-criado (ex: via Calendly)
+  contactBId String // possível duplicata (ex: via GreatPages)
+  reason     String // ex: "Mesmo nome, criado 27s antes"
+  status     String   @default("PENDING") // PENDING | MERGED | DISMISSED
+  createdAt  DateTime @default(now())
 
   @@index([status])
 }

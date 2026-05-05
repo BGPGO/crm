@@ -16,6 +16,16 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const where: Record<string, unknown> = {};
     if (status) where.status = status as string;
 
+    // Campaign has no brand field — filter via deals.some(brand).
+    // Campaigns with zero deals (manually created) only show for BGP.
+    const brandClauses: Array<Record<string, unknown>> = [
+      { deals: { some: { brand: req.brand } } },
+    ];
+    if (req.brand === 'BGP') {
+      brandClauses.push({ deals: { none: {} } });
+    }
+    where.OR = brandClauses;
+
     const [total, data] = await Promise.all([
       prisma.campaign.count({ where }),
       prisma.campaign.findMany({

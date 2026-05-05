@@ -13,7 +13,7 @@ router.get('/stats/global', async (req: Request, res: Response, next: NextFuncti
     todayStart.setHours(0, 0, 0, 0);
 
     const [activeAutomations, enrollmentsActive, executionsToday] = await Promise.all([
-      prisma.automation.count({ where: { status: 'ACTIVE' } }),
+      prisma.automation.count({ where: { status: 'ACTIVE', brand: req.brand } }),
       prisma.automationEnrollment.count({ where: { status: 'ACTIVE' } }),
       prisma.automationLog.count({ where: { executedAt: { gte: todayStart } } }),
     ]);
@@ -40,7 +40,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const { status } = req.query;
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { brand: req.brand };
     if (status) where.status = status as string;
 
     const includeSteps = req.query.includeSteps === 'true';
