@@ -67,7 +67,7 @@ router.get('/preview-count', async (req: Request, res: Response, next: NextFunct
       const segment = await prisma.segment.findUnique({ where: { id: segmentId as string } });
       if (!segment) return res.json({ count: 0 });
       const { buildSegmentWhere } = await import('../services/segmentEngine');
-      const segmentWhere = buildSegmentWhere(segment.filters as any);
+      const segmentWhere = buildSegmentWhere(segment.filters as any, segment.brand);
       const count = await prisma.contact.count({
         where: { ...segmentWhere, phone: { not: null } },
       });
@@ -184,7 +184,7 @@ router.post(
         if (!segment) return next(createError('Segment not found', 404));
 
         const { buildSegmentWhere } = await import('../services/segmentEngine');
-        const segmentWhere = buildSegmentWhere(segment.filters as any);
+        const segmentWhere = buildSegmentWhere(segment.filters as any, segment.brand);
 
         const segmentContacts = await prisma.contact.findMany({
           where: { ...segmentWhere, phone: { not: null } },

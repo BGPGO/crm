@@ -72,7 +72,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query as Record<string, unknown>;
     const str = (key: string) => query[key] as string | undefined;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { brand: req.brand };
 
     if (str('pipelineId')) where.pipelineId = str('pipelineId');
     if (str('stageId')) where.stageId = str('stageId');
@@ -295,12 +295,12 @@ router.get('/sdr-diagnostics', async (req, res, next) => {
     const firstContactLimit = config ? await getFirstContactLimit() : 2;
 
     const defaultPipeline = await prisma.pipeline.findFirst({
-      where: { isDefault: true },
+      where: { isDefault: true, brand: req.brand },
       include: { stages: { orderBy: { order: 'asc' }, take: 1 } },
     });
     const firstStageId = defaultPipeline?.stages[0]?.id;
-    const leadsTotal = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN' } }) : 0;
-    const leadsNaoAtivados = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN', sdrActivatedAt: null } }) : 0;
+    const leadsTotal = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN', brand: req.brand } }) : 0;
+    const leadsNaoAtivados = firstStageId ? await prisma.deal.count({ where: { stageId: firstStageId, status: 'OPEN', sdrActivatedAt: null, brand: req.brand } }) : 0;
 
     res.json({
       bloqueios: {
@@ -513,7 +513,7 @@ router.patch(
 
       // Fetch all deals with their current stage info
       const deals = await prisma.deal.findMany({
-        where: { id: { in: dealIds } },
+        where: { id: { in: dealIds }, brand: req.brand },
         include: { stage: true },
       });
 
@@ -1013,7 +1013,7 @@ router.post('/:id/activate-bot', async (req, res, next) => {
 router.post('/trigger-pending-sdr', async (req, res, next) => {
   try {
     const defaultPipeline = await prisma.pipeline.findFirst({
-      where: { isDefault: true },
+      where: { isDefault: true, brand: req.brand },
       include: { stages: { orderBy: { order: 'asc' }, take: 1 } },
     });
 
@@ -1028,6 +1028,7 @@ router.post('/trigger-pending-sdr', async (req, res, next) => {
       where: {
         stageId: firstStageId,
         status: 'OPEN',
+        brand: req.brand,
         contact: { phone: { not: null } },
       },
       include: { contact: { select: { id: true, phone: true } } },

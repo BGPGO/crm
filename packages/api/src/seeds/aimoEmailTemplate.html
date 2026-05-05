@@ -1,0 +1,307 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
+  <title>{{HEADLINE}}</title>
+  <!--[if mso]>
+  <style type="text/css">
+    table, td, div, h1, h2, h3, p { font-family: 'Segoe UI', Arial, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+    /* Reset basico email-safe */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a { text-decoration: none; }
+
+    /* Tipografia */
+    .font-display { font-family: 'Space Grotesk', 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; }
+    .font-body { font-family: 'Inter', 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif; }
+
+    /* Hover do CTA (clientes que suportam) */
+    .cta-btn:hover { background-color: #1735D6 !important; }
+    .footer-link:hover { color: #1E3FFF !important; }
+
+    /* Mobile */
+    @media only screen and (max-width: 620px) {
+      .container { width: 100% !important; max-width: 100% !important; }
+      .px-mobile { padding-left: 24px !important; padding-right: 24px !important; }
+      .hero-headline { font-size: 32px !important; line-height: 1.1 !important; }
+      .hero-sub { font-size: 16px !important; }
+      .highlight-stack { display: block !important; width: 100% !important; }
+      .highlight-stack td { display: block !important; width: 100% !important; padding: 0 0 24px 0 !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F4F5F8; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;">
+  <!-- Preheader oculto -->
+  <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all; font-size: 1px; line-height: 1px; color: #F4F5F8;">
+    {{SUBHEAD}}
+  </div>
+
+  <!-- Wrapper externo -->
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F4F5F8;">
+    <tr>
+      <td align="center" style="padding: 32px 16px;">
+
+        <!-- Container principal 600px -->
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="600" class="container" style="width: 600px; max-width: 600px; background-color: #FFFFFF;">
+
+          <!-- 1. HEADER (logo) -->
+          <tr>
+            <td align="left" class="px-mobile" style="padding: 32px 40px 24px 40px; background-color: #FFFFFF; border-bottom: 1px solid #E6E8EF;">
+              <img src="{{LOGO_URL}}" alt="AiMO" width="96" height="32" style="display: block; width: 96px; height: auto; border: 0;" />
+            </td>
+          </tr>
+
+          <!-- 2. HERO DARK -->
+          <tr>
+            <td align="left" class="px-mobile" style="padding: 56px 40px 56px 40px; background-color: #0A0E1F;">
+              <!-- Badge -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color: #1A2040; padding: 6px 12px; border-radius: 100px;">
+                    <span class="font-display" style="font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; color: #6B89FF; letter-spacing: 1.2px; text-transform: uppercase;">AiMO Corp</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Headline -->
+              <h1 class="font-display hero-headline" style="margin: 24px 0 16px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 44px; line-height: 1.05; font-weight: 600; color: #FFFFFF; letter-spacing: -0.02em;">
+                {{HEADLINE}}
+              </h1>
+
+              <!-- Linha fina cobalto -->
+              <div style="width: 48px; height: 2px; background-color: #1E3FFF; margin: 0 0 24px 0; font-size: 0; line-height: 0;">&nbsp;</div>
+
+              <!-- Subhead -->
+              <p class="font-body hero-sub" style="margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: 17px; line-height: 1.55; color: #B5BBD1; font-weight: 400;">
+                {{SUBHEAD}}
+              </p>
+
+              <!-- Saudacao opcional first_name -->
+              <p class="font-body" style="margin: 28px 0 0 0; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.5; color: #6B89FF; font-weight: 500;">
+                Ola, {{first_name}}.
+              </p>
+            </td>
+          </tr>
+
+          <!-- 3. HIGHLIGHTS (3 colunas) -->
+          <tr>
+            <td class="px-mobile" style="padding: 56px 40px 24px 40px; background-color: #FFFFFF;">
+              <!-- Eyebrow -->
+              <p class="font-display" style="margin: 0 0 8px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; color: #1E3FFF; letter-spacing: 1.4px; text-transform: uppercase;">
+                O que entregamos
+              </p>
+              <h2 class="font-display" style="margin: 0 0 32px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 24px; line-height: 1.2; font-weight: 600; color: #0A0E1F; letter-spacing: -0.01em;">
+                Tres pilares que sustentam seu patrimonio.
+              </h2>
+
+              <!-- 3 colunas -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" class="highlight-stack">
+                <tr>
+                  <!-- Col 1 -->
+                  <td valign="top" width="33%" style="padding: 0 16px 0 0; vertical-align: top;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="padding: 0 0 12px 0;">
+                          <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td width="36" height="36" align="center" valign="middle" style="width: 36px; height: 36px; background-color: #EEF1FF; border-radius: 8px;">
+                                <span style="font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 16px; font-weight: 600; color: #1E3FFF; line-height: 36px;">01</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <p class="font-display" style="margin: 0 0 6px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.3; font-weight: 600; color: #0A0E1F; letter-spacing: -0.005em;">
+                            Diversificacao inteligente
+                          </p>
+                          <p class="font-body" style="margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; line-height: 1.55; color: #4A5170;">
+                            Carteiras desenhadas com dados, nao com achismo. Risco calibrado em tempo real.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                  <!-- Col 2 -->
+                  <td valign="top" width="33%" style="padding: 0 8px; vertical-align: top;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="padding: 0 0 12px 0;">
+                          <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td width="36" height="36" align="center" valign="middle" style="width: 36px; height: 36px; background-color: #EEF1FF; border-radius: 8px;">
+                                <span style="font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 16px; font-weight: 600; color: #1E3FFF; line-height: 36px;">02</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <p class="font-display" style="margin: 0 0 6px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.3; font-weight: 600; color: #0A0E1F; letter-spacing: -0.005em;">
+                            Tecnologia que protege
+                          </p>
+                          <p class="font-body" style="margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; line-height: 1.55; color: #4A5170;">
+                            Infraestrutura auditada, dados criptografados e visibilidade total da sua operacao.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                  <!-- Col 3 -->
+                  <td valign="top" width="33%" style="padding: 0 0 0 16px; vertical-align: top;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="padding: 0 0 12px 0;">
+                          <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td width="36" height="36" align="center" valign="middle" style="width: 36px; height: 36px; background-color: #EEF1FF; border-radius: 8px;">
+                                <span style="font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 16px; font-weight: 600; color: #1E3FFF; line-height: 36px;">03</span>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <p class="font-display" style="margin: 0 0 6px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 15px; line-height: 1.3; font-weight: 600; color: #0A0E1F; letter-spacing: -0.005em;">
+                            Acompanhamento dedicado
+                          </p>
+                          <p class="font-body" style="margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; line-height: 1.55; color: #4A5170;">
+                            Especialistas humanos em cada decisao. Voce nunca fala com um robo no que importa.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Linha divisoria fina cobalto -->
+          <tr>
+            <td class="px-mobile" style="padding: 16px 40px 40px 40px; background-color: #FFFFFF;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="height: 1px; background-color: #E6E8EF; font-size: 0; line-height: 0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 4. CTA -->
+          <tr>
+            <td align="center" class="px-mobile" style="padding: 8px 40px 56px 40px; background-color: #FFFFFF;">
+              <h3 class="font-display" style="margin: 0 0 12px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 22px; line-height: 1.25; font-weight: 600; color: #0A0E1F; letter-spacing: -0.01em; text-align: center;">
+                Pronto para uma gestao a altura do seu patrimonio?
+              </h3>
+              <p class="font-body" style="margin: 0 0 28px 0; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.55; color: #4A5170; text-align: center;">
+                Converse com nosso time. Sem custo, sem amarra, sem enrolacao.
+              </p>
+
+              <!-- Botao bulletproof -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+                <tr>
+                  <td align="center" bgcolor="#1E3FFF" style="background-color: #1E3FFF; border-radius: 8px;">
+                    <a href="{{CTA_URL}}" class="cta-btn font-display" target="_blank" style="display: inline-block; padding: 16px 32px; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 15px; font-weight: 600; color: #FFFFFF; text-decoration: none; border-radius: 8px; letter-spacing: 0.01em;">
+                      {{CTA_LABEL}} &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 5. CITACAO / TESTIMONIAL -->
+          <tr>
+            <td class="px-mobile" style="padding: 0 40px 56px 40px; background-color: #FFFFFF;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #F7F8FB; border-left: 2px solid #1E3FFF;">
+                <tr>
+                  <td style="padding: 28px 32px;">
+                    <p class="font-display" style="margin: 0 0 16px 0; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 17px; line-height: 1.5; font-weight: 500; color: #0A0E1F; letter-spacing: -0.005em;">
+                      &ldquo;A AiMO entendeu o que nenhuma outra gestora entendeu: que a maior parte do patrimonio nao esta no que rende, esta no que nao se perde.&rdquo;
+                    </p>
+                    <p class="font-body" style="margin: 0; font-family: 'Inter', system-ui, sans-serif; font-size: 12px; line-height: 1.5; color: #6B7390; letter-spacing: 0.02em; text-transform: uppercase; font-weight: 600;">
+                      Cliente AiMO &middot; Holding familiar
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 6. FOOTER -->
+          <tr>
+            <td align="left" class="px-mobile" style="padding: 40px 40px 40px 40px; background-color: #0A0E1F; border-top: 1px solid #1A2040;">
+
+              <!-- Logo + nome -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td valign="middle" style="padding-right: 12px;">
+                    <img src="{{LOGO_URL}}" alt="AiMO" width="64" height="22" style="display: block; width: 64px; height: auto; border: 0; filter: brightness(0) invert(1);" />
+                  </td>
+                  <td valign="middle">
+                    <span class="font-display" style="font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-size: 13px; font-weight: 500; color: #FFFFFF; letter-spacing: 0.02em;">AiMO Corp</span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Endereco -->
+              <p class="font-body" style="margin: 20px 0 0 0; font-family: 'Inter', system-ui, sans-serif; font-size: 12px; line-height: 1.6; color: #6B7390;">
+                AiMO Gestao Patrimonial Ltda. &middot; CNPJ 00.000.000/0001-00<br />
+                Av. Paulista, 0000 &middot; Sao Paulo &middot; SP &middot; 01310-000
+              </p>
+
+              <!-- Linha cobalto -->
+              <div style="width: 100%; height: 1px; background-color: #1A2040; margin: 24px 0; font-size: 0; line-height: 0;">&nbsp;</div>
+
+              <!-- Links legais -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 16px;">
+                    <a href="https://aimo.com.br/termos" class="footer-link font-body" target="_blank" style="font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 500; color: #B5BBD1; text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase;">Termos</a>
+                  </td>
+                  <td style="padding-right: 16px;">
+                    <a href="https://aimo.com.br/privacidade" class="footer-link font-body" target="_blank" style="font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 500; color: #B5BBD1; text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase;">Privacidade</a>
+                  </td>
+                  <td>
+                    <a href="{{unsubscribe_url}}" class="footer-link font-body" target="_blank" style="font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 500; color: #B5BBD1; text-decoration: none; letter-spacing: 0.04em; text-transform: uppercase;">Descadastrar</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Disclaimer LGPD -->
+              <p class="font-body" style="margin: 20px 0 0 0; font-family: 'Inter', system-ui, sans-serif; font-size: 11px; line-height: 1.6; color: #4A5170;">
+                Voce esta recebendo este email porque demonstrou interesse em conteudos da AiMO. Tratamos seus dados em conformidade com a Lei Geral de Protecao de Dados (LGPD &middot; Lei 13.709/2018). Para exercer seus direitos como titular de dados, fale com nosso DPO em privacidade@aimo.com.br ou clique em descadastrar acima.
+              </p>
+
+              <p class="font-body" style="margin: 16px 0 0 0; font-family: 'Inter', system-ui, sans-serif; font-size: 10px; line-height: 1.5; color: #4A5170; letter-spacing: 0.04em; text-transform: uppercase;">
+                &copy; AiMO Corp. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /container -->
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

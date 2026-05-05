@@ -84,6 +84,8 @@ async function countLeadsCreatedOn(date: Date): Promise<number> {
   return prisma.deal.count({
     where: {
       pipelineId: PIPELINE_ID,
+      // Daily report é BGP-only (multi-brand pending)
+      brand: 'BGP',
       createdAt: { gte: dayStart, lt: dayEnd },
     },
   });
@@ -103,7 +105,8 @@ async function countPaidLeadsMTD(referenceDate: Date): Promise<number> {
   const dayEnd = new Date(startOfDayBRT(referenceDate).getTime() + 86_400_000);
 
   const monthDeals = await prisma.deal.findMany({
-    where: { pipelineId: PIPELINE_ID, createdAt: { gte: monthStart, lt: dayEnd } },
+    // Daily report é BGP-only (multi-brand pending)
+    where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: monthStart, lt: dayEnd } },
     select: { contactId: true },
   });
   const contactIds = monthDeals
@@ -180,7 +183,8 @@ async function getCrmCampaignBreakdown(date: Date): Promise<CrmCampaignRow[]> {
 
   // Deals criados ontem
   const yesterdayDeals = await prisma.deal.findMany({
-    where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
+    // Daily report é BGP-only (multi-brand pending)
+    where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
     select: { contactId: true },
   });
   const yesterdayContactIds = yesterdayDeals

@@ -25,6 +25,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.engagementLevel = engagementLevel as string;
     }
 
+    // LeadScore has no brand — filter via the related Contact's brand.
+    where.contact = { brand: req.brand };
+
     const [total, data] = await Promise.all([
       prisma.leadScore.count({ where }),
       prisma.leadScore.findMany({

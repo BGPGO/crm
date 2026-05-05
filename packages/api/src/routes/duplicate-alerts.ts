@@ -10,11 +10,25 @@ const router = Router();
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const status = (req.query.status as string) || 'PENDING';
-    const alerts = await prisma.duplicateAlert.findMany({
+
+    // DuplicateAlert has no brand and no Prisma relation to Contact (uses raw IDs).
+    // Filter manually: keep alert only if at least one of its contacts matches the brand.
+    const rawAlerts = await prisma.duplicateAlert.findMany({
       where: { status },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 200,
     });
+
+    const ids = Array.from(new Set(rawAlerts.flatMap((a) => [a.contactAId, a.contactBId])));
+    const matchingContacts = await prisma.contact.findMany({
+      where: { id: { in: ids }, brand: req.brand },
+      select: { id: true },
+    });
+    const matchingIds = new Set(matchingContacts.map((c) => c.id));
+
+    const alerts = rawAlerts
+      .filter((a) => matchingIds.has(a.contactAId) || matchingIds.has(a.contactBId))
+      .slice(0, 50);
 
     // Enrich with contact data
     const enriched = await Promise.all(alerts.map(async (a) => {
@@ -59,9 +73,22 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // GET /api/duplicate-alerts/count — Pending count (for badge)
-router.get('/count', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/count', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const count = await prisma.duplicateAlert.count({ where: { status: 'PENDING' } });
+    // DuplicateAlert has no Prisma relation to Contact, so we filter post-hoc by brand.
+    const pending = await prisma.duplicateAlert.findMany({
+      where: { status: 'PENDING' },
+      select: { contactAId: true, contactBId: true },
+    });
+    const ids = Array.from(new Set(pending.flatMap((a) => [a.contactAId, a.contactBId])));
+    const matching = ids.length
+      ? await prisma.contact.findMany({
+          where: { id: { in: ids }, brand: req.brand },
+          select: { id: true },
+        })
+      : [];
+    const matchingIds = new Set(matching.map((c) => c.id));
+    const count = pending.filter((a) => matchingIds.has(a.contactAId) || matchingIds.has(a.contactBId)).length;
     res.json({ data: { count } });
   } catch (err) {
     next(err);

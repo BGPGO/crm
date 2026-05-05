@@ -15,7 +15,7 @@ export function startSegmentCountCron() {
 
       for (const segment of segments) {
         try {
-          const whereClause = buildSegmentWhere(segment.filters as any);
+          const whereClause = buildSegmentWhere(segment.filters as any, segment.brand);
           const contactCount = await prisma.contact.count({ where: whereClause });
 
           await prisma.segment.update({

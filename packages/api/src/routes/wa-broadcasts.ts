@@ -138,7 +138,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       if (!segment) return next(createError('Segment not found', 404));
 
       const { buildSegmentWhere } = await import('../services/segmentEngine');
-      const segmentWhere = buildSegmentWhere(segment.filters as any);
+      const segmentWhere = buildSegmentWhere(segment.filters as any, segment.brand);
 
       const contacts = await prisma.contact.findMany({
         where: { ...segmentWhere, phone: { not: null } },

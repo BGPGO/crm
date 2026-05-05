@@ -11,11 +11,11 @@ const router = Router();
 // Returns: { count: number }
 router.post('/preview-count', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { filterGroups } = req.body as { filterGroups: FilterGroup[] };
+    const { filterGroups, brand } = req.body as { filterGroups: FilterGroup[]; brand?: 'BGP' | 'AIMO' };
     if (!Array.isArray(filterGroups)) {
       return res.status(400).json({ error: 'filterGroups must be an array' });
     }
-    const segmentWhere = buildSegmentWhereFromGroups(filterGroups);
+    const segmentWhere = buildSegmentWhereFromGroups(filterGroups, brand ?? 'BGP');
 
     // Exclude unsubscribed emails (UnsubscribeList has no relation to Contact)
     const unsubEmails = await prisma.unsubscribeList.findMany({ select: { email: true } });
@@ -41,8 +41,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const [total, data] = await Promise.all([
-      prisma.segment.count(),
+      prisma.segment.count({ where: { brand: req.brand } }),
       prisma.segment.findMany({
+        where: { brand: req.brand },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -79,12 +80,13 @@ router.post(
   validate({ name: 'required', filters: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, description, filters, isActive } = req.body;
+      const { name, description, filters, isActive, brand } = req.body;
+      const resolvedBrand: 'BGP' | 'AIMO' = brand === 'AIMO' ? 'AIMO' : 'BGP';
 
       // Calculate contact count on creation
       let contactCount = 0;
       try {
-        const where = buildSegmentWhere(filters as SegmentFilter[]);
+        const where = buildSegmentWhere(filters as SegmentFilter[], resolvedBrand);
         contactCount = await prisma.contact.count({ where });
       } catch { /* non-critical */ }
 
@@ -95,6 +97,7 @@ router.post(
           filters,
           isActive: isActive ?? true,
           contactCount,
+          brand: resolvedBrand,
         },
       });
 
@@ -121,7 +124,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     // Recalculate contact count when filters change
     if (filters !== undefined) {
       try {
-        const where = buildSegmentWhere(filters as SegmentFilter[]);
+        const where = buildSegmentWhere(filters as SegmentFilter[], existing.brand);
         data.contactCount = await prisma.contact.count({ where });
       } catch { /* non-critical */ }
     }
@@ -164,7 +167,7 @@ router.get('/:id/contacts', async (req: Request, res: Response, next: NextFuncti
     const skip = (page - 1) * limit;
 
     const filters = segment.filters as unknown as SegmentFilter[];
-    const where = buildSegmentWhere(filters);
+    const where = buildSegmentWhere(filters, segment.brand);
 
     const [total, data] = await Promise.all([
       prisma.contact.count({ where }),
@@ -200,7 +203,7 @@ router.post('/:id/refresh-count', async (req: Request, res: Response, next: Next
     if (!segment) return next(createError('Segment not found', 404));
 
     const filters = segment.filters as unknown as SegmentFilter[];
-    const where = buildSegmentWhere(filters);
+    const where = buildSegmentWhere(filters, segment.brand);
 
     const contactCount = await prisma.contact.count({ where });
 

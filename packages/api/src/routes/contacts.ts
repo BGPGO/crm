@@ -17,7 +17,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { search, organizationId, tagId, engagementLevel } = req.query;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { brand: req.brand };
 
     if (search) {
       where.OR = [

@@ -30,6 +30,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useBrand } from "@/contexts/BrandContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ function NewCampaignPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedTemplateId = searchParams.get("templateId");
+  const { brand } = useBrand();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [scheduling, setScheduling] = useState(false);
@@ -250,9 +252,57 @@ function NewCampaignPageInner() {
     }
   }, []);
 
-  // ── Compile full email HTML (same template wrapping as template editor) ──
+  // ── Compile full email HTML (brand-aware) ─────────────────────────────────
   function compileFullHtml(): string {
     const bodyHtml = previewRef.current?.innerHTML ?? htmlContent;
+
+    if (brand === "AIMO") {
+      // Doc completo (template AIMO self-contained) → intacto.
+      if (/<!DOCTYPE|<html[\s>]/i.test(htmlContent.trim().slice(0, 200))) {
+        return htmlContent;
+      }
+      // Snippet (IA gerou, edicao livre, etc) → wrap institucional AIMO
+      // com header (logo) + footer dark. Mirror exato do wrapAimoTemplate
+      // backend e wrapAimoPreview (EmailPreview.tsx).
+      return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+body { margin:0; padding:0; background-color:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
+a { color:#1E3FFF; }
+</style>
+</head>
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F5F8;">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
+<tr><td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid #E6E8EF;">
+<img src="/aimo-logo.png" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+</td></tr>
+<tr><td style="padding:40px;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.65;color:#0A0E1F;">
+${bodyHtml}
+</td></tr>
+<tr><td style="padding:32px 40px;background-color:#0A0E1F;border-top:1px solid #1A2040;">
+<table role="presentation" border="0" cellpadding="0" cellspacing="0">
+<tr>
+<td valign="middle" style="padding-right:12px;"><img src="/aimo-logo.png" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" /></td>
+<td valign="middle"><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span></td>
+</tr>
+</table>
+<p style="margin:18px 0 0 0;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;color:#6B7390;">Gestão patrimonial inteligente.<br />aimocorp.com.br</p>
+<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:'Inter',sans-serif;font-size:11px;line-height:1.6;color:#6B7390;">Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO.</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body>
+</html>`;
+    }
+
+    // BGP: comportamento legado byte-for-byte.
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:${design.bodyBg};font-family:${design.fontFamily};font-size:${design.fontSize}px;color:${design.textColor};">
@@ -956,154 +1006,182 @@ ${bodyHtml}
                   </span>
                 </div>
 
-                {/* Preview area — BGP email template style */}
-                <div
-                  className="flex-1 overflow-auto"
-                  style={{ backgroundColor: "#f4f4f4", padding: "20px 8px" }}
-                >
-                  {/* Logo header */}
-                  <div
-                    style={{
-                      maxWidth: 605,
-                      margin: "0 auto",
-                      paddingTop: 48,
-                      paddingBottom: 24,
-                      textAlign: "center",
-                    }}
-                  >
-                    <img
-                      src="https://email-editor-production.s3.amazonaws.com/images/665130/Logo_BGP_16%20(2).png"
-                      alt="BGP"
-                      style={{
-                        maxWidth: 206,
-                        width: "100%",
-                        height: "auto",
-                        display: "inline-block",
-                      }}
-                    />
-                  </div>
-
-                  {/* White card body */}
-                  <div
-                    style={{
-                      maxWidth: 605,
-                      margin: "0 auto",
-                      backgroundColor: "#fff",
-                      borderRadius: "16px 16px 0 0",
-                      padding: "48px 60px 32px",
-                      fontFamily: "Montserrat, 'Trebuchet MS', sans-serif",
-                      fontSize: 16,
-                      fontWeight: 400,
-                      lineHeight: 1.5,
-                      color: "#000",
-                    }}
-                  >
+                {/* Preview area — brand-aware */}
+                {brand === "AIMO" ? (
+                  // AIMO: template eh doc HTML completo (header + hero + footer
+                  // proprios). Renderiza via EmailPreview com pass-through.
+                  // Edicao inline desabilitada — use IA / Conteudo / HTML cru.
+                  <div className="flex-1 overflow-auto bg-gray-100 p-4">
                     {htmlContent ? (
-                      <div
-                        ref={previewRef}
-                        contentEditable
-                        suppressContentEditableWarning
-                        onBlur={syncPreviewToState}
-                        style={{ outline: "none", minHeight: 200, wordBreak: "break-word" }}
+                      <EmailPreview
+                        html={htmlContent}
+                        branded
+                        brand="AIMO"
+                        className="h-full min-h-[600px]"
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                         <Sparkles size={32} className="mb-3 text-gray-300" />
                         <p className="text-sm font-medium text-gray-500">Nenhum conteúdo ainda</p>
                         <p className="text-xs mt-1 text-gray-400">
-                          Use a aba IA ao lado para gerar seu email
+                          Use a aba IA ou carregue o template AIMO.
                         </p>
                       </div>
                     )}
-                  </div>
-
-                  {/* Spacer */}
-                  <div
-                    style={{
-                      maxWidth: 605,
-                      margin: "0 auto",
-                      backgroundColor: "#fff",
-                      height: 16,
-                    }}
-                  />
-
-                  {/* Social icons */}
-                  <div
-                    style={{
-                      maxWidth: 605,
-                      margin: "0 auto",
-                      padding: "10px 0",
-                      textAlign: "center",
-                    }}
-                  >
-                    <a
-                      href="https://www.instagram.com/bertuzzigp/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ display: "inline-block", margin: "0 10px" }}
-                    >
-                      <img
-                        src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/instagram@2x.png"
-                        width={32}
-                        alt="Instagram"
-                        style={{ display: "block", border: 0 }}
-                      />
-                    </a>
-                    <a
-                      href="https://www.youtube.com/@bertuzzigp"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ display: "inline-block", margin: "0 10px" }}
-                    >
-                      <img
-                        src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/youtube@2x.png"
-                        width={32}
-                        alt="YouTube"
-                        style={{ display: "block", border: 0 }}
-                      />
-                    </a>
-                    <a
-                      href="https://wa.me/5551992091726"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ display: "inline-block", margin: "0 10px" }}
-                    >
-                      <img
-                        src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/whatsapp@2x.png"
-                        width={32}
-                        alt="WhatsApp"
-                        style={{ display: "block", border: 0 }}
-                      />
-                    </a>
-                  </div>
-
-                  {/* Footer */}
-                  <div
-                    style={{
-                      maxWidth: 605,
-                      margin: "0 auto",
-                      paddingBottom: 24,
-                      textAlign: "center",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontFamily: "Montserrat, sans-serif",
-                        fontSize: 10,
-                        color: "#8c8c8c",
-                        lineHeight: 1.5,
-                        margin: 0,
-                      }}
-                    >
-                      Enviado por www.bertuzzipatrimonial.com.br
-                      <br />
-                      Av. Carlos Gomes, 75 - Sala 603 - Auxiliadora, Porto Alegre - RS, 90480-000
-                      <br />
-                      Caso não queira mais receber estes e-mails,{" "}
-                      <span style={{ textDecoration: "underline" }}>cancele sua inscrição</span>.
+                    <p className="text-xs text-gray-400 text-center mt-3">
+                      Edição inline desabilitada para AIMO — use IA / Conteúdo / HTML cru ao lado.
                     </p>
                   </div>
-                </div>
+                ) : (
+                  // BGP: chrome BGP hardcoded + contentEditable inline (legado).
+                  <div
+                    className="flex-1 overflow-auto"
+                    style={{ backgroundColor: "#f4f4f4", padding: "20px 8px" }}
+                  >
+                    {/* Logo header */}
+                    <div
+                      style={{
+                        maxWidth: 605,
+                        margin: "0 auto",
+                        paddingTop: 48,
+                        paddingBottom: 24,
+                        textAlign: "center",
+                      }}
+                    >
+                      <img
+                        src="https://email-editor-production.s3.amazonaws.com/images/665130/Logo_BGP_16%20(2).png"
+                        alt="BGP"
+                        style={{
+                          maxWidth: 206,
+                          width: "100%",
+                          height: "auto",
+                          display: "inline-block",
+                        }}
+                      />
+                    </div>
+
+                    {/* White card body */}
+                    <div
+                      style={{
+                        maxWidth: 605,
+                        margin: "0 auto",
+                        backgroundColor: "#fff",
+                        borderRadius: "16px 16px 0 0",
+                        padding: "48px 60px 32px",
+                        fontFamily: "Montserrat, 'Trebuchet MS', sans-serif",
+                        fontSize: 16,
+                        fontWeight: 400,
+                        lineHeight: 1.5,
+                        color: "#000",
+                      }}
+                    >
+                      {htmlContent ? (
+                        <div
+                          ref={previewRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={syncPreviewToState}
+                          style={{ outline: "none", minHeight: 200, wordBreak: "break-word" }}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                          <Sparkles size={32} className="mb-3 text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">Nenhum conteúdo ainda</p>
+                          <p className="text-xs mt-1 text-gray-400">
+                            Use a aba IA ao lado para gerar seu email
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Spacer */}
+                    <div
+                      style={{
+                        maxWidth: 605,
+                        margin: "0 auto",
+                        backgroundColor: "#fff",
+                        height: 16,
+                      }}
+                    />
+
+                    {/* Social icons */}
+                    <div
+                      style={{
+                        maxWidth: 605,
+                        margin: "0 auto",
+                        padding: "10px 0",
+                        textAlign: "center",
+                      }}
+                    >
+                      <a
+                        href="https://www.instagram.com/bertuzzigp/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", margin: "0 10px" }}
+                      >
+                        <img
+                          src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/instagram@2x.png"
+                          width={32}
+                          alt="Instagram"
+                          style={{ display: "block", border: 0 }}
+                        />
+                      </a>
+                      <a
+                        href="https://www.youtube.com/@bertuzzigp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", margin: "0 10px" }}
+                      >
+                        <img
+                          src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/youtube@2x.png"
+                          width={32}
+                          alt="YouTube"
+                          style={{ display: "block", border: 0 }}
+                        />
+                      </a>
+                      <a
+                        href="https://wa.me/5551992091726"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-block", margin: "0 10px" }}
+                      >
+                        <img
+                          src="https://app-rsrc.getbee.io/public/resources/social-networks-icon-sets/t-only-logo-color/whatsapp@2x.png"
+                          width={32}
+                          alt="WhatsApp"
+                          style={{ display: "block", border: 0 }}
+                        />
+                      </a>
+                    </div>
+
+                    {/* Footer */}
+                    <div
+                      style={{
+                        maxWidth: 605,
+                        margin: "0 auto",
+                        paddingBottom: 24,
+                        textAlign: "center",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontFamily: "Montserrat, sans-serif",
+                          fontSize: 10,
+                          color: "#8c8c8c",
+                          lineHeight: 1.5,
+                          margin: 0,
+                        }}
+                      >
+                        Enviado por www.bertuzzipatrimonial.com.br
+                        <br />
+                        Av. Carlos Gomes, 75 - Sala 603 - Auxiliadora, Porto Alegre - RS, 90480-000
+                        <br />
+                        Caso não queira mais receber estes e-mails,{" "}
+                        <span style={{ textDecoration: "underline" }}>cancele sua inscrição</span>.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1291,6 +1369,7 @@ ${bodyHtml}
                     }
                     className="h-[450px]"
                     branded
+                    brand={brand}
                   />
                 </div>
               </div>

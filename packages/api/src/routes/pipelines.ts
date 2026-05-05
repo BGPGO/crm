@@ -41,8 +41,9 @@ async function applySearch(where: Record<string, unknown>): Promise<void> {
 
 // ── Shared helper: build Deal where clause from query params ────────────────
 
-function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string): Record<string, unknown> {
+function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string, brand?: 'BGP' | 'AIMO'): Record<string, unknown> {
   const where: Record<string, unknown> = {};
+  if (brand) where.brand = brand;
   if (basePipelineId) where.pipelineId = basePipelineId;
 
   const str = (key: string) => query[key] as string | undefined;
@@ -253,8 +254,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const [total, data] = await Promise.all([
-      prisma.pipeline.count(),
+      prisma.pipeline.count({ where: { brand: req.brand } }),
       prisma.pipeline.findMany({
+        where: { brand: req.brand },
         skip,
         take: limit,
         orderBy: { createdAt: 'asc' },
@@ -308,7 +310,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
 
     if (!pipeline) return next(createError('Pipeline not found', 404));
 
-    const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id);
+    const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id, req.brand);
     await applySearch(where);
     await applyUtmFilter(where, req.query as Record<string, unknown>);
 
@@ -323,6 +325,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
       wonWhere = buildDealWhere(
         { ...req.query as Record<string, unknown>, status: 'WON' },
         req.params.id,
+        req.brand,
       );
       await applySearch(wonWhere);
       await applyUtmFilter(wonWhere, req.query as Record<string, unknown>);
@@ -372,6 +375,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
     const wonValueWhere = buildDealWhere(
       { ...req.query as Record<string, unknown>, status: 'WON' },
       req.params.id,
+      req.brand,
     );
     await applySearch(wonValueWhere);
     await applyUtmFilter(wonValueWhere, req.query as Record<string, unknown>);
@@ -447,7 +451,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
     const skip = (page - 1) * limit;
 
-    const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
+    const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId, req.brand);
     await applySearch(where);
     await applyUtmFilter(where, req.query as Record<string, unknown>);
 
@@ -518,7 +522,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
 
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
 
-    const baseWhere = buildDealWhere(req.query as Record<string, unknown>, pipelineId);
+    const baseWhere = buildDealWhere(req.query as Record<string, unknown>, pipelineId, req.brand);
     await applySearch(baseWhere);
     await applyUtmFilter(baseWhere, req.query as Record<string, unknown>);
 

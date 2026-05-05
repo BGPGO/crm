@@ -122,6 +122,8 @@ export class DigitalChannelsSection implements ReportSection {
     // marcados como sent no dia. Capturamos os que tiveram atividade ontem.
     const broadcasts = await prisma.waBroadcast.findMany({
       where: {
+        // Daily report é BGP-only (multi-brand pending)
+        brand: 'BGP',
         OR: [
           { startedAt: { gte: from, lt: to } },
           { completedAt: { gte: from, lt: to } },
@@ -269,7 +271,8 @@ export class DigitalChannelsSection implements ReportSection {
     // que ainda não teve tempo de gerar reuniões.
     const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const campaign = await prisma.emailCampaign.findFirst({
-      where: { status: 'SENT', sentAt: { lt: cutoff } },
+      // Daily report é BGP-only (multi-brand pending)
+      where: { status: 'SENT', brand: 'BGP', sentAt: { lt: cutoff } },
       orderBy: { sentAt: 'desc' },
     });
 

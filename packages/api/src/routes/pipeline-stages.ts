@@ -13,9 +13,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const skip = (page - 1) * limit;
 
     const { pipelineId } = req.query;
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { pipeline: { brand: req.brand } };
     if (pipelineId === 'default') {
-      const defaultPipeline = await prisma.pipeline.findFirst({ where: { isDefault: true } });
+      const defaultPipeline = await prisma.pipeline.findFirst({ where: { isDefault: true, brand: req.brand } });
       if (defaultPipeline) where.pipelineId = defaultPipeline.id;
     } else if (pipelineId) {
       where.pipelineId = pipelineId as string;

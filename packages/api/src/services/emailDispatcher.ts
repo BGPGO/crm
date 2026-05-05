@@ -35,21 +35,21 @@ export async function dispatchEmailCampaign(
   let contacts;
   const inlineFilterGroups = campaign.filters as unknown as FilterGroup[] | null;
   if (inlineFilterGroups && Array.isArray(inlineFilterGroups) && inlineFilterGroups.length > 0) {
-    const where = buildSegmentWhereFromGroups(inlineFilterGroups);
+    const where = buildSegmentWhereFromGroups(inlineFilterGroups, campaign.brand);
     contacts = await prisma.contact.findMany({
-      where: { ...where, email: { not: null } },
+      where: { ...where, email: { not: null }, brand: campaign.brand },
       select: { id: true, email: true },
     });
   } else if (campaign.segmentId && campaign.segment) {
     const filters = campaign.segment.filters as unknown as SegmentFilter[] | FilterGroup[];
-    const where = buildSegmentWhere(filters);
+    const where = buildSegmentWhere(filters, campaign.brand);
     contacts = await prisma.contact.findMany({
-      where: { ...where, email: { not: null } },
+      where: { ...where, email: { not: null }, brand: campaign.brand },
       select: { id: true, email: true },
     });
   } else {
     contacts = await prisma.contact.findMany({
-      where: { email: { not: null } },
+      where: { email: { not: null }, brand: campaign.brand },
       select: { id: true, email: true },
     });
   }

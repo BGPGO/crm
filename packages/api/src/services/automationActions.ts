@@ -44,7 +44,12 @@ export async function executeAction(
         return await removeTag(enrollment.contactId, config);
 
       case 'SEND_EMAIL':
-        return await sendEmail(enrollment.contactId, config, options?.generalContext);
+        return await sendEmail(
+          enrollment.contactId,
+          config,
+          options?.generalContext,
+          enrollment.automation?.brand,
+        );
 
       case 'WAIT':
         return await wait(enrollment, config);
@@ -119,7 +124,32 @@ async function removeTag(
   return { success: true, output: { tagId: config.tagId, action: 'removed' } };
 }
 
-function buildBrandedEmail(firstName: string, bodyHtml: string): string {
+function buildBrandedEmail(
+  firstName: string,
+  bodyHtml: string,
+  brand: 'BGP' | 'AIMO' = 'BGP',
+): string {
+  if (brand === 'AIMO') {
+    // AIMO — wrap minimal, sem replicar a estrutura BGP (gradiente cobalto +
+    // assinatura AiMO Corp + Space Grotesk).
+    return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{margin:0;padding:0;background:#F4F5F8;font-family:'Space Grotesk','Inter',system-ui,Arial,sans-serif;color:#0A0E1F;}a{color:#1E3FFF;}.container{max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:12px;}.body{padding:48px 40px;font-size:15px;line-height:1.6;}.signature{margin-top:32px;padding-top:24px;border-top:1px solid #E6E8EF;font-size:13px;color:#6B7390;}</style>
+</head>
+<body>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F8;padding:32px 16px;"><tr><td align="center">
+<div class="container"><div class="body">
+${firstName ? `<p style="margin:0 0 20px;font-size:16px;color:#0A0E1F;font-weight:600;">Olá, ${firstName}!</p>` : ''}
+${bodyHtml}
+<div class="signature">— Equipe AiMO Corp</div>
+</div></div>
+</td></tr></table>
+</body>
+</html>`;
+  }
+
+  // BGP — comportamento legacy mantido byte-for-byte.
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -161,12 +191,16 @@ function buildBrandedEmail(firstName: string, bodyHtml: string): string {
 async function sendEmail(
   contactId: string,
   config: { templateId?: string; subject?: string; prompt?: string; isAIGenerated?: boolean },
-  generalContext?: string
+  generalContext?: string,
+  brand?: 'BGP' | 'AIMO',
 ): Promise<ActionResult> {
   const contact = await prisma.contact.findUniqueOrThrow({
     where: { id: contactId },
     include: { organization: { select: { name: true } } },
   });
+
+  // Brand resolution: prefer explicit (from automation) → contact.brand → BGP fallback
+  const resolvedBrand: 'BGP' | 'AIMO' = brand ?? ((contact as any).brand === 'AIMO' ? 'AIMO' : 'BGP');
 
   if (!contact.email) {
     return { success: false, output: 'Contact has no email address' };
@@ -228,7 +262,7 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
     // Wrap in the same branded template used by campaigns
-    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
+    htmlContent = wrapInBrandTemplate(bodyHtml, { brand: resolvedBrand, unsubscribeUrl: unsubUrlForTemplate });
     subject = config.subject || 'BGPGO — Informações para você';
   } else if (config.templateId) {
     // Template-based email — stored in compileFullHtml() format (DOCTYPE + outer
@@ -259,8 +293,11 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     const emailB64 = Buffer.from(contact.email, 'utf-8').toString('base64url');
     const unsubUrlForTemplate = `${apiBaseForUnsub}/unsubscribe/email/${emailB64}`;
 
-    const bodyHtml = stripOuterWrapper(rawHtml);
-    htmlContent = wrapInBrandTemplate(bodyHtml, unsubUrlForTemplate);
+    // AIMO: template é doc completo self-contained — pass-through sem strip.
+    // BGP: strip + wrap (comportamento legacy).
+    const isAimo = resolvedBrand === 'AIMO';
+    const bodyHtml = isAimo ? rawHtml : stripOuterWrapper(rawHtml);
+    htmlContent = wrapInBrandTemplate(bodyHtml, { brand: resolvedBrand, unsubscribeUrl: unsubUrlForTemplate });
   } else {
     return { success: false, output: 'No email template or AI prompt provided' };
   }
@@ -273,8 +310,14 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
   // Tagueia links do Calendly com UTMs para o webhook classificar como CALENDLY_EMAIL
   const taggedHtml = rewriteCalendlyLinksInHtml(htmlContent, EMAIL_CAMPAIGN_UTMS);
 
+  // Brand-aware From header. Mesmo domínio Resend (bertuzzipatrimonial.app.br),
+  // muda apenas o label visível pra preservar identidade AiMO.
+  const fromHeader = resolvedBrand === 'AIMO'
+    ? 'AiMO <noreply@bertuzzipatrimonial.app.br>'
+    : 'BGPGO CRM <noreply@bertuzzipatrimonial.app.br>';
+
   const result = await resend.emails.send({
-    from: `BGPGO CRM <noreply@bertuzzipatrimonial.app.br>`,
+    from: fromHeader,
     to: contact.email,
     subject,
     html: taggedHtml,

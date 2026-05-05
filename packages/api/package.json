@@ -10,6 +10,9 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "seed:aimo": "tsx src/seeds/aimoBrandSetup.ts",
+    "seed:aimo-template": "tsx src/seeds/aimoEmailTemplateSeed.ts",
+    "import:aimo": "tsx src/seeds/aimoLeadsImport.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
