@@ -415,7 +415,11 @@ export class PaidTrafficSection implements ReportSection {
     // "Sem investimento" só se TUDO está zerado: spend daily, leads do CRM e
     // sem dados de campanha. Antes ocultava a seção mesmo quando havia leads
     // tracked do CRM (Meta com delay).
-    const noAds = totalSpend === 0 && leadsPaid === 0 && d.crmCampaigns.length === 0;
+    // Se status for STALE (live+snapshot ambos zerados — falha invisível),
+    // NUNCA mostra "sem investimento" — força os cards zerados aparecerem
+    // junto do banner de alerta vermelho.
+    const isStale = d.metaDaily.connectionStatus === 'STALE' || d.googleDaily.connectionStatus === 'STALE';
+    const noAds = !isStale && totalSpend === 0 && leadsPaid === 0 && d.crmCampaigns.length === 0;
 
     const costPerLeadPaid = leadsPaid > 0 && totalSpend > 0 ? totalSpend / leadsPaid : null;
     const mtdCPL = mtdTotalLeads > 0 ? mtdTotalSpend / mtdTotalLeads : null;
@@ -485,17 +489,29 @@ export class PaidTrafficSection implements ReportSection {
     metaStatus: ConnectionStatus | undefined,
     googleStatus: ConnectionStatus | undefined,
   ): string {
+    const labelFor = (s: ConnectionStatus): string => {
+      if (s === 'NO_CONFIG') return 'não configurado';
+      if (s === 'STALE') return 'dados indisponíveis (live + snapshot zerados — verificar manualmente)';
+      return 'sem conexão';
+    };
+    const isStale = metaStatus === 'STALE' || googleStatus === 'STALE';
     const warnings: string[] = [];
-    if (metaStatus && metaStatus !== 'OK') {
-      warnings.push(`Meta Ads ${metaStatus === 'NO_CONFIG' ? 'não configurado' : 'sem conexão'}`);
-    }
-    if (googleStatus && googleStatus !== 'OK') {
-      warnings.push(`Google Ads ${googleStatus === 'NO_CONFIG' ? 'não configurado' : 'sem conexão'}`);
-    }
+    if (metaStatus && metaStatus !== 'OK') warnings.push(`Meta Ads ${labelFor(metaStatus)}`);
+    if (googleStatus && googleStatus !== 'OK') warnings.push(`Google Ads ${labelFor(googleStatus)}`);
     if (warnings.length === 0) return '';
+
+    // STALE = falha invisível (live e snapshot ambos zeraram). Banner vermelho
+    // pra forçar atenção em vez do "sem investimento ontem" silencioso.
+    const bg = isStale ? '#fee2e2' : '#fef3c7';
+    const border = isStale ? '#fca5a5' : '#fcd34d';
+    const fg = isStale ? '#991b1b' : '#92400e';
+    const prefix = isStale ? '🚨 ALERTA:' : '⚠ Atenção:';
+    const suffix = isStale
+      ? ' Possíveis causas: token expirado, Meta API instável, ou cron noturno furado. Confira no Gerenciador de Anúncios.'
+      : ' Os números abaixo podem estar zerados por falta de dados.';
     return `
-    <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#92400e;">
-      <strong>⚠ Atenção:</strong> ${warnings.join(' · ')}. Os números abaixo podem estar zerados por falta de dados.
+    <div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:${fg};">
+      <strong>${prefix}</strong> ${warnings.join(' · ')}.${suffix}
     </div>`;
   }
 

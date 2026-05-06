@@ -96,12 +96,13 @@ export async function getMetaAdsDaily(date: Date): Promise<DailyAdsSpend> {
 
   const dateStr = date.toISOString().slice(0, 10);
 
-  // 1ª tentativa: endpoint LIVE (fetch direto Meta API). Funciona pra "ontem"
-  // mesmo quando o snapshot do dia ainda não foi consolidado pelo cron das 4h.
-  try {
-    const liveData = await fetchInsights(buildLiveUrl(apiUrl, empresaId, dateStr), secret);
-    if (liveData && (liveData.totalSpend > 0 || liveData.totalLeads > 0 || (liveData.campaigns?.length ?? 0) > 0)) {
-      const campaigns: AdsCampaignSpend[] = liveData.campaigns.map((c) => ({
+  function toDailyAdsSpend(d: ContiaMetaAdsResponse, status: ConnectionStatus): DailyAdsSpend {
+    return {
+      source: 'META_ADS',
+      date: d.date,
+      totalSpend: d.totalSpend,
+      totalLeads: d.totalLeads,
+      campaigns: d.campaigns.map((c) => ({
         campaignId: c.id,
         campaignName: c.name,
         spend: c.spend,
@@ -109,51 +110,60 @@ export async function getMetaAdsDaily(date: Date): Promise<DailyAdsSpend> {
         meetingsScheduled: 0,
         costPerLead: c.leads > 0 ? c.spend / c.leads : null,
         costPerMeeting: null,
-      }));
-      return {
-        source: 'META_ADS',
-        date: liveData.date,
-        totalSpend: liveData.totalSpend,
-        totalLeads: liveData.totalLeads,
-        campaigns,
-        connectionStatus: 'OK',
-      };
-    }
-    // Live retornou vazio — pode ser que Meta realmente tem 0 OU live falhou silenciosamente.
-    // Fallback pro snapshot abaixo (que pode ter dados pré-consolidados de cron passado).
-    console.warn('[metaAds] live retornou vazio — caindo pro snapshot');
+      })),
+      connectionStatus: status,
+    };
+  }
+
+  function hasData(d: ContiaMetaAdsResponse | null): boolean {
+    return !!d && (d.totalSpend > 0 || d.totalLeads > 0 || (d.campaigns?.length ?? 0) > 0);
+  }
+
+  // 1ª tentativa: endpoint LIVE (fetch direto Meta API). Funciona pra "ontem"
+  // mesmo quando o snapshot do dia ainda não foi consolidado pelo cron das 4h.
+  let liveResult: ContiaMetaAdsResponse | null = null;
+  try {
+    liveResult = await fetchInsights(buildLiveUrl(apiUrl, empresaId, dateStr), secret);
+    if (hasData(liveResult)) return toDailyAdsSpend(liveResult!, 'OK');
+    console.warn('[metaAds] live retornou vazio — tentando retry após 3s');
   } catch (err) {
-    console.warn('[metaAds] live falhou — caindo pro snapshot:', err instanceof Error ? err.message : err);
+    console.warn('[metaAds] live falhou — tentando retry após 3s:', err instanceof Error ? err.message : err);
+  }
+
+  // Retry do /live após 3s — Meta API às vezes consolida com lag de minutos
+  // após meia-noite. Esse retry pega janelas onde a 1ª chamada veio vazia
+  // mas a Meta já tem os dados disponíveis.
+  await new Promise((r) => setTimeout(r, 3000));
+  try {
+    const liveRetry = await fetchInsights(buildLiveUrl(apiUrl, empresaId, dateStr), secret);
+    if (hasData(liveRetry)) {
+      console.log('[metaAds] retry do live trouxe dados — usando');
+      return toDailyAdsSpend(liveRetry!, 'OK');
+    }
+  } catch (err) {
+    console.warn('[metaAds] retry do live falhou:', err instanceof Error ? err.message : err);
   }
 
   // 2ª tentativa: snapshot do banco (cache atualizado pelo cron 04h BRT do ContIA)
   const url = buildUrl(apiUrl, empresaId, dateStr);
+  let snapshotResult: ContiaMetaAdsResponse | null = null;
   try {
-    const data = await fetchInsights(url, secret);
-    if (!data) return emptyResponse(date, 'ERROR');
-
-    const campaigns: AdsCampaignSpend[] = data.campaigns.map((c) => ({
-      campaignId: c.id,
-      campaignName: c.name,
-      spend: c.spend,
-      leads: c.leads,
-      meetingsScheduled: 0,
-      costPerLead: c.leads > 0 ? c.spend / c.leads : null,
-      costPerMeeting: null,
-    }));
-
-    return {
-      source: 'META_ADS',
-      date: data.date,
-      totalSpend: data.totalSpend,
-      totalLeads: data.totalLeads,
-      campaigns,
-      connectionStatus: 'OK',
-    };
+    snapshotResult = await fetchInsights(url, secret);
+    if (hasData(snapshotResult)) return toDailyAdsSpend(snapshotResult!, 'OK');
   } catch (err) {
-    console.error('[metaAds] Erro ao chamar ContIA:', err instanceof Error ? err.message : err);
-    return emptyResponse(date, 'ERROR');
+    console.error('[metaAds] Erro ao chamar /insights:', err instanceof Error ? err.message : err);
   }
+
+  // 3ª camada: ambos zeraram. Provável falha invisível (token expirou, Meta API
+  // bug, snapshot furado). Retorna o melhor que temos com status STALE pra que
+  // o relatório mostre banner de alerta em vez de "Sem investimento ontem".
+  console.error(
+    `[metaAds] STALE: live e snapshot ambos retornaram vazio para ${dateStr}. ` +
+    `Possíveis causas: token Meta expirado, Meta API instável, ou cron noturno furado.`,
+  );
+  const fallback = snapshotResult ?? liveResult;
+  if (fallback) return toDailyAdsSpend(fallback, 'STALE');
+  return emptyResponse(date, 'STALE');
 }
 
 /**

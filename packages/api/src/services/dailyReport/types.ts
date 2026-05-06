@@ -41,10 +41,11 @@ export interface AdsDriver {
  * - OK: dado veio da API (mesmo que zerado — zero genuíno)
  * - NO_CONFIG: env vars ausentes, integração não configurada
  * - ERROR: falha técnica (timeout, HTTP 4xx/5xx, parsing)
+ * - STALE: live e snapshot ambos retornaram 0 — provável falha invisível upstream
  *
  * Sections devem mostrar badge "sem conexão" quando status != 'OK'.
  */
-export type ConnectionStatus = 'OK' | 'NO_CONFIG' | 'ERROR';
+export type ConnectionStatus = 'OK' | 'NO_CONFIG' | 'ERROR' | 'STALE';
 
 export interface DailyAdsSpend {
   source: AdSourceLiteral;
