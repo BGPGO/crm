@@ -360,14 +360,19 @@ export class PaidTrafficSection implements ReportSection {
     const crmCampaigns = await getCrmCampaignBreakdown(this.referenceDate);
 
     // Enriquece cada linha do CRM com spend matched do Meta/Google ads
-    // (match exato → fuzzy por substring/case-insensitive).
-    const allAdsCampaigns: AdsCampaignSpend[] = [
-      ...metaDaily.campaigns,
-      ...googleDaily.campaigns,
+    // (match exato → fuzzy por substring/case-insensitive). Mantém set
+    // do que foi consumido pra adicionar campanhas órfãs depois.
+    const adsCampaignsBySource: Array<{ source: 'META_ADS' | 'GOOGLE_ADS'; c: AdsCampaignSpend }> = [
+      ...metaDaily.campaigns.map((c) => ({ source: 'META_ADS' as const, c })),
+      ...googleDaily.campaigns.map((c) => ({ source: 'GOOGLE_ADS' as const, c })),
     ];
+    const consumedAdsKeys = new Set<string>();
+    function adsKey(source: string, c: AdsCampaignSpend): string {
+      return `${source}::${c.campaignId}::${c.campaignName}`;
+    }
     for (const row of crmCampaigns) {
       const utmLower = row.utmCampaign.toLowerCase();
-      const matched = allAdsCampaigns.find((c) => {
+      const matched = adsCampaignsBySource.find(({ c }) => {
         const nameLower = c.campaignName.toLowerCase();
         return (
           c.campaignName === row.utmCampaign ||
@@ -377,8 +382,30 @@ export class PaidTrafficSection implements ReportSection {
           utmLower.includes(nameLower)
         );
       });
-      row.spend = matched?.spend ?? 0;
+      row.spend = matched?.c.spend ?? 0;
+      if (matched) consumedAdsKeys.add(adsKey(matched.source, matched.c));
     }
+
+    // Campanhas com gasto > 0 que não casaram com nenhum lead do CRM:
+    // adiciona como linhas com leads=0/meetings=0 pra que o investimento
+    // por campanha apareça na tabela do relatório.
+    for (const { source, c } of adsCampaignsBySource) {
+      if (consumedAdsKeys.has(adsKey(source, c))) continue;
+      if (c.spend <= 0) continue;
+      crmCampaigns.push({
+        utmCampaign: c.campaignName,
+        utmSource: source === 'GOOGLE_ADS' ? 'google' : 'facebook',
+        leads: 0,
+        meetings: 0,
+        spend: c.spend,
+      });
+    }
+    // Reordena: campanhas com leads no topo, depois por spend desc.
+    crmCampaigns.sort((a, b) => {
+      if ((a.leads > 0) !== (b.leads > 0)) return a.leads > 0 ? -1 : 1;
+      if (a.leads !== b.leads) return b.leads - a.leads;
+      return b.spend - a.spend;
+    });
 
     return {
       referenceDate: this.referenceDate,
