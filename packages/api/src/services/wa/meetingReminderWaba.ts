@@ -29,10 +29,13 @@ import { normalizePhone } from '../../utils/phoneNormalize';
 
 // ─── Mapeamento step (minutos antes) → template ──────────────────────────────
 
+// v2_utility tem prioridade — categoria UTILITY isenta do cap 131049 da Meta.
+// Os MARKETING antigos permanecem como fallback por 7d (remover após verificar
+// que UTILITY está estável em produção).
 const TEMPLATE_MAP: Record<number, string[]> = {
   240: ['lembrete_reuniao_4h'],
-  60: ['lembrete_reuniao_60min', 'lembrete_reuniao_1h'],
-  15: ['lembrete_reuniao_15min'],
+  60: ['lembrete_reuniao_60min_v2_utility', 'lembrete_reuniao_60min', 'lembrete_reuniao_1h'],
+  15: ['lembrete_reuniao_15min_v2_utility', 'lembrete_reuniao_15min'],
 };
 
 // ─── Normalização de telefone ────────────────────────────────────────────────

@@ -69,7 +69,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
     let result: { data: any[]; paging?: any };
     try {
       result = await client.listTemplates({
-        fields: 'name,status,category,language,quality_score,rejected_reason',
+        fields: 'name,status,category,language,quality_score,rejected_reason,components',
         limit: 100,
         after,
       });
@@ -85,6 +85,18 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
       const qualityScore = t.quality_score?.score ?? null;
       const rejectedReason = t.rejected_reason ?? null;
 
+      // Extrair components — Meta é fonte da verdade pro conteúdo do template
+      const components: any[] = Array.isArray(t.components) ? t.components : [];
+      const bodyComponent = components.find((c) => c.type === 'BODY');
+      const footerComponent = components.find((c) => c.type === 'FOOTER');
+      const buttonsComponent = components.find((c) => c.type === 'BUTTONS');
+      const headerComponent = components.find((c) => c.type === 'HEADER');
+      const body = bodyComponent?.text ?? '';
+      const footer = footerComponent?.text ?? null;
+      const buttons = buttonsComponent?.buttons ?? null;
+      const headerType = headerComponent?.format ?? null;
+      const headerContent = headerComponent?.text ?? null;
+
       // Upsert por (name, language) — mesma unique do schema
       await prisma.cloudWaTemplate.upsert({
         where: { name_language: { name: t.name, language: t.language } },
@@ -94,6 +106,11 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           qualityScore,
           rejectedReason,
           metaTemplateId: t.id,
+          body,
+          footer,
+          buttons: buttons as any,
+          headerType: headerType as any,
+          headerContent,
         },
         create: {
           name: t.name,
@@ -103,7 +120,11 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           qualityScore,
           rejectedReason,
           metaTemplateId: t.id,
-          body: '', // campo obrigatório — será completado pelo usuário
+          body,
+          footer,
+          buttons: buttons as any,
+          headerType: headerType as any,
+          headerContent,
         },
       });
       syncedFromMeta++;
