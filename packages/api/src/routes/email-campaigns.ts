@@ -246,8 +246,8 @@ router.post('/:id/schedule', async (req: Request, res: Response, next: NextFunct
     const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
     if (!campaign) return next(createError('Email campaign not found', 404));
 
-    if (campaign.status !== 'DRAFT') {
-      return next(createError('Only DRAFT campaigns can be scheduled', 400));
+    if (campaign.status !== 'DRAFT' && campaign.status !== 'SCHEDULED') {
+      return next(createError('Only DRAFT or SCHEDULED campaigns can be (re)scheduled', 400));
     }
 
     const { scheduledAt } = req.body;

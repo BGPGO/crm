@@ -9,7 +9,7 @@ import Badge from "@/components/ui/Badge";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import CampaignMetrics from "@/components/marketing/CampaignMetrics";
 import EmailPreview from "@/components/marketing/EmailPreview";
-import { Send, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, ArrowLeft, Loader2, Clock, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
 
@@ -52,6 +52,11 @@ export default function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [unscheduling, setUnscheduling] = useState(false);
+  const [showRescheduleInput, setShowRescheduleInput] = useState(false);
+  const [newScheduleDate, setNewScheduleDate] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
   const [error, setError] = useState<"not_found" | "network" | null>(null);
 
   useEffect(() => {
@@ -75,14 +80,69 @@ export default function CampaignDetailPage() {
   const handleSend = async () => {
     if (!confirm("Tem certeza que deseja enviar esta campanha agora?")) return;
     setSending(true);
+    setActionError(null);
     try {
       await api.post(`/email-campaigns/${id}/send`, {});
       const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
       setCampaign(updated.data);
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao enviar campanha");
     } finally {
       setSending(false);
+    }
+  };
+
+  const toLocalDatetimeInput = (iso: string) => {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openReschedule = () => {
+    setNewScheduleDate(campaign?.scheduledAt ? toLocalDatetimeInput(campaign.scheduledAt) : "");
+    setShowRescheduleInput(true);
+    setActionError(null);
+  };
+
+  const handleReschedule = async () => {
+    if (!newScheduleDate) return;
+    const parsed = new Date(newScheduleDate);
+    if (isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+      setActionError("A nova data precisa estar no futuro.");
+      return;
+    }
+    setRescheduling(true);
+    setActionError(null);
+    try {
+      await api.post(`/email-campaigns/${id}/schedule`, {
+        scheduledAt: parsed.toISOString(),
+      });
+      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
+      setCampaign(updated.data);
+      setShowRescheduleInput(false);
+    } catch (err) {
+      console.error("Erro ao reagendar campanha:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao reagendar");
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const handleUnschedule = async () => {
+    if (!confirm("Desagendar esta campanha? Ela voltará para Rascunho.")) return;
+    setUnscheduling(true);
+    setActionError(null);
+    try {
+      await api.post(`/email-campaigns/${id}/unschedule`, {});
+      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
+      setCampaign(updated.data);
+      setShowRescheduleInput(false);
+    } catch (err) {
+      console.error("Erro ao desagendar campanha:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao desagendar");
+    } finally {
+      setUnscheduling(false);
     }
   };
 
@@ -161,7 +221,87 @@ export default function CampaignDetailPage() {
               Enviar Agora
             </Button>
           )}
+
+          {campaign.status === "SCHEDULED" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={openReschedule}
+                disabled={rescheduling || unscheduling || sending}
+              >
+                <Clock size={14} />
+                Alterar horário
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={unscheduling}
+                disabled={rescheduling || sending}
+                onClick={handleUnschedule}
+              >
+                <X size={14} />
+                Desagendar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={sending}
+                disabled={rescheduling || unscheduling}
+                onClick={handleSend}
+              >
+                <Send size={14} />
+                Enviar Agora
+              </Button>
+            </div>
+          )}
         </div>
+
+        {campaign.status === "SCHEDULED" && showRescheduleInput && (
+          <Card padding="md">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Novo horário
+                </label>
+                <input
+                  type="datetime-local"
+                  value={newScheduleDate}
+                  onChange={(e) => setNewScheduleDate(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="md"
+                  loading={rescheduling}
+                  disabled={!newScheduleDate}
+                  onClick={handleReschedule}
+                >
+                  Salvar
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  disabled={rescheduling}
+                  onClick={() => {
+                    setShowRescheduleInput(false);
+                    setActionError(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {actionError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {actionError}
+          </div>
+        )}
 
         {/* Campaign info */}
         <Card padding="md">
