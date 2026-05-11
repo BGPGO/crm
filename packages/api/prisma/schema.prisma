@@ -1587,6 +1587,12 @@ model CloudWaTemplate {
   editsRemaining Int       @default(10) // Max 10 edições por 30 dias (APPROVED)
   lastEditedAt   DateTime?
 
+  // ── Health Check (sincronizado a cada 1h pelo wabaTemplateHealthCheck job) ──
+  healthFlag        String?   // HEALTHY | WARNING | CRITICAL | UNKNOWN
+  lastHealthCheckAt DateTime?
+  failRate7d        Float     @default(0)
+  sentCount7d       Int       @default(0)
+
   // ── Relações v2 ──
   waBroadcasts WaBroadcast[]
 
@@ -1597,6 +1603,7 @@ model CloudWaTemplate {
   @@index([status])
   @@index([category])
   @@index([metaTemplateId])
+  @@index([healthFlag])
 }
 
 model CloudWaMessageLog {

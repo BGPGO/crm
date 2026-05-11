@@ -303,6 +303,14 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
 
         // Broadcasts NÃO usam dailyLimitService (budget de automações é separado)
 
+        // Pré-carregar contatos bloqueados pelo cap cross-business da Meta (tag wa-cap-hit)
+        const capHitContactIds = new Set(
+          (await prisma.contactTag.findMany({
+            where: { tag: { name: 'wa-cap-hit' } },
+            select: { contactId: true },
+          })).map((ct) => ct.contactId)
+        );
+
         for (const contact of broadcast.contacts) {
           // Re-read contact status from DB to prevent duplicate sends on restart
           const freshContact = await prisma.waBroadcastContact.findUnique({
@@ -336,6 +344,16 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               console.log(`[wa-broadcast] Pulando ${contact.phone} — telefone marcado como invalido`);
               continue;
             }
+          }
+
+          // Filtro wa-cap-hit: pular contatos saturados no cap cross-business da Meta
+          if (crmContact && capHitContactIds.has(crmContact.id)) {
+            await prisma.waBroadcastContact.update({
+              where: { id: contact.id },
+              data: { status: 'WA_BC_SKIPPED', error: 'wa-cap-hit-blocked' },
+            });
+            console.log(`[wa-broadcast] Pulando ${contact.phone} — contato tem tag wa-cap-hit (cap-saturado Meta)`);
+            continue;
           }
 
           // Check opt-out ou atendimento humano ativo
@@ -419,6 +437,7 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               broadcast.template!.language || 'pt_BR',
               components,
               { senderType: 'WA_SYSTEM' },
+              { isBroadcast: true },
             );
 
             await prisma.waBroadcastContact.update({

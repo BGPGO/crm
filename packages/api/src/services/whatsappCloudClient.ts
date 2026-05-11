@@ -424,6 +424,7 @@ export class WhatsAppCloudClient {
     name?: string;
     limit?: number;
     after?: string;
+    fields?: string;
   }): Promise<{ data: MetaTemplate[]; paging?: any }> {
     const params: Record<string, string> = {};
     if (filters?.status) params.status = filters.status;
@@ -431,6 +432,7 @@ export class WhatsAppCloudClient {
     if (filters?.name) params.name = filters.name;
     if (filters?.limit) params.limit = String(filters.limit);
     if (filters?.after) params.after = filters.after;
+    if (filters?.fields) params.fields = filters.fields;
 
     const res = await this.client.get(`/${this.wabaId}/message_templates`, { params });
     return res.data;

@@ -1078,7 +1078,7 @@ async function sendWaTemplate(
   const language = config.language || 'pt_BR';
   const templateStatus = await prisma.cloudWaTemplate.findFirst({
     where: { name: config.templateName, language },
-    select: { status: true },
+    select: { status: true, category: true },
   });
 
   if (!templateStatus) {
@@ -1209,6 +1209,21 @@ async function sendWaTemplate(
       console.log(`[sendWaTemplate] Contato ${contactId} marcado como telefone invalido + tag aplicada`);
     } catch (markErr) {
       console.error(`[sendWaTemplate] Erro ao marcar telefone invalido:`, markErr);
+    }
+  }
+
+  // ── Filtro wa-cap-hit: bloquear envio MARKETING para contatos saturados no cap Meta ──
+  if (templateStatus.category === 'MARKETING') {
+    const capHitTag = await prisma.contactTag.findFirst({
+      where: {
+        contactId: contact.id,
+        tag: { name: 'wa-cap-hit' },
+      },
+      select: { id: true },
+    });
+    if (capHitTag) {
+      console.warn(`[sendWaTemplate] Pulando envio para ${contact.phone} — contato tem tag wa-cap-hit (cap-saturado Meta)`);
+      return { success: false, retry: false, output: 'wa-cap-hit-blocked' };
     }
   }
 

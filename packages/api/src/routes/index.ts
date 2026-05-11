@@ -45,6 +45,7 @@ import cloudWaTemplatesRouter from './cloud-wa-templates';
 import waWebhookRouter from './wa-webhook';
 import waConversationsRouter from './wa-conversations';
 import waBroadcastsRouter from './wa-broadcasts';
+import waTemplateHealthRouter from './wa-template-health';
 import trackRouter from './track';
 import botProductsRouter from './bot-products';
 import botObjectionsRouter from './bot-objections';
@@ -128,6 +129,7 @@ router.use('/whatsapp/cloud/templates', cloudWaTemplatesRouter);
 // ── WA v2 (módulo unificado) — requer auth ─────────────────────────────────
 router.use('/wa/conversations', waConversationsRouter);
 router.use('/wa/broadcasts', waBroadcastsRouter);
+router.use('/wa/templates/health', waTemplateHealthRouter);
 router.use('/whatsapp/bot-products', botProductsRouter);
 router.use('/whatsapp/bot-objections', botObjectionsRouter);
 router.use('/calendly/config', calendlyConfigRouter);

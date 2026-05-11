@@ -64,11 +64,14 @@ function handleMetaSendError(err: any, conversationId: string): never {
 }
 
 export class WaMessageService {
-  /** Check quality gate — block sends if quality is RED */
-  private static async checkQualityGate(): Promise<void> {
+  /** Check quality gate — block sends if quality is RED; block broadcasts if YELLOW */
+  private static async checkQualityGate(options?: { isBroadcast?: boolean }): Promise<void> {
     const config = await prisma.cloudWaConfig.findFirst({ select: { qualityRating: true } });
     if (config?.qualityRating === 'RED') {
       throw new Error('[WA] Envios pausados — quality rating RED. Verifique a qualidade das mensagens no painel da Meta.');
+    }
+    if (config?.qualityRating === 'YELLOW' && options?.isBroadcast === true) {
+      throw new Error('[WA] Envio de broadcast bloqueado — quality rating YELLOW. Pause campanhas até o rating voltar a GREEN.');
     }
   }
 
@@ -194,12 +197,13 @@ export class WaMessageService {
     language: string,
     components?: any[],
     opts: SendOpts = {},
+    sendOpts?: { isBroadcast?: boolean },
   ): Promise<any> {
     const conv = await this.getConversation(conversationId);
     const senderType = opts.senderType || 'WA_SYSTEM';
 
     // ── Security gates ──
-    await this.checkQualityGate();
+    await this.checkQualityGate(sendOpts);
     await this.checkDailyVolume(senderType);
     await enforcePairRateLimit(conv.phone);
 
