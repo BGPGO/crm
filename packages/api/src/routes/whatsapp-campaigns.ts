@@ -382,18 +382,45 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             }
           }
 
-          // Buscar contatos opt-out em tempo real (pode ter saído durante o envio)
-          const conv = await prisma.whatsAppConversation.findUnique({
-            where: { phone: contact.phone },
-            select: { optedOut: true },
-          });
-          if (conv?.optedOut) {
+          // Buscar opt-out em AMBOS modelos (Z-API legacy + WABA Cloud).
+          // Lead pode ter optado-out via WABA — não checar isso causou envio
+          // indevido no incidente 2026-05-12.
+          const [zapConv, waConv] = await Promise.all([
+            prisma.whatsAppConversation.findUnique({
+              where: { phone: contact.phone },
+              select: { optedOut: true, contactId: true },
+            }),
+            prisma.waConversation.findFirst({
+              where: { phone: contact.phone },
+              select: { optedOut: true, contactId: true },
+            }),
+          ]);
+          if (zapConv?.optedOut || waConv?.optedOut) {
             await prisma.whatsAppCampaignContact.update({
               where: { id: contact.id },
               data: { status: 'SKIPPED' },
             });
-            console.log(`[campaign] Pulando ${contact.phone} — opt-out`);
+            const source = zapConv?.optedOut ? 'Z-API' : 'WABA';
+            console.log(`[campaign] Pulando ${contact.phone} — opt-out (${source})`);
             continue;
+          }
+
+          // Buscar tag wa-cap-hit (contato saturado no cap cross-business da Meta).
+          // Mesmo via Z-API, evita reforçar sinais negativos no número.
+          const contactId = zapConv?.contactId || waConv?.contactId;
+          if (contactId) {
+            const capHit = await prisma.contactTag.findFirst({
+              where: { contactId, tag: { name: 'wa-cap-hit' } },
+              select: { id: true },
+            });
+            if (capHit) {
+              await prisma.whatsAppCampaignContact.update({
+                where: { id: contact.id },
+                data: { status: 'SKIPPED' },
+              });
+              console.log(`[campaign] Pulando ${contact.phone} — tag wa-cap-hit`);
+              continue;
+            }
           }
 
           // Verificar horário comercial antes de cada mensagem
