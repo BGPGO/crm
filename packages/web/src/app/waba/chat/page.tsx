@@ -838,6 +838,13 @@ export default function WabaChatPage() {
 
   const handleSend = async () => {
     if (!inputText.trim() || !selectedId || sending) return;
+
+    // Bloqueio opt-out: servidor também bloqueia, mas evita request desnecessário
+    if (selectedConv?.optedOut === true) {
+      setError("Bloqueado: contato fez opt-out. Para reativar, espere o próprio lead enviar uma nova mensagem.");
+      return;
+    }
+
     setSending(true);
     try {
       const isLegacy = selectedId.startsWith("zapi_");
@@ -860,6 +867,11 @@ export default function WabaChatPage() {
       }
       await fetchMessages(selectedId);
     } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.error === "CONVERSATION_OPTED_OUT") {
+        setError(data.message);
+        return;
+      }
       const msg = err?.message || err?.toString() || "Erro desconhecido";
       setError(`Erro ao enviar: ${msg}`);
       console.error("[waba/chat] handleSend error:", err);
@@ -871,7 +883,12 @@ export default function WabaChatPage() {
   // ── Marketing guard helpers ──
   const isQualityYellow = cloudConfig !== null && cloudConfig.qualityRating !== "GREEN";
 
-  function getTemplateBlocked(template: WaTemplate): { blocked: boolean; reason: "quality" | "cap-hit" | null } {
+  // Bloqueio total quando contato fez opt-out — nenhum envio (template/texto/media) é permitido
+  // até o próprio lead enviar uma nova mensagem (reativação automática no inbound).
+  const isOptedOut = selectedConv?.optedOut === true;
+
+  function getTemplateBlocked(template: WaTemplate): { blocked: boolean; reason: "quality" | "cap-hit" | "opted-out" | null } {
+    if (isOptedOut) return { blocked: true, reason: "opted-out" };
     if (template.category !== "MARKETING") return { blocked: false, reason: null };
     if (contactRisk?.hasCapHitTag) return { blocked: true, reason: "cap-hit" };
     if (isQualityYellow) return { blocked: true, reason: "quality" };
@@ -892,10 +909,12 @@ export default function WabaChatPage() {
   const handleSendTemplate = async (template: WaTemplate) => {
     if (!selectedId) return;
 
-    // Guard: blocked templates (quality / cap-hit)
+    // Guard: blocked templates (opt-out / quality / cap-hit)
     const { blocked, reason } = getTemplateBlocked(template);
     if (blocked) {
-      if (reason === "cap-hit") {
+      if (reason === "opted-out") {
+        setError("Bloqueado: contato fez opt-out. Para reativar, espere o próprio lead enviar uma nova mensagem.");
+      } else if (reason === "cap-hit") {
         setError("Bloqueado: contato com tag wa-cap-hit (saturado no cap Meta). Use texto livre ou template UTILITY.");
       } else {
         setError(`Bloqueado: quality rating em ${cloudConfig?.qualityRating}. Templates MARKETING não podem ser enviados até voltar a GREEN.`);
@@ -1656,8 +1675,20 @@ export default function WabaChatPage() {
             ) : selectedConv?.windowOpen ? (
               /* Window OPEN: regular text input */
               <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-3 flex-shrink-0">
+                {/* ── Opt-out banner (bloqueia tudo) ── */}
+                {isOptedOut && (
+                  <div className="mb-3 p-3 rounded-lg border border-red-400 bg-red-50 dark:bg-red-900/30 dark:border-red-700 flex items-start gap-2 max-w-3xl mx-auto">
+                    <AlertOctagon size={16} className="text-red-700 dark:text-red-300 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold text-red-900 dark:text-red-100">Contato fez opt-out</p>
+                      <p className="text-red-700 dark:text-red-200 mt-0.5 text-xs">
+                        O lead pediu pra não receber mais mensagens. Envio bloqueado (texto e templates). Para reativar, é necessário que o próprio lead envie uma nova mensagem — o sistema reativa automaticamente.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* ── Marketing guard banners ── */}
-                {(contactRisk?.hasCapHitTag || isQualityYellow) && (
+                {!isOptedOut && (contactRisk?.hasCapHitTag || isQualityYellow) && (
                   <div className="mb-3 p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2 max-w-3xl mx-auto">
                     <AlertOctagon size={16} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 text-sm">
@@ -1721,9 +1752,9 @@ export default function WabaChatPage() {
                         handleSend();
                       }
                     }}
-                    placeholder="Digite / para templates... (Ctrl+Enter para enviar)"
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-400"
-                    disabled={sending}
+                    placeholder={isOptedOut ? "Bloqueado: contato fez opt-out" : "Digite / para templates... (Ctrl+Enter para enviar)"}
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={sending || isOptedOut}
                     rows={1}
                     style={{ maxHeight: "120px" }}
                   />
@@ -1828,8 +1859,20 @@ export default function WabaChatPage() {
                 </div>
                 <div className="p-3">
                   <div className="max-w-3xl mx-auto">
+                    {/* ── Opt-out banner (bloqueia tudo, window closed) ── */}
+                    {isOptedOut && (
+                      <div className="mb-3 p-3 rounded-lg border border-red-400 bg-red-50 dark:bg-red-900/30 dark:border-red-700 flex items-start gap-2">
+                        <AlertOctagon size={16} className="text-red-700 dark:text-red-300 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 text-sm">
+                          <p className="font-semibold text-red-900 dark:text-red-100">Contato fez opt-out</p>
+                          <p className="text-red-700 dark:text-red-200 mt-0.5 text-xs">
+                            O lead pediu pra não receber mais mensagens. Envios bloqueados. Para reativar, aguarde o próprio lead enviar uma nova mensagem.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     {/* ── Marketing guard banners (window closed) ── */}
-                    {(contactRisk?.hasCapHitTag || isQualityYellow) && (
+                    {!isOptedOut && (contactRisk?.hasCapHitTag || isQualityYellow) && (
                       <div className="mb-3 p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2">
                         <AlertOctagon size={16} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 text-sm">
@@ -1858,15 +1901,16 @@ export default function WabaChatPage() {
                     )}
                     <button
                       onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                      disabled={sending}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm font-medium"
+                      disabled={sending || isOptedOut}
+                      title={isOptedOut ? "Bloqueado: contato fez opt-out" : undefined}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                     >
                       {sending ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <>
                           <Send size={16} />
-                          Enviar Template
+                          {isOptedOut ? "Bloqueado (opt-out)" : "Enviar Template"}
                         </>
                       )}
                     </button>

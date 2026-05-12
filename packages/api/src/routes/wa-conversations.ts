@@ -859,6 +859,19 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
     });
     if (!conversation) return next(createError('Conversation not found', 404));
 
+    // Bloqueio: contato fez opt-out. Para reativar, o próprio lead precisa
+    // enviar uma mensagem de re-engagement (sistema reativa automaticamente
+    // no inbound). Compliance básica + evita ban/denuncia da Meta.
+    if (conversation.optedOut) {
+      const optedOutAt = conversation.optedOutAt
+        ? new Date(conversation.optedOutAt).toLocaleDateString('pt-BR')
+        : 'data desconhecida';
+      return res.status(403).json({
+        error: 'CONVERSATION_OPTED_OUT',
+        message: `Bloqueado: o contato pediu para não receber mais mensagens (opt-out em ${optedOutAt}). Para reativar, peça que ele envie uma nova mensagem — o sistema reativa automaticamente.`,
+      });
+    }
+
     const {
       type,
       content,
