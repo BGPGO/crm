@@ -33,6 +33,7 @@ import {
   Plus,
   Building2,
   Paperclip,
+  AlertOctagon,
 } from "lucide-react";
 import clsx from "clsx";
 import { api, getAuthHeaders } from "@/lib/api";
@@ -559,6 +560,15 @@ export default function WabaChatPage() {
   const [newConvContacts, setNewConvContacts] = useState<Array<{ id: string; name: string; phone: string | null; organization?: { name: string } | null }>>([]);
   const [newConvLoading, setNewConvLoading] = useState(false);
 
+  // ── Quality config + contact risk (WABA cap / marketing guard) ──
+  const [cloudConfig, setCloudConfig] = useState<{ qualityRating: string } | null>(null);
+  const [contactRisk, setContactRisk] = useState<{
+    hasCapHitTag: boolean;
+    lastMarketingAt: string | null;
+    hoursSinceLastMarketing: number | null;
+    capHitBlocksMarketing?: boolean;
+  } | null>(null);
+
   // ── Refs ──
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -654,7 +664,7 @@ export default function WabaChatPage() {
     fetchLegacyConversations();
   }, [fetchConversations, fetchStats, fetchLegacyConversations]);
 
-  // ── Load users + templates once ──
+  // ── Load users + templates + cloud config once ──
   useEffect(() => {
     api
       .get<{ data: WaUser[] }>("/users")
@@ -664,6 +674,10 @@ export default function WabaChatPage() {
       .get<{ data: WaTemplate[] }>("/whatsapp/cloud/templates?status=APPROVED")
       .then((res) => setTemplates(res.data ?? []))
       .catch(() => {});
+    api
+      .get<{ data: { qualityRating: string } }>("/whatsapp/cloud/config")
+      .then((res) => setCloudConfig(res.data ?? null))
+      .catch(() => {/* fail-open */});
   }, []);
 
   // ── Polling (10s, pausa quando tab inativa) ──
@@ -694,6 +708,18 @@ export default function WabaChatPage() {
 
   // ── Fetch contact details + deal when CONTACT changes (not on every poll) ──
   const selectedContactId = selectedConv?.contact?.id ?? null;
+
+  // ── Fetch contact risk (cap-hit tag + recent marketing) ──
+  useEffect(() => {
+    if (!selectedContactId) {
+      setContactRisk(null);
+      return;
+    }
+    api
+      .get<{ data: { hasCapHitTag: boolean; lastMarketingAt: string | null; hoursSinceLastMarketing: number | null; capHitBlocksMarketing?: boolean } }>(`/wa/contacts/${selectedContactId}/risk`)
+      .then((res) => setContactRisk(res.data ?? null))
+      .catch(() => setContactRisk(null)); // fail-open
+  }, [selectedContactId]);
 
   useEffect(() => {
     if (!selectedContactId) {
@@ -842,8 +868,41 @@ export default function WabaChatPage() {
     }
   };
 
+  // ── Marketing guard helpers ──
+  const isQualityYellow = cloudConfig !== null && cloudConfig.qualityRating !== "GREEN";
+
+  function getTemplateBlocked(template: WaTemplate): { blocked: boolean; reason: "quality" | "cap-hit" | null } {
+    if (template.category !== "MARKETING") return { blocked: false, reason: null };
+    if (contactRisk?.hasCapHitTag) return { blocked: true, reason: "cap-hit" };
+    if (isQualityYellow) return { blocked: true, reason: "quality" };
+    return { blocked: false, reason: null };
+  }
+
+  function getTemplateRecentMarketingWarning(template: WaTemplate): boolean {
+    if (template.category !== "MARKETING") return false;
+    const { blocked } = getTemplateBlocked(template);
+    if (blocked) return false;
+    return (
+      contactRisk?.hoursSinceLastMarketing !== null &&
+      contactRisk?.hoursSinceLastMarketing !== undefined &&
+      contactRisk.hoursSinceLastMarketing < 48
+    );
+  }
+
   const handleSendTemplate = async (template: WaTemplate) => {
     if (!selectedId) return;
+
+    // Guard: blocked templates (quality / cap-hit)
+    const { blocked, reason } = getTemplateBlocked(template);
+    if (blocked) {
+      if (reason === "cap-hit") {
+        setError("Bloqueado: contato com tag wa-cap-hit (saturado no cap Meta). Use texto livre ou template UTILITY.");
+      } else {
+        setError(`Bloqueado: quality rating em ${cloudConfig?.qualityRating}. Templates MARKETING não podem ser enviados até voltar a GREEN.`);
+      }
+      return;
+    }
+
     setSending(true);
     try {
       // Build components with contact name for {{1}} if template has variables
@@ -866,6 +925,12 @@ export default function WabaChatPage() {
       setShowTemplatePicker(false);
       await fetchMessages(selectedId);
     } catch (err: any) {
+      // Handle 403 from server-side guard
+      const data = (err as any)?.response?.data;
+      if (data?.error === "QUALITY_RATING_NOT_GREEN" || data?.error === "CONTACT_CAP_HIT") {
+        setError(data.message || "Envio bloqueado pelo servidor.");
+        return;
+      }
       setError(`Erro ao enviar template: ${err?.message || "erro desconhecido"}`);
     } finally {
       setSending(false);
@@ -1591,6 +1656,34 @@ export default function WabaChatPage() {
             ) : selectedConv?.windowOpen ? (
               /* Window OPEN: regular text input */
               <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-3 flex-shrink-0">
+                {/* ── Marketing guard banners ── */}
+                {(contactRisk?.hasCapHitTag || isQualityYellow) && (
+                  <div className="mb-3 p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2 max-w-3xl mx-auto">
+                    <AlertOctagon size={16} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold text-red-900 dark:text-red-200">Templates MARKETING bloqueados</p>
+                      <p className="text-red-700 dark:text-red-300 mt-0.5 text-xs">
+                        {contactRisk?.hasCapHitTag
+                          ? "Contato saturado no cap Meta (tag wa-cap-hit). Use texto livre ou template UTILITY."
+                          : `Quality rating em ${cloudConfig?.qualityRating}. Templates MARKETING bloqueados até voltar a GREEN. Use UTILITY ou texto livre.`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {!contactRisk?.hasCapHitTag && !isQualityYellow &&
+                  contactRisk?.hoursSinceLastMarketing !== null &&
+                  contactRisk?.hoursSinceLastMarketing !== undefined &&
+                  contactRisk.hoursSinceLastMarketing < 48 && (
+                  <div className="mb-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 flex items-start gap-2 max-w-3xl mx-auto">
+                    <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold text-amber-900 dark:text-amber-200">Atenção: envio MARKETING recente</p>
+                      <p className="text-amber-700 dark:text-amber-300 mt-0.5 text-xs">
+                        Este contato recebeu um template MARKETING há {contactRisk.hoursSinceLastMarketing}h. O cap Meta sugere aguardar 48h entre marketing pro mesmo destinatário pra evitar erro 131049.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-end gap-2 max-w-3xl mx-auto">
                   <div className="relative flex-1">
                   <textarea
@@ -1642,7 +1735,10 @@ export default function WabaChatPage() {
                       </div>
                       {templates
                         .filter((t) => t.status === "APPROVED" && (!slashFilter || t.name.includes(slashFilter) || (t.body || "").toLowerCase().includes(slashFilter)))
-                        .map((t) => (
+                        .map((t) => {
+                          const { blocked, reason } = getTemplateBlocked(t);
+                          const warnRecent = getTemplateRecentMarketingWarning(t);
+                          return (
                           <button
                             key={t.id}
                             onClick={() => {
@@ -1650,17 +1746,37 @@ export default function WabaChatPage() {
                               setInputText("");
                               handleSendTemplate(t);
                             }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0"
+                            className={clsx(
+                              "w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0",
+                              blocked && "opacity-50"
+                            )}
                           >
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-mono text-green-600 dark:text-green-400">{t.name}</span>
                               {t.name.startsWith("cadencia_") && (
                                 <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded font-medium">Automação</span>
                               )}
+                              {blocked && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded font-medium">Bloqueado</span>
+                              )}
+                              {warnRecent && (
+                                <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-medium">Marketing recente</span>
+                              )}
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{t.body?.replace(/\{\{1\}\}/g, selectedConv?.contact?.name || "Nome") || "..."}</p>
+                            {blocked && (
+                              <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">
+                                {reason === "cap-hit" ? "Contato saturado (wa-cap-hit)" : `Quality: ${cloudConfig?.qualityRating} — aguarde GREEN`}
+                              </p>
+                            )}
+                            {warnRecent && (
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                Marketing há {contactRisk?.hoursSinceLastMarketing}h — cap sugere 48h
+                              </p>
+                            )}
                           </button>
-                        ))}
+                          );
+                        })}
                       {templates.filter((t) => t.status === "APPROVED" && (!slashFilter || t.name.includes(slashFilter))).length === 0 && (
                         <p className="px-4 py-3 text-xs text-gray-400 text-center">Nenhum template aprovado encontrado</p>
                       )}
@@ -1712,6 +1828,34 @@ export default function WabaChatPage() {
                 </div>
                 <div className="p-3">
                   <div className="max-w-3xl mx-auto">
+                    {/* ── Marketing guard banners (window closed) ── */}
+                    {(contactRisk?.hasCapHitTag || isQualityYellow) && (
+                      <div className="mb-3 p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800 flex items-start gap-2">
+                        <AlertOctagon size={16} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 text-sm">
+                          <p className="font-semibold text-red-900 dark:text-red-200">Templates MARKETING bloqueados</p>
+                          <p className="text-red-700 dark:text-red-300 mt-0.5 text-xs">
+                            {contactRisk?.hasCapHitTag
+                              ? "Contato saturado no cap Meta (tag wa-cap-hit). Use template UTILITY."
+                              : `Quality rating em ${cloudConfig?.qualityRating}. Templates MARKETING bloqueados até voltar a GREEN.`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {!contactRisk?.hasCapHitTag && !isQualityYellow &&
+                      contactRisk?.hoursSinceLastMarketing !== null &&
+                      contactRisk?.hoursSinceLastMarketing !== undefined &&
+                      contactRisk.hoursSinceLastMarketing < 48 && (
+                      <div className="mb-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 flex items-start gap-2">
+                        <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 text-sm">
+                          <p className="font-semibold text-amber-900 dark:text-amber-200">Atenção: envio MARKETING recente</p>
+                          <p className="text-amber-700 dark:text-amber-300 mt-0.5 text-xs">
+                            Este contato recebeu um template MARKETING há {contactRisk.hoursSinceLastMarketing}h. Aguarde 48h pra evitar erro 131049.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={() => setShowTemplatePicker(!showTemplatePicker)}
                       disabled={sending}
@@ -1735,25 +1879,50 @@ export default function WabaChatPage() {
                             Nenhum template aprovado encontrado
                           </div>
                         ) : (
-                          templates.map((t) => (
+                          templates.map((t) => {
+                            const { blocked, reason: blockReason } = getTemplateBlocked(t);
+                            const warnRecent = getTemplateRecentMarketingWarning(t);
+                            return (
                             <button
                               key={t.id}
                               onClick={() => handleSendTemplate(t)}
-                              className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0"
+                              className={clsx(
+                                "w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0",
+                                blocked && "opacity-50"
+                              )}
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                   {t.name}
                                 </span>
-                                <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
-                                  {t.category}
-                                </span>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {blocked && (
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded font-medium">Bloqueado</span>
+                                  )}
+                                  {warnRecent && (
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-medium">Recente</span>
+                                  )}
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+                                    {t.category}
+                                  </span>
+                                </div>
                               </div>
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                 {t.language || "pt_BR"}
                               </p>
+                              {blocked && (
+                                <p className="text-[10px] text-red-500 dark:text-red-400 mt-0.5">
+                                  {blockReason === "cap-hit" ? "Contato saturado (wa-cap-hit)" : `Quality: ${cloudConfig?.qualityRating} — aguarde GREEN`}
+                                </p>
+                              )}
+                              {warnRecent && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                  Marketing há {contactRisk?.hoursSinceLastMarketing}h — aguarde 48h (erro 131049)
+                                </p>
+                              )}
                             </button>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}

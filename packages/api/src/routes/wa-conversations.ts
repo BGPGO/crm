@@ -894,6 +894,44 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
       case 'template': {
         if (!templateName) return next(createError('templateName is required for template messages', 400));
 
+        // ── Proteções Anti-Ban: MARKETING via chat humano ──────────────────────
+        // Carregar categoria do template para decidir se deve aplicar os bloqueios
+        const tplInfo = await prisma.cloudWaTemplate.findFirst({
+          where: { name: templateName, language: templateLanguage || 'pt_BR' },
+          select: { category: true },
+        });
+
+        if (tplInfo?.category === 'MARKETING') {
+          // 1) Quality gate — MARKETING bloqueado se quality não for GREEN
+          const waConfig = await prisma.cloudWaConfig.findFirst({
+            select: { qualityRating: true },
+          });
+          if (waConfig?.qualityRating !== 'GREEN') {
+            return res.status(403).json({
+              error: 'QUALITY_RATING_NOT_GREEN',
+              message: `Bloqueado: quality rating está em ${waConfig?.qualityRating || 'desconhecido'}. Não é possível enviar templates MARKETING pelo chat até quality voltar a GREEN. Tente um template UTILITY (ex: lembrete_reuniao_4h, confirmacao_reuniao) ou aguarde.`,
+            });
+          }
+
+          // 2) Cap-hit check — contato saturado no cross-business cap da Meta
+          if (conversation.contactId) {
+            const capHit = await prisma.contactTag.findFirst({
+              where: {
+                contactId: conversation.contactId,
+                tag: { name: 'wa-cap-hit' },
+              },
+              select: { id: true },
+            });
+            if (capHit) {
+              return res.status(403).json({
+                error: 'CONTACT_CAP_HIT',
+                message: 'Bloqueado: este contato está na lista wa-cap-hit (saturado no cap cross-business da Meta). Templates MARKETING bloqueados. Use texto livre se janela 24h aberta, template UTILITY, ou aguarde 14 dias antes de remover a tag manualmente.',
+              });
+            }
+          }
+        }
+        // ── Fim proteções Anti-Ban ─────────────────────────────────────────────
+
         // ── Auto-resolve variáveis do template se o frontend mandou placeholders ──
         let resolvedComponents = components || [];
         const hasPlaceholders = JSON.stringify(resolvedComponents).includes('"param');
