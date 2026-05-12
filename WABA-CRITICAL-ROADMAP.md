@@ -1,6 +1,8 @@
 # Roadmap dos templates CRITICAL
 
-> Snapshot 2026-05-12. Atualizar conforme métricas evoluem (`/api/wa/templates/health` ou painel `/waba/templates`).
+> Snapshot 2026-05-12 (atualizado). Atualizar conforme métricas evoluem (`/api/wa/templates/health` ou painel `/waba/templates`).
+>
+> **Atualização 2026-05-12 ~15h SP**: todos os 5 templates editados foram **re-aprovados** pela Meta. `lembrete_reuniao_15min` foi **recategorizado pra UTILITY** (isento de 131049). Novo template `lead_recebido_v1_utility` aprovado e em uso via nova automação `Lead → Boas-vindas UTILITY (WABA)`.
 
 ## Resumo
 
@@ -9,7 +11,7 @@
 | `cadencia_d4_prova` | 53,5% | APPROVED (re-eval) | Manter pausado, observar 7d, reescrever conteúdo se taxa não cair |
 | `cadencia_d1_abertura` | 27,4% | APPROVED (re-eval) | Substituir por UTILITY de acknowledgment quando aprovar |
 | `marcar_reuniao__quanto_deu_resultado` | 28,4% | APPROVED (re-eval) | Aguardar re-eval, se piorar, retirar do funil |
-| `lembrete_reuniao_15min` | 35,7% | APPROVED | **Já substituído** por `_v2_utility` no `TEMPLATE_MAP` — fica como fallback |
+| `lembrete_reuniao_15min` | 35,7% | APPROVED **UTILITY** ✅ | Meta recategorizou pra UTILITY após nossa edit. Saiu do cap 131049 sem precisar do v2. Mantém v2_utility como alternativa. |
 | `lembrete_reuniao_60min` | 20% | APPROVED | **Já substituído** por `_v2_utility` no `TEMPLATE_MAP` — fica como fallback |
 
 ---
@@ -82,18 +84,20 @@
 
 ---
 
-### 4. `lembrete_reuniao_15min` — 35,7% fail
+### 4. `lembrete_reuniao_15min` — 35,7% fail (RESOLVIDO 2026-05-12)
 
-**Status**: já substituído por `lembrete_reuniao_15min_v2_utility` (APPROVED, em uso desde commit `2cb1255`).
+**Status**: ✅ **Meta recategorizou pra UTILITY** após nossa edição que tornou o texto mais transacional (adicionamos "Caso precise reagendar, responda aqui" + "com a Bertuzzi Patrimonial" no body). Status atual no Meta: APPROVED, category UTILITY.
+
+**Implicação**: o template antigo agora **já é isento de 131049** (UTILITY não tem cap cross-business). Não precisa nem usar o v2.
 
 **TEMPLATE_MAP** atual:
 ```typescript
 15: ['lembrete_reuniao_15min_v2_utility', 'lembrete_reuniao_15min'],
 ```
 
-Sistema usa o v2_utility (UTILITY, isento de 131049). Antigo fica como fallback.
+Sistema usa o v2_utility primeiro. Se algum dia v2 ficar indisponível, o antigo agora **também é UTILITY** → cobertura dupla, ambos isentos do cap.
 
-**Próxima ação**: monitorar 7 dias. Se v2 mantém 0% de 131049, remover o antigo da lista.
+**Próxima ação**: deixar como está. failRate7d vai cair conforme janela 7d rola (envios antigos saem da janela).
 
 ---
 
