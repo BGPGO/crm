@@ -58,6 +58,10 @@ interface WhatsAppTemplate {
   lastEditedAt: string | null;
   rejectedReason: string | null;
   qualityScore: string | null;
+  healthFlag: "HEALTHY" | "WARNING" | "CRITICAL" | "UNKNOWN" | null;
+  failRate7d: number;
+  sentCount7d: number;
+  lastHealthCheckAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,6 +92,18 @@ const CATEGORY_CONFIG: Record<
   MARKETING: { label: "Marketing", variant: "blue" },
   UTILITY: { label: "Utility", variant: "purple" },
   AUTHENTICATION: { label: "Autenticacao", variant: "gray" },
+};
+
+// Saúde calculada internamente (job wabaTemplateHealthCheck a cada 1h).
+// Substitui o `qualityScore` da Meta, que retorna UNKNOWN frequentemente.
+const HEALTH_CONFIG: Record<
+  NonNullable<WhatsAppTemplate["healthFlag"]>,
+  { label: string; variant: "green" | "yellow" | "red" | "gray"; tooltip: string }
+> = {
+  HEALTHY: { label: "Saudável", variant: "green", tooltip: "Taxa de erro <10% nos últimos 7 dias" },
+  WARNING: { label: "Atenção", variant: "yellow", tooltip: "Taxa de erro entre 10-20% — observar" },
+  CRITICAL: { label: "Crítico", variant: "red", tooltip: "Taxa de erro ≥20% — considerar editar/pausar" },
+  UNKNOWN: { label: "Sem dados", variant: "gray", tooltip: "Menos de 5 envios nos últimos 7 dias" },
 };
 
 const VARIABLE_HINTS: Record<string, string> = {
@@ -899,7 +915,19 @@ export default function TemplatesPage() {
                           : "Documento"}
                       </span>
                     )}
-                    {tpl.qualityScore && (
+                    {/* Saúde interna (calculada por nós a partir de WaMessage). Substitui o qualityScore da Meta que é quase sempre UNKNOWN. */}
+                    {tpl.healthFlag && (
+                      <span title={HEALTH_CONFIG[tpl.healthFlag].tooltip}>
+                        <Badge variant={HEALTH_CONFIG[tpl.healthFlag].variant}>
+                          {HEALTH_CONFIG[tpl.healthFlag].label}
+                          {tpl.sentCount7d > 0 && tpl.healthFlag !== "UNKNOWN" && (
+                            <> · {(tpl.failRate7d * 100).toFixed(0)}% fail ({tpl.sentCount7d})</>
+                          )}
+                        </Badge>
+                      </span>
+                    )}
+                    {/* Quality score da Meta — só mostra quando NÃO é UNKNOWN (caso contrário polui) */}
+                    {tpl.qualityScore && tpl.qualityScore !== "UNKNOWN" && (
                       <Badge
                         variant={
                           tpl.qualityScore === "GREEN"
@@ -909,7 +937,7 @@ export default function TemplatesPage() {
                             : "red"
                         }
                       >
-                        Q: {tpl.qualityScore}
+                        Meta Q: {tpl.qualityScore}
                       </Badge>
                     )}
                     {isAutomationTemplate(tpl) && (
