@@ -123,6 +123,19 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError(`Template "${template.name}" nao esta aprovado (status: ${template.status})`, 400));
     }
 
+    // Bloqueio: criação de broadcast MARKETING bloqueada quando qualityRating != GREEN
+    if (template.category === 'MARKETING') {
+      const config = await prisma.cloudWaConfig.findFirst({
+        select: { qualityRating: true },
+      });
+      if (config?.qualityRating !== 'GREEN') {
+        return res.status(403).json({
+          error: 'QUALITY_RATING_NOT_GREEN',
+          message: `Bloqueado: quality rating está em ${config?.qualityRating || 'desconhecido'}. Broadcasts MARKETING só podem ser criados quando quality estiver GREEN.`,
+        });
+      }
+    }
+
     // Resolve contacts from segment or stage(s)
     let phoneNumbers: string[] = [];
 
@@ -180,6 +193,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         stageIds: resolvedStageIds.length > 0 ? resolvedStageIds : null,
         dealStatus: resolvedStageIds.length > 0 ? resolvedDealStatus : null,
         totalContacts: phoneNumbers.length,
+        createdById: req.user?.id ?? null,
         contacts: {
           create: phoneNumbers.map((phone: string) => ({ phone })),
         },
@@ -275,6 +289,19 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
       return next(createError(`Template "${broadcast.template.name}" nao esta aprovado`, 400));
     }
 
+    // Bloqueio: iniciar broadcast MARKETING bloqueado quando qualityRating != GREEN
+    if (broadcast.template.category === 'MARKETING') {
+      const config = await prisma.cloudWaConfig.findFirst({
+        select: { qualityRating: true },
+      });
+      if (config?.qualityRating !== 'GREEN') {
+        return res.status(403).json({
+          error: 'QUALITY_RATING_NOT_GREEN',
+          message: `Bloqueado: quality rating está em ${config?.qualityRating || 'desconhecido'}. Não é possível iniciar broadcast MARKETING fora de GREEN.`,
+        });
+      }
+    }
+
     // Prevent concurrent loops for the same broadcast
     if (activeBroadcastLoops.has(broadcast.id)) {
       return next(createError('Broadcast ja tem um loop ativo — aguarde a pausa completar antes de reiniciar', 409));
@@ -310,6 +337,13 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             select: { contactId: true },
           })).map((ct) => ct.contactId)
         );
+
+        // Pré-carregar nomes de templates MARKETING (evita N queries dentro do loop)
+        const marketingTemplateRows = await prisma.cloudWaTemplate.findMany({
+          where: { category: 'MARKETING' },
+          select: { name: true },
+        });
+        const marketingTemplateNames = marketingTemplateRows.map((t) => t.name);
 
         for (const contact of broadcast.contacts) {
           // Re-read contact status from DB to prevent duplicate sends on restart
@@ -381,6 +415,37 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             console.log(`[wa-broadcast] Pulando ${contact.phone} — ${reason}`);
             continue;
           }
+
+          // ── Per-recipient cooldown de 48h para MARKETING templates ─────────────
+          if (broadcast.template.category === 'MARKETING') {
+            const FORTY_EIGHT_HOURS_AGO = new Date(Date.now() - 48 * 60 * 60 * 1000);
+            const lastMarketing = await prisma.waMessage.findFirst({
+              where: {
+                direction: 'OUTBOUND',
+                type: 'TEMPLATE',
+                createdAt: { gte: FORTY_EIGHT_HOURS_AGO },
+                conversation: { phone: contact.phone },
+                templateName: { in: marketingTemplateNames },
+              },
+              orderBy: { createdAt: 'desc' },
+              select: { createdAt: true, templateName: true },
+            });
+
+            if (lastMarketing) {
+              const holdUntil = new Date(lastMarketing.createdAt.getTime() + 48 * 60 * 60 * 1000);
+              await prisma.waBroadcastContact.update({
+                where: { id: contact.id },
+                data: {
+                  status: 'WA_BC_HELD',
+                  holdUntil,
+                  error: `Cooldown 48h — última MARKETING em ${lastMarketing.createdAt.toISOString()} (${lastMarketing.templateName})`,
+                },
+              });
+              console.log(`[wa-broadcast] HOLD ${contact.phone} até ${holdUntil.toISOString()} (recebeu ${lastMarketing.templateName} <48h)`);
+              continue;
+            }
+          }
+          // ────────────────────────────────────────────────────────────────────────
 
           try {
             // Find or create conversation — linked to CRM Contact

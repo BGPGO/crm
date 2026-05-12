@@ -11,6 +11,7 @@ import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 import { startDailyReportCron } from './dailyReportCron';
 import { startScheduledEmailCron } from './scheduledEmailCron';
 import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
+import { runReleaseHeldBroadcastContacts } from './releaseHeldBroadcastContacts';
 import cron from 'node-cron';
 
 export function startAllJobs() {
@@ -52,6 +53,18 @@ export function startAllJobs() {
     }
   });
   console.log('[waba-template-health-check] Agendado: a cada 1h (cron 0 * * * *)');
+
+  // Release de WaBroadcastContact em hold (cooldown 48h MARKETING) — a cada 30min
+  cron.schedule('*/30 * * * *', async () => {
+    console.log('[release-held-broadcasts] Iniciando...');
+    try {
+      const result = await runReleaseHeldBroadcastContacts();
+      console.log('[release-held-broadcasts] Concluído:', result);
+    } catch (err) {
+      console.error('[release-held-broadcasts] Erro:', err);
+    }
+  });
+  console.log('[release-held-broadcasts] Agendado: a cada 30min (cron */30 * * * *)');
 
   console.log('[jobs] All cron jobs started');
 }

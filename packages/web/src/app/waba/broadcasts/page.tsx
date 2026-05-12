@@ -32,6 +32,7 @@ import {
   Users,
   Radio,
   MousePointerClick,
+  AlertTriangle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -103,6 +104,13 @@ interface Stage {
   id: string;
   name: string;
   pipeline?: { id: string; name: string };
+}
+
+interface CloudWaConfig {
+  qualityRating: string | null;
+  messagingTier: string | null;
+  phoneStatus: string | null;
+  updatedAt: string;
 }
 
 const dealStatusOptions = [
@@ -395,10 +403,12 @@ function BroadcastDetail({
   broadcastId,
   onBack,
   onRefresh,
+  isQualityBlocked,
 }: {
   broadcastId: string;
   onBack: () => void;
   onRefresh: () => void;
+  isQualityBlocked: boolean;
 }) {
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
   const [contacts, setContacts] = useState<BroadcastContact[]>([]);
@@ -496,7 +506,13 @@ function BroadcastDetail({
         </div>
         <div className="flex gap-2">
           {broadcast.status === "WA_DRAFT" && (
-            <Button size="sm" onClick={() => handleAction("start")} loading={actionLoading}>
+            <Button
+              size="sm"
+              onClick={() => handleAction("start")}
+              loading={actionLoading}
+              disabled={isQualityBlocked}
+              title={isQualityBlocked ? "Bloqueado: quality não está GREEN" : undefined}
+            >
               <Play size={14} />
               Iniciar Envio
             </Button>
@@ -508,7 +524,13 @@ function BroadcastDetail({
             </Button>
           )}
           {broadcast.status === "WA_PAUSED" && (
-            <Button size="sm" onClick={() => handleAction("start")} loading={actionLoading}>
+            <Button
+              size="sm"
+              onClick={() => handleAction("start")}
+              loading={actionLoading}
+              disabled={isQualityBlocked}
+              title={isQualityBlocked ? "Bloqueado: quality não está GREEN" : undefined}
+            >
               <Play size={14} />
               Retomar
             </Button>
@@ -600,6 +622,15 @@ export default function BroadcastsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [cloudConfig, setCloudConfig] = useState<CloudWaConfig | null>(null);
+
+  useEffect(() => {
+    api.get<{ data: CloudWaConfig }>("/whatsapp/cloud/config")
+      .then((res) => setCloudConfig(res.data))
+      .catch(() => {/* silencia — banner é best-effort */});
+  }, []);
+
+  const isQualityBlocked = cloudConfig !== null && cloudConfig.qualityRating !== "GREEN";
 
   const fetchBroadcasts = useCallback(async () => {
     setLoading(true);
@@ -646,6 +677,7 @@ export default function BroadcastsPage() {
         broadcastId={selectedId}
         onBack={() => setSelectedId(null)}
         onRefresh={fetchBroadcasts}
+        isQualityBlocked={isQualityBlocked}
       />
     );
   }
@@ -660,11 +692,35 @@ export default function BroadcastsPage() {
             Envie mensagens em massa via WhatsApp Cloud API
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button
+          onClick={() => setShowCreate(true)}
+          disabled={isQualityBlocked}
+          title={isQualityBlocked ? `Bloqueado: quality em ${cloudConfig?.qualityRating}` : undefined}
+        >
           <Plus size={14} />
           Novo Broadcast
         </Button>
       </div>
+
+      {/* Banner de quality rating bloqueado */}
+      {isQualityBlocked && cloudConfig && (
+        <div className="p-4 rounded-lg border-2 border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900 dark:text-red-200">
+                Quality rating em {cloudConfig.qualityRating}
+              </h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                Criar ou iniciar broadcasts <strong>MARKETING</strong> está bloqueado até a quality voltar para GREEN. Templates UTILITY continuam disponíveis.
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                Última atualização: {new Date(cloudConfig.updatedAt).toLocaleString("pt-BR")}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -688,7 +744,13 @@ export default function BroadcastsPage() {
             <p className="text-xs text-gray-500 mt-1">
               Crie seu primeiro broadcast para enviar mensagens em massa.
             </p>
-            <Button size="sm" className="mt-4" onClick={() => setShowCreate(true)}>
+            <Button
+              size="sm"
+              className="mt-4"
+              onClick={() => setShowCreate(true)}
+              disabled={isQualityBlocked}
+              title={isQualityBlocked ? `Bloqueado: quality em ${cloudConfig?.qualityRating}` : undefined}
+            >
               <Plus size={14} />
               Criar Broadcast
             </Button>
@@ -753,7 +815,13 @@ export default function BroadcastsPage() {
                         <Eye size={14} />
                       </Button>
                       {b.status === "WA_DRAFT" && (
-                        <Button variant="ghost" size="sm" onClick={() => handleStart(b.id)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStart(b.id)}
+                          disabled={isQualityBlocked}
+                          title={isQualityBlocked ? "Bloqueado: quality não está GREEN" : undefined}
+                        >
                           <Play size={14} className="text-green-600" />
                         </Button>
                       )}
@@ -763,7 +831,13 @@ export default function BroadcastsPage() {
                         </Button>
                       )}
                       {b.status === "WA_PAUSED" && (
-                        <Button variant="ghost" size="sm" onClick={() => handleStart(b.id)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleStart(b.id)}
+                          disabled={isQualityBlocked}
+                          title={isQualityBlocked ? "Bloqueado: quality não está GREEN" : undefined}
+                        >
                           <Play size={14} className="text-green-600" />
                         </Button>
                       )}

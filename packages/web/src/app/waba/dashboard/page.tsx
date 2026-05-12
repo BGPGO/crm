@@ -19,11 +19,17 @@ import {
   PauseCircle,
   RefreshCw,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface CloudWaConfig {
+  qualityRating: string | null;
+  updatedAt: string;
+}
 
 interface PipelineStage {
   stageId: string;
@@ -201,6 +207,13 @@ export default function WabaDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [cloudConfig, setCloudConfig] = useState<CloudWaConfig | null>(null);
+
+  useEffect(() => {
+    api.get<{ data: CloudWaConfig }>("/whatsapp/cloud/config")
+      .then((res) => setCloudConfig(res.data))
+      .catch(() => {/* silencia — banner é best-effort */});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -268,6 +281,17 @@ export default function WabaDashboardPage() {
           Atualizar
         </button>
       </div>
+
+      {/* Banner quality rating */}
+      {cloudConfig && cloudConfig.qualityRating !== "GREEN" && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-red-300 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+          <AlertTriangle className="text-red-600 dark:text-red-400 flex-shrink-0" size={18} />
+          <p className="text-sm text-red-800 dark:text-red-200 flex-1">
+            <strong>Quality rating em {cloudConfig.qualityRating}:</strong> criação e envio de broadcasts MARKETING estão bloqueados.{" "}
+            <a href="/waba/broadcasts" className="underline hover:no-underline">Ver broadcasts</a>
+          </p>
+        </div>
+      )}
 
       {/* ── Top KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
