@@ -116,6 +116,22 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
         continue;
       }
 
+      // Re-check opt-out — o contato pode ter optado-out durante o hold de 48h.
+      // O check inicial do broadcast loop foi feito no enrollment; agora reverificamos.
+      if (conv.optedOut) {
+        await prisma.waBroadcastContact.update({
+          where: { id: bc.id },
+          data: {
+            status: 'WA_BC_SKIPPED',
+            holdUntil: null,
+            error: 'Contato fez opt-out durante hold de 48h',
+          },
+        });
+        console.log(`${JOB} [SKIP] ${bc.phone} — opted-out durante hold`);
+        failed++;
+        continue;
+      }
+
       // Montar components (templateParams por contato ou do broadcast)
       const rawParams = bc.templateParams || bc.broadcast.templateParams;
       const components: any[] = rawParams

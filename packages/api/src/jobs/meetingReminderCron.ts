@@ -132,13 +132,22 @@ async function checkMeetingReminders() {
           });
 
           try {
-            // Verificar opt-out antes de enviar
-            const conv = await prisma.whatsAppConversation.findUnique({
-              where: { phone: meeting.contact.phone },
-              select: { optedOut: true },
-            });
-            if (conv?.optedOut) {
-              console.log(`[meeting-reminder] Pulando ${meeting.contact.phone} — opt-out`);
+            // Verificar opt-out em AMBOS modelos (Z-API legacy + WABA Cloud).
+            // Lead pode ter feito opt-out via WABA — não checar isso causou
+            // envio indevido no incidente 2026-05-12.
+            const [zapConv, waConv] = await Promise.all([
+              prisma.whatsAppConversation.findUnique({
+                where: { phone: meeting.contact.phone },
+                select: { optedOut: true },
+              }),
+              prisma.waConversation.findFirst({
+                where: { phone: meeting.contact.phone },
+                select: { optedOut: true },
+              }),
+            ]);
+            if (zapConv?.optedOut || waConv?.optedOut) {
+              const source = zapConv?.optedOut ? 'Z-API' : 'WABA';
+              console.log(`[meeting-reminder] Pulando ${meeting.contact.phone} — opt-out (${source})`);
               sentReminders.add(key);
               continue;
             }

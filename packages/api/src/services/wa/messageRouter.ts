@@ -2,7 +2,7 @@ import prisma from '../../lib/prisma';
 import { WindowService } from './windowService';
 import { WaBotService } from './botService';
 import { StageOrchestrator } from './stageOrchestrator';
-import { isOptOutMessage } from '../../utils/optOut';
+import { isOptOutMessage, detectOptOutSignal } from '../../utils/optOut';
 import { isReEngagementMessage } from '../../utils/reEngagement';
 
 // ─── Deduplication (in-memory Set with 5-min TTL) ────────────────────────────
@@ -273,18 +273,67 @@ export class WaMessageRouter {
             },
           });
 
-          // 7. Check opt-out keywords
-          if (text && isOptOutMessage(text)) {
-            console.log(`[WaMessageRouter] Opt-out detectado de ${from}: "${text}"`);
-            await prisma.waConversation.update({
-              where: { id: conversation.id },
-              data: {
-                optedOut: true,
-                optedOutAt: new Date(),
-                status: 'WA_CLOSED',
-              },
-            });
-            continue; // Skip bot processing for opt-out
+          // 7. Check opt-out keywords (HARD signals + START keywords com exclusões)
+          if (text) {
+            const optOutResult = detectOptOutSignal(text);
+            if (optOutResult.isOptOut) {
+              console.log(
+                `[WaMessageRouter] Opt-out detectado de ${from} ` +
+                  `(${optOutResult.matchType}: "${optOutResult.matchedSignal}"): "${text}"`
+              );
+
+              // Marca opt-out na conversa
+              await prisma.waConversation.update({
+                where: { id: conversation.id },
+                data: {
+                  optedOut: true,
+                  optedOutAt: new Date(),
+                  status: 'WA_CLOSED',
+                },
+              });
+
+              // Cleanup paralelo — não bloqueia inbound em caso de erro
+              await Promise.all([
+                // Pausa follow-up state
+                prisma.waFollowUpState
+                  .updateMany({
+                    where: { conversationId: conversation.id, paused: false },
+                    data: { paused: true },
+                  })
+                  .catch((e) => console.error('[opt-out cleanup] WaFollowUpState:', e)),
+
+                // Cancela WaBroadcastContact pendentes/em hold
+                prisma.waBroadcastContact
+                  .updateMany({
+                    where: {
+                      phone: from,
+                      status: { in: ['WA_BC_PENDING', 'WA_BC_HELD'] },
+                    },
+                    data: {
+                      status: 'WA_BC_SKIPPED',
+                      error: 'Opt-out detectado via inbound',
+                    },
+                  })
+                  .catch((e) => console.error('[opt-out cleanup] WaBroadcastContact:', e)),
+
+                // Cancela AutomationEnrollment ACTIVE do contato
+                conversation.contactId
+                  ? prisma.automationEnrollment
+                      .updateMany({
+                        where: { contactId: conversation.contactId, status: 'ACTIVE' },
+                        data: { status: 'COMPLETED' },
+                      })
+                      .catch((e) => console.error('[opt-out cleanup] AutomationEnrollment:', e))
+                  : Promise.resolve(),
+              ]);
+
+              continue; // Skip bot processing for opt-out
+            } else if (optOutResult.matchType === 'excluded') {
+              // Útil pra observabilidade: alguém disse "cancelar reunião" — não é opt-out total
+              console.log(
+                `[WaMessageRouter] Cancelamento operacional de ${from} (não opt-out): "${text}"`
+              );
+            }
           }
 
           // 8. If not opt-out and conversation is active, trigger bot
