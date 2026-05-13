@@ -169,6 +169,12 @@ export async function resolveTemplateVariables(
         const org = await getOrganization();
         const field = source.slice('organization.'.length) as keyof NonNullable<typeof org>;
         value = String(org?.[field] ?? '');
+        // Fallback para o nome da empresa: leads frequentemente entram sem
+        // organização vinculada. Sem o fallback o template não envia (entra
+        // em missingVars). "seu negócio" mantém o sentido da frase em PT-BR.
+        if (!value && field === 'name') {
+          value = 'seu negócio';
+        }
 
       } else if (source.startsWith('deal.')) {
         const d = await getDeal();
