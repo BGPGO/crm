@@ -192,10 +192,17 @@ export async function processEnrollments(): Promise<{ processed: number }> {
 
   // Fetch candidates and immediately claim them by pushing nextActionAt into the future.
   // This prevents duplicate processing if the cron fires again before we finish.
+  //
+  // O filtro `automation.status: 'ACTIVE'` é crítico — sem ele, pausar uma
+  // Automation só impede novas inscrições (via trigger) mas enrollments já
+  // ACTIVE continuam disparando steps. Incidente 2026-05-13: 46 enrollments
+  // ACTIVE em 3 cadências PAUSED desde 12/05 mantiveram a quality em YELLOW
+  // enviando MARKETING templates por 25h após a "pausa".
   const candidates = await prisma.automationEnrollment.findMany({
     where: {
       status: 'ACTIVE',
       nextActionAt: { lte: now },
+      automation: { status: 'ACTIVE' },
     },
     select: { id: true },
   });
@@ -205,7 +212,12 @@ export async function processEnrollments(): Promise<{ processed: number }> {
   // Atomic claim: set nextActionAt to 5 min in the future so no other cycle picks them up
   const claimUntil = new Date(now.getTime() + 5 * 60 * 1000);
   await prisma.automationEnrollment.updateMany({
-    where: { id: { in: candidates.map((c) => c.id) }, status: 'ACTIVE', nextActionAt: { lte: now } },
+    where: {
+      id: { in: candidates.map((c) => c.id) },
+      status: 'ACTIVE',
+      nextActionAt: { lte: now },
+      automation: { status: 'ACTIVE' },
+    },
     data: { nextActionAt: claimUntil },
   });
 

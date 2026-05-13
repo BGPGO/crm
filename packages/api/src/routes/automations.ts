@@ -178,7 +178,38 @@ router.post('/:id/activate', async (req: Request, res: Response, next: NextFunct
       where: { id: req.params.id },
       data: { status: 'ACTIVE' },
     });
-    res.json({ data: automation });
+
+    // Retoma enrollments pausados em cascata pelo /pause anterior.
+    // Mantém pausados os enrollments com outras origens (INCIDENT_CLEANUP_*,
+    // pausa manual etc) — esses requerem ação explícita pra voltar.
+    const cascadePaused = await prisma.automationEnrollment.findMany({
+      where: {
+        automationId: req.params.id,
+        status: 'PAUSED',
+      },
+      select: { id: true, metadata: true },
+    });
+    let resumed = 0;
+    for (const e of cascadePaused) {
+      const meta = (e.metadata && typeof e.metadata === 'object' && !Array.isArray(e.metadata))
+        ? (e.metadata as Record<string, unknown>)
+        : {};
+      if (meta.pausedBy !== 'AUTOMATION_PAUSED') continue;
+      const { pausedBy, pausedAt, ...rest } = meta;
+      await prisma.automationEnrollment.update({
+        where: { id: e.id },
+        data: {
+          status: 'ACTIVE',
+          metadata: { ...rest, resumedAt: new Date().toISOString(), resumedFrom: pausedBy },
+        },
+      });
+      resumed++;
+    }
+    if (resumed > 0) {
+      console.log(`[automation-activate] ${automation.id} retomou ${resumed} enrollments cascade-paused`);
+    }
+
+    res.json({ data: automation, cascadeResumed: resumed });
   } catch (err) {
     next(err);
   }
@@ -198,7 +229,33 @@ router.post('/:id/pause', async (req: Request, res: Response, next: NextFunction
       where: { id: req.params.id },
       data: { status: 'PAUSED' },
     });
-    res.json({ data: automation });
+
+    // Pausa em cascata enrollments ACTIVE que ainda iriam disparar.
+    // Sem isso, "pausar a automation" só impede novos triggers — incidente
+    // 2026-05-13. Metadata diferencia esses dos PAUSED por motivos próprios
+    // (saída de etapa, opt-out, etc), permitindo retomar só esses no /activate.
+    const activeEnrollments = await prisma.automationEnrollment.findMany({
+      where: { automationId: req.params.id, status: 'ACTIVE' },
+      select: { id: true, metadata: true },
+    });
+    const pausedAt = new Date().toISOString();
+    for (const e of activeEnrollments) {
+      const existingMeta = (e.metadata && typeof e.metadata === 'object' && !Array.isArray(e.metadata))
+        ? (e.metadata as Record<string, unknown>)
+        : {};
+      await prisma.automationEnrollment.update({
+        where: { id: e.id },
+        data: {
+          status: 'PAUSED',
+          metadata: { ...existingMeta, pausedBy: 'AUTOMATION_PAUSED', pausedAt },
+        },
+      });
+    }
+    if (activeEnrollments.length > 0) {
+      console.log(`[automation-pause] ${automation.id} pausou ${activeEnrollments.length} enrollments em cascata`);
+    }
+
+    res.json({ data: automation, cascadePaused: activeEnrollments.length });
   } catch (err) {
     next(err);
   }
