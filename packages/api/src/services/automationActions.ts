@@ -1085,11 +1085,34 @@ async function sendWaTemplate(
     return { success: false, output: `Template "${config.templateName}" não encontrado no banco` };
   }
 
+  // ── Bloquear templates DISABLED sem retry (falha terminal) ──
+  if (templateStatus.status === 'DISABLED') {
+    console.warn(`[automationActions] Bloqueando envio: template "${config.templateName}" está DISABLED — sem retry`);
+    return {
+      success: false,
+      retry: false,
+      output: JSON.stringify({ error: 'TEMPLATE_DISABLED', templateName: config.templateName }),
+    };
+  }
+
+  // ── Aguardar aprovação para templates não-APPROVED (com retry) ──
   if (templateStatus.status !== 'APPROVED') {
     return {
       success: false,
       retry: true, // sinaliza pro engine NÃO avançar — tentar de novo no próximo ciclo
       output: `Template "${config.templateName}" não está aprovado (status: ${templateStatus.status}) — aguardando aprovação`,
+    };
+  }
+
+  // ── Circuit-breaker: bloquear template degradado (failRate > 30% com min 5 amostras) ──
+  const { checkTemplateCircuitBreaker } = await import('./wa/templateCircuitBreaker');
+  const cbResult = await checkTemplateCircuitBreaker(config.templateName);
+  if (cbResult.blocked) {
+    console.warn(`[automationActions] Circuit-breaker disparado para template "${config.templateName}": ${cbResult.reason} — aguardando cron de health check`);
+    return {
+      success: false,
+      retry: false,
+      output: JSON.stringify({ error: 'TEMPLATE_DEGRADED', templateName: config.templateName, reason: cbResult.reason }),
     };
   }
 

@@ -97,11 +97,31 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
       const headerType = headerComponent?.format ?? null;
       const headerContent = headerComponent?.text ?? null;
 
+      // Verificar se há status local que deve ser preservado.
+      // DISABLED e REJECTED são decisões locais deliberadas (ex: migração de cadências)
+      // e NÃO devem ser sobrescritas pela Meta mesmo que ela retorne APPROVED.
+      const existing = await prisma.cloudWaTemplate.findUnique({
+        where: { name_language: { name: t.name, language: t.language } },
+        select: { status: true },
+      });
+
+      const preserveLocalStatus =
+        existing !== null &&
+        (existing.status === 'DISABLED' || existing.status === 'REJECTED');
+
+      const nextStatus = preserveLocalStatus ? existing.status : (t.status as any);
+
+      if (preserveLocalStatus) {
+        console.log(
+          `[wabaTemplateHealthCheck] Preservando status local "${existing.status}" para "${t.name}" (Meta retornou "${t.status}")`,
+        );
+      }
+
       // Upsert por (name, language) — mesma unique do schema
       await prisma.cloudWaTemplate.upsert({
         where: { name_language: { name: t.name, language: t.language } },
         update: {
-          status: t.status as any,
+          status: nextStatus,
           category: t.category as any,
           qualityScore,
           rejectedReason,
