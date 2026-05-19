@@ -372,6 +372,15 @@ export default function DistratoGenerator({ dealId, deal, witnesses }: DistratoG
       return;
     }
 
+    if ((form.testemunha1Email?.trim() || form.testemunha1Cpf?.trim()) && !form.testemunha1Nome?.trim()) {
+      showToast("error", "Testemunha 1 está sem nome. Preencha o nome completo antes de enviar.");
+      return;
+    }
+    if ((form.testemunha2Email?.trim() || form.testemunha2Cpf?.trim()) && !form.testemunha2Nome?.trim()) {
+      showToast("error", "Testemunha 2 está sem nome. Preencha o nome completo antes de enviar.");
+      return;
+    }
+
     const clientEmail = form.emailRepresentante || form.email;
     if (!clientEmail) {
       showToast("error", "E-mail do representante legal ou e-mail geral é obrigatório.");

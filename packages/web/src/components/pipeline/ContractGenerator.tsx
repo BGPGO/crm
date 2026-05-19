@@ -180,6 +180,13 @@ function validateContractForm(form: ContractFormData): string[] {
   if (form.testemunha2Email && !emailRegex.test(form.testemunha2Email)) {
     errors.push('Email da testemunha 2 inválido');
   }
+  // Witness name required if any other witness field is filled
+  if ((form.testemunha1Cpf?.trim() || form.testemunha1Email?.trim()) && !form.testemunha1Nome?.trim()) {
+    errors.push('Nome da testemunha 1 é obrigatório quando CPF ou email estão preenchidos');
+  }
+  if ((form.testemunha2Cpf?.trim() || form.testemunha2Email?.trim()) && !form.testemunha2Nome?.trim()) {
+    errors.push('Nome da testemunha 2 é obrigatório quando CPF ou email estão preenchidos');
+  }
 
   // Required fields
   if (!form.razaoSocial?.trim()) errors.push('Razão Social é obrigatória');
@@ -194,7 +201,28 @@ function validateContractForm(form: ContractFormData): string[] {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatCurrencyBR(value: string | number): string {
-  const num = typeof value === "string" ? parseFloat(value.replace(/[^\d.,]/g, "").replace(",", ".")) : value;
+  let num: number;
+  if (typeof value === "number") {
+    num = value;
+  } else {
+    const cleaned = (value ?? "").replace(/[^\d.,]/g, "");
+    if (!cleaned) return "R$ 0,00";
+    let normalized: string;
+    if (cleaned.includes(",")) {
+      normalized = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      const dots = (cleaned.match(/\./g) || []).length;
+      if (dots === 0) {
+        normalized = cleaned;
+      } else if (dots > 1) {
+        normalized = cleaned.replace(/\./g, "");
+      } else {
+        const [, frac] = cleaned.split(".");
+        normalized = frac && frac.length === 3 ? cleaned.replace(".", "") : cleaned;
+      }
+    }
+    num = parseFloat(normalized);
+  }
   if (isNaN(num)) return "R$ 0,00";
   return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -612,7 +640,7 @@ function ContractContent({ form }: { form: ContractFormData }) {
               </tr>
               <tr>
                 <td style={{ fontWeight: "bold", border: "1px solid #000", padding: "8px 12px" }}>Valor Mensal</td>
-                <td style={{ border: "1px solid #000", padding: "8px 12px" }}>{form.valorMensal}</td>
+                <td style={{ border: "1px solid #000", padding: "8px 12px" }}>{formatCurrencyBR(form.valorMensal)}</td>
               </tr>
             </tbody>
           </table>
@@ -704,10 +732,10 @@ function ProductBlock({
 
   const dataInicioFormatted = dataInicio ? new Date(dataInicio + "T12:00:00").toLocaleDateString("pt-BR") : "";
   const formaPagLabel = FORMAS_PAGAMENTO.find((f) => f.value === formaPagamento)?.label || formaPagamento;
-  let valoresText = `Valor mensal: ${valorMensal}\nInício: ${dataInicioFormatted}\nVencimento: dia ${diaVencimento} de cada mês\nForma de pagamento: ${formaPagLabel}`;
+  let valoresText = `Valor mensal: ${formatCurrencyBR(valorMensal)}\nInício: ${dataInicioFormatted}\nVencimento: dia ${diaVencimento} de cada mês\nForma de pagamento: ${formaPagLabel}`;
   if (valorImplementacao) {
     const parcelas = implementacaoParcelas && parseInt(implementacaoParcelas) > 0 ? ` em ${implementacaoParcelas}x` : " à vista";
-    valoresText += `\nImplementação: ${valorImplementacao}${parcelas}`;
+    valoresText += `\nImplementação: ${formatCurrencyBR(valorImplementacao)}${parcelas}`;
   }
   if (descontoPercentual && descontoMeses && parseInt(descontoPercentual) > 0 && parseInt(descontoMeses) > 0) {
     valoresText += `\nDesconto: ${descontoPercentual}% nos primeiros ${descontoMeses} meses`;
@@ -1312,7 +1340,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           {/* Quick info */}
           <div className="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
             <span><strong>Produto:</strong> {form.produto || "—"}</span>
-            <span><strong>Valor:</strong> {form.valorMensal ? `R$ ${form.valorMensal}` : "—"}</span>
+            <span><strong>Valor:</strong> {form.valorMensal ? formatCurrencyBR(form.valorMensal) : "—"}</span>
             <span><strong>Vencimento:</strong> Dia {form.diaVencimento || "—"}</span>
           </div>
         </div>

@@ -59,6 +59,12 @@ interface ExistingContract {
   product_name: string | null;
   valor: number | null;
   assinatura_contrato: string | null;
+  testemunha1Nome?: string | null;
+  testemunha1Cpf?: string | null;
+  testemunha1Email?: string | null;
+  testemunha2Nome?: string | null;
+  testemunha2Cpf?: string | null;
+  testemunha2Email?: string | null;
 }
 
 interface AditivoItem {
@@ -638,13 +644,33 @@ export default function AditivoGenerator({
 
   const fetchExistingContracts = async () => {
     try {
-      const res = await api.get<{ data: ExistingContract[] }>(
+      const res = await api.get<{ data: any[] }>(
         `/contracts?dealId=${dealId}`
       );
-      const data: ExistingContract[] = res.data ?? (res as any);
+      const data: any[] = res.data ?? (res as any);
       if (Array.isArray(data)) {
+        const mapped: ExistingContract[] = data.map((c) => ({
+          id: c.id,
+          client_name: c.razaoSocial || c.client_name || "",
+          cnpj: c.cnpj || "",
+          product_name: c.produto || c.product_name || null,
+          valor:
+            c.valorMensal != null
+              ? Number(c.valorMensal)
+              : c.valor != null
+              ? Number(c.valor)
+              : null,
+          assinatura_contrato:
+            c.autentiqueSignedAt || c.dataInicio || c.assinatura_contrato || null,
+          testemunha1Nome: c.testemunha1Nome ?? null,
+          testemunha1Cpf: c.testemunha1Cpf ?? null,
+          testemunha1Email: c.testemunha1Email ?? null,
+          testemunha2Nome: c.testemunha2Nome ?? null,
+          testemunha2Cpf: c.testemunha2Cpf ?? null,
+          testemunha2Email: c.testemunha2Email ?? null,
+        }));
         const seen = new Set<string>();
-        const unique = data.filter((c) => {
+        const unique = mapped.filter((c) => {
           const key = `${c.cnpj}-${c.client_name}`;
           if (seen.has(key)) return false;
           seen.add(key);
@@ -670,13 +696,22 @@ export default function AditivoGenerator({
 
     const productLabel = contract.product_name || "Prestação de Serviços";
     const nomeContrato = `Contrato de Prestação de Serviços – ${productLabel}`;
+    const dataAssinaturaISO = contract.assinatura_contrato
+      ? String(contract.assinatura_contrato).split("T")[0]
+      : "";
 
     setForm((prev) => ({
       ...prev,
       nomeContrato,
       razaoSocial: contract.client_name || prev.razaoSocial,
       cnpj: contract.cnpj || prev.cnpj,
-      dataAssinatura: contract.assinatura_contrato || prev.dataAssinatura,
+      dataAssinatura: dataAssinaturaISO || prev.dataAssinatura,
+      testemunha1Nome: contract.testemunha1Nome || prev.testemunha1Nome,
+      testemunha1Cpf: contract.testemunha1Cpf || prev.testemunha1Cpf,
+      testemunha1Email: contract.testemunha1Email || prev.testemunha1Email,
+      testemunha2Nome: contract.testemunha2Nome || prev.testemunha2Nome,
+      testemunha2Cpf: contract.testemunha2Cpf || prev.testemunha2Cpf,
+      testemunha2Email: contract.testemunha2Email || prev.testemunha2Email,
     }));
 
     if (contract.valor) {
@@ -866,6 +901,27 @@ export default function AditivoGenerator({
         type: "error",
         message:
           "É necessário informar pelo menos o e-mail de uma testemunha.",
+      });
+      return;
+    }
+
+    const t1HasData =
+      !!form.testemunha1Email?.trim() || !!form.testemunha1Cpf?.trim();
+    if (t1HasData && !form.testemunha1Nome?.trim()) {
+      setToast({
+        type: "error",
+        message:
+          "Testemunha 1 está sem nome. Preencha o nome completo antes de enviar.",
+      });
+      return;
+    }
+    const t2HasData =
+      !!form.testemunha2Email?.trim() || !!form.testemunha2Cpf?.trim();
+    if (t2HasData && !form.testemunha2Nome?.trim()) {
+      setToast({
+        type: "error",
+        message:
+          "Testemunha 2 está sem nome. Preencha o nome completo antes de enviar.",
       });
       return;
     }
