@@ -416,14 +416,17 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             continue;
           }
 
-          // ── Per-recipient cooldown de 48h para MARKETING templates ─────────────
+          // ── Per-recipient cooldown de 24h para MARKETING templates ─────────────
+          // Alinhado ao gap diário das cadências (1 MKT/dia). Broadcasts são
+          // disparos esporádicos e atípicos; 24h é suficiente pra evitar spam.
           if (broadcast.template.category === 'MARKETING') {
-            const FORTY_EIGHT_HOURS_AGO = new Date(Date.now() - 48 * 60 * 60 * 1000);
+            const MARKETING_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+            const cooldownStart = new Date(Date.now() - MARKETING_COOLDOWN_MS);
             const lastMarketing = await prisma.waMessage.findFirst({
               where: {
                 direction: 'OUTBOUND',
                 type: 'TEMPLATE',
-                createdAt: { gte: FORTY_EIGHT_HOURS_AGO },
+                createdAt: { gte: cooldownStart },
                 conversation: { phone: contact.phone },
                 templateName: { in: marketingTemplateNames },
               },
@@ -432,16 +435,16 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             });
 
             if (lastMarketing) {
-              const holdUntil = new Date(lastMarketing.createdAt.getTime() + 48 * 60 * 60 * 1000);
+              const holdUntil = new Date(lastMarketing.createdAt.getTime() + MARKETING_COOLDOWN_MS);
               await prisma.waBroadcastContact.update({
                 where: { id: contact.id },
                 data: {
                   status: 'WA_BC_HELD',
                   holdUntil,
-                  error: `Cooldown 48h — última MARKETING em ${lastMarketing.createdAt.toISOString()} (${lastMarketing.templateName})`,
+                  error: `Cooldown 24h — última MARKETING em ${lastMarketing.createdAt.toISOString()} (${lastMarketing.templateName})`,
                 },
               });
-              console.log(`[wa-broadcast] HOLD ${contact.phone} até ${holdUntil.toISOString()} (recebeu ${lastMarketing.templateName} <48h)`);
+              console.log(`[wa-broadcast] HOLD ${contact.phone} até ${holdUntil.toISOString()} (recebeu ${lastMarketing.templateName} <24h)`);
               continue;
             }
           }

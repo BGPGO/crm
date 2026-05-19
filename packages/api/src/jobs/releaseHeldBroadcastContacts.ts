@@ -18,13 +18,14 @@ export interface HeldReleaseResult {
   released: number;
   sent: number;
   failed: number;
-  rehold: number; // recipients que ainda têm MARKETING <48h após release
+  rehold: number; // recipients que ainda têm MARKETING <24h após release
 }
 
 export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResult> {
   const JOB = '[release-held-broadcasts]';
   const now = new Date();
-  const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
+  // Alinhado ao gap diário das cadências (1 MKT/dia). Broadcasts são esporádicos.
+  const MARKETING_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
   // 1. Buscar candidatos (HELD com holdUntil vencido)
   const candidates = await prisma.waBroadcastContact.findMany({
@@ -73,12 +74,12 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
 
     // Re-verificar cooldown: pode ter recebido OUTRA MARKETING durante o hold
     if (bc.broadcast.template.category === 'MARKETING') {
-      const FORTY_EIGHT_HOURS_AGO = new Date(now.getTime() - FORTY_EIGHT_HOURS_MS);
+      const cooldownStart = new Date(now.getTime() - MARKETING_COOLDOWN_MS);
       const lastMarketing = await prisma.waMessage.findFirst({
         where: {
           direction: 'OUTBOUND',
           type: 'TEMPLATE',
-          createdAt: { gte: FORTY_EIGHT_HOURS_AGO },
+          createdAt: { gte: cooldownStart },
           conversation: { phone: bc.phone },
           templateName: { in: marketingTemplateNames },
         },
@@ -87,7 +88,7 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
       });
 
       if (lastMarketing) {
-        const newHoldUntil = new Date(lastMarketing.createdAt.getTime() + FORTY_EIGHT_HOURS_MS);
+        const newHoldUntil = new Date(lastMarketing.createdAt.getTime() + MARKETING_COOLDOWN_MS);
         await prisma.waBroadcastContact.update({
           where: { id: bc.id },
           data: {
@@ -116,7 +117,7 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
         continue;
       }
 
-      // Re-check opt-out — o contato pode ter optado-out durante o hold de 48h.
+      // Re-check opt-out — o contato pode ter optado-out durante o hold.
       // O check inicial do broadcast loop foi feito no enrollment; agora reverificamos.
       if (conv.optedOut) {
         await prisma.waBroadcastContact.update({
@@ -124,7 +125,7 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
           data: {
             status: 'WA_BC_SKIPPED',
             holdUntil: null,
-            error: 'Contato fez opt-out durante hold de 48h',
+            error: 'Contato fez opt-out durante hold',
           },
         });
         console.log(`${JOB} [SKIP] ${bc.phone} — opted-out durante hold`);

@@ -54,7 +54,7 @@ export function startAllJobs() {
   });
   console.log('[waba-template-health-check] Agendado: a cada 1h (cron 0 * * * *)');
 
-  // Release de WaBroadcastContact em hold (cooldown 48h MARKETING) — a cada 30min
+  // Release de WaBroadcastContact em hold (cooldown 24h MARKETING) — a cada 30min
   cron.schedule('*/30 * * * *', async () => {
     console.log('[release-held-broadcasts] Iniciando...');
     try {
