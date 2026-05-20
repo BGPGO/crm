@@ -201,7 +201,10 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
       return next(createError('AUTENTIQUE_API_TOKEN não configurado.', 400));
     }
 
-    const sentDoc = await prisma.sentDocument.findUnique({ where: { id: req.params.id } });
+    const sentDoc = await prisma.sentDocument.findUnique({
+      where: { id: req.params.id },
+      include: { deal: { include: { contact: true, organization: true, user: true } } },
+    });
     if (!sentDoc) return next(createError('SentDocument not found', 404));
 
     // Query Autentique for current signature status
@@ -225,10 +228,14 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
       return next(createError('Autentique API error: ' + JSON.stringify(response.data?.errors || 'unknown'), 400));
     }
 
+    // Filter out observers (action=null) — those are copies/observers added by
+    // the Autentique email_template_id and never actually sign.
     const signatures = docData.signatures || [];
-    const signedCount = signatures.filter((s: any) => s.signed?.created_at).length;
-    const totalSigners = signatures.length;
+    const realSigners = signatures.filter((s: any) => s?.action);
+    const signedCount = realSigners.filter((s: any) => s?.signed?.created_at).length;
+    const totalSigners = realSigners.length;
     const allSigned = totalSigners > 0 && signedCount === totalSigners;
+    const wasAlreadySigned = sentDoc.status === 'signed';
 
     const updated = await prisma.sentDocument.update({
       where: { id: sentDoc.id },
@@ -240,6 +247,43 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
         metadata: signatures,
       },
     });
+
+    // If we just detected all signed, move the deal to "Ganho fechado".
+    // Idempotent: skip if already marked signed before.
+    if (allSigned && !wasAlreadySigned && sentDoc.dealId) {
+      const ganhoStage = await prisma.pipelineStage.findFirst({
+        where: { name: { contains: 'Ganho fechado', mode: 'insensitive' } },
+      });
+      if (ganhoStage) {
+        await prisma.deal.update({
+          where: { id: sentDoc.dealId },
+          data: { stageId: ganhoStage.id, status: 'WON', closedAt: new Date() },
+        });
+        console.log(`[sent-documents] Deal ${sentDoc.dealId} moved to "Ganho fechado" via check-status`);
+      }
+
+      const docTypeLabel =
+        sentDoc.documentType === 'aditivo' ? 'Aditivo'
+          : sentDoc.documentType === 'distrato' ? 'Distrato'
+          : 'Documento';
+
+      const userId = sentDoc.deal?.userId || (req as any).user?.id;
+      if (userId) {
+        await prisma.activity.create({
+          data: {
+            type: 'NOTE',
+            content: `${docTypeLabel} "${sentDoc.documentName}" assinado por todas as partes! Deal movido para Ganho Fechado.`,
+            dealId: sentDoc.dealId,
+            userId,
+            metadata: {
+              source: 'sentdocument-signed-checkstatus',
+              sentDocumentId: sentDoc.id,
+              documentType: sentDoc.documentType,
+            },
+          },
+        });
+      }
+    }
 
     res.json({ data: updated });
   } catch (err: unknown) {
