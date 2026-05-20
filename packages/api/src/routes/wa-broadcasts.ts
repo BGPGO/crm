@@ -480,9 +480,41 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
               }
             }
 
-            // Send template — inject tracking URL component if template has URL button
-            const templateParams = contact.templateParams || broadcast.templateParams;
-            const components = templateParams ? (Array.isArray(templateParams) ? [...templateParams] : [templateParams]) : [];
+            // Send template — resolve body parameters via variableMapping when no
+            // explicit templateParams are provided. Without this resolution,
+            // templates with {{N}} vars would be sent with 0 params and Meta
+            // rejects with code 132000 ("parameters does not match expected").
+            const explicitParams = contact.templateParams || broadcast.templateParams;
+            const components: any[] = [];
+            if (explicitParams) {
+              if (Array.isArray(explicitParams)) components.push(...explicitParams);
+              else components.push(explicitParams);
+            } else {
+              const variableMapping = (broadcast.template as any).variableMapping;
+              if (Array.isArray(variableMapping) && variableMapping.length > 0) {
+                const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
+                const resolvedContactId = contact.contactId || crmContact?.id || null;
+                const resolved = await resolveTemplateVariables(
+                  variableMapping,
+                  { contactId: resolvedContactId, dealId: null },
+                );
+                if (resolved.missingVars.length > 0) {
+                  const missing = resolved.missingVars.map(v => `${v.var}=${v.source}`).join(', ');
+                  await prisma.waBroadcastContact.update({
+                    where: { id: contact.id },
+                    data: {
+                      status: 'WA_BC_SKIPPED',
+                      error: `Variáveis não resolvidas: ${missing}`,
+                    },
+                  });
+                  console.log(`[wa-broadcast] SKIP ${contact.phone} — variáveis não resolvidas: ${missing}`);
+                  continue;
+                }
+                if (resolved.parameters.length > 0) {
+                  components.push({ type: 'body', parameters: resolved.parameters });
+                }
+              }
+            }
 
             // Check if template has URL button with dynamic suffix ({{1}})
             const buttons = broadcast.template!.buttons as Array<{ type: string; url?: string }> | null;
