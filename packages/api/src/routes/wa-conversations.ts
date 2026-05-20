@@ -948,20 +948,31 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
         // ── Auto-resolve variáveis do template se o frontend mandou placeholders ──
         let resolvedComponents = components || [];
         const hasPlaceholders = JSON.stringify(resolvedComponents).includes('"param');
-        if (hasPlaceholders && conversation.contactId) {
-          const templateRecord = await prisma.cloudWaTemplate.findFirst({
-            where: { name: templateName, language: templateLanguage || 'pt_BR' },
-            select: { variableMapping: true },
+        const templateRecord = await prisma.cloudWaTemplate.findFirst({
+          where: { name: templateName, language: templateLanguage || 'pt_BR' },
+          select: { variableMapping: true, headerType: true, headerContent: true },
+        });
+        if (hasPlaceholders && conversation.contactId && templateRecord?.variableMapping) {
+          const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
+          const resolved = await resolveTemplateVariables(
+            templateRecord.variableMapping as any,
+            { contactId: conversation.contactId, dealId: undefined },
+          );
+          if (resolved.parameters.length > 0 && resolved.missingVars.length === 0) {
+            resolvedComponents = [{ type: 'body', parameters: resolved.parameters }];
+          }
+        }
+        // Header de mídia: a Meta exige component header no envio mesmo quando o
+        // frontend não mandou. Adiciona o header se o template tem.
+        if (templateRecord) {
+          const { buildTemplateHeaderComponent } = await import('../utils/templateHeaderBuilder');
+          const headerComponent = buildTemplateHeaderComponent({
+            headerType: templateRecord.headerType,
+            headerContent: templateRecord.headerContent,
           });
-          if (templateRecord?.variableMapping) {
-            const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
-            const resolved = await resolveTemplateVariables(
-              templateRecord.variableMapping as any,
-              { contactId: conversation.contactId, dealId: undefined },
-            );
-            if (resolved.parameters.length > 0 && resolved.missingVars.length === 0) {
-              resolvedComponents = [{ type: 'body', parameters: resolved.parameters }];
-            }
+          if (headerComponent) {
+            const hasHeader = resolvedComponents.some((c: any) => c.type === 'header');
+            if (!hasHeader) resolvedComponents = [headerComponent, ...resolvedComponents];
           }
         }
 

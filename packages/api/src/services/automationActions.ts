@@ -1170,11 +1170,12 @@ async function sendWaTemplate(
 
   // Resolve variáveis do template usando o mapeamento configurado
   const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
+  const { buildTemplateHeaderComponent } = await import('../utils/templateHeaderBuilder');
 
-  // Buscar mapeamento do template
+  // Buscar mapeamento + header info do template
   const templateRecord = await prisma.cloudWaTemplate.findFirst({
     where: { name: config.templateName, language: language },
-    select: { variableMapping: true },
+    select: { variableMapping: true, headerType: true, headerContent: true },
   });
 
   const resolved = await resolveTemplateVariables(
@@ -1188,9 +1189,17 @@ async function sendWaTemplate(
     return { success: false, output: `Template ${config.templateName} não enviado — dados faltando: ${missing}` };
   }
 
-  const components = resolved.parameters.length > 0
-    ? [{ type: 'body', parameters: resolved.parameters }]
-    : [];
+  const components: any[] = [];
+  const headerComponent = templateRecord
+    ? buildTemplateHeaderComponent({
+        headerType: templateRecord.headerType,
+        headerContent: templateRecord.headerContent,
+      })
+    : null;
+  if (headerComponent) components.push(headerComponent);
+  if (resolved.parameters.length > 0) {
+    components.push({ type: 'body', parameters: resolved.parameters });
+  }
 
   // ── Helper: detect & handle invalid phone errors ──
   // Meta error codes: 131026 = phone not on WhatsApp, 131051 = number doesn't exist,

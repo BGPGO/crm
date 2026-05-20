@@ -17,6 +17,7 @@
 
 import prisma from '../lib/prisma';
 import { WhatsAppCloudClient } from '../services/whatsappCloudClient';
+import { extractHeaderContent } from '../utils/templateHeaderBuilder';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
       const footer = footerComponent?.text ?? null;
       const buttons = buttonsComponent?.buttons ?? null;
       const headerType = headerComponent?.format ?? null;
-      const headerContent = headerComponent?.text ?? null;
+      const headerContent = extractHeaderContent(headerComponent);
 
       // Verificar se há status local que deve ser preservado.
       // DISABLED e REJECTED são decisões locais deliberadas (ex: migração de cadências)
@@ -131,6 +132,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           buttons: buttons as any,
           headerType: headerType as any,
           headerContent,
+          components: components as any,
         },
         create: {
           name: t.name,
@@ -145,6 +147,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           buttons: buttons as any,
           headerType: headerType as any,
           headerContent,
+          components: components as any,
         },
       });
       syncedFromMeta++;

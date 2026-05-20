@@ -271,7 +271,7 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
 
   const templateRecord = await prisma.cloudWaTemplate.findFirst({
     where: { name: templateName, language: 'pt_BR' },
-    select: { variableMapping: true, body: true },
+    select: { variableMapping: true, body: true, headerType: true, headerContent: true },
   });
 
   // Se variableMapping está vazio, gerar mapeamento padrão para meeting reminders
@@ -309,12 +309,14 @@ export async function sendWabaMeetingReminder(scheduledFollowUpId: string): Prom
     return;
   }
 
-  const components = [
-    {
-      type: 'body',
-      parameters: resolved.parameters,
-    },
-  ];
+  const components: any[] = [];
+  const { buildTemplateHeaderComponent } = await import('../../utils/templateHeaderBuilder');
+  const headerComponent = buildTemplateHeaderComponent({
+    headerType: templateRecord?.headerType,
+    headerContent: templateRecord?.headerContent,
+  });
+  if (headerComponent) components.push(headerComponent);
+  components.push({ type: 'body', parameters: resolved.parameters });
 
   // ── Smart Send: texto livre se janela 24h aberta, template se fechada ──
   const { WindowService } = await import('./windowService');

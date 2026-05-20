@@ -23,6 +23,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { WhatsAppCloudClient } from '../services/whatsappCloudClient';
+import { extractHeaderContent } from '../utils/templateHeaderBuilder';
 
 const router = Router();
 
@@ -477,7 +478,15 @@ router.post('/sync', async (req: Request, res: Response, next: NextFunction) => 
         const qualityScore = mt.quality_score?.score || null;
         const status = mt.status as any;
 
+        const bodyComp = mt.components?.find((c: any) => c.type === 'BODY');
+        const headerComp = mt.components?.find((c: any) => c.type === 'HEADER');
+        const footerComp = mt.components?.find((c: any) => c.type === 'FOOTER');
+        const buttonsComp = mt.components?.find((c: any) => c.type === 'BUTTONS');
+        const headerContent = extractHeaderContent(headerComp);
+
         if (existing) {
+          // Update mantém status local (DRAFT/DISABLED não voltam pra APPROVED só porque a Meta diz).
+          // Mas conteúdo do template (body, header, components) é sempre fonte-Meta.
           await prisma.cloudWaTemplate.update({
             where: { id: existing.id },
             data: {
@@ -485,15 +494,16 @@ router.post('/sync', async (req: Request, res: Response, next: NextFunction) => 
               metaTemplateId: mt.id,
               qualityScore,
               rejectedReason: mt.rejected_reason || null,
+              headerType: headerComp?.format || null,
+              headerContent,
+              body: bodyComp?.text || '',
+              footer: footerComp?.text || null,
+              buttons: (buttonsComp?.buttons || null) as any,
+              components: (mt.components || null) as any,
             },
           });
           updated++;
         } else {
-          const bodyComp = mt.components?.find((c: any) => c.type === 'BODY');
-          const headerComp = mt.components?.find((c: any) => c.type === 'HEADER');
-          const footerComp = mt.components?.find((c: any) => c.type === 'FOOTER');
-          const buttonsComp = mt.components?.find((c: any) => c.type === 'BUTTONS');
-
           await prisma.cloudWaTemplate.create({
             data: {
               name: mt.name,
@@ -503,7 +513,7 @@ router.post('/sync', async (req: Request, res: Response, next: NextFunction) => 
               metaTemplateId: mt.id,
               qualityScore,
               headerType: headerComp?.format || null,
-              headerContent: headerComp?.text || null,
+              headerContent,
               body: bodyComp?.text || '',
               footer: footerComp?.text || null,
               buttons: buttonsComp?.buttons || null,

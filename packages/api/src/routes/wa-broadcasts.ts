@@ -20,6 +20,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { normalizePhone } from '../utils/phoneNormalize';
+import { buildTemplateHeaderComponent } from '../utils/templateHeaderBuilder';
 
 const router = Router();
 
@@ -486,6 +487,15 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
             // rejects with code 132000 ("parameters does not match expected").
             const explicitParams = contact.templateParams || broadcast.templateParams;
             const components: any[] = [];
+
+            // Header de mídia (IMAGE/VIDEO/DOCUMENT): a Meta exige component header
+            // no envio, com URL pública da mídia. headerContent vem do sync do template.
+            const headerComponent = buildTemplateHeaderComponent({
+              headerType: broadcast.template!.headerType,
+              headerContent: broadcast.template!.headerContent,
+            });
+            if (headerComponent) components.push(headerComponent);
+
             if (explicitParams) {
               if (Array.isArray(explicitParams)) components.push(...explicitParams);
               else components.push(explicitParams);
