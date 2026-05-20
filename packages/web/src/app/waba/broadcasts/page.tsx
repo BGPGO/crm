@@ -33,7 +33,9 @@ import {
   Radio,
   MousePointerClick,
   AlertTriangle,
+  Smartphone,
 } from "lucide-react";
+import WhatsAppTemplatePreview from "@/components/waba/WhatsAppTemplatePreview";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -414,6 +416,9 @@ function BroadcastDetail({
   const [contacts, setContacts] = useState<BroadcastContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -441,6 +446,22 @@ function BroadcastDetail({
       onRefresh();
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const openPreview = async () => {
+    if (!broadcast?.template?.id) return;
+    setPreviewOpen(true);
+    if (previewTemplate?.id === broadcast.template.id) return;
+    setPreviewLoading(true);
+    try {
+      const res = await api.get<{ data: any }>(`/whatsapp/cloud/templates/${broadcast.template.id}`);
+      setPreviewTemplate(res.data);
+    } catch {
+      // Fallback: usa o que tem em broadcast.template
+      setPreviewTemplate(broadcast.template);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -505,6 +526,12 @@ function BroadcastDetail({
           </div>
         </div>
         <div className="flex gap-2">
+          {broadcast.template && (
+            <Button size="sm" variant="secondary" onClick={openPreview}>
+              <Smartphone size={14} />
+              Preview WhatsApp
+            </Button>
+          )}
           {broadcast.status === "WA_DRAFT" && (
             <Button
               size="sm"
@@ -607,6 +634,32 @@ function BroadcastDetail({
           </Table>
         )}
       </div>
+
+      <Modal isOpen={previewOpen} onClose={() => setPreviewOpen(false)} title="Preview WhatsApp" size="md">
+        {previewLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Spinner />
+          </div>
+        ) : previewTemplate ? (
+          <div className="space-y-4">
+            <div className="text-xs text-gray-500 text-center">
+              Pré-visualização de como a mensagem aparece no WhatsApp do destinatário.
+              {previewTemplate.bodyExamples && (
+                <span className="block mt-1">Variáveis substituídas pelo exemplo configurado.</span>
+              )}
+            </div>
+            <WhatsAppTemplatePreview template={previewTemplate} hideTitle />
+            <div className="text-[11px] text-gray-400 text-center pt-2 border-t border-gray-100">
+              Template: <span className="font-mono">{previewTemplate.name}</span>
+              {previewTemplate.headerType && (
+                <> · Header: <span className="font-mono">{previewTemplate.headerType}</span></>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 text-center py-8">Template não disponível.</p>
+        )}
+      </Modal>
     </div>
   );
 }
