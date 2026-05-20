@@ -49,6 +49,10 @@ interface ContractFormData {
   testemunha2Nome: string;
   testemunha2Cpf: string;
   testemunha2Email: string;
+  // Handoff CRM ↔ FinHub
+  erpCliente: string;       // valor base do select (omie, contaazul, ..., outro) — ou "" enquanto rascunho
+  erpClienteOutro: string;  // texto livre quando erpCliente === "outro"; salvo no backend como "outro:<texto>"
+  isTest: boolean;
 }
 
 interface ContractGeneratorProps {
@@ -90,6 +94,18 @@ const PRODUTOS = [
   "Brand Growth",
 ];
 
+// ERPs aceitos no handoff CRM ↔ FinHub. Mantenha em sync com o backend.
+const ERP_OPTIONS = [
+  { value: "omie", label: "Omie" },
+  { value: "contaazul", label: "Conta Azul" },
+  { value: "nuvem_gestor", label: "Nuvem Gestor" },
+  { value: "sap", label: "SAP" },
+  { value: "tiny", label: "Tiny" },
+  { value: "totvs", label: "TOTVS" },
+  { value: "fluig", label: "Fluig" },
+  { value: "outro", label: "Outro..." },
+];
+
 const FORMAS_PAGAMENTO = [
   { value: "boleto", label: "Boleto Bancário" },
   { value: "cartao", label: "Cartão de Crédito" },
@@ -129,6 +145,9 @@ const INITIAL_FORM: ContractFormData = {
   testemunha2Nome: "Maria Vitória Dias Neves",
   testemunha2Cpf: "86449168072",
   testemunha2Email: "mariavitoria@bertuzzipatrimonial.com.br",
+  erpCliente: "",
+  erpClienteOutro: "",
+  isTest: false,
 };
 
 const DEFAULT_WITNESSES = [
@@ -235,6 +254,23 @@ function formatDateBR(dateStr: string): string {
 
 function todayISO(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+/**
+ * Converte o form (que tem erpCliente + erpClienteOutro separados na UI)
+ * no payload da API, onde erpCliente é uma string única ("omie", "outro:<texto>", "" ou null).
+ * isTest é booleano.
+ */
+function toApiPayload(form: ContractFormData): Record<string, unknown> {
+  const { erpCliente, erpClienteOutro, isTest, ...rest } = form;
+  let erpFinal: string | null = null;
+  if (erpCliente === "outro") {
+    const txt = (erpClienteOutro || "").trim();
+    erpFinal = txt ? `outro:${txt}` : null;
+  } else if (erpCliente) {
+    erpFinal = erpCliente;
+  }
+  return { ...rest, erpCliente: erpFinal, isTest: !!isTest };
 }
 
 function isBIProduct(produto: string): boolean {
@@ -1069,6 +1105,20 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           if ((existing as any).strategyModules) {
             restored.strategyModules = (existing as any).strategyModules as any;
           }
+          // Restaurar erpCliente (formato "valor" ou "outro:texto") e isTest
+          const rawErp = (existing as any).erpCliente as string | null | undefined;
+          if (rawErp) {
+            if (rawErp.startsWith('outro:')) {
+              restored.erpCliente = 'outro';
+              restored.erpClienteOutro = rawErp.slice('outro:'.length);
+            } else {
+              restored.erpCliente = rawErp;
+              restored.erpClienteOutro = '';
+            }
+          }
+          if (typeof (existing as any).isTest === 'boolean') {
+            restored.isTest = (existing as any).isTest;
+          }
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
             setForm({ ...INITIAL_FORM, ...restored });
@@ -1109,12 +1159,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     saveTimeoutRef.current = setTimeout(async () => {
       setSaving(true);
       try {
+        const payload = toApiPayload(form);
         if (contractId) {
-          await api.put(`/contracts/${contractId}`, { ...form });
+          await api.put(`/contracts/${contractId}`, payload);
         } else {
           const res = await api.post<{ data: ContractRecord }>("/contracts", {
             dealId,
-            ...form,
+            ...payload,
           });
           setContractId(res.data.id);
         }
@@ -1215,6 +1266,12 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   // ── Send to Autentique ──
   const handleSendAutentique = async () => {
     const validationErrors = validateContractForm(form);
+    // erpCliente é OBRIGATÓRIO só na hora de enviar (no rascunho pode ficar vazio).
+    if (!form.erpCliente) {
+      validationErrors.push('Selecione o ERP do cliente antes de enviar para Autentique');
+    } else if (form.erpCliente === 'outro' && !form.erpClienteOutro.trim()) {
+      validationErrors.push('Informe o nome do ERP do cliente (campo "Outro")');
+    }
     if (validationErrors.length > 0) {
       alert('Corrija os seguintes erros:\n\n' + validationErrors.join('\n'));
       return;
@@ -1222,17 +1279,18 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
 
     setSendingAutentique(true);
     try {
+      const payload = toApiPayload(form);
       // Ensure contract exists
       let cId = contractId;
       if (!cId) {
-        const res = await api.post<{ data: { id: string } }>("/contracts", { dealId, ...form });
+        const res = await api.post<{ data: { id: string } }>("/contracts", { dealId, ...payload });
         cId = res.data.id;
         setContractId(cId);
       }
 
       // Save HTML content first
       const html = generateContractHTML();
-      await api.put(`/contracts/${cId}`, { ...form, htmlContent: html });
+      await api.put(`/contracts/${cId}`, { ...payload, htmlContent: html });
 
       // Build signers from orderedSigners state.
       // Quando sortable=true, a Autentique respeita a ordem do array.
@@ -1700,6 +1758,48 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               placeholder="Ex: 10 (opcional)"
               type="number"
             />
+          </FormField>
+        </div>
+      </FormSection>
+
+      {/* 3.5. Integração financeira (handoff FinHub) */}
+      <FormSection title="Integração Financeira (FinHub)">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="ERP do cliente *">
+            <select
+              value={form.erpCliente}
+              onChange={(e) => updateField("erpCliente", e.target.value)}
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+            >
+              <option value="">Selecione...</option>
+              {ERP_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-gray-500">
+              Obrigatório antes de enviar o contrato para Autentique. Usado pelo FinHub
+              para criar o cliente no ERP certo.
+            </p>
+          </FormField>
+          {form.erpCliente === "outro" && (
+            <FormField label="Qual ERP? *">
+              <TextInput
+                value={form.erpClienteOutro}
+                onChange={(v) => updateField("erpClienteOutro", v)}
+                placeholder="Ex.: Sankhya, Bling..."
+              />
+            </FormField>
+          )}
+          <FormField label="Contrato de teste?">
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.isTest}
+                onChange={(e) => updateField("isTest", e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              Marcar como teste (FinHub trata diferente)
+            </label>
           </FormField>
         </div>
       </FormSection>
