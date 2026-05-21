@@ -20,7 +20,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { normalizePhone } from '../utils/phoneNormalize';
-import { buildTemplateHeaderComponent } from '../utils/templateHeaderBuilder';
+import { runBroadcastLoop } from '../services/wa/broadcastExecutor';
 
 const router = Router();
 
@@ -36,40 +36,6 @@ const MAX_CONSECUTIVE_ERRORS = 5;
 
 /** Track active broadcast loops to prevent concurrent execution */
 const activeBroadcastLoops = new Set<string>();
-
-/**
- * Resolve CRM Contact by normalized phone.
- * Phones in Contact table are stored in raw format (e.g. "15 98821-4393"),
- * so we strip formatting and compare digits only.
- */
-async function findContactByPhone(normalizedPhone: string): Promise<{ id: string; name: string | null } | null> {
-  // Try exact normalized match first (fast path for phones already normalized)
-  const exactMatch = await prisma.contact.findFirst({
-    where: { phone: normalizedPhone },
-    select: { id: true, name: true },
-  });
-  if (exactMatch) return exactMatch;
-
-  // Extract DDD + last 4 digits for fuzzy search (works even with dashes/spaces)
-  const ddd = normalizedPhone.slice(2, 4);
-  const last4 = normalizedPhone.slice(-4);
-
-  const candidates = await prisma.contact.findMany({
-    where: {
-      phone: { not: null, contains: last4 },
-    },
-    select: { id: true, name: true, phone: true },
-  });
-
-  // Normalize each candidate and compare
-  for (const c of candidates) {
-    if (!c.phone) continue;
-    const cNormalized = normalizePhone(c.phone);
-    if (cNormalized === normalizedPhone) return { id: c.id, name: c.name };
-  }
-
-  return null;
-}
 
 // ─── GET /api/wa/broadcasts — List broadcasts with pagination ───────────────
 
@@ -320,332 +286,27 @@ router.post('/:id/start', async (req: Request, res: Response, next: NextFunction
 
     const updated = await prisma.waBroadcast.findUnique({ where: { id: broadcast.id } });
 
-    // Execute in background
+    // Execute in background — extraído pra services/wa/broadcastExecutor.ts
+    // pra poder ser chamado tb por scripts (Coolify Scheduled Task)
     activeBroadcastLoops.add(broadcast.id);
-    (async () => {
-      try {
-        const { WaMessageService } = await import('../services/wa/messageService');
-
-        let sentCount = 0;
-        let consecutiveErrors = 0;
-
-        // Broadcasts NÃO usam dailyLimitService (budget de automações é separado)
-
-        // Pré-carregar contatos bloqueados pelo cap cross-business da Meta (tag wa-cap-hit)
-        const capHitContactIds = new Set(
-          (await prisma.contactTag.findMany({
-            where: { tag: { name: 'wa-cap-hit' } },
-            select: { contactId: true },
-          })).map((ct) => ct.contactId)
-        );
-
-        // Pré-carregar nomes de templates MARKETING (evita N queries dentro do loop)
-        const marketingTemplateRows = await prisma.cloudWaTemplate.findMany({
-          where: { category: 'MARKETING' },
-          select: { name: true },
-        });
-        const marketingTemplateNames = marketingTemplateRows.map((t) => t.name);
-
-        for (const contact of broadcast.contacts) {
-          // Re-read contact status from DB to prevent duplicate sends on restart
-          const freshContact = await prisma.waBroadcastContact.findUnique({
-            where: { id: contact.id },
-            select: { status: true },
-          });
-          if (freshContact?.status !== 'WA_BC_PENDING') continue;
-
-          // Re-check broadcast status (might have been paused)
-          const current = await prisma.waBroadcast.findUnique({
-            where: { id: broadcast.id },
-            select: { status: true },
-          });
-          if (current?.status !== 'WA_SENDING') {
-            console.log(`[wa-broadcast] Broadcast ${broadcast.id} nao esta mais em SENDING — parando`);
-            break;
-          }
-
-          // Skip contacts already marked as phone invalid
-          const crmContact = await findContactByPhone(contact.phone);
-          if (crmContact) {
-            const contactRecord = await prisma.contact.findUnique({
-              where: { id: crmContact.id },
-              select: { phoneInvalid: true },
-            });
-            if (contactRecord?.phoneInvalid) {
-              await prisma.waBroadcastContact.update({
-                where: { id: contact.id },
-                data: { status: 'WA_BC_SKIPPED' },
-              });
-              console.log(`[wa-broadcast] Pulando ${contact.phone} — telefone marcado como invalido`);
-              continue;
-            }
-          }
-
-          // Filtro wa-cap-hit: pular contatos saturados no cap cross-business da Meta
-          if (crmContact && capHitContactIds.has(crmContact.id)) {
-            await prisma.waBroadcastContact.update({
-              where: { id: contact.id },
-              data: { status: 'WA_BC_SKIPPED', error: 'wa-cap-hit-blocked' },
-            });
-            console.log(`[wa-broadcast] Pulando ${contact.phone} — contato tem tag wa-cap-hit (cap-saturado Meta)`);
-            continue;
-          }
-
-          // Check opt-out ou atendimento humano ativo
-          const existingConv = await prisma.waConversation.findUnique({
-            where: { phone: contact.phone },
-            select: { optedOut: true, needsHumanAttention: true, contactId: true },
-          });
-          // Fallback: também checa WhatsAppConversation (Z-API) pelo contactId,
-          // caso takeover tenha sido ativado na conversa antiga
-          let zapHumanAttention = false;
-          if (existingConv?.contactId) {
-            const zap = await prisma.whatsAppConversation.findFirst({
-              where: { contactId: existingConv.contactId },
-              select: { needsHumanAttention: true },
-            });
-            zapHumanAttention = !!zap?.needsHumanAttention;
-          }
-          const humanAttention = existingConv?.needsHumanAttention || zapHumanAttention;
-          if (existingConv?.optedOut || humanAttention) {
-            const reason = existingConv?.optedOut ? 'opt-out' : 'atendimento humano';
-            await prisma.waBroadcastContact.update({
-              where: { id: contact.id },
-              data: { status: 'WA_BC_SKIPPED' },
-            });
-            console.log(`[wa-broadcast] Pulando ${contact.phone} — ${reason}`);
-            continue;
-          }
-
-          // ── Per-recipient cooldown de 24h para MARKETING templates ─────────────
-          // Alinhado ao gap diário das cadências (1 MKT/dia). Broadcasts são
-          // disparos esporádicos e atípicos; 24h é suficiente pra evitar spam.
-          if (broadcast.template.category === 'MARKETING') {
-            const MARKETING_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-            const cooldownStart = new Date(Date.now() - MARKETING_COOLDOWN_MS);
-            const lastMarketing = await prisma.waMessage.findFirst({
-              where: {
-                direction: 'OUTBOUND',
-                type: 'TEMPLATE',
-                createdAt: { gte: cooldownStart },
-                conversation: { phone: contact.phone },
-                templateName: { in: marketingTemplateNames },
-              },
-              orderBy: { createdAt: 'desc' },
-              select: { createdAt: true, templateName: true },
-            });
-
-            if (lastMarketing) {
-              const holdUntil = new Date(lastMarketing.createdAt.getTime() + MARKETING_COOLDOWN_MS);
-              await prisma.waBroadcastContact.update({
-                where: { id: contact.id },
-                data: {
-                  status: 'WA_BC_HELD',
-                  holdUntil,
-                  error: `Cooldown 24h — última MARKETING em ${lastMarketing.createdAt.toISOString()} (${lastMarketing.templateName})`,
-                },
-              });
-              console.log(`[wa-broadcast] HOLD ${contact.phone} até ${holdUntil.toISOString()} (recebeu ${lastMarketing.templateName} <24h)`);
-              continue;
-            }
-          }
-          // ────────────────────────────────────────────────────────────────────────
-
-          try {
-            // Find or create conversation — linked to CRM Contact
-            let conversation = await prisma.waConversation.findUnique({
-              where: { phone: contact.phone },
-            });
-
-            if (!conversation) {
-              // Resolve CRM contact to link the conversation
-              const crmContact = await findContactByPhone(contact.phone);
-              conversation = await prisma.waConversation.create({
-                data: {
-                  phone: contact.phone,
-                  ...(crmContact ? { contactId: crmContact.id } : {}),
-                },
-              });
-              if (crmContact) {
-                console.log(`[wa-broadcast] Conversa ${contact.phone} vinculada ao contato ${crmContact.name} (${crmContact.id})`);
-              }
-            } else if (!conversation.contactId) {
-              // Conversation exists but has no contact link — fix it
-              const crmContact = await findContactByPhone(contact.phone);
-              if (crmContact) {
-                await prisma.waConversation.update({
-                  where: { id: conversation.id },
-                  data: { contactId: crmContact.id },
-                });
-                console.log(`[wa-broadcast] Conversa existente ${contact.phone} vinculada ao contato ${crmContact.name}`);
-              }
-            }
-
-            // Send template — resolve body parameters via variableMapping when no
-            // explicit templateParams are provided. Without this resolution,
-            // templates with {{N}} vars would be sent with 0 params and Meta
-            // rejects with code 132000 ("parameters does not match expected").
-            const explicitParams = contact.templateParams || broadcast.templateParams;
-            const components: any[] = [];
-
-            // Header de mídia (IMAGE/VIDEO/DOCUMENT): a Meta exige component header
-            // no envio, com URL pública da mídia. headerContent vem do sync do template.
-            const headerComponent = buildTemplateHeaderComponent({
-              headerType: broadcast.template!.headerType,
-              headerContent: broadcast.template!.headerContent,
-            });
-            if (headerComponent) components.push(headerComponent);
-
-            if (explicitParams) {
-              if (Array.isArray(explicitParams)) components.push(...explicitParams);
-              else components.push(explicitParams);
-            } else {
-              const variableMapping = (broadcast.template as any).variableMapping;
-              if (Array.isArray(variableMapping) && variableMapping.length > 0) {
-                const { resolveTemplateVariables } = await import('../utils/templateVariableResolver');
-                const resolvedContactId = contact.contactId || crmContact?.id || null;
-                const resolved = await resolveTemplateVariables(
-                  variableMapping,
-                  { contactId: resolvedContactId, dealId: null },
-                );
-                if (resolved.missingVars.length > 0) {
-                  const missing = resolved.missingVars.map(v => `${v.var}=${v.source}`).join(', ');
-                  await prisma.waBroadcastContact.update({
-                    where: { id: contact.id },
-                    data: {
-                      status: 'WA_BC_SKIPPED',
-                      error: `Variáveis não resolvidas: ${missing}`,
-                    },
-                  });
-                  console.log(`[wa-broadcast] SKIP ${contact.phone} — variáveis não resolvidas: ${missing}`);
-                  continue;
-                }
-                if (resolved.parameters.length > 0) {
-                  components.push({ type: 'body', parameters: resolved.parameters });
-                }
-              }
-            }
-
-            // Check if template has URL button with dynamic suffix ({{1}})
-            const buttons = broadcast.template!.buttons as Array<{ type: string; url?: string }> | null;
-            const hasUrlButton = buttons?.some(b => b.type === 'URL' && b.url?.includes('{{1}}'));
-            if (hasUrlButton) {
-              // Inject tracking token as URL suffix
-              const trackingToken = contact.id;
-              const buttonIdx = buttons!.findIndex(b => b.type === 'URL');
-              components.push({
-                type: 'button',
-                sub_type: 'url',
-                index: buttonIdx >= 0 ? buttonIdx : 0,
-                parameters: [{ type: 'text', text: trackingToken }],
-              });
-            }
-
-            const msg = await WaMessageService.sendTemplate(
-              conversation.id,
-              broadcast.template!.name,
-              broadcast.template!.language || 'pt_BR',
-              components,
-              { senderType: 'WA_SYSTEM' },
-              { isBroadcast: true },
-            );
-
-            await prisma.waBroadcastContact.update({
-              where: { id: contact.id },
-              data: {
-                status: 'WA_BC_SENT',
-                sentAt: new Date(),
-                waMessageId: msg?.waMessageId || null, // Meta wamid, not Prisma ID
-                contactId: conversation.contactId || null,
-              },
-            });
-
-            // Update broadcast sent count
-            await prisma.waBroadcast.update({
-              where: { id: broadcast.id },
-              data: { sentCount: { increment: 1 } },
-            });
-
-            sentCount++;
-            consecutiveErrors = 0;
-
-            // Broadcast não registra no dailyLimit (budget separado de automações)
-          } catch (err: any) {
-            console.error(`[wa-broadcast] Falha ao enviar para ${contact.phone}:`, err);
-            const errorMsg = err.message || 'Unknown error';
-            await prisma.waBroadcastContact.update({
-              where: { id: contact.id },
-              data: {
-                status: 'WA_BC_FAILED',
-                failedAt: new Date(),
-                error: errorMsg,
-              },
-            });
-
-            await prisma.waBroadcast.update({
-              where: { id: broadcast.id },
-              data: { failedCount: { increment: 1 } },
-            });
-
-            // Mark contact as phoneInvalid for undeliverable/invalid number errors
-            const isInvalidPhone = /undeliverable|131026|131051|not.+valid|nao.+possui.+whatsapp/i.test(errorMsg);
-            if (isInvalidPhone) {
-              const invalidContact = await findContactByPhone(contact.phone);
-              if (invalidContact) {
-                await prisma.contact.update({
-                  where: { id: invalidContact.id },
-                  data: { phoneInvalid: true, phoneInvalidAt: new Date() },
-                });
-                console.log(`[wa-broadcast] Contato ${invalidContact.name} (${contact.phone}) marcado como telefone invalido`);
-              }
-            }
-
-            consecutiveErrors++;
-
-            // Circuit breaker
-            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-              console.log(`[wa-broadcast] Circuit breaker ativado apos ${MAX_CONSECUTIVE_ERRORS} erros consecutivos. Broadcast pausado.`);
-              await prisma.waBroadcast.update({
-                where: { id: broadcast.id },
-                data: { status: 'WA_PAUSED', pausedAt: new Date() },
-              });
-              break;
-            }
-          }
-
-          // Random delay between sends (30-90s)
-          await randomBroadcastDelay();
-        }
-
-        // Only mark COMPLETED if still in SENDING status
-        const finalStatus = await prisma.waBroadcast.findUnique({
-          where: { id: broadcast.id },
-          select: { status: true },
-        });
-        if (finalStatus?.status === 'WA_SENDING') {
-          await prisma.waBroadcast.update({
-            where: { id: broadcast.id },
-            data: { status: 'WA_COMPLETED', completedAt: new Date() },
-          });
-        }
-
-        console.log(`[wa-broadcast] Concluido: ${broadcast.id} — ${sentCount} enviadas`);
-      } catch (err) {
+    runBroadcastLoop(broadcast.id)
+      .catch(async (err) => {
         console.error(`[wa-broadcast] Broadcast ${broadcast.id} falhou:`, err);
         await prisma.waBroadcast.update({
           where: { id: broadcast.id },
           data: { status: 'WA_PAUSED', pausedAt: new Date() },
         });
-      } finally {
+      })
+      .finally(() => {
         activeBroadcastLoops.delete(broadcast.id);
-      }
-    })();
+      });
 
     res.json({ data: updated });
   } catch (err) {
     next(err);
   }
 });
+
 
 // ─── POST /api/wa/broadcasts/:id/pause — Pause broadcast ───────────────────
 
