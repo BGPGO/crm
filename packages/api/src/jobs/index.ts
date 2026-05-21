@@ -10,6 +10,7 @@ import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
 import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 import { startDailyReportCron } from './dailyReportCron';
 import { startScheduledEmailCron } from './scheduledEmailCron';
+import { startScheduledBroadcastCron } from './scheduledBroadcastCron';
 import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
 import { runReleaseHeldBroadcastContacts } from './releaseHeldBroadcastContacts';
 import cron from 'node-cron';
@@ -37,6 +38,9 @@ export function startAllJobs() {
 
   // Email campaigns agendadas (status=SCHEDULED com scheduledAt passado)
   startScheduledEmailCron();
+
+  // Broadcasts WABA agendados (status=WA_SCHEDULED com scheduledAt passado)
+  startScheduledBroadcastCron();
 
   // Health check de templates WABA (a cada 1h)
   cron.schedule('0 * * * *', async () => {
