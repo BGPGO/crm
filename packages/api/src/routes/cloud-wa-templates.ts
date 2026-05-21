@@ -23,7 +23,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { WhatsAppCloudClient } from '../services/whatsappCloudClient';
-import { extractHeaderContent } from '../utils/templateHeaderBuilder';
+import { extractHeaderContent, resolveSyncedHeaderContent } from '../utils/templateHeaderBuilder';
 
 const router = Router();
 
@@ -486,7 +486,13 @@ router.post('/sync', async (req: Request, res: Response, next: NextFunction) => 
 
         if (existing) {
           // Update mantém status local (DRAFT/DISABLED não voltam pra APPROVED só porque a Meta diz).
-          // Mas conteúdo do template (body, header, components) é sempre fonte-Meta.
+          // Mas conteúdo do template (body, header, components) é sempre fonte-Meta —
+          // exceto headerContent de mídia, que preserva override manual público.
+          const finalHeaderContent = resolveSyncedHeaderContent(
+            existing.headerContent,
+            headerContent,
+            headerComp?.format || null,
+          );
           await prisma.cloudWaTemplate.update({
             where: { id: existing.id },
             data: {
@@ -495,7 +501,7 @@ router.post('/sync', async (req: Request, res: Response, next: NextFunction) => 
               qualityScore,
               rejectedReason: mt.rejected_reason || null,
               headerType: headerComp?.format || null,
-              headerContent,
+              headerContent: finalHeaderContent,
               body: bodyComp?.text || '',
               footer: footerComp?.text || null,
               buttons: (buttonsComp?.buttons || null) as any,

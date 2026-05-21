@@ -17,7 +17,7 @@
 
 import prisma from '../lib/prisma';
 import { WhatsAppCloudClient } from '../services/whatsappCloudClient';
-import { extractHeaderContent } from '../utils/templateHeaderBuilder';
+import { extractHeaderContent, resolveSyncedHeaderContent } from '../utils/templateHeaderBuilder';
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -103,7 +103,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
       // e NÃO devem ser sobrescritas pela Meta mesmo que ela retorne APPROVED.
       const existing = await prisma.cloudWaTemplate.findUnique({
         where: { name_language: { name: t.name, language: t.language } },
-        select: { status: true },
+        select: { status: true, headerContent: true },
       });
 
       const preserveLocalStatus =
@@ -111,6 +111,13 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
         (existing.status === 'DISABLED' || existing.status === 'REJECTED');
 
       const nextStatus = preserveLocalStatus ? existing.status : (t.status as any);
+
+      // Pra mídia, preserva URL pública override manual (ver resolveSyncedHeaderContent)
+      const finalHeaderContent = resolveSyncedHeaderContent(
+        existing?.headerContent,
+        headerContent,
+        headerType,
+      );
 
       if (preserveLocalStatus) {
         console.log(
@@ -131,7 +138,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           footer,
           buttons: buttons as any,
           headerType: headerType as any,
-          headerContent,
+          headerContent: finalHeaderContent,
           components: components as any,
         },
         create: {
@@ -146,7 +153,7 @@ export async function runWabaTemplateHealthCheck(): Promise<TemplateHealthResult
           footer,
           buttons: buttons as any,
           headerType: headerType as any,
-          headerContent,
+          headerContent: finalHeaderContent,
           components: components as any,
         },
       });

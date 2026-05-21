@@ -58,6 +58,33 @@ export function extractHeaderContent(headerComp: HeaderComponentForExtraction | 
 }
 
 /**
+ * Decide qual headerContent guardar no DB durante sync com a Meta.
+ *
+ * A Meta devolve `header_handle` como uma URL `scontent.whatsapp.net` assinada,
+ * que NÃO é fetchable pra reenvio (códigos `_nc_sid`/`_nc_ohc` são sessão interna).
+ * Quando o operador sobrescreve manualmente com uma URL pública (Supabase Storage,
+ * R2, etc) pra que a Meta consiga buscar no envio, o sync seguinte iria reverter
+ * o override e quebrar broadcasts (incidente 2026-05-21 GOBI: 215 falhas 131053).
+ *
+ * Regra: pra headers de mídia (IMAGE/VIDEO/DOCUMENT), se já existe um override
+ * manual (URL não-scontent), preserva. Caso contrário usa o valor extraído da Meta.
+ * Pra TEXT, sempre usa o valor da Meta (é o texto do template aprovado).
+ */
+export function resolveSyncedHeaderContent(
+  existingContent: string | null | undefined,
+  extractedContent: string | null,
+  headerType: string | null | undefined,
+): string | null {
+  const isMediaHeader =
+    headerType === 'IMAGE' || headerType === 'VIDEO' || headerType === 'DOCUMENT';
+  if (!isMediaHeader) return extractedContent;
+
+  const hasManualOverride =
+    !!existingContent && !existingContent.includes('scontent.whatsapp.net');
+  return hasManualOverride ? existingContent! : extractedContent;
+}
+
+/**
  * Monta o component `header` da payload de envio de template message.
  * Retorna null quando o template:
  *   - não tem header
