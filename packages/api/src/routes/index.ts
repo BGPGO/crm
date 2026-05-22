@@ -55,6 +55,7 @@ import calendlyConfigRouter from './calendly-config';
 import meetingRemindersRouter from './meeting-reminders';
 import notificationConfigRouter from './notification-config';
 import contractsRouter from './contracts';
+import contractsInternalRouter from './contracts-internal';
 import contractWitnessesRouter from './contract-witnesses';
 import sentDocumentsRouter from './sent-documents';
 import contractWebhookRouter from './contract-webhook';
@@ -80,6 +81,10 @@ router.use('/whatsapp/cloud/webhook', cloudWaWebhookRouter);  // Cloud API (Meta
 router.use('/wa/webhook', waWebhookRouter);  // WA v2 (módulo unificado)
 router.use('/calendly/webhook', calendlyWebhookRouter);
 router.use('/contracts/webhook', contractWebhookRouter);
+// Server-to-server (ex.: FinHub) — auth Bearer próprio, NÃO usa JWT.
+// Caminho `/contracts/by-autentique-id/...` matchea antes do `/contracts` JWT-protected
+// porque está registrado acima do `requireAuth`.
+router.use('/contracts', contractsInternalRouter);
 router.use('/webhooks', webhooksRouter);  // Incoming lead webhooks (public — has own secret validation)
 router.use('/readai', readaiRouter);
 router.use('/t', trackRouter); // Click tracking redirect (public)

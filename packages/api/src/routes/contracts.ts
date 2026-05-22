@@ -88,6 +88,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       testemunha2Nome: overrides.testemunha2Nome || null,
       testemunha2Cpf: overrides.testemunha2Cpf || null,
       testemunha2Email: overrides.testemunha2Email || null,
+      // Handoff CRM ↔ FinHub
+      erpCliente: typeof overrides.erpCliente === 'string' && overrides.erpCliente.trim() !== '' ? overrides.erpCliente : null,
+      isTest: overrides.isTest === true,
     };
 
     const contract = await prisma.contract.create({
@@ -132,10 +135,13 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       'testemunha1Nome', 'testemunha1Cpf', 'testemunha1Email',
       'testemunha2Nome', 'testemunha2Cpf', 'testemunha2Email',
       'htmlContent',
+      // Handoff CRM ↔ FinHub
+      'erpCliente', 'isTest',
     ];
 
     const intFields = new Set(['diaVencimento', 'implementacaoParcelas', 'descontoMeses']);
     const decimalFields = new Set(['valorMensal', 'valorImplementacao', 'descontoPercentual']);
+    const boolFields = new Set(['isTest']);
     // Required numeric fields cannot be null — default to 0 instead
     const requiredNumeric = new Set(['valorMensal', 'diaVencimento']);
 
@@ -151,6 +157,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         } else if (decimalFields.has(field)) {
           const parsed = val !== null && val !== '' ? parseFloat(val) : NaN;
           data[field] = Number.isNaN(parsed) || parsed === null ? (requiredNumeric.has(field) ? 0 : null) : parsed;
+        } else if (boolFields.has(field)) {
+          data[field] = val === true || val === 'true';
+        } else if (field === 'erpCliente') {
+          data[field] = typeof val === 'string' && val.trim() !== '' ? val : null;
         } else {
           data[field] = val;
         }
@@ -203,6 +213,9 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
     }
     if (!contract.representante) {
       return next(createError('Nome do representante é obrigatório para enviar para assinatura.', 400));
+    }
+    if (!contract.erpCliente || contract.erpCliente.trim() === '') {
+      return next(createError('erpCliente obrigatório antes de enviar para Autentique', 400));
     }
 
     // Build signers — prefer signers sent from frontend (respects UI order + witness actions);

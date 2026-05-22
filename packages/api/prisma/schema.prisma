@@ -1004,6 +1004,10 @@ model Contract {
   // Generated HTML (cached for re-viewing)
   htmlContent String? @db.Text
 
+  // ERP do cliente + flag de teste (handoff CRM ↔ FinHub)
+  erpCliente String? // omie | contaazul | nuvem_gestor | sap | tiny | totvs | fluig | outro:<texto>
+  isTest     Boolean @default(false)
+
   signatures ContractSignatureRecord[]
 
   createdAt DateTime @default(now())
