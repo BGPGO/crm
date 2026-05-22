@@ -12,6 +12,8 @@
 
 import prisma from '../lib/prisma';
 import { WaMessageService } from '../services/wa/messageService';
+import { buildTemplateHeaderComponent } from '../utils/templateHeaderBuilder';
+import { resolveTemplateVariables } from '../utils/templateVariableResolver';
 
 export interface HeldReleaseResult {
   candidates: number;
@@ -37,7 +39,8 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
       broadcast: {
         include: {
           template: {
-            select: { id: true, name: true, language: true, category: true, buttons: true },
+            select: { id: true, name: true, language: true, category: true, buttons: true,
+              headerType: true, headerContent: true, variableMapping: true },
           },
         },
       },
@@ -133,13 +136,44 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
         continue;
       }
 
-      // Montar components (templateParams por contato ou do broadcast)
-      const rawParams = bc.templateParams || bc.broadcast.templateParams;
-      const components: any[] = rawParams
-        ? Array.isArray(rawParams)
-          ? [...rawParams]
-          : [rawParams]
-        : [];
+      // Montar components — mesma lógica do broadcastExecutor:
+      // header de mídia + body via variableMapping (ou explicit params se setados)
+      const components: any[] = [];
+
+      const headerComponent = buildTemplateHeaderComponent({
+        headerType: bc.broadcast.template.headerType,
+        headerContent: bc.broadcast.template.headerContent,
+      });
+      if (headerComponent) components.push(headerComponent);
+
+      const explicitParams = bc.templateParams || bc.broadcast.templateParams;
+      if (explicitParams) {
+        if (Array.isArray(explicitParams)) components.push(...explicitParams);
+        else components.push(explicitParams);
+      } else {
+        const variableMapping = (bc.broadcast.template as any).variableMapping;
+        if (Array.isArray(variableMapping) && variableMapping.length > 0) {
+          const resolved = await resolveTemplateVariables(
+            variableMapping,
+            { contactId: bc.contactId || null, dealId: null },
+          );
+          if (resolved.missingVars.length > 0) {
+            const missing = resolved.missingVars.map(v => `${v.var}=${v.source}`).join(', ');
+            await prisma.waBroadcastContact.update({
+              where: { id: bc.id },
+              data: {
+                status: 'WA_BC_SKIPPED',
+                error: `Variáveis não resolvidas: ${missing}`,
+              },
+            });
+            console.log(`${JOB} SKIP ${bc.phone} — variáveis não resolvidas: ${missing}`);
+            continue;
+          }
+          if (resolved.parameters.length > 0) {
+            components.push({ type: 'body', parameters: resolved.parameters });
+          }
+        }
+      }
 
       // Reinjetar tracking URL button se template tiver botão dinâmico
       const buttons = bc.broadcast.template.buttons as Array<{ type: string; url?: string }> | null;
@@ -187,8 +221,11 @@ export async function runReleaseHeldBroadcastContacts(): Promise<HeldReleaseResu
       const errorMsg = err?.message?.slice(0, 500) || 'Erro desconhecido no release';
       await prisma.waBroadcastContact.update({
         where: { id: bc.id },
-        data: { status: 'WA_BC_FAILED', error: errorMsg },
+        data: { status: 'WA_BC_FAILED', error: errorMsg, failedAt: new Date() },
       });
+      await prisma.waBroadcast
+        .update({ where: { id: bc.broadcastId }, data: { failedCount: { increment: 1 } } })
+        .catch(() => undefined);
       console.error(`${JOB} FAILED ${bc.phone}:`, errorMsg);
       failed++;
     }
