@@ -285,6 +285,26 @@ export default function TemplateEditorPage() {
 
   // ── Insert button ────────────────────────────────────────────────────────
 
+  function handleInsertMergeTag(tag: string) {
+    if (previewRef.current) {
+      previewRef.current.focus();
+      // Garante que o cursor está dentro do editor antes de inserir.
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !previewRef.current.contains(sel.anchorNode)) {
+        const range = document.createRange();
+        range.selectNodeContents(previewRef.current);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      // insertText preserva o texto literal (sem escapar como HTML).
+      document.execCommand("insertText", false, tag);
+    } else {
+      editorInitialised.current = false;
+      setHtmlContent((prev) => prev + tag);
+    }
+  }
+
   function handleInsertButton(text: string, url: string, color: string) {
     const btn = `<div style="text-align:center;margin:24px 0;"><a href="${url}" style="display:inline-block;padding:12px 32px;background-color:${color};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:16px;">${text}</a></div>`;
     if (previewRef.current) {
@@ -780,6 +800,7 @@ ${bodyHtml}
                   onFormat={handleFormat}
                   onInsertImage={handleInsertImage}
                   onInsertButton={handleInsertButton}
+                  onInsertMergeTag={handleInsertMergeTag}
                   images={images}
                   onRemoveImage={(src) => handleRemoveImage(src)}
                   onChangeImageSrc={(oldSrc, newSrc) =>
@@ -865,6 +886,8 @@ ${bodyHtml}
                   html={htmlContent}
                   branded
                   brand="AIMO"
+                  enableContactPreview
+                  subject={subject}
                   className="h-full min-h-[600px]"
                 />
               ) : (

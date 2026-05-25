@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Bold,
   Italic,
@@ -22,12 +22,35 @@ import {
   Check,
   MousePointerClick,
   ImageIcon,
+  Braces,
+  ChevronDown,
 } from "lucide-react";
+import { api } from "@/lib/api";
+
+interface MergeTag {
+  key: string;
+  label: string;
+  example: string;
+}
+
+// Fallback estático (se a API estiver fora) — mantém o editor utilizável.
+const FALLBACK_MERGE_TAGS: MergeTag[] = [
+  { key: "PRIMEIRO_NOME", label: "Primeiro nome", example: "João" },
+  { key: "NOME", label: "Nome completo", example: "João da Silva" },
+  { key: "EMAIL", label: "Email", example: "joao@empresa.com" },
+  { key: "TELEFONE", label: "Telefone", example: "(51) 99999-9999" },
+  { key: "EMPRESA", label: "Empresa", example: "Empresa Ltda" },
+  { key: "CARGO", label: "Cargo", example: "Diretor Financeiro" },
+  { key: "RESPONSAVEL", label: "Vendedor responsável", example: "Vitor" },
+  { key: "RESPONSAVEL_EMAIL", label: "Email do responsável", example: "vitor@bgpgo.com" },
+  { key: "CALENDLY", label: "Link Calendly do responsável", example: "https://calendly.com/..." },
+];
 
 interface EmailContentPanelProps {
   onFormat: (command: string, value?: string) => void;
   onInsertImage: (dataUrl: string) => void;
   onInsertButton: (text: string, url: string, color: string) => void;
+  onInsertMergeTag?: (tag: string) => void;
   images: { src: string; index: number }[];
   onRemoveImage: (src: string) => void;
   onChangeImageSrc: (oldSrc: string, newSrc: string) => void;
@@ -172,6 +195,7 @@ export default function EmailContentPanel({
   onFormat,
   onInsertImage,
   onInsertButton,
+  onInsertMergeTag,
   images,
   onRemoveImage,
   onChangeImageSrc,
@@ -181,6 +205,35 @@ export default function EmailContentPanel({
   const [btnText, setBtnText] = useState("Agendar Reunião");
   const [btnUrl, setBtnUrl] = useState("https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp?utm_source=email_cadencia&utm_medium=crm");
   const [btnColor, setBtnColor] = useState("#2563eb");
+
+  // Merge tags carregadas via GET /api/email/merge-tags (fallback se API falhar)
+  const [mergeTags, setMergeTags] = useState<MergeTag[]>(FALLBACK_MERGE_TAGS);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ data: MergeTag[] }>("/email/merge-tags")
+      .then((resp) => {
+        if (!cancelled && resp?.data?.length) setMergeTags(resp.data);
+      })
+      .catch(() => {
+        // Mantém fallback — não bloqueia o editor.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleInsertTag = (key: string) => {
+    if (onInsertMergeTag) {
+      onInsertMergeTag(`*|${key}|*`);
+    } else {
+      // Fallback: tenta inserção genérica via execCommand
+      document.execCommand("insertText", false, `*|${key}|*`);
+    }
+    setTagDropdownOpen(false);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -240,6 +293,48 @@ export default function EmailContentPanel({
 
           <ToolbarButton icon={List} title="Lista com marcadores" onClick={() => onFormat("insertUnorderedList")} />
           <ToolbarButton icon={ListOrdered} title="Lista numerada" onClick={() => onFormat("insertOrderedList")} />
+
+          <ToolbarDivider />
+
+          {/* Inserir variável (merge tag) */}
+          <div className="relative">
+            <button
+              type="button"
+              title="Inserir variável"
+              onClick={() => setTagDropdownOpen((v) => !v)}
+              className="h-8 px-2 flex items-center gap-1 rounded bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors text-gray-700 text-xs font-medium"
+            >
+              <Braces className="h-4 w-4" />
+              Variável
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </button>
+            {tagDropdownOpen && (
+              <>
+                {/* click-out backdrop */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setTagDropdownOpen(false)}
+                />
+                <div className="absolute left-0 top-full mt-1 z-20 w-64 max-h-80 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg py-1">
+                  {mergeTags.map((tag) => (
+                    <button
+                      key={tag.key}
+                      type="button"
+                      onClick={() => handleInsertTag(tag.key)}
+                      className="w-full text-left px-3 py-2 hover:bg-blue-50 flex flex-col gap-0.5"
+                    >
+                      <span className="text-xs font-semibold text-gray-800">
+                        {tag.label}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        *|{tag.key}|*
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </section>
 

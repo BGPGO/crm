@@ -1,6 +1,8 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api } from "@/lib/api";
 
 type Brand = "BGP" | "AIMO";
 
@@ -179,6 +181,21 @@ interface EmailPreviewProps {
   branded?: boolean;
   /** Which brand wrapper to use (only relevant if branded is true). Default BGP. */
   brand?: Brand;
+  /** When true, shows a contact selector at the top so the preview substitui
+   *  variáveis (*|PRIMEIRO_NOME|*, {{empresa}}, etc) com dados reais via
+   *  POST /api/email/preview. Default false (mantém comportamento legado). */
+  enableContactPreview?: boolean;
+  /** Optional subject — quando enableContactPreview=true e o user escolhe um
+   *  contato, o subject também é renderizado em /api/email/preview e exibido
+   *  acima do iframe. */
+  subject?: string;
+}
+
+interface ContactLite {
+  id: string;
+  name: string;
+  email?: string | null;
+  organization?: { name: string } | null;
 }
 
 // Script injected into preview iframe to open all links in a new tab
@@ -192,23 +209,162 @@ document.addEventListener('click', function(e) {
 });
 </script>`;
 
-export default function EmailPreview({ html, className, branded, brand = "BGP" }: EmailPreviewProps) {
-  const base = branded ? wrapInBrandPreview(html, brand) : html;
+export default function EmailPreview({
+  html,
+  className,
+  branded,
+  brand = "BGP",
+  enableContactPreview = false,
+  subject,
+}: EmailPreviewProps) {
+  // ── Personalized preview (substitui variáveis com dados reais) ──────────
+  const [contactId, setContactId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<ContactLite[]>([]);
+  const [open, setOpen] = useState(false);
+  const [selectedLabel, setSelectedLabel] = useState<string>("Exemplo");
+  const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
+  const [renderedSubject, setRenderedSubject] = useState<string | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced search
+  useEffect(() => {
+    if (!enableContactPreview || !open || !search.trim()) {
+      setResults([]);
+      return;
+    }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      api
+        .get<{ data: ContactLite[] }>(`/contacts?search=${encodeURIComponent(search)}&limit=8`)
+        .then((resp) => setResults(resp?.data || []))
+        .catch(() => setResults([]));
+    }, 250);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search, open, enableContactPreview]);
+
+  // Render personalizado quando muda contato OU html/subject (debounced)
+  useEffect(() => {
+    if (!enableContactPreview) {
+      setRenderedHtml(null);
+      setRenderedSubject(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api
+        .post<{ html: string; subject: string }>("/email/preview", {
+          html,
+          subject: subject || "",
+          contactId,
+        })
+        .then((resp) => {
+          setRenderedHtml(resp?.html ?? null);
+          setRenderedSubject(resp?.subject ?? null);
+        })
+        .catch(() => {
+          setRenderedHtml(null);
+          setRenderedSubject(null);
+        });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [html, subject, contactId, enableContactPreview]);
+
+  const effectiveHtml = useMemo(() => {
+    return renderedHtml ?? html;
+  }, [renderedHtml, html]);
+
+  const base = branded ? wrapInBrandPreview(effectiveHtml, brand) : effectiveHtml;
   // Inject link interceptor before </body> or at the end
-  const srcDoc = base.includes('</body>')
-    ? base.replace('</body>', LINK_INTERCEPT_SCRIPT + '</body>')
+  const srcDoc = base.includes("</body>")
+    ? base.replace("</body>", LINK_INTERCEPT_SCRIPT + "</body>")
     : base + LINK_INTERCEPT_SCRIPT;
 
   return (
-    <iframe
-      srcDoc={srcDoc}
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-      className={clsx(
-        "w-full border border-gray-200 rounded-xl bg-white",
-        className
+    <div className={clsx("flex flex-col gap-2", className)}>
+      {enableContactPreview && (
+        <div className="relative bg-white border border-gray-200 rounded-lg p-2 flex items-center gap-2 text-xs">
+          <span className="text-gray-500 font-medium">Pré-visualizar com:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setContactId(null);
+              setSelectedLabel("Exemplo");
+              setOpen(false);
+            }}
+            className={clsx(
+              "px-2 py-1 rounded",
+              contactId === null
+                ? "bg-blue-100 text-blue-700 font-semibold"
+                : "text-gray-600 hover:bg-gray-100",
+            )}
+          >
+            Exemplo
+          </button>
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="Buscar contato real (nome ou email)…"
+              value={open ? search : selectedLabel === "Exemplo" ? "" : selectedLabel}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => {
+                setOpen(true);
+                setSearch("");
+              }}
+              className="w-full text-xs px-2 py-1 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            {open && results.length > 0 && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setOpen(false)}
+                />
+                <div className="absolute left-0 top-full mt-1 z-20 w-full max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-md shadow-lg py-1">
+                  {results.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setContactId(c.id);
+                        setSelectedLabel(c.name || c.email || c.id);
+                        setOpen(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 hover:bg-blue-50"
+                    >
+                      <div className="text-xs font-medium text-gray-800 truncate">
+                        {c.name || "(sem nome)"}
+                      </div>
+                      <div className="text-[10px] text-gray-400 truncate">
+                        {c.email || ""}
+                        {c.organization?.name ? ` · ${c.organization.name}` : ""}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
-      title="Email Preview"
-      style={{ minHeight: 400 }}
-    />
+
+      {enableContactPreview && renderedSubject !== null && subject !== undefined && (
+        <div className="bg-gray-50 border border-gray-200 rounded px-3 py-1.5 text-xs">
+          <span className="text-gray-400 font-medium uppercase tracking-wide mr-2">Assunto:</span>
+          <span className="text-gray-800 font-medium">{renderedSubject}</span>
+        </div>
+      )}
+
+      <iframe
+        srcDoc={srcDoc}
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        className="w-full border border-gray-200 rounded-xl bg-white"
+        title="Email Preview"
+        style={{ minHeight: 400, flex: 1 }}
+      />
+    </div>
   );
 }

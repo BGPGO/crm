@@ -9,7 +9,8 @@ import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { interruptCadenceOnStageChange } from './cadenceInterruptService';
-import { sanitizeGreetingName, safeFirstName } from '../utils/nameSanitizer';
+import { safeFirstName } from '../utils/nameSanitizer';
+import { buildPersonalizationData, personalizeContent } from './personalize';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -274,19 +275,15 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
     });
     subject = template.subject || template.name;
 
-    // Substituir placeholders antes de strip/wrap (compatível com padrão Mailchimp e {{var}}).
-    // Nomes ofensivos/inválidos viram string vazia pra não sair "Olá, <palavrão>".
-    const nameGuard = sanitizeGreetingName(contact.name);
-    const firstName = nameGuard.safe;
-    const fullName = nameGuard.flagged ? '' : (contact.name || '');
-    const rawHtml = template.htmlContent
-      .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
-      .replace(/\{\{primeiro_nome\}\}/g, firstName)
-      .replace(/\{\{nome\}\}/g, fullName);
-    subject = subject
-      .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
-      .replace(/\{\{primeiro_nome\}\}/g, firstName)
-      .replace(/\{\{nome\}\}/g, fullName);
+    // Substituir placeholders antes de strip/wrap — suporta *|VAR|* (Mailchimp)
+    // e {{var}} (Handlebars) para o set completo de variáveis (PRIMEIRO_NOME,
+    // NOME, EMAIL, TELEFONE, EMPRESA, CARGO, RESPONSAVEL, RESPONSAVEL_EMAIL,
+    // CALENDLY). Nomes ofensivos/inválidos viram string vazia (sanitizer).
+    const personalizationData = await buildPersonalizationData({
+      contactId: contact.id,
+    });
+    const rawHtml = personalizeContent(template.htmlContent, personalizationData);
+    subject = personalizeContent(subject, personalizationData);
 
     // Unsubscribe URL para este lead
     const apiBaseForUnsub = process.env.API_URL || 'http://localhost:3001/api';

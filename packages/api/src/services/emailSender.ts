@@ -3,14 +3,7 @@ import prisma from '../lib/prisma';
 import { createUnsubToken } from '../routes/email-tracking';
 import { wrapInBrandTemplate } from './emailTemplate';
 import { rewriteCalendlyLinksInHtml, EMAIL_CAMPAIGN_UTMS } from '../utils/calendlyLinks';
-import { sanitizeGreetingName } from '../utils/nameSanitizer';
-
-function personalizeContent(s: string, firstName: string, fullName: string): string {
-  return s
-    .replace(/\*\|PRIMEIRO_NOME\|\*/g, firstName)
-    .replace(/\{\{primeiro_nome\}\}/gi, firstName)
-    .replace(/\{\{nome\}\}/gi, fullName);
-}
+import { buildPersonalizationData, personalizeContent } from './personalize';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -247,17 +240,19 @@ export async function sendCampaignEmails(campaignId: string, options?: SendOptio
           const unsubToken = createUnsubToken(send.id);
           const unsubUrl = `${TRACKING_BASE_URL}/unsubscribe/${unsubToken}`;
 
-          // Personalização por contato (Mailchimp *|PRIMEIRO_NOME|* + {{nome}}/{{primeiro_nome}}).
-          // Nome ofensivo/inválido vira string vazia pra não sair "Olá, <palavrão>".
-          const nameGuard = sanitizeGreetingName(send.contact.name);
-          const firstName = nameGuard.safe;
-          const fullName = nameGuard.flagged ? '' : (send.contact.name || '');
+          // Personalização por contato — suporta *|VAR|* (Mailchimp) e {{var}} (Handlebars)
+          // pra um set extenso de variáveis: PRIMEIRO_NOME, NOME, EMAIL, TELEFONE, EMPRESA,
+          // CARGO, RESPONSAVEL, RESPONSAVEL_EMAIL, CALENDLY. Nomes ofensivos/inválidos
+          // viram string vazia (lógica no sanitizer dentro do builder).
+          const personalizationData = await buildPersonalizationData({
+            contactId: send.contact.id,
+          });
 
           // Wrap in brand template with unsubscribe link, then inject tracking pixel
           const brandedHtml = wrapInBrandTemplate(linkedHtml, { brand: campaign.brand, unsubscribeUrl: unsubUrl });
-          const personalizedHtml = personalizeContent(brandedHtml, firstName, fullName);
+          const personalizedHtml = personalizeContent(brandedHtml, personalizationData);
           const finalHtml = injectTrackingPixel(personalizedHtml, send.id);
-          const personalizedSubject = personalizeContent(campaign.subject, firstName, fullName);
+          const personalizedSubject = personalizeContent(campaign.subject, personalizationData);
 
           // Generate plain text from HTML (strip tags)
           const plainText = finalHtml
