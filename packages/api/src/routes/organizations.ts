@@ -2,8 +2,41 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
+import { exportRows, batchIterate, ExportColumn } from '../services/export/exporter';
 
 const router = Router();
+
+function buildOrgsWhere(req: Request): Record<string, unknown> {
+  const { search, segment } = req.query as Record<string, string | undefined>;
+  const where: Record<string, unknown> = {};
+  if (search) where.name = { contains: search, mode: 'insensitive' };
+  if (segment) where.segment = segment;
+
+  const brandClauses: Array<Record<string, unknown>> = [
+    { contacts: { some: { brand: req.brand } } },
+    { deals: { some: { brand: req.brand } } },
+  ];
+  if (req.brand === 'BGP') {
+    brandClauses.push({ AND: [{ contacts: { none: {} } }, { deals: { none: {} } }] });
+  }
+  where.OR = brandClauses;
+  return where;
+}
+
+const ORG_EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'name', label: 'Nome' },
+  { key: 'cnpj', label: 'CNPJ' },
+  { key: 'segment', label: 'Segmento' },
+  { key: 'website', label: 'Site' },
+  { key: 'phone', label: 'Telefone' },
+  { key: 'address', label: 'Endereço' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'email', label: 'Email' },
+  { key: 'contactsCount', label: 'Qtd Contatos' },
+  { key: 'dealsCount', label: 'Qtd Negociações' },
+  { key: 'createdAt', label: 'Criado em' },
+];
 
 // GET /api/organizations
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -51,6 +84,48 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     res.json({
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/organizations/export
+router.get('/export', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const where = buildOrgsWhere(req);
+    const rows = (async function* () {
+      for await (const org of batchIterate<any>(async (skip, take) => {
+        return prisma.organization.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { name: 'asc' },
+          include: { _count: { select: { contacts: true, deals: true } } },
+        });
+      }, 500)) {
+        yield {
+          id: org.id,
+          name: org.name ?? '',
+          cnpj: org.cnpj ?? '',
+          segment: org.segment ?? '',
+          website: org.website ?? '',
+          phone: org.phone ?? '',
+          address: org.address ?? '',
+          instagram: org.instagram ?? '',
+          email: org.email ?? '',
+          contactsCount: org._count?.contacts ?? 0,
+          dealsCount: org._count?.deals ?? 0,
+          createdAt: org.createdAt,
+        };
+      }
+    })();
+
+    await exportRows(req, res, {
+      filenameBase: 'empresas',
+      columns: ORG_EXPORT_COLUMNS,
+      rows,
+      sheetName: 'Empresas',
     });
   } catch (err) {
     next(err);

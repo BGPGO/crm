@@ -19,6 +19,7 @@ import Badge from "@/components/ui/Badge";
 import { Plus, Search, ChevronLeft, ChevronRight, Building2 } from "lucide-react";
 import { formatDate, formatCNPJ } from "@/lib/formatters";
 import { api } from "@/lib/api";
+import ExportButton from "@/components/ExportButton";
 
 interface Organization {
   id: string;
@@ -162,10 +163,17 @@ export default function OrganizationsPage() {
               className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <Button variant="primary" size="sm" onClick={openModal}>
-            <Plus size={14} />
-            Nova Empresa
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              endpoint="/organizations/export"
+              query={{ search: search || undefined }}
+              filenameBase="empresas"
+            />
+            <Button variant="primary" size="sm" onClick={openModal}>
+              <Plus size={14} />
+              Nova Empresa
+            </Button>
+          </div>
         </div>
 
         {/* Table */}

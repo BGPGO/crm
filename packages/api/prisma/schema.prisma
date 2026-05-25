@@ -611,6 +611,8 @@ model LeadTracking {
   landingPage String?
   ip          String?
   userAgent   String?
+  fbp         String? // Meta browser pixel cookie (_fbp) — usado em Conversions API
+  fbc         String? // Meta click ID cookie (_fbc) — usado em Conversions API
 
   contactId String
   contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -618,6 +620,22 @@ model LeadTracking {
   createdAt DateTime @default(now())
 
   @@index([contactId])
+}
+
+// ─── Meta Conversions API (CAPI) ────────────────────────────────────────────
+// Configuração por brand para envio server-side de eventos ao Meta Pixel.
+
+model MetaCapiConfig {
+  id            String  @id @default(cuid())
+  brand         Brand   @unique
+  pixelId       String  @default("")
+  accessToken   String  @default("") // armazenado raw, mascarado na resposta da API
+  testEventCode String? // código de teste do Events Manager (opcional)
+  eventName     String  @default("Purchase") // Purchase | Lead | Lead_Qualificado | custom
+  isActive      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ─── Marketing: Tags ────────────────────────────────────────────────────────

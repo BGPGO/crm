@@ -64,6 +64,7 @@ import duplicateAlertsRouter from './duplicate-alerts';
 import internalRouter from './internal';
 import analyticsExportRouter from './analytics-export';
 import googleAdsRouter from './googleAds';
+import metaCapiRouter from './metaCapi';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -144,5 +145,7 @@ router.use('/reports', reportsRouter);
 router.use('/duplicate-alerts', duplicateAlertsRouter);
 // ── Google Ads — importação manual (fase 1) ─────────────────────────────────
 router.use('/google-ads', googleAdsRouter);
+// ── Meta Conversions API (CAPI) — config + test event ───────────────────────
+router.use('/meta-capi', metaCapiRouter);
 
 export default router;

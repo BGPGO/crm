@@ -5,8 +5,82 @@ import { validate } from '../middleware/validate';
 import { onContactCreated } from '../services/automationTriggerListener';
 import { isValidEmail } from './email-tracking';
 import { normalizePhone } from '../utils/phoneNormalize';
+import { exportRows, batchIterate, ExportColumn } from '../services/export/exporter';
 
 const router = Router();
+
+// ── Helpers shared with /export ─────────────────────────────────────────────
+
+function buildContactsWhere(req: Request): Record<string, unknown> {
+  const { search, organizationId, tagId, engagementLevel } = req.query as Record<string, string | undefined>;
+
+  const where: Record<string, unknown> = { brand: req.brand };
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+  if (organizationId) where.organizationId = organizationId;
+  if (tagId) where.tags = { some: { tagId } };
+  if (engagementLevel && ['ENGAGED', 'INTERMEDIATE', 'DISENGAGED'].includes(engagementLevel)) {
+    where.leadScore = { engagementLevel };
+  }
+  return where;
+}
+
+export const CONTACT_EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'name', label: 'Nome' },
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Telefone' },
+  { key: 'position', label: 'Cargo' },
+  { key: 'birthday', label: 'Aniversário' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'sector', label: 'Setor' },
+  { key: 'organization', label: 'Empresa' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'leadScore', label: 'Lead Score' },
+  { key: 'engagementLevel', label: 'Engajamento' },
+  { key: 'createdAt', label: 'Criado em' },
+  { key: 'updatedAt', label: 'Atualizado em' },
+];
+
+interface ContactRow {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  position: string | null;
+  birthday: Date | null;
+  instagram: string | null;
+  sector: string | null;
+  organization: { name: string | null } | null;
+  tags: Array<{ tag: { name: string | null } }>;
+  leadScore: { score: number | null; engagementLevel: string | null } | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export function serializeContactRow(c: ContactRow): Record<string, unknown> {
+  return {
+    id: c.id,
+    name: c.name ?? '',
+    email: c.email ?? '',
+    phone: c.phone ?? '',
+    position: c.position ?? '',
+    birthday: c.birthday ? new Date(c.birthday).toISOString().slice(0, 10) : '',
+    instagram: c.instagram ?? '',
+    sector: c.sector ?? '',
+    organization: c.organization?.name ?? '',
+    tags: (c.tags || []).map((t) => t.tag?.name).filter(Boolean).join('; '),
+    leadScore: c.leadScore?.score ?? '',
+    engagementLevel: c.leadScore?.engagementLevel ?? '',
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
+}
 
 // GET /api/contacts
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -66,6 +140,45 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     res.json({
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/contacts/export — exporta contatos em CSV ou XLSX
+router.get('/export', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { engagementLevel } = req.query as Record<string, string | undefined>;
+    if (engagementLevel && !['ENGAGED', 'INTERMEDIATE', 'DISENGAGED'].includes(engagementLevel)) {
+      return next(createError('engagementLevel inválido', 400));
+    }
+    const where = buildContactsWhere(req);
+
+    const rows = (async function* () {
+      for await (const contact of batchIterate<ContactRow>(async (skip, take) => {
+        const batch = await prisma.contact.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            organization: { select: { name: true } },
+            tags: { include: { tag: { select: { name: true } } } },
+            leadScore: { select: { score: true, engagementLevel: true } },
+          },
+        });
+        return batch as unknown as ContactRow[];
+      }, 500)) {
+        yield serializeContactRow(contact);
+      }
+    })();
+
+    await exportRows(req, res, {
+      filenameBase: 'contatos',
+      columns: CONTACT_EXPORT_COLUMNS,
+      rows,
+      sheetName: 'Contatos',
     });
   } catch (err) {
     next(err);

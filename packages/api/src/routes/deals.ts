@@ -11,8 +11,203 @@ import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { interruptCadenceOnStageChange } from '../services/cadenceInterruptService';
 import { buildDueDatePersist } from '../utils/taskDateTime';
+import { exportRows, batchIterate, ExportColumn } from '../services/export/exporter';
+import { sendDealWonEvent, sendLeadQualifiedEvent, isMeetingScheduledStage } from '../services/meta/metaCapi';
 
 const router = Router();
+
+// ── Build deals where clause from query params (shared by list + export) ────
+async function buildDealsWhere(req: Request): Promise<Record<string, unknown>> {
+  const query = req.query as Record<string, unknown>;
+  const str = (key: string) => query[key] as string | undefined;
+
+  const where: Record<string, unknown> = { brand: req.brand };
+
+  if (str('pipelineId')) where.pipelineId = str('pipelineId');
+  if (str('stageId')) where.stageId = str('stageId');
+
+  const userIds = str('userIds');
+  if (userIds) {
+    const ids = userIds.split(',').filter(Boolean);
+    where.userId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('userId')) {
+    where.userId = str('userId');
+  }
+  if (str('status')) where.status = str('status');
+
+  const sourceIds = str('sourceIds');
+  if (sourceIds) {
+    const ids = sourceIds.split(',').filter(Boolean);
+    where.sourceId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('sourceId')) {
+    where.sourceId = str('sourceId');
+  }
+
+  const lostReasonIds = str('lostReasonIds');
+  if (lostReasonIds) {
+    const ids = lostReasonIds.split(',').filter(Boolean);
+    where.lostReasonId = ids.length === 1 ? ids[0] : { in: ids };
+  } else if (str('lostReasonId')) {
+    where.lostReasonId = str('lostReasonId');
+  }
+  if (str('contactId')) where.contactId = str('contactId');
+  if (str('organizationId')) where.organizationId = str('organizationId');
+  if (str('classification')) where.classification = str('classification');
+
+  const campaignIds = str('campaignIds');
+  if (campaignIds) {
+    where.campaignId = { in: campaignIds.split(',').filter(Boolean) };
+  } else if (str('campaignId')) {
+    where.campaignId = str('campaignId');
+  }
+
+  if (str('productId')) {
+    where.products = { some: { productId: str('productId') } };
+  }
+
+  const utmCampaign = str('utmCampaign');
+  const utmSource = str('utmSource');
+  const utmMedium = str('utmMedium');
+  if (utmCampaign || utmSource || utmMedium) {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (utmCampaign) { conditions.push(`lt."utmCampaign" = $${params.length + 1}`); params.push(utmCampaign); }
+    if (utmSource) { conditions.push(`lt."utmSource" = $${params.length + 1}`); params.push(utmSource); }
+    if (utmMedium) { conditions.push(`lt."utmMedium" = $${params.length + 1}`); params.push(utmMedium); }
+
+    const contactIds: Array<{ contactId: string }> = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT lt."contactId"
+      FROM "LeadTracking" lt
+      WHERE ${conditions.join(' AND ')}
+        AND lt."createdAt" = (
+          SELECT MIN(lt2."createdAt")
+          FROM "LeadTracking" lt2
+          WHERE lt2."contactId" = lt."contactId"
+        )
+    `, ...params);
+
+    where.contactId = contactIds.length > 0
+      ? { in: contactIds.map((r) => r.contactId) }
+      : { in: [] };
+  }
+
+  const valueMin = str('valueMin');
+  const valueMax = str('valueMax');
+  if (valueMin || valueMax) {
+    const valueFilter: Record<string, number> = {};
+    if (valueMin) valueFilter.gte = parseFloat(valueMin);
+    if (valueMax) valueFilter.lte = parseFloat(valueMax);
+    where.value = valueFilter;
+  }
+
+  if (str('hasOverdueTask') === 'true') {
+    const now = new Date();
+    const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    where.tasks = {
+      some: {
+        status: { not: 'COMPLETED' },
+        OR: [
+          { dueDateFormat: 'UTC', dueDate: { lt: now } },
+          { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } },
+        ],
+      },
+    };
+  }
+
+  const period = str('period');
+  const status = str('status');
+  if (period) {
+    const now = new Date();
+    let from: Date;
+    switch (period) {
+      case 'today': {
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        from = todayStart;
+        break;
+      }
+      case 'this_week': {
+        const dayOfWeek = now.getDay();
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset);
+        break;
+      }
+      case 'this_month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1); break;
+      case 'last_3':
+        from = new Date(now.getFullYear(), now.getMonth() - 3, 1); break;
+      case 'last_6':
+        from = new Date(now.getFullYear(), now.getMonth() - 6, 1); break;
+      case 'this_year':
+        from = new Date(now.getFullYear(), 0, 1); break;
+      default:
+        from = new Date(0);
+    }
+    const dateField = status === 'WON' ? 'closedAt' : 'createdAt';
+    where[dateField] = { gte: from };
+  }
+
+  const parseFrom = (val: string): Date => new Date(val);
+  const parseTo = (val: string): Date => val.includes('T') ? new Date(val) : new Date(val + 'T23:59:59.999Z');
+
+  const createdFrom = str('createdAtFrom');
+  const createdTo = str('createdAtTo');
+  if (createdFrom || createdTo) {
+    const f: Record<string, Date> = {};
+    if (createdFrom) f.gte = parseFrom(createdFrom);
+    if (createdTo) f.lte = parseTo(createdTo);
+    where.createdAt = { ...((where.createdAt as Record<string, Date>) || {}), ...f };
+  }
+  const updatedFrom = str('updatedAtFrom');
+  const updatedTo = str('updatedAtTo');
+  if (updatedFrom || updatedTo) {
+    const f: Record<string, Date> = {};
+    if (updatedFrom) f.gte = parseFrom(updatedFrom);
+    if (updatedTo) f.lte = parseTo(updatedTo);
+    where.updatedAt = f;
+  }
+  const closedFrom = str('closedAtFrom');
+  const closedTo = str('closedAtTo');
+  if (closedFrom || closedTo) {
+    const f: Record<string, Date> = {};
+    if (closedFrom) f.gte = parseFrom(closedFrom);
+    if (closedTo) f.lte = parseTo(closedTo);
+    where.closedAt = f;
+  }
+  const expectedFrom = str('expectedCloseDateFrom');
+  const expectedTo = str('expectedCloseDateTo');
+  if (expectedFrom || expectedTo) {
+    const f: Record<string, Date> = {};
+    if (expectedFrom) f.gte = parseFrom(expectedFrom);
+    if (expectedTo) f.lte = parseTo(expectedTo);
+    where.expectedCloseDate = f;
+  }
+
+  return where;
+}
+
+const DEAL_EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'id', label: 'ID' },
+  { key: 'title', label: 'Título' },
+  { key: 'value', label: 'Valor' },
+  { key: 'status', label: 'Status' },
+  { key: 'stage', label: 'Etapa' },
+  { key: 'pipeline', label: 'Pipeline' },
+  { key: 'user', label: 'Responsável' },
+  { key: 'contactName', label: 'Contato (Nome)' },
+  { key: 'contactEmail', label: 'Contato (Email)' },
+  { key: 'contactPhone', label: 'Contato (Telefone)' },
+  { key: 'organization', label: 'Empresa' },
+  { key: 'products', label: 'Produtos' },
+  { key: 'source', label: 'Fonte' },
+  { key: 'lostReason', label: 'Motivo Perda' },
+  { key: 'classification', label: 'Classificação' },
+  { key: 'utmCampaign', label: 'UTM Campaign' },
+  { key: 'utmSource', label: 'UTM Source' },
+  { key: 'utmMedium', label: 'UTM Medium' },
+  { key: 'createdAt', label: 'Criado em' },
+  { key: 'closedAt', label: 'Fechado em' },
+  { key: 'expectedCloseDate', label: 'Previsão de Fechamento' },
+];
 
 const dealInclude = {
   pipeline: { select: { id: true, name: true } },
@@ -325,6 +520,87 @@ router.get('/sdr-diagnostics', async (req, res, next) => {
   }
 });
 
+// GET /api/deals/export — exporta deals em CSV ou XLSX
+router.get('/export', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const where = await buildDealsWhere(req);
+
+    const rows = (async function* () {
+      for await (const deal of batchIterate<any>(async (skip, take) => {
+        return prisma.deal.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            pipeline: { select: { name: true } },
+            stage: { select: { name: true } },
+            user: { select: { name: true } },
+            contact: {
+              select: {
+                name: true,
+                email: true,
+                phone: true,
+                leadTrackings: {
+                  orderBy: { createdAt: 'asc' },
+                  take: 1,
+                  select: { utmCampaign: true, utmSource: true, utmMedium: true },
+                },
+              },
+            },
+            organization: { select: { name: true } },
+            source: { select: { name: true } },
+            lostReason: { select: { name: true } },
+            products: { include: { product: { select: { name: true } } } },
+          },
+        });
+      }, 500)) {
+        const firstTracking = deal.contact?.leadTrackings?.[0] ?? null;
+        const productsStr = (deal.products || [])
+          .map((p: any) => {
+            const name = p.product?.name ?? 'Produto';
+            const qty = p.quantity ?? 1;
+            return qty > 1 ? `${name} x${qty}` : name;
+          })
+          .join('; ');
+
+        yield {
+          id: deal.id,
+          title: deal.title ?? '',
+          value: deal.value !== null && deal.value !== undefined ? Number(deal.value) : '',
+          status: deal.status ?? '',
+          stage: deal.stage?.name ?? '',
+          pipeline: deal.pipeline?.name ?? '',
+          user: deal.user?.name ?? '',
+          contactName: deal.contact?.name ?? '',
+          contactEmail: deal.contact?.email ?? '',
+          contactPhone: deal.contact?.phone ?? '',
+          organization: deal.organization?.name ?? '',
+          products: productsStr,
+          source: deal.source?.name ?? '',
+          lostReason: deal.status === 'LOST' ? (deal.lostReason?.name ?? '') : '',
+          classification: deal.classification ?? '',
+          utmCampaign: firstTracking?.utmCampaign ?? '',
+          utmSource: firstTracking?.utmSource ?? '',
+          utmMedium: firstTracking?.utmMedium ?? '',
+          createdAt: deal.createdAt,
+          closedAt: deal.closedAt ?? '',
+          expectedCloseDate: deal.expectedCloseDate ?? '',
+        };
+      }
+    })();
+
+    await exportRows(req, res, {
+      filenameBase: 'negociacoes',
+      columns: DEAL_EXPORT_COLUMNS,
+      rows,
+      sheetName: 'Negociações',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/deals/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -402,6 +678,11 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.stageId && req.body.stageId !== existing.stageId) {
       const { onStageChanged } = await import('../services/automationTriggerListener');
       onStageChanged(deal.contactId, deal.stageId, deal.id);
+
+      const newStage = await prisma.pipelineStage.findUnique({ where: { id: deal.stageId }, select: { name: true } });
+      if (isMeetingScheduledStage(newStage?.name)) {
+        sendLeadQualifiedEvent(deal).catch(err => console.error('[deals] Meta CAPI Lead_Qualificado error:', err));
+      }
     }
 
     res.json({ data: deal });
@@ -473,6 +754,10 @@ router.patch(
 
       if (deal.contactId) {
         onStageChanged(deal.contactId, stageId, deal.id);
+      }
+
+      if (isMeetingScheduledStage(toStage)) {
+        sendLeadQualifiedEvent(deal).catch(err => console.error('[deals] Meta CAPI Lead_Qualificado error:', err));
       }
 
       res.json({ data: deal });
@@ -574,6 +859,23 @@ router.patch(
             closedAt: now,
             batch: true,
           });
+        });
+      } else if (status === 'WON') {
+        deals.forEach((deal) => {
+          dispatchWebhook('deal.won', {
+            dealId: deal.id,
+            dealTitle: deal.title,
+            closedAt: now,
+            batch: true,
+          });
+          // Meta Conversions API (server-side) — fire-and-forget
+          sendDealWonEvent({
+            id: deal.id,
+            brand: deal.brand,
+            contactId: deal.contactId,
+            value: (deal as { value?: unknown }).value,
+            closedAt: now,
+          }).catch((err) => console.error('[deals] Meta CAPI error (batch):', err));
         });
       }
 
@@ -677,6 +979,15 @@ router.patch(
       // Dispatch outgoing webhook
       if (status === 'WON') {
         dispatchWebhook('deal.won', { dealId: deal.id, dealTitle: deal.title, closedAt: deal.closedAt });
+
+        // Meta Conversions API (server-side) — fire-and-forget
+        sendDealWonEvent({
+          id: deal.id,
+          brand: deal.brand,
+          contactId: deal.contactId,
+          value: deal.value,
+          closedAt: deal.closedAt as Date | null,
+        }).catch((err) => console.error('[deals] Meta CAPI error:', err));
 
         // Send sale notifications (email + WhatsApp) — fire-and-forget
         const products = await prisma.dealProduct.findMany({

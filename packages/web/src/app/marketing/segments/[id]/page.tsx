@@ -19,6 +19,7 @@ import {
 import { RefreshCw, ArrowLeft, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/formatters";
+import ExportButton from "@/components/ExportButton";
 
 interface SegmentFilter {
   field: string;
@@ -228,15 +229,22 @@ export default function SegmentDetailPage() {
                     <span>Atualizado em {formatDate(segment.updatedAt)}</span>
                   </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={refreshing}
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw size={14} />
-                  Atualizar Contagem
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ExportButton
+                    endpoint={`/segments/${id}/export`}
+                    filenameBase={`segmento_${(segment.name || 'export').replace(/\s+/g, '_').toLowerCase()}`}
+                    label="Exportar Contatos"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={refreshing}
+                    onClick={handleRefresh}
+                  >
+                    <RefreshCw size={14} />
+                    Atualizar Contagem
+                  </Button>
+                </div>
               </div>
             </Card>
 

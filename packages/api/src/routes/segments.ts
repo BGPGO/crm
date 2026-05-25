@@ -3,6 +3,8 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { buildSegmentWhere, buildSegmentWhereFromGroups, SegmentFilter, FilterGroup } from '../services/segmentEngine';
+import { exportRows, batchIterate } from '../services/export/exporter';
+import { CONTACT_EXPORT_COLUMNS, serializeContactRow } from './contacts';
 
 const router = Router();
 
@@ -213,6 +215,45 @@ router.post('/:id/refresh-count', async (req: Request, res: Response, next: Next
     });
 
     res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/segments/:id/export — exporta contatos do segmento em CSV ou XLSX
+router.get('/:id/export', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const segment = await prisma.segment.findUnique({ where: { id: req.params.id } });
+    if (!segment) return next(createError('Segment not found', 404));
+
+    const filters = segment.filters as unknown as SegmentFilter[];
+    const where = buildSegmentWhere(filters, segment.brand);
+
+    const rows = (async function* () {
+      for await (const contact of batchIterate<any>(async (skip, take) => {
+        return prisma.contact.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            organization: { select: { name: true } },
+            tags: { include: { tag: { select: { name: true } } } },
+            leadScore: { select: { score: true, engagementLevel: true } },
+          },
+        });
+      }, 500)) {
+        yield serializeContactRow(contact);
+      }
+    })();
+
+    const safeName = (segment.name || 'segmento').replace(/\s+/g, '_').toLowerCase();
+    await exportRows(req, res, {
+      filenameBase: `segmento_${safeName}`,
+      columns: CONTACT_EXPORT_COLUMNS,
+      rows,
+      sheetName: 'Contatos',
+    });
   } catch (err) {
     next(err);
   }

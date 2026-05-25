@@ -38,6 +38,7 @@ import type { Deal } from "@/components/pipeline/DealCard";
 import DuplicateAlerts from "@/components/pipeline/DuplicateAlerts";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/formatters";
+import ExportButton from "@/components/ExportButton";
 
 // ─── API response types ───────────────────────────────────────────────────────
 
@@ -979,6 +980,19 @@ export default function PipelinePage() {
 
         {/* Right side actions */}
         <div className="ml-auto flex items-center gap-2">
+          <ExportButton
+            endpoint="/deals/export"
+            query={{
+              status: filter && filter !== "all"
+                ? ({ active: "OPEN", won: "WON", lost: "LOST" } as Record<string, string>)[filter] ?? filter
+                : undefined,
+              userIds: userFilter || undefined,
+              period: periodFilter && periodFilter !== "all" ? periodFilter : undefined,
+              pipelineId: pipelineId || undefined,
+              ...(advancedFilters as Record<string, string | undefined>),
+            }}
+            filenameBase="negociacoes"
+          />
           <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 transition-colors shadow-sm"
