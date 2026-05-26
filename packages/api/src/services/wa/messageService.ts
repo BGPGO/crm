@@ -149,7 +149,15 @@ export class WaMessageService {
       }),
       prisma.waConversation.update({
         where: { id: conversationId },
-        data: { lastMessageAt: new Date() },
+        data: {
+          lastMessageAt: new Date(),
+          // Toda msg enviada pelo bot (resposta conversacional, cadência, etc) marca
+          // a conversa como "IA respondeu — humano precisa revisar". Broadcasts usam
+          // WA_SYSTEM, então não disparam aqui.
+          ...(opts.senderType === 'WA_BOT'
+            ? { aiLastRespondedUnseen: true, aiLastResponseAt: new Date() }
+            : {}),
+        },
       }),
     ]);
     return message;
