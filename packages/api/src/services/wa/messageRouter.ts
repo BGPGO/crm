@@ -268,6 +268,8 @@ export class WaMessageRouter {
             data: {
               lastMessageAt: inboundAt,
               lastClientMessageAt: inboundAt,
+              // Cliente voltou — limpa flag de IA aguardando revisão
+              aiLastRespondedUnseen: false,
               // Reopen conversation if it was closed
               ...(conversation.status !== 'WA_OPEN' ? { status: 'WA_OPEN' } : {}),
             },

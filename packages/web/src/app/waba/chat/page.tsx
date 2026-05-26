@@ -34,6 +34,7 @@ import {
   Building2,
   Paperclip,
   AlertOctagon,
+  Zap,
 } from "lucide-react";
 import clsx from "clsx";
 import { api, getAuthHeaders } from "@/lib/api";
@@ -100,6 +101,8 @@ interface WaConversation {
   assignedUser: WaAssignedUser | null;
   status: "WA_OPEN" | "WA_CLOSED" | "WA_ARCHIVED";
   needsHumanAttention: boolean;
+  aiLastRespondedUnseen?: boolean;
+  aiLastResponseAt?: string | null;
   optedOut: boolean;
   unreadCount: number;
   windowOpen: boolean;
@@ -163,7 +166,7 @@ interface DealSummary {
 
 // ─── Filter type ──────────────────────────────────────────────────────────────
 
-type FilterKey = "all" | "open" | "unread" | "bot" | "human" | "zapi";
+type FilterKey = "all" | "open" | "unread" | "bot" | "human" | "ai_unseen" | "zapi";
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
@@ -793,6 +796,7 @@ export default function WabaChatPage() {
         return lastMsg && lastMsg.senderType === "WA_BOT";
       }
       if (activeFilter === "human") return conv.needsHumanAttention;
+      if (activeFilter === "ai_unseen") return Boolean(conv.aiLastRespondedUnseen);
       return true;
     });
   }, [conversations, legacyConversations, activeFilter]);
@@ -1108,6 +1112,7 @@ export default function WabaChatPage() {
                 { key: "unread" as FilterKey, label: "Não lidos", count: conversations.reduce((s, c) => s + (c.unreadCount > 0 ? 1 : 0), 0) || null, color: null },
                 { key: "bot" as FilterKey, label: "Bot", count: null, color: null },
                 { key: "human" as FilterKey, label: "Humano", count: stats.needsHuman, color: null },
+                { key: "ai_unseen" as FilterKey, label: "IA respondeu", count: conversations.reduce((s, c) => s + (c.aiLastRespondedUnseen ? 1 : 0), 0) || null, color: "emerald" },
                 { key: "zapi" as FilterKey, label: "Z-API", count: legacyConversations.length || null, color: "amber" },
               ] as const
             ).map((f) => (
@@ -1119,10 +1124,14 @@ export default function WabaChatPage() {
                   activeFilter === f.key
                     ? f.color === "amber"
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
-                      : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                      : f.color === "emerald"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
                     : f.color === "amber"
                       ? "bg-amber-50 text-amber-500 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+                      : f.color === "emerald"
+                        ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-900/40"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                 )}
               >
                 {f.label}
@@ -1335,6 +1344,16 @@ export default function WabaChatPage() {
                         {hasUnread && (
                           <span className="flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold rounded-full px-1">
                             {conv.unreadCount}
+                          </span>
+                        )}
+                        {/* IA respondeu, aguardando revisão humana */}
+                        {conv.aiLastRespondedUnseen && (
+                          <span
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 flex-shrink-0"
+                            title="IA respondeu — revise"
+                          >
+                            <Zap size={10} />
+                            IA
                           </span>
                         )}
                         {/* Needs human */}

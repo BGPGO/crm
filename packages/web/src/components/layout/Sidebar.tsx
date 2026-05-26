@@ -36,6 +36,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useBrand } from "@/contexts/BrandContext";
 import BrandSwitcher from "@/components/BrandSwitcher";
 import { api } from "@/lib/api";
+import { useWabaUnreadCount } from "@/hooks/useWabaUnreadCount";
 
 const baseNavItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
@@ -94,6 +95,7 @@ export default function TopNavbar() {
   const [overdueCount, setOverdueCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const wabaCount = useWabaUnreadCount();
 
   // Filter nav items based on user permissions
   const navItems = useMemo(() =>
@@ -204,18 +206,26 @@ export default function TopNavbar() {
             href === "/"
               ? pathname === "/"
               : pathname.startsWith(href);
+          const showWabaBadge = href === "/waba" && wabaCount.total > 0;
           return (
             <Link
               key={href}
               href={href}
               className={clsx(
-                "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                "relative flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
                 isActive
                   ? "bg-blue-50 text-blue-700"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               )}
             >
-              <Icon size={15} className="flex-shrink-0" />
+              <span className="relative flex-shrink-0">
+                <Icon size={15} />
+                {showWabaBadge && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full leading-none">
+                    {wabaCount.total > 99 ? "99+" : wabaCount.total}
+                  </span>
+                )}
+              </span>
               <span>{label}</span>
             </Link>
           );
@@ -442,6 +452,7 @@ export default function TopNavbar() {
                   href === "/"
                     ? pathname === "/"
                     : pathname.startsWith(href);
+                const showWabaBadge = href === "/waba" && wabaCount.total > 0;
                 return (
                   <Link
                     key={href}
@@ -454,7 +465,14 @@ export default function TopNavbar() {
                         : "text-gray-600 hover:bg-gray-50"
                     )}
                   >
-                    <Icon size={18} className="flex-shrink-0" />
+                    <span className="relative flex-shrink-0">
+                      <Icon size={18} />
+                      {showWabaBadge && (
+                        <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+                          {wabaCount.total > 99 ? "99+" : wabaCount.total}
+                        </span>
+                      )}
+                    </span>
                     {label}
                   </Link>
                 );

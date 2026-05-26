@@ -460,10 +460,15 @@ export class WaBotService {
         });
       }
 
-      // 12. Update conversation timestamp
+      // 12. Update conversation timestamp + flag de IA aguardando revisão humana
+      const aiRespondedAt = new Date();
       await prisma.waConversation.update({
         where: { id: conversationId },
-        data: { lastMessageAt: new Date() },
+        data: {
+          lastMessageAt: aiRespondedAt,
+          aiLastRespondedUnseen: true,
+          aiLastResponseAt: aiRespondedAt,
+        },
       });
 
       // 13. Send the response via Cloud API

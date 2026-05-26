@@ -257,6 +257,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         status: 'WA_OPEN',
         contactId: linkContactId,
         assignedUserId: userId || null,
+        // Garante que a conversa nova apareça no topo da lista (ordering por lastMessageAt desc)
+        lastMessageAt: new Date(),
       },
       include: {
         contact: { select: { id: true, name: true, email: true, phone: true } },
@@ -616,6 +618,40 @@ router.get('/dashboard', async (req: Request, res: Response, next: NextFunction)
 
     dashboardCache = { data, expiresAt: Date.now() + 60_000 };
     res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/wa/conversations/unread-count — Badge counter (sidebar) ───────
+// IMPORTANTE: precisa vir ANTES de qualquer rota com /:id para o Express
+// não tratar "unread-count" como um id.
+
+router.get('/unread-count', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const [aiUnseenCount, unreadInboundCount, total] = await Promise.all([
+      prisma.waConversation.count({ where: { aiLastRespondedUnseen: true } }),
+      // Conversas abertas com mensagem do cliente posterior ao lastReadAt
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint as count
+        FROM "WaConversation"
+        WHERE "status" = 'WA_OPEN'
+          AND "lastClientMessageAt" IS NOT NULL
+          AND ("lastReadAt" IS NULL OR "lastClientMessageAt" > "lastReadAt")
+      `,
+      // União: precisa de atenção por qualquer um dos critérios
+      prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*)::bigint as count
+        FROM "WaConversation"
+        WHERE "aiLastRespondedUnseen" = true
+           OR ("status" = 'WA_OPEN'
+               AND "lastClientMessageAt" IS NOT NULL
+               AND ("lastReadAt" IS NULL OR "lastClientMessageAt" > "lastReadAt"))
+      `,
+    ]);
+    const unread = Number(unreadInboundCount[0]?.count ?? 0);
+    const totalPending = Number(total[0]?.count ?? 0);
+    res.json({ data: { aiUnseen: aiUnseenCount, unread, total: totalPending } });
   } catch (err) {
     next(err);
   }
@@ -1029,11 +1065,13 @@ router.post('/:id/messages', async (req: Request, res: Response, next: NextFunct
         return next(createError(`Unsupported message type: ${type}`, 400));
     }
 
-    // Update conversation lastMessageAt
+    // Update conversation lastMessageAt + limpa flag de IA aguardando revisão
+    // (esta rota é sempre disparada por humano via UI — senderType WA_HUMAN em todos os branches)
     await prisma.waConversation.update({
       where: { id: conversation.id },
       data: {
         lastMessageAt: new Date(),
+        aiLastRespondedUnseen: false,
         // Auto-assign user if not already assigned
         ...(!conversation.assignedUserId && userId ? { assignedUserId: userId } : {}),
       },
@@ -1060,7 +1098,13 @@ router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => 
 
     if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
     if (status !== undefined) data.status = status;
-    if (needsHumanAttention !== undefined) data.needsHumanAttention = needsHumanAttention;
+    if (needsHumanAttention !== undefined) {
+      data.needsHumanAttention = needsHumanAttention;
+      // Humano assumiu controle — limpa flag de IA aguardando revisão
+      if (needsHumanAttention === true) {
+        data.aiLastRespondedUnseen = false;
+      }
+    }
 
     if (Object.keys(data).length === 0) {
       return next(createError('No valid fields to update', 400));
@@ -1144,7 +1188,7 @@ router.post('/:id/read', async (req: Request, res: Response, next: NextFunction)
 
     await prisma.waConversation.update({
       where: { id: req.params.id },
-      data: { lastReadAt: new Date() },
+      data: { lastReadAt: new Date(), aiLastRespondedUnseen: false },
     });
 
     res.json({ ok: true });

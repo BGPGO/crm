@@ -1755,6 +1755,10 @@ model WaConversation {
   needsHumanAttention Boolean @default(false)
   meetingBooked       Boolean @default(false)
 
+  // ── IA respondeu e ainda não foi revisado por humano nem cliente voltou ──
+  aiLastRespondedUnseen Boolean   @default(false)
+  aiLastResponseAt      DateTime?
+
   // ── Opt-out ──
   optedOut   Boolean   @default(false)
   optedOutAt DateTime?
