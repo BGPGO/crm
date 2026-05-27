@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
+import { signalFinhubContractStage } from './finhubBridge';
 
 // Event types that Autentique uses to signal "all signed".
 // Includes both dot-separated (document.finished) and underscore (document_finished)
@@ -123,6 +124,7 @@ export async function handleAutentiqueWebhook(req: Request, res: Response) {
         });
         console.log(`[contract-webhook] Pending contract signatures in DB: ${pending}`);
         if (pending === 0) await handleAllSigned(contract);
+        else void signalFinhubContractStage('signature', contract);
       }
 
       return res.status(200).json({ received: true });
@@ -249,6 +251,9 @@ async function handleAllSigned(contract: any) {
     where: { contractId: contract.id },
     data: { status: 'signed', signedAt: new Date() },
   });
+
+  // Sinaliza o FinHub (PUSH): cria/enriquece o cliente -> pit_wall -> Fase Operacional
+  void signalFinhubContractStage('signed', contract);
 
   await moveDealToWon({
     dealId: contract.dealId,
