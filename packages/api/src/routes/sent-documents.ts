@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { signalFinhubContractStage } from '../services/finhubBridge';
 
 const router = Router();
 
@@ -283,6 +284,21 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
           },
         });
       }
+
+      // Sinaliza o FinHub (mesmo que o webhook faria) — fecha a lacuna do check-status manual.
+      void signalFinhubContractStage('signed', {
+        id: sentDoc.id,
+        autentiqueDocumentId: sentDoc.autentiqueDocumentId,
+        isTest: false,
+        cnpj: sentDoc.deal?.organization?.cnpj ?? null,
+        razaoSocial: (sentDoc.deal?.organization?.name && sentDoc.deal.organization.name !== '-')
+          ? sentDoc.deal.organization.name
+          : (sentDoc.deal?.title ?? sentDoc.documentName),
+        nomeFantasia: sentDoc.documentName,
+        produto: docTypeLabel,
+        valorMensal: sentDoc.deal?.value ?? null,
+        deal: sentDoc.deal,
+      }, { kind: sentDoc.documentType, documentName: sentDoc.documentName, autentiqueDocumentId: sentDoc.autentiqueDocumentId });
     }
 
     res.json({ data: updated });
