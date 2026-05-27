@@ -27,7 +27,7 @@ interface DealTasksProps {
 
 const TYPE_COLORS: Record<string, string> = {
   Ligação: "bg-orange-100 text-orange-600",
-  Reunião: "bg-blue-100 text-blue-600",
+  Reunião: "bg-petrol-100 text-petrol-600",
   Proposta: "bg-purple-100 text-purple-600",
   Email: "bg-cyan-100 text-cyan-600",
   Outro: "bg-gray-100 text-gray-600",
@@ -42,7 +42,7 @@ const MEETING_SOURCE_CONFIG: Record<
   { label: string; className: string }
 > = {
   SDR_IA:         { label: "SDR IA",  className: "bg-green-100 text-green-700" },
-  CALENDLY_EMAIL: { label: "Email",   className: "bg-blue-100 text-blue-700" },
+  CALENDLY_EMAIL: { label: "Email",   className: "bg-petrol-100 text-petrol-700" },
   CALENDLY_LP:    { label: "LP",      className: "bg-purple-100 text-purple-700" },
   HUMANO:         { label: "Humano",  className: "bg-gray-100 text-gray-600" },
 };
@@ -79,7 +79,7 @@ function EmptyState({ onAdd }: { onAdd?: () => void }) {
       {onAdd && (
         <button
           onClick={onAdd}
-          className="mt-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md transition-colors"
+          className="mt-1 text-xs font-semibold text-white bg-petrol-600 hover:bg-petrol-700 px-4 py-2 rounded-md transition-colors"
         >
           + Criar tarefa
         </button>
@@ -103,7 +103,7 @@ export default function DealTasks({ tasks, onAdd, onToggle, onEdit, onPostpone }
         {tasks.length > 0 && onAdd && (
           <button
             onClick={onAdd}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+            className="text-xs font-semibold text-petrol-600 hover:text-petrol-700 transition-colors"
           >
             + Criar tarefa
           </button>
@@ -173,7 +173,7 @@ function TaskRow({
           ? "border-gray-100 bg-gray-50"
           : isOverdue
             ? "border-red-200 bg-red-50 hover:border-red-300"
-            : "border-gray-200 bg-white hover:border-blue-200",
+            : "border-gray-200 bg-white hover:border-petrol-200",
         onEdit && "cursor-pointer"
       )}
       onClick={() => onEdit?.(task)}
@@ -184,7 +184,7 @@ function TaskRow({
           e.stopPropagation();
           onToggle?.(task.id);
         }}
-        className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors"
+        className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-petrol-500 transition-colors"
       >
         {task.done ? (
           <CheckCircle2 size={18} className="text-green-500" />
@@ -201,7 +201,7 @@ function TaskRow({
               ? "line-through text-gray-400"
               : isOverdue
                 ? "text-red-600"
-                : "text-gray-800 group-hover:text-blue-600"
+                : "text-gray-800 group-hover:text-petrol-600"
           )}
         >
           {task.title}

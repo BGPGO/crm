@@ -45,7 +45,7 @@ export default function RichTextEditor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: "text-blue-600 underline cursor-pointer",
+          class: "text-petrol-600 underline cursor-pointer",
         },
       }),
       Placeholder.configure({

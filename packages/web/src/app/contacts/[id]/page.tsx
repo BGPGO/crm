@@ -114,7 +114,7 @@ interface ContactResponse {
 
 function DealStatusBadge({ status }: { status: Deal["status"] }) {
   const map: Record<Deal["status"], { label: string; className: string }> = {
-    OPEN: { label: "Em aberto", className: "bg-blue-50 text-blue-700" },
+    OPEN: { label: "Em aberto", className: "bg-petrol-50 text-petrol-700" },
     WON: { label: "Ganho", className: "bg-green-50 text-green-700" },
     LOST: { label: "Perdido", className: "bg-red-50 text-red-700" },
   };
@@ -222,7 +222,7 @@ export default function ContactDetailPage() {
             </p>
             <Link
               href="/contacts"
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-petrol-600 hover:underline"
             >
               ← Voltar para Contatos
             </Link>
@@ -257,7 +257,7 @@ export default function ContactDetailPage() {
           <aside className="w-full sm:w-72 flex-shrink-0 space-y-4">
             {/* Avatar + name card */}
             <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col items-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-2xl font-bold flex-shrink-0">
+              <div className="w-16 h-16 rounded-full bg-petrol-100 text-petrol-700 flex items-center justify-center text-2xl font-bold flex-shrink-0">
                 {avatarLetter}
               </div>
               <div className="text-center">
@@ -272,7 +272,7 @@ export default function ContactDetailPage() {
                 {contact.organization && (
                   <Link
                     href={`/organizations/${contact.organization.id}`}
-                    className="text-xs text-blue-600 hover:underline flex items-center justify-center gap-1 mt-1"
+                    className="text-xs text-petrol-600 hover:underline flex items-center justify-center gap-1 mt-1"
                   >
                     <Building2 size={11} />
                     {contact.organization.name}
@@ -294,7 +294,7 @@ export default function ContactDetailPage() {
                 <div className="flex items-start gap-2 py-0.5">
                   <span className="mt-2.5 text-gray-400 flex-shrink-0">
                     {saving === "name" ? (
-                      <span className="inline-block w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      <span className="inline-block w-3 h-3 border-2 border-petrol-400 border-t-transparent rounded-full animate-spin" />
                     ) : null}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -420,7 +420,7 @@ export default function ContactDetailPage() {
                         <span className="text-xs text-gray-400">Empresa</span>
                         <Link
                           href={`/organizations/${contact.organization.id}`}
-                          className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                          className="text-sm text-petrol-600 hover:underline flex items-center gap-1"
                         >
                           {contact.organization.name}
                           <ExternalLink size={11} />
@@ -480,7 +480,7 @@ export default function ContactDetailPage() {
                     onClick={() => setActiveTab(tabId)}
                     className={`flex items-center gap-2 px-3 sm:px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                       activeTab === tabId
-                        ? "border-blue-600 text-blue-600"
+                        ? "border-petrol-600 text-petrol-600"
                         : "border-transparent text-gray-500 hover:text-gray-800"
                     }`}
                   >
@@ -515,10 +515,10 @@ export default function ContactDetailPage() {
                         <Link
                           key={deal.id}
                           href={`/pipeline/${deal.id}`}
-                          className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/30 transition-colors group"
+                          className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-petrol-300 hover:bg-petrol-50/30 transition-colors group"
                         >
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700 truncate">
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-petrol-700 truncate">
                               {deal.title}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">
@@ -532,7 +532,7 @@ export default function ContactDetailPage() {
                             <DealStatusBadge status={deal.status} />
                             <ExternalLink
                               size={13}
-                              className="text-gray-300 group-hover:text-blue-500 transition-colors"
+                              className="text-gray-300 group-hover:text-petrol-500 transition-colors"
                             />
                           </div>
                         </Link>
@@ -608,8 +608,8 @@ export default function ContactDetailPage() {
                       <ol className="relative border-l border-gray-200 ml-3 space-y-6">
                         {contact.activities.map((activity) => (
                           <li key={activity.id} className="ml-6">
-                            <span className="absolute -left-2 flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 ring-4 ring-white">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                            <span className="absolute -left-2 flex items-center justify-center w-4 h-4 rounded-full bg-petrol-100 ring-4 ring-white">
+                              <span className="w-1.5 h-1.5 rounded-full bg-petrol-600" />
                             </span>
                             <p className="text-sm text-gray-700">
                               {activity.description}

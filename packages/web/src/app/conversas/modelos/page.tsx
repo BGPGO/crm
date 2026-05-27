@@ -187,7 +187,7 @@ export default function ModelosPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Buscar por nome ou conteudo..."
-                className="w-full sm:w-64 pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full sm:w-64 pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
 
@@ -195,7 +195,7 @@ export default function ModelosPage() {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent bg-white"
             >
               <option value="">Todas categorias</option>
               {CATEGORY_OPTIONS.map((cat) => (
@@ -208,7 +208,7 @@ export default function ModelosPage() {
             {/* New button */}
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 transition-colors whitespace-nowrap"
             >
               <Plus size={16} />
               Novo Modelo
@@ -258,7 +258,7 @@ export default function ModelosPage() {
                         <p>Nenhum modelo encontrado</p>
                         <button
                           onClick={openCreateModal}
-                          className="text-blue-600 text-sm font-medium hover:underline"
+                          className="text-petrol-600 text-sm font-medium hover:underline"
                         >
                           Criar primeiro modelo
                         </button>
@@ -286,7 +286,7 @@ export default function ModelosPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEditModal(tpl)}
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                            className="inline-flex items-center gap-1 text-xs text-petrol-600 font-medium hover:underline"
                           >
                             <Pencil size={12} />
                             Editar
@@ -350,7 +350,7 @@ export default function ModelosPage() {
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Ex: Boas-vindas Lead"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                 />
               </div>
 
@@ -362,7 +362,7 @@ export default function ModelosPage() {
                 <select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent bg-white"
                 >
                   {CATEGORY_OPTIONS.map((cat) => (
                     <option key={cat.value} value={cat.value}>
@@ -382,7 +382,7 @@ export default function ModelosPage() {
                   onChange={(e) => setFormContent(e.target.value)}
                   rows={6}
                   placeholder="Ola {{nome}}, tudo bem? ..."
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y font-mono"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-y font-mono"
                 />
                 <p className="mt-1.5 text-xs text-gray-400">
                   Placeholders disponiveis:{" "}
@@ -424,7 +424,7 @@ export default function ModelosPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !formName.trim() || !formContent.trim()}
-                className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 text-sm bg-petrol-600 text-white font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving
                   ? "Salvando..."

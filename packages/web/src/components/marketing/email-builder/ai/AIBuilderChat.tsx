@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Sparkles, Send, Check, AlertCircle } from "lucide-react";
@@ -33,7 +33,7 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
 ];
 
 const QUICK_CHIPS = [
-  "Use cores da marca BGP (azul e branco)",
+  "Use cores da marca Bertuzzi (petróleo e branco)",
   "Adicione CTA",
   "Tom mais consultivo",
   "Adicione rodape BGP Patrimonial",
@@ -47,9 +47,9 @@ const QUICK_CHIPS = [
 function PulsingDots() {
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
-      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
-      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-petrol-500 animate-[pulse-dot_1.4s_ease-in-out_infinite]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-petrol-500 animate-[pulse-dot_1.4s_ease-in-out_0.2s_infinite]" />
+      <span className="h-1.5 w-1.5 rounded-full bg-petrol-500 animate-[pulse-dot_1.4s_ease-in-out_0.4s_infinite]" />
       <style>{`
         @keyframes pulse-dot {
           0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
@@ -175,7 +175,7 @@ export default function AIBuilderChat({
         <div className="p-4">
           {/* Header */}
           <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-petrol-500 to-purple-500">
               <Sparkles size={14} className="text-white" />
             </div>
             <div>
@@ -198,7 +198,7 @@ export default function AIBuilderChat({
               disabled={loading}
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white
                          placeholder:text-gray-400 resize-none
-                         focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
+                         focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-400
                          disabled:opacity-50 disabled:cursor-not-allowed
                          transition-all duration-200"
             />
@@ -215,7 +215,7 @@ export default function AIBuilderChat({
                 onChange={(e) => setTone(e.target.value as Tone)}
                 disabled={loading}
                 className="w-full px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg
-                           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
+                           focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-400
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-200"
               >
@@ -239,7 +239,7 @@ export default function AIBuilderChat({
                 disabled={loading}
                 className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white
                            placeholder:text-gray-400
-                           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400
+                           focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-400
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-200"
               />
@@ -260,8 +260,8 @@ export default function AIBuilderChat({
             disabled={!topic.trim() || loading}
             className="w-full flex items-center justify-center gap-2 px-4 py-2
                        text-sm font-medium text-white
-                       bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg
-                       hover:from-blue-700 hover:to-blue-600
+                       bg-gradient-to-r from-petrol-600 to-petrol-500 rounded-lg
+                       hover:from-petrol-700 hover:to-petrol-600
                        disabled:opacity-50 disabled:cursor-not-allowed
                        shadow-sm hover:shadow-md
                        transition-all duration-200"
@@ -296,8 +296,8 @@ export default function AIBuilderChat({
                 key={chip}
                 onClick={() => handleChipClick(chip)}
                 className="px-2.5 py-1 text-xs font-medium rounded-full
-                           bg-blue-50 text-blue-700 border border-blue-100
-                           hover:bg-blue-100 hover:border-blue-200
+                           bg-petrol-50 text-petrol-700 border border-petrol-100
+                           hover:bg-petrol-100 hover:border-petrol-200
                            transition-all duration-150 cursor-pointer"
               >
                 {chip}
@@ -328,14 +328,14 @@ export default function AIBuilderChat({
         <div
           className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg
                       border border-gray-200 shadow-sm
-                      focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300
+                      focus-within:ring-2 focus-within:ring-petrol-500/20 focus-within:border-petrol-300
                       transition-all duration-200"
         >
           <div className="shrink-0">
             {loading ? (
               <PulsingDots />
             ) : (
-              <Sparkles size={16} className="text-blue-500" />
+              <Sparkles size={16} className="text-petrol-500" />
             )}
           </div>
 
@@ -360,8 +360,8 @@ export default function AIBuilderChat({
             onClick={() => handleImprove()}
             disabled={!instruction.trim() || loading}
             className="shrink-0 flex items-center justify-center w-7 h-7 rounded-md
-                       text-white bg-blue-500
-                       hover:bg-blue-600 active:bg-blue-700
+                       text-white bg-petrol-500
+                       hover:bg-petrol-600 active:bg-petrol-700
                        disabled:opacity-30 disabled:cursor-not-allowed
                        transition-all duration-150"
             aria-label="Enviar instrucao"

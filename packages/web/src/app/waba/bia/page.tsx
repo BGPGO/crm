@@ -168,10 +168,10 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between mb-4">
       <div className="flex items-center gap-2">
-        <Icon size={18} className="text-blue-500" />
+        <Icon size={18} className="text-petrol-500" />
         <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{title}</h2>
         {badge !== undefined && (
-          <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">
+          <span className="text-xs bg-petrol-100 dark:bg-petrol-900/40 text-petrol-700 dark:text-petrol-300 px-2 py-0.5 rounded-full font-medium">
             {badge}
           </span>
         )}
@@ -388,7 +388,7 @@ export default function BiaPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-blue-500" />
+        <Loader2 size={32} className="animate-spin text-petrol-500" />
       </div>
     );
   }
@@ -399,8 +399,8 @@ export default function BiaPage() {
         {/* Page header */}
         <div className="mb-2">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-              <Bot size={20} className="text-blue-600 dark:text-blue-400" />
+            <div className="w-9 h-9 rounded-xl bg-petrol-100 dark:bg-petrol-900/40 flex items-center justify-center">
+              <Bot size={20} className="text-petrol-600 dark:text-petrol-400" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -445,7 +445,7 @@ export default function BiaPage() {
                 value={config.botName || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, botName: e.target.value }))}
                 placeholder="Bia"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -457,7 +457,7 @@ export default function BiaPage() {
                 value={config.botCompany || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, botCompany: e.target.value }))}
                 placeholder="Bertuzzi Patrimonial"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
             <div className="sm:col-span-2">
@@ -472,7 +472,7 @@ export default function BiaPage() {
                 value={config.meetingLink || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, meetingLink: e.target.value }))}
                 placeholder="https://calendly.com/..."
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -487,7 +487,7 @@ export default function BiaPage() {
                 onChange={(e) =>
                   setConfig((c) => ({ ...c, coldContactMaxMessages: parseInt(e.target.value) || 2 }))
                 }
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -508,7 +508,7 @@ export default function BiaPage() {
                     botKpi: DEFAULT_KPI,
                   }))
                 }
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <RotateCcw size={12} />
                 Restaurar padrão
@@ -524,7 +524,7 @@ export default function BiaPage() {
                 rows={4}
                 value={config.botOpeningPrompt || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, botOpeningPrompt: e.target.value }))}
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
                 <Info size={11} />
@@ -542,7 +542,7 @@ export default function BiaPage() {
                 rows={3}
                 value={config.botMessageFormat || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, botMessageFormat: e.target.value }))}
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
             </div>
             <div>
@@ -553,7 +553,7 @@ export default function BiaPage() {
                 type="text"
                 value={config.botKpi || ""}
                 onChange={(e) => setConfig((c) => ({ ...c, botKpi: e.target.value }))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent font-mono"
               />
             </div>
           </div>
@@ -567,7 +567,7 @@ export default function BiaPage() {
             action={
               <button
                 onClick={() => setConfig((c) => ({ ...c, conversationRules: DEFAULT_CONVERSATION_RULES }))}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <RotateCcw size={12} />
                 Restaurar padrão
@@ -578,7 +578,7 @@ export default function BiaPage() {
             rows={8}
             value={config.conversationRules || ""}
             onChange={(e) => setConfig((c) => ({ ...c, conversationRules: e.target.value }))}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
         </Card>
 
@@ -590,7 +590,7 @@ export default function BiaPage() {
             action={
               <button
                 onClick={() => setConfig((c) => ({ ...c, funnelInstructions: DEFAULT_FUNNEL }))}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <RotateCcw size={12} />
                 Restaurar padrão
@@ -601,7 +601,7 @@ export default function BiaPage() {
             rows={10}
             value={config.funnelInstructions || ""}
             onChange={(e) => setConfig((c) => ({ ...c, funnelInstructions: e.target.value }))}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
         </Card>
 
@@ -614,7 +614,7 @@ export default function BiaPage() {
             action={
               <a
                 href="/conversas/configuracao"
-                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                className="flex items-center gap-1 text-xs text-petrol-600 dark:text-petrol-400 hover:underline"
               >
                 Ver tudo
                 <ChevronRight size={12} />
@@ -624,7 +624,7 @@ export default function BiaPage() {
           {objections.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
               Nenhuma objeção configurada.{" "}
-              <a href="/conversas/configuracao" className="text-blue-500 hover:underline">
+              <a href="/conversas/configuracao" className="text-petrol-500 hover:underline">
                 Adicionar
               </a>
             </p>
@@ -649,7 +649,7 @@ export default function BiaPage() {
               {objections.length > 4 && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-1">
                   +{objections.length - 4} outras objeções —{" "}
-                  <a href="/conversas/configuracao" className="text-blue-500 hover:underline">
+                  <a href="/conversas/configuracao" className="text-petrol-500 hover:underline">
                     editar em Configuracao
                   </a>
                 </p>
@@ -667,7 +667,7 @@ export default function BiaPage() {
             action={
               <a
                 href="/conversas/configuracao"
-                className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                className="flex items-center gap-1 text-xs text-petrol-600 dark:text-petrol-400 hover:underline"
               >
                 Ver tudo
                 <ChevronRight size={12} />
@@ -677,7 +677,7 @@ export default function BiaPage() {
           {activeProducts.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
               Nenhum produto ativo.{" "}
-              <a href="/conversas/configuracao" className="text-blue-500 hover:underline">
+              <a href="/conversas/configuracao" className="text-petrol-500 hover:underline">
                 Adicionar
               </a>
             </p>
@@ -713,7 +713,7 @@ export default function BiaPage() {
               {activeProducts.length > 4 && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-1">
                   +{activeProducts.length - 4} outros produtos —{" "}
-                  <a href="/conversas/configuracao" className="text-blue-500 hover:underline">
+                  <a href="/conversas/configuracao" className="text-petrol-500 hover:underline">
                     editar em Configuracao
                   </a>
                 </p>
@@ -738,7 +738,7 @@ export default function BiaPage() {
                     stagePromptWaitingSignature: DEFAULT_STAGE_WAITING_SIGNATURE,
                   }))
                 }
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <RotateCcw size={12} />
                 Restaurar padrão
@@ -760,7 +760,7 @@ export default function BiaPage() {
                 onChange={(e) =>
                   setConfig((c) => ({ ...c, stagePromptMeetingScheduled: e.target.value }))
                 }
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
             </div>
             <div>
@@ -773,7 +773,7 @@ export default function BiaPage() {
                 onChange={(e) =>
                   setConfig((c) => ({ ...c, stagePromptProposalSent: e.target.value }))
                 }
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
             </div>
             <div>
@@ -786,7 +786,7 @@ export default function BiaPage() {
                 onChange={(e) =>
                   setConfig((c) => ({ ...c, stagePromptWaitingData: e.target.value }))
                 }
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
             </div>
             <div>
@@ -799,7 +799,7 @@ export default function BiaPage() {
                 onChange={(e) =>
                   setConfig((c) => ({ ...c, stagePromptWaitingSignature: e.target.value }))
                 }
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
               />
             </div>
           </div>
@@ -813,7 +813,7 @@ export default function BiaPage() {
             action={
               <button
                 onClick={() => setConfig((c) => ({ ...c, botErrorFallback: DEFAULT_ERROR_FALLBACK }))}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <RotateCcw size={12} />
                 Restaurar padrão
@@ -831,7 +831,7 @@ export default function BiaPage() {
             rows={3}
             value={config.botErrorFallback || ""}
             onChange={(e) => setConfig((c) => ({ ...c, botErrorFallback: e.target.value }))}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
         </Card>
 
@@ -849,7 +849,7 @@ export default function BiaPage() {
               <select
                 value={config.aiModel || DEFAULT_AI_MODEL}
                 onChange={(e) => setConfig((c) => ({ ...c, aiModel: e.target.value }))}
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               >
                 {AI_MODEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -874,7 +874,7 @@ export default function BiaPage() {
                     aiTemperature: e.target.value === "" ? null : parseFloat(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -893,7 +893,7 @@ export default function BiaPage() {
                     aiMaxTokens: e.target.value === "" ? null : parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
             <div className="sm:col-span-2">
@@ -911,7 +911,7 @@ export default function BiaPage() {
                     botDebounceSeconds: e.target.value === "" ? null : parseInt(e.target.value),
                   }))
                 }
-                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -925,7 +925,7 @@ export default function BiaPage() {
             action={
               <button
                 onClick={() => setShowPreview((v) => !v)}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
               >
                 <Eye size={13} />
                 {showPreview ? "Ocultar" : "Mostrar"}
@@ -969,9 +969,9 @@ export default function BiaPage() {
                 .filter((s) => s.length > 0).length
             }
           />
-          <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2.5 mb-3">
-            <Info size={14} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+          <div className="flex items-start gap-2 bg-petrol-50 dark:bg-petrol-900/20 border border-petrol-200 dark:border-petrol-700 rounded-lg px-3 py-2.5 mb-3">
+            <Info size={14} className="text-petrol-600 dark:text-petrol-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-petrol-700 dark:text-petrol-300 leading-relaxed">
               Termos adicionais que você quer bloquear no nome dos leads. A BIA nunca vai chamar o lead por um termo aqui — trata por &quot;você&quot; se detectar. Já existem <strong>{baselineTerms.length} termos built-in</strong> sempre ativos; esta lista é <strong>aditiva</strong>. <strong>Um termo por linha</strong>. Aceita palavras isoladas (&ldquo;otario&rdquo;) ou expressões (&ldquo;filho da mae&rdquo;). Case e acentos são normalizados automaticamente.
             </p>
           </div>
@@ -980,12 +980,12 @@ export default function BiaPage() {
             value={blacklistText}
             onChange={(e) => setBlacklistText(e.target.value)}
             placeholder={"corno\nvagabunda\nfilho da puta\n..."}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono leading-relaxed"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none font-mono leading-relaxed"
           />
           <button
             type="button"
             onClick={() => setShowBaseline((v) => !v)}
-            className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 hover:text-petrol-600 dark:text-gray-400 dark:hover:text-petrol-400 transition-colors"
           >
             <ChevronDown
               size={12}
@@ -1043,8 +1043,8 @@ export default function BiaPage() {
             className={clsx(
               "flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold transition-all",
               saving
-                ? "bg-blue-400 dark:bg-blue-700 text-white cursor-not-allowed opacity-70"
-                : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white shadow-sm hover:shadow-md"
+                ? "bg-petrol-400 dark:bg-petrol-700 text-white cursor-not-allowed opacity-70"
+                : "bg-petrol-600 hover:bg-petrol-700 dark:bg-petrol-600 dark:hover:bg-petrol-500 text-white shadow-sm hover:shadow-md"
             )}
           >
             {saving ? <Spinner className="text-white" /> : <Save size={15} />}

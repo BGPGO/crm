@@ -89,7 +89,7 @@ function eventLabel(type: TimelineEventType, content: string, user?: string): Re
             {!userName && "Anotação:"}
           </div>
           <div
-            className="text-gray-600 mt-1 prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline"
+            className="text-gray-600 mt-1 prose prose-sm max-w-none [&_a]:text-petrol-600 [&_a]:underline"
             dangerouslySetInnerHTML={{ __html: sanitized }}
           />
         </div>
@@ -183,7 +183,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 
 const TASK_TYPE_COLORS: Record<string, string> = {
   CALL: "bg-orange-100 text-orange-700",
-  MEETING: "bg-blue-100 text-blue-700",
+  MEETING: "bg-petrol-100 text-petrol-700",
   PROPOSAL: "bg-purple-100 text-purple-700",
   EMAIL: "bg-cyan-100 text-cyan-700",
   VISIT: "bg-green-100 text-green-700",
@@ -261,7 +261,7 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="text-xs text-gray-600 border border-gray-200 rounded-md pl-2 pr-6 py-1 appearance-none bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+              className="text-xs text-gray-600 border border-gray-200 rounded-md pl-2 pr-6 py-1 appearance-none bg-white focus:outline-none focus:ring-1 focus:ring-petrol-400 cursor-pointer"
             >
               {FILTER_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -338,7 +338,7 @@ export default function DealTimeline({ events, onAddNote, pendingTasks, onToggle
                   <button
                     type="button"
                     onClick={() => onEditTask?.(task)}
-                    className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-blue-500 transition-colors"
+                    className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-petrol-500 transition-colors"
                     title="Editar tarefa"
                   >
                     <Pencil size={13} />

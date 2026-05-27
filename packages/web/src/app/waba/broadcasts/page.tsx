@@ -167,7 +167,7 @@ function ProgressBar({ value, max, className }: { value: number; max: number; cl
   return (
     <div className={clsx("w-full bg-gray-100 rounded-full h-2", className)}>
       <div
-        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+        className="bg-petrol-500 h-2 rounded-full transition-all duration-300"
         style={{ width: `${p}%` }}
       />
     </div>
@@ -303,7 +303,7 @@ function CreateBroadcastModal({
                     name="audienceType"
                     checked={audienceType === "segment"}
                     onChange={() => setAudienceType("segment")}
-                    className="accent-blue-600"
+                    className="accent-petrol-600"
                   />
                   <Users size={14} />
                   Segmento
@@ -314,7 +314,7 @@ function CreateBroadcastModal({
                     name="audienceType"
                     checked={audienceType === "stage"}
                     onChange={() => setAudienceType("stage")}
-                    className="accent-blue-600"
+                    className="accent-petrol-600"
                   />
                   <Radio size={14} />
                   Etapa do Pipeline
@@ -344,7 +344,7 @@ function CreateBroadcastModal({
                                 if (e.target.checked) setStageIds(stages.map((s) => s.id));
                                 else setStageIds([]);
                               }}
-                              className="accent-blue-600 rounded"
+                              className="accent-petrol-600 rounded"
                             />
                             Selecionar todas
                           </label>
@@ -357,7 +357,7 @@ function CreateBroadcastModal({
                                   if (e.target.checked) setStageIds((prev) => [...prev, s.id]);
                                   else setStageIds((prev) => prev.filter((id) => id !== s.id));
                                 }}
-                                className="accent-blue-600 rounded"
+                                className="accent-petrol-600 rounded"
                               />
                               {s.name}
                             </label>
@@ -488,7 +488,7 @@ function BroadcastDetail({
   const { totalContacts, sentCount, deliveredCount, readCount, clickedCount, failedCount } = broadcast;
 
   const statCards = [
-    { label: "Total", value: totalContacts, icon: Users, color: "bg-blue-50 text-blue-600" },
+    { label: "Total", value: totalContacts, icon: Users, color: "bg-petrol-50 text-petrol-600" },
     { label: "Enviados", value: sentCount, icon: Send, color: "bg-yellow-50 text-yellow-600" },
     { label: "Entregues", value: deliveredCount, pct: pct(deliveredCount, sentCount), icon: CheckCircle2, color: "bg-green-50 text-green-600" },
     { label: "Lidos", value: readCount, pct: pct(readCount, sentCount), icon: BookOpen, color: "bg-purple-50 text-purple-600" },

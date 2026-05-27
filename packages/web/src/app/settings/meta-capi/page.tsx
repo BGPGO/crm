@@ -140,7 +140,7 @@ export default function MetaCapiPage() {
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
-            <Activity size={22} className="text-blue-600" />
+            <Activity size={22} className="text-petrol-600" />
             Meta Conversions API
           </h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -204,7 +204,7 @@ export default function MetaCapiPage() {
                       type="checkbox"
                       checked={isActive}
                       onChange={(e) => setIsActive(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
                     />
                     <span className="text-sm text-gray-700">Ativo (enviar eventos automaticamente)</span>
                   </label>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import {
@@ -87,9 +87,9 @@ export function SectionWrapper({
   const showControls = isHovered || isSelected;
 
   const borderClass = isSelected
-    ? "border-blue-500 ring-2 ring-blue-50"
+    ? "border-petrol-500 ring-2 ring-petrol-50"
     : isHovered
-      ? "border-blue-400 border-dashed"
+      ? "border-petrol-400 border-dashed"
       : "border-transparent";
 
   return (

@@ -3,7 +3,7 @@ import clsx from "clsx";
 export type MeetingSource = "CALENDLY_EMAIL" | "CALENDLY_LP" | "SDR_IA" | "HUMANO";
 
 const CONFIG: Record<MeetingSource, { label: string; className: string }> = {
-  CALENDLY_EMAIL: { label: "Email",  className: "bg-blue-100 text-blue-700 border-blue-200" },
+  CALENDLY_EMAIL: { label: "Email",  className: "bg-petrol-100 text-petrol-700 border-petrol-200" },
   CALENDLY_LP:    { label: "Direto", className: "bg-gray-100 text-gray-700 border-gray-300" },
   SDR_IA:         { label: "BIA",    className: "bg-green-100 text-green-700 border-green-200" },
   HUMANO:         { label: "Humano", className: "bg-orange-100 text-orange-700 border-orange-200" },

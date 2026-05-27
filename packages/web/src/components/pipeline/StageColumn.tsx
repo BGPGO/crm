@@ -219,7 +219,7 @@ export default function StageColumn({
             {...provided.droppableProps}
             className={clsx(
               "flex-1 overflow-y-auto p-2 space-y-2 min-h-[120px] transition-colors duration-150",
-              snapshot.isDraggingOver ? "bg-blue-50" : "bg-gray-50"
+              snapshot.isDraggingOver ? "bg-petrol-50" : "bg-gray-50"
             )}
           >
             {loading ? (
@@ -239,7 +239,7 @@ export default function StageColumn({
                   <button
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-petrol-600 hover:text-petrol-800 hover:bg-petrol-50 rounded-lg transition-colors disabled:opacity-50"
                   >
                     {loadingMore ? (
                       <Loader2 size={12} className="animate-spin" />

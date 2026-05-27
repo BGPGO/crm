@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Plus, X, Filter } from "lucide-react";
 
@@ -176,7 +176,7 @@ function ValueInput({
   field: string; operator: string; value: any; onValueChange: (v: any) => void;
 }) {
   const meta = getFieldMeta(field);
-  const INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  const INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
   // Boolean — simple toggle
   if (meta.type === "boolean") {
@@ -304,7 +304,7 @@ export default function SegmentFilterBuilder({ filters, onChange }: SegmentFilte
             <select
               value={filter.field}
               onChange={(e) => updateFilter(index, { field: e.target.value })}
-              className="w-52 shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-52 shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500"
             >
               {FIELD_CATEGORIES.map((cat) => (
                 <optgroup key={cat} label={cat}>
@@ -322,7 +322,7 @@ export default function SegmentFilterBuilder({ filters, onChange }: SegmentFilte
               <select
                 value={filter.operator}
                 onChange={(e) => updateFilter(index, { operator: e.target.value })}
-                className="w-36 shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-36 shrink-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500"
               >
                 {operators.map((op) => (
                   <option key={op.value} value={op.value}>{op.label}</option>
@@ -346,7 +346,7 @@ export default function SegmentFilterBuilder({ filters, onChange }: SegmentFilte
       })}
 
       <button type="button" onClick={addFilter}
-        className="inline-flex items-center gap-2 rounded-md border border-blue-500 bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-600 transition-colors">
+        className="inline-flex items-center gap-2 rounded-md border border-petrol-500 bg-petrol-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-petrol-600 transition-colors">
         <Plus className="h-4 w-4" />
         Adicionar Filtro
       </button>

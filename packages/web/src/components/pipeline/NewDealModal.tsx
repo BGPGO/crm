@@ -273,13 +273,13 @@ export default function NewDealModal({
             placeholder="Buscar empresa…"
             value={orgSearch}
             onChange={(e) => handleOrgSearchChange(e.target.value)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-petrol-500 focus:border-petrol-500 placeholder:text-gray-400"
           />
           <select
             value={form.organizationId}
             onChange={(e) => setField("organizationId", e.target.value)}
             disabled={loadingOptions || (organizations.length === 0 && !loadingOrgs)}
-            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500 focus:border-blue-500"
+            className="px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-petrol-500 focus:border-petrol-500"
           >
             <option value="" disabled>
               {loadingOptions || loadingOrgs ? "Carregando…" : "Selecionar empresa"}

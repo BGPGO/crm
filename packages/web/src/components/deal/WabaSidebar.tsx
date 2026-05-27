@@ -115,7 +115,7 @@ export default function WabaSidebar({
   const statusIcon = (status: string) => {
     switch (status) {
       case "WA_DELIVERED": return <span className="text-gray-400" title="Entregue">✓✓</span>;
-      case "WA_READ": return <span className="text-blue-400" title="Lida">✓✓</span>;
+      case "WA_READ": return <span className="text-petrol-400" title="Lida">✓✓</span>;
       case "WA_SENT": return <span className="text-gray-400" title="Enviada">✓</span>;
       case "WA_FAILED": return <span className="text-red-400" title="Falhou">✗</span>;
       case "WA_PENDING": return <span className="text-gray-300" title="Pendente">○</span>;
@@ -188,12 +188,12 @@ export default function WabaSidebar({
                         ? "bg-emerald-50 border border-emerald-200 text-gray-900"
                         : isTemplate
                         ? "bg-amber-50 border border-amber-200 text-gray-900"
-                        : "bg-blue-100 border border-blue-200 text-gray-900"
+                        : "bg-petrol-100 border border-petrol-200 text-gray-900"
                     }`}
                   >
                     {!isClient && (
                       <p className={`text-[10px] font-semibold mb-0.5 ${
-                        isBot ? "text-emerald-700" : isTemplate ? "text-amber-700" : "text-blue-700"
+                        isBot ? "text-emerald-700" : isTemplate ? "text-amber-700" : "text-petrol-700"
                       }`}>
                         {isBot ? "BIA" : isTemplate ? "Template" : (msg.senderUser?.name || "Equipe")}
                       </p>

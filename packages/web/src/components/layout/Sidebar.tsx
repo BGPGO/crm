@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -174,7 +175,7 @@ export default function TopNavbar() {
   return (
     <header
       className={clsx(
-        "h-14 bg-white border-b flex items-center px-4 gap-4 md:gap-6 flex-shrink-0 z-30 transition-colors",
+        "h-16 bg-white border-b flex items-center px-4 gap-4 md:gap-6 flex-shrink-0 z-30 transition-colors",
         brand === "AIMO" ? "border-l-2" : "border-gray-200"
       )}
       style={
@@ -193,10 +194,24 @@ export default function TopNavbar() {
       </button>
 
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-1.5 flex-shrink-0 mr-2">
-        <span className="font-bold text-base text-gray-900 tracking-tight">
-          BGPGO <span className="text-blue-600">CRM</span>
-        </span>
+      <Link href="/" className="flex items-center gap-2 flex-shrink-0 mr-2">
+        <Image
+          src="/bertuzzi-logo.png"
+          alt="Bertuzzi"
+          width={140}
+          height={30}
+          priority
+          className="h-7 w-auto dark:hidden"
+        />
+        <Image
+          src="/bertuzzi-logo-white.png"
+          alt="Bertuzzi"
+          width={140}
+          height={30}
+          priority
+          className="h-7 w-auto hidden dark:block"
+        />
+        <span className="text-sm font-semibold text-petrol-700 tracking-tight">CRM</span>
       </Link>
 
       {/* Navigation links - hidden on mobile */}
@@ -214,7 +229,7 @@ export default function TopNavbar() {
               className={clsx(
                 "relative flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
                 isActive
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-petrol-50 text-petrol-700"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               )}
             >
@@ -248,7 +263,7 @@ export default function TopNavbar() {
           <input
             type="text"
             placeholder="Buscar..."
-            className="pl-8 pr-3 py-1.5 text-sm bg-gray-100 border border-transparent rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+            className="pl-8 pr-3 py-1.5 text-sm bg-gray-100 border border-transparent rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:bg-white transition-all"
           />
         </div>
 
@@ -320,7 +335,7 @@ export default function TopNavbar() {
                       >
                         <div className={clsx(
                           "mt-0.5 p-1.5 rounded-full flex-shrink-0",
-                          isOverdue ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"
+                          isOverdue ? "bg-red-100 text-red-600" : "bg-petrol-100 text-petrol-700"
                         )}>
                           {isOverdue ? <Clock size={12} /> : <TIcon size={12} />}
                         </div>
@@ -334,7 +349,7 @@ export default function TopNavbar() {
                             {task.dueDate && ` · ${new Date(task.dueDate).toLocaleDateString("pt-BR")}`}
                           </p>
                           {task.deal && (
-                            <p className="text-xs text-blue-600 truncate mt-0.5">{task.deal.title}</p>
+                            <p className="text-xs text-petrol-700 truncate mt-0.5">{task.deal.title}</p>
                           )}
                         </div>
                       </Link>
@@ -346,7 +361,7 @@ export default function TopNavbar() {
                 <Link
                   href="/tasks"
                   onClick={() => setNotifOpen(false)}
-                  className="block px-4 py-2.5 text-center text-xs font-medium text-blue-600 hover:bg-blue-50 border-t border-gray-100 transition-colors"
+                  className="block px-4 py-2.5 text-center text-xs font-medium text-petrol-700 hover:bg-petrol-50 border-t border-gray-100 transition-colors"
                 >
                   Ver todas as tarefas
                 </Link>
@@ -361,7 +376,7 @@ export default function TopNavbar() {
             onClick={() => setDropdownOpen((prev) => !prev)}
             className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+            <div className="w-7 h-7 rounded-full bg-petrol-700 flex items-center justify-center text-white text-xs font-semibold">
               {initials}
             </div>
             <span className="hidden sm:block text-sm font-medium text-gray-900 max-w-[120px] truncate">
@@ -436,7 +451,23 @@ export default function TopNavbar() {
           <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-xl flex flex-col animate-slide-in-left">
             {/* Panel header */}
             <div className="h-14 flex items-center justify-between px-4 border-b border-gray-200">
-              <span className="text-lg font-bold text-blue-600">BGPGO CRM</span>
+              <span className="flex items-center gap-2">
+                <Image
+                  src="/bertuzzi-logo.png"
+                  alt="Bertuzzi"
+                  width={130}
+                  height={28}
+                  className="h-6 w-auto dark:hidden"
+                />
+                <Image
+                  src="/bertuzzi-logo-white.png"
+                  alt="Bertuzzi"
+                  width={130}
+                  height={28}
+                  className="h-6 w-auto hidden dark:block"
+                />
+                <span className="text-sm font-semibold text-petrol-700">CRM</span>
+              </span>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
@@ -461,7 +492,7 @@ export default function TopNavbar() {
                     className={clsx(
                       "flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                        ? "bg-petrol-50 text-petrol-700 border-r-2 border-petrol-600"
                         : "text-gray-600 hover:bg-gray-50"
                     )}
                   >
@@ -481,7 +512,7 @@ export default function TopNavbar() {
             {/* User info at bottom */}
             <div className="border-t border-gray-200 p-4">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold">
+                <div className="w-8 h-8 rounded-full bg-petrol-700 flex items-center justify-center text-white text-xs font-semibold">
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">

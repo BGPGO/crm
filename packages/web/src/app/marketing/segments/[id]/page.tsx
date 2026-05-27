@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -307,7 +307,7 @@ export default function SegmentDetailPage() {
                       <TableRow key={contact.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-petrol-100 text-petrol-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
                               {contact.name.charAt(0)}
                             </div>
                             <span className="font-medium text-gray-900">
@@ -327,7 +327,7 @@ export default function SegmentDetailPage() {
                         <TableCell>
                           <Link
                             href={`/contacts/${contact.id}`}
-                            className="text-sm text-blue-600 hover:underline"
+                            className="text-sm text-petrol-600 hover:underline"
                           >
                             Ver
                           </Link>
@@ -353,7 +353,7 @@ export default function SegmentDetailPage() {
                     >
                       <ChevronLeft size={16} />
                     </button>
-                    <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+                    <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                       {meta.page}
                     </span>
                     <button

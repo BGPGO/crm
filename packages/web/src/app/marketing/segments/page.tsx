@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -159,7 +159,7 @@ export default function SegmentsPage() {
                   <TableCell>
                     <Link
                       href={`/marketing/segments/${segment.id}`}
-                      className="font-medium text-gray-900 hover:text-blue-600"
+                      className="font-medium text-gray-900 hover:text-petrol-600"
                     >
                       {segment.name}
                     </Link>
@@ -182,7 +182,7 @@ export default function SegmentsPage() {
                       <button
                         onClick={() => handleRefreshCount(segment.id)}
                         disabled={refreshingId === segment.id}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors disabled:opacity-50"
                         title="Atualizar contagem"
                       >
                         <RefreshCw
@@ -192,7 +192,7 @@ export default function SegmentsPage() {
                       </button>
                       <Link href={`/marketing/segments/${segment.id}`}>
                         <button
-                          className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                          className="p-1.5 rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors"
                           title="Editar"
                         >
                           <Pencil size={14} />

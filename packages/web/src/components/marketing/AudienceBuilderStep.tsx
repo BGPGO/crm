@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -219,7 +219,7 @@ export default function AudienceBuilderStep({
           onClick={() => setMode("all")}
           className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
             mode === "all"
-              ? "bg-blue-600 text-white border-blue-600"
+              ? "bg-petrol-600 text-white border-petrol-600"
               : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
           }`}
         >
@@ -235,7 +235,7 @@ export default function AudienceBuilderStep({
           onClick={() => setMode("filter")}
           className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
             mode === "filter"
-              ? "bg-blue-600 text-white border-blue-600"
+              ? "bg-petrol-600 text-white border-petrol-600"
               : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
           }`}
         >
@@ -248,7 +248,7 @@ export default function AudienceBuilderStep({
           onClick={() => setMode("segment")}
           className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
             mode === "segment"
-              ? "bg-blue-600 text-white border-blue-600"
+              ? "bg-petrol-600 text-white border-petrol-600"
               : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
           }`}
         >
@@ -259,19 +259,19 @@ export default function AudienceBuilderStep({
 
       {/* ── All contacts ───────────────────────────────────────────────── */}
       {mode === "all" && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+        <div className="rounded-xl border border-petrol-200 bg-petrol-50 p-5">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
-              <Users size={18} className="text-blue-600" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-petrol-100">
+              <Users size={18} className="text-petrol-600" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-blue-900">Todos os contatos</p>
+              <p className="text-sm font-semibold text-petrol-900">Todos os contatos</p>
               {totalContacts !== null ? (
-                <p className="text-xs text-blue-600 mt-0.5">
+                <p className="text-xs text-petrol-600 mt-0.5">
                   {totalContacts.toLocaleString("pt-BR")} contatos receberao a campanha
                 </p>
               ) : (
-                <p className="text-xs text-blue-500 mt-0.5">Calculando contatos...</p>
+                <p className="text-xs text-petrol-500 mt-0.5">Calculando contatos...</p>
               )}
             </div>
           </div>
@@ -302,8 +302,8 @@ export default function AudienceBuilderStep({
                     onClick={() => applyShortcut(shortcut)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                       active
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-blue-400 hover:text-blue-600"
+                        ? "bg-petrol-600 text-white border-petrol-600"
+                        : "bg-white text-gray-600 border-gray-300 hover:border-petrol-400 hover:text-petrol-600"
                     }`}
                   >
                     {active && <Check size={10} />}
@@ -332,7 +332,7 @@ export default function AudienceBuilderStep({
               <div
                 className={`relative rounded-xl border-2 p-4 transition-colors ${
                   activeGroupIndex === groupIdx
-                    ? "border-blue-300 bg-blue-50/30"
+                    ? "border-petrol-300 bg-petrol-50/30"
                     : "border-gray-200 bg-white"
                 }`}
                 onClick={() => setActiveGroupIndex(groupIdx)}
@@ -374,7 +374,7 @@ export default function AudienceBuilderStep({
           <button
             type="button"
             onClick={addGroup}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-blue-600 border-2 border-dashed border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-colors w-full justify-center"
+            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-petrol-600 border-2 border-dashed border-petrol-200 rounded-xl hover:border-petrol-400 hover:bg-petrol-50 transition-colors w-full justify-center"
           >
             <Plus size={15} />
             Adicionar grupo OU
@@ -404,7 +404,7 @@ export default function AudienceBuilderStep({
               countLoading
                 ? "border-gray-200 bg-gray-50"
                 : hasAnyFilter
-                ? "border-blue-200 bg-blue-50"
+                ? "border-petrol-200 bg-petrol-50"
                 : "border-gray-200 bg-gray-50"
             }`}
           >
@@ -415,8 +415,8 @@ export default function AudienceBuilderStep({
               </div>
             ) : previewCount !== null ? (
               <div className="flex items-center justify-center gap-2">
-                <Users size={16} className="text-blue-600" />
-                <span className="text-sm font-semibold text-blue-900">
+                <Users size={16} className="text-petrol-600" />
+                <span className="text-sm font-semibold text-petrol-900">
                   {previewCount.toLocaleString("pt-BR")} contatos encontrados
                 </span>
               </div>
@@ -444,7 +444,7 @@ export default function AudienceBuilderStep({
               <button
                 type="button"
                 onClick={() => setMode("filter")}
-                className="mt-2 text-xs text-blue-600 hover:underline"
+                className="mt-2 text-xs text-petrol-600 hover:underline"
               >
                 Criar filtro personalizado
               </button>
@@ -455,7 +455,7 @@ export default function AudienceBuilderStep({
               <label
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                   selectedSegmentId === null
-                    ? "border-blue-500 bg-blue-50"
+                    ? "border-petrol-500 bg-petrol-50"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
@@ -466,7 +466,7 @@ export default function AudienceBuilderStep({
                   onChange={() =>
                     onChange({ ...value, selectedSegmentId: null })
                   }
-                  className="text-blue-600 focus:ring-blue-500"
+                  className="text-petrol-600 focus:ring-petrol-500"
                 />
                 <Users size={15} className="text-gray-400 shrink-0" />
                 <div className="flex-1">
@@ -486,7 +486,7 @@ export default function AudienceBuilderStep({
                   key={seg.id}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedSegmentId === seg.id
-                      ? "border-blue-500 bg-blue-50"
+                      ? "border-petrol-500 bg-petrol-50"
                       : "border-gray-200 hover:border-gray-300"
                   }`}
                 >
@@ -497,7 +497,7 @@ export default function AudienceBuilderStep({
                     onChange={() =>
                       onChange({ ...value, selectedSegmentId: seg.id })
                     }
-                    className="text-blue-600 focus:ring-blue-500"
+                    className="text-petrol-600 focus:ring-petrol-500"
                   />
                   <BookOpen size={15} className="text-gray-400 shrink-0" />
                   <div className="flex-1">
@@ -516,13 +516,13 @@ export default function AudienceBuilderStep({
       )}
 
       {/* TIME BGP notice */}
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
-        <Users size={14} className="text-blue-500 mt-0.5 shrink-0" />
+      <div className="flex items-start gap-2 p-3 rounded-lg bg-petrol-50 border border-petrol-100">
+        <Users size={14} className="text-petrol-500 mt-0.5 shrink-0" />
         <div>
-          <p className="text-xs font-medium text-blue-700">
+          <p className="text-xs font-medium text-petrol-700">
             TIME BGP recebe copia automaticamente
           </p>
-          <p className="text-[10px] text-blue-500 mt-0.5">
+          <p className="text-[10px] text-petrol-500 mt-0.5">
             Alem do publico escolhido, os membros internos recebem uma copia
             com [TIME] no assunto para acompanhamento.
           </p>
@@ -562,7 +562,7 @@ export default function AudienceBuilderStep({
                       value={saveSegmentName}
                       onChange={(e) => setSaveSegmentName(e.target.value)}
                       placeholder="Ex: Leads em andamento etapa 2"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                     />
                   </div>
                   <div className="flex gap-2 justify-end">
@@ -577,7 +577,7 @@ export default function AudienceBuilderStep({
                       type="button"
                       onClick={handleSaveSegment}
                       disabled={!saveSegmentName.trim() || savingSegment}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {savingSegment ? (
                         <Loader2 size={13} className="animate-spin" />

@@ -94,7 +94,7 @@ export default function DuplicateAlerts() {
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-gray-500 mt-0.5">
                   {a.contactA?.deal && (
-                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0 rounded">
+                    <span className="bg-petrol-50 dark:bg-petrol-900/30 text-petrol-700 dark:text-petrol-300 px-1.5 py-0 rounded">
                       {a.contactA.deal.stage.name}
                     </span>
                   )}

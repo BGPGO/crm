@@ -20,7 +20,7 @@ interface Lead {
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-700",
-  meetingBooked: "bg-blue-100 text-blue-700",
+  meetingBooked: "bg-petrol-100 text-petrol-700",
   needsHumanAttention: "bg-yellow-100 text-yellow-700",
 };
 
@@ -129,7 +129,7 @@ export default function ConversasLeadsPage() {
               placeholder="Buscar por nome ou telefone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
             />
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function ConversasLeadsPage() {
                         ) : (
                           <button
                             onClick={() => { setModalOpen(lead.id); setContactIdInput(""); }}
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                            className="inline-flex items-center gap-1 text-xs text-petrol-600 font-medium hover:underline"
                           >
                             <Link2 size={12} /> Vincular ao CRM
                           </button>
@@ -258,7 +258,7 @@ export default function ConversasLeadsPage() {
               value={contactIdInput}
               onChange={(e) => setContactIdInput(e.target.value)}
               placeholder="Ex: abc123-def456..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 mb-4"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -270,7 +270,7 @@ export default function ConversasLeadsPage() {
               <button
                 onClick={() => handleLink(modalOpen)}
                 disabled={!contactIdInput.trim() || linking}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {linking ? "Vinculando..." : "Vincular"}
               </button>

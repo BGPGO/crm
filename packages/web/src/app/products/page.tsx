@@ -211,7 +211,7 @@ export default function ProductsPage() {
         <select
           value={form.recurrence}
           onChange={(e) => setForm((f) => ({ ...f, recurrence: e.target.value }))}
-          className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+          className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
         >
           {RECURRENCE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -238,7 +238,7 @@ export default function ProductsPage() {
               placeholder="Buscar produtos..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
             />
           </div>
           <Button variant="primary" size="sm" onClick={openCreateModal}>
@@ -284,7 +284,7 @@ export default function ProductsPage() {
                 <TableRow key={product.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-petrol-50 text-petrol-600 flex items-center justify-center flex-shrink-0">
                         <Package size={16} />
                       </div>
                       <div>
@@ -341,7 +341,7 @@ export default function ProductsPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button

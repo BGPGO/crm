@@ -55,8 +55,8 @@ function StatusBadge({ status }: { status: Deal["status"] }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-      <span className="w-1.5 h-1.5 rounded-sm bg-blue-500 inline-block" />
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-petrol-700 bg-petrol-50 px-1.5 py-0.5 rounded">
+      <span className="w-1.5 h-1.5 rounded-sm bg-petrol-500 inline-block" />
       Em andamento
     </span>
   );
@@ -87,7 +87,7 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             deal.noShow
               ? "border-orange-400 border-2 hover:border-orange-500"
               : "border-gray-200 hover:border-gray-300",
-            snapshot.isDragging && "shadow-lg rotate-1 border-blue-300 opacity-90"
+            snapshot.isDragging && "shadow-lg rotate-1 border-petrol-300 opacity-90"
           )}
         >
           {/* Card body */}
@@ -123,7 +123,7 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
             </div>
 
             {/* Deal title */}
-            <h4 className="text-sm font-semibold text-gray-900 leading-snug mb-0.5 group-hover:text-blue-600 transition-colors flex items-center gap-1">
+            <h4 className="text-sm font-semibold text-gray-900 leading-snug mb-0.5 group-hover:text-petrol-600 transition-colors flex items-center gap-1">
               {deal.title}
               {deal.hasWabaConversation && (
                 <span
@@ -258,7 +258,7 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
                   e.stopPropagation();
                   router.push(`/pipeline/${deal.id}?tab=tarefas`);
                 }}
-                className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-petrol-600 transition-colors"
               >
                 <Plus size={11} />
                 Criar Tarefa

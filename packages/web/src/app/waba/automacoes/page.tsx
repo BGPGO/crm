@@ -94,15 +94,15 @@ export default function WabaAutomacoesPage() {
       case "SEND_WHATSAPP_AI":
         return <MessageSquare size={14} className="text-amber-500" />;
       case "SEND_EMAIL":
-        return <MessageSquare size={14} className="text-blue-500" />;
+        return <MessageSquare size={14} className="text-petrol-500" />;
       case "WAIT":
       case "WAIT_FOR_RESPONSE":
-        return <Clock size={14} className="text-blue-500" />;
+        return <Clock size={14} className="text-petrol-500" />;
       case "CONDITION":
         return <AlertCircle size={14} className="text-purple-500" />;
       case "ADD_TAG":
       case "REMOVE_TAG":
-        return <CheckCircle2 size={14} className="text-indigo-500" />;
+        return <CheckCircle2 size={14} className="text-petrol-500" />;
       case "MOVE_PIPELINE_STAGE":
         return <ChevronRight size={14} className="text-teal-500" />;
       case "MARK_LOST":
@@ -163,7 +163,7 @@ export default function WabaAutomacoesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
+        <div className="animate-spin h-8 w-8 border-2 border-petrol-500 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -182,7 +182,7 @@ export default function WabaAutomacoesPage() {
         </div>
         <a
           href="/automations"
-          className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+          className="text-sm text-petrol-600 hover:text-petrol-700 flex items-center gap-1"
         >
           Ver todas as automacoes <ChevronRight size={14} />
         </a>
@@ -308,7 +308,7 @@ export default function WabaAutomacoesPage() {
                     <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                       <a
                         href={`/automations/${automation.id}`}
-                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                        className="text-sm text-petrol-600 hover:text-petrol-700 flex items-center gap-1"
                       >
                         Abrir no editor de automacoes <ChevronRight size={14} />
                       </a>
@@ -322,11 +322,11 @@ export default function WabaAutomacoesPage() {
       )}
 
       {/* Flow explanation */}
-      <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+      <div className="mt-8 bg-petrol-50 dark:bg-petrol-900/20 border border-petrol-200 dark:border-petrol-800 rounded-lg p-4">
+        <h3 className="font-semibold text-petrol-900 dark:text-petrol-300 mb-2">
           Como funciona o fluxo WABA
         </h3>
-        <div className="text-sm text-blue-800 dark:text-blue-400 space-y-2">
+        <div className="text-sm text-petrol-800 dark:text-petrol-400 space-y-2">
           <div className="flex items-start gap-2">
             <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0" />
             <span>

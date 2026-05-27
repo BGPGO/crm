@@ -206,19 +206,19 @@ function SecurityDashboard({
   })();
 
   const usageColor =
-    usagePct > 80 ? "bg-red-500" : usagePct > 50 ? "bg-yellow-500" : "bg-blue-500";
+    usagePct > 80 ? "bg-red-500" : usagePct > 50 ? "bg-yellow-500" : "bg-petrol-500";
   const usageBorder =
     usagePct > 80
       ? "border-red-300 dark:border-red-700"
       : usagePct > 50
       ? "border-yellow-300 dark:border-yellow-700"
-      : "border-blue-200 dark:border-blue-700";
+      : "border-petrol-200 dark:border-petrol-700";
   const usageBg =
     usagePct > 80
       ? "bg-red-50 dark:bg-red-950"
       : usagePct > 50
       ? "bg-yellow-50 dark:bg-yellow-950"
-      : "bg-blue-50 dark:bg-blue-950";
+      : "bg-petrol-50 dark:bg-petrol-950";
 
   const tiers = [
     { key: "TIER_1", label: "Tier 1", limit: "250/dia" },
@@ -271,19 +271,19 @@ function SecurityDashboard({
         </div>
 
         {/* 24h Window */}
-        <div className="rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 p-4 flex flex-col gap-3">
+        <div className="rounded-xl border-2 border-petrol-200 dark:border-petrol-700 bg-petrol-50 dark:bg-petrol-950 p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-full bg-petrol-500 flex items-center justify-center text-white">
               <Clock size={22} />
             </div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
               Janela de 24h
             </p>
           </div>
-          <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+          <p className="text-xs text-petrol-800 dark:text-petrol-300 leading-relaxed">
             Mensagens de texto livre: apenas dentro de <strong>24h</strong> apos ultima msg do cliente.
           </p>
-          <p className="text-[11px] text-blue-600 dark:text-blue-400">
+          <p className="text-[11px] text-petrol-600 dark:text-petrol-400">
             Fora da janela: obrigatorio usar template aprovado.
           </p>
         </div>
@@ -370,7 +370,7 @@ function BestPractices() {
       icon: <Clock size={16} />,
       title: "Rate limit por contato",
       text: "Maximo 1 mensagem a cada 6 segundos para o mesmo numero.",
-      color: "text-blue-600 bg-blue-50 dark:bg-blue-950",
+      color: "text-petrol-600 bg-petrol-50 dark:bg-petrol-950",
     },
     {
       icon: <Ban size={16} />,
@@ -493,9 +493,9 @@ function DailyLimitCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
-        <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700 dark:text-blue-300">
+      <div className="mt-3 flex items-start gap-2 rounded-lg bg-petrol-50 dark:bg-petrol-950 border border-petrol-200 dark:border-petrol-800 p-3">
+        <Info size={16} className="text-petrol-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-petrol-700 dark:text-petrol-300">
           Recomendamos comecar conservador e aumentar gradualmente conforme a qualidade se mantem alta. Limite atual do tier: 2.000/dia.
           Altere o valor na secao de Credenciais abaixo.
         </p>
@@ -602,12 +602,12 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
             R${(spend.automationCost ?? spend.totalCost).toFixed(2)} — conta no limite
           </p>
         </div>
-        <div className="rounded-lg border p-3 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-700">
+        <div className="rounded-lg border p-3 bg-petrol-50 dark:bg-petrol-950 border-petrol-200 dark:border-petrol-700">
           <p className="text-xs text-gray-500 dark:text-gray-400">Broadcasts (envio em massa)</p>
           <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
             {(spend.broadcastMarketingCount ?? 0) + (spend.broadcastUtilityCount ?? 0)} msgs
           </p>
-          <p className="text-[11px] text-blue-600 dark:text-blue-400">
+          <p className="text-[11px] text-petrol-600 dark:text-petrol-400">
             R${(spend.broadcastCost ?? 0).toFixed(2)} — fora do limite
           </p>
         </div>
@@ -617,9 +617,9 @@ function SpendLimitCard({ status }: { status: WabaStatus | null }) {
         Gasto total do dia: R${spend.totalCost.toFixed(2)} (automacoes + broadcasts)
       </div>
 
-      <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3">
-        <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-700 dark:text-blue-300">
+      <div className="flex items-start gap-2 rounded-lg bg-petrol-50 dark:bg-petrol-950 border border-petrol-200 dark:border-petrol-800 p-3">
+        <Info size={16} className="text-petrol-600 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-petrol-700 dark:text-petrol-300">
           O limite de R${spend.limitBRL > 0 ? spend.limitBRL.toFixed(2) : "∞"} se aplica apenas a automacoes (cadencias, follow-ups, lembretes).
           Broadcasts e a BIA funcionam independente desse limite.
         </p>
@@ -693,7 +693,7 @@ function StatusCard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Phone */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-petrol-50 dark:bg-petrol-950 text-petrol-600 flex items-center justify-center">
             <Phone size={18} />
           </div>
           <div>
@@ -772,7 +772,7 @@ function StatusCard({
           <div
             className={clsx(
               "h-2.5 rounded-full transition-all duration-300",
-              usagePct > 90 ? "bg-red-500" : usagePct > 70 ? "bg-yellow-500" : "bg-blue-500"
+              usagePct > 90 ? "bg-red-500" : usagePct > 70 ? "bg-yellow-500" : "bg-petrol-500"
             )}
             style={{ width: `${usagePct}%` }}
           />
@@ -860,7 +860,7 @@ function CredentialsForm({
               type={showToken ? "text" : "password"}
               value={form.accessToken}
               onChange={(e) => setForm((f) => ({ ...f, accessToken: e.target.value }))}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white pr-10"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white pr-10"
               placeholder="EAA..."
             />
             <button
@@ -881,7 +881,7 @@ function CredentialsForm({
               type={showSecret ? "text" : "password"}
               value={form.appSecret}
               onChange={(e) => setForm((f) => ({ ...f, appSecret: e.target.value }))}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white pr-10"
+              className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white pr-10"
               placeholder="****"
             />
             <button
@@ -942,7 +942,7 @@ function CredentialsForm({
             onChange={(e) =>
               setForm((f) => ({ ...f, dailySpendLimitBRL: parseFloat(e.target.value) || 0 }))
             }
-            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 dark:text-gray-100"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white dark:bg-gray-800 dark:text-gray-100"
             placeholder="40.00"
           />
           <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -1033,7 +1033,7 @@ function ChannelToggle({
           onClick={handleToggle}
           disabled={toggling}
           className={clsx(
-            "relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50",
+            "relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-petrol-500 disabled:opacity-50",
             isActive ? "bg-green-500" : "bg-gray-300"
           )}
         >

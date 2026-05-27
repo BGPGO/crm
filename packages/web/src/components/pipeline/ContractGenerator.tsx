@@ -311,7 +311,7 @@ function TextInput({
       onChange={(e) => onChange?.(e.target.value)}
       placeholder={placeholder}
       readOnly={readOnly}
-      className={`w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+      className={`w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 ${
         readOnly ? "bg-gray-50 text-gray-500 cursor-not-allowed" : "bg-white"
       }`}
     />
@@ -1280,7 +1280,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="text-blue-500 animate-spin" />
+        <Loader2 size={24} className="text-petrol-500 animate-spin" />
         <span className="ml-2 text-sm text-gray-500">Carregando contrato...</span>
       </div>
     );
@@ -1292,10 +1292,10 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     return (
       <div className="space-y-6">
         {/* Status banner */}
-        <div className={`rounded-xl border p-6 ${isSigned ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"}`}>
+        <div className={`rounded-xl border p-6 ${isSigned ? "bg-green-50 border-green-200" : "bg-petrol-50 border-petrol-200"}`}>
           <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isSigned ? "bg-green-100" : "bg-blue-100"}`}>
-              {isSigned ? <Check size={28} className="text-green-600" /> : <Send size={28} className="text-blue-600" />}
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center ${isSigned ? "bg-green-100" : "bg-petrol-100"}`}>
+              {isSigned ? <Check size={28} className="text-green-600" /> : <Send size={28} className="text-petrol-600" />}
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-800">
@@ -1349,7 +1349,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => setMode("preview")}
-            className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-4 py-2 transition-colors"
+            className="flex items-center gap-2 text-sm font-medium text-petrol-600 hover:text-petrol-700 border border-petrol-200 rounded-lg px-4 py-2 transition-colors"
           >
             <Eye size={16} />
             Visualizar Contrato
@@ -1416,7 +1416,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             <button
               onClick={handleSendAutentique}
               disabled={sendingAutentique}
-              className="flex items-center gap-2 text-sm font-medium text-white bg-blue-600 rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 text-sm font-medium text-white bg-petrol-600 rounded-lg px-4 py-2 hover:bg-petrol-700 disabled:opacity-50 transition-colors"
             >
               {sendingAutentique ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               Enviar para Autentique
@@ -1462,8 +1462,8 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <FileText size={20} className="text-blue-600" />
+          <div className="w-10 h-10 rounded-lg bg-petrol-100 flex items-center justify-center">
+            <FileText size={20} className="text-petrol-600" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-gray-800">Gerador de Contrato</h2>
@@ -1557,7 +1557,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             <select
               value={form.produto}
               onChange={(e) => updateField("produto", e.target.value)}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
             >
               <option value="">Selecione o produto...</option>
               {PRODUTOS.map((p) => (
@@ -1568,7 +1568,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
 
           {/* BI-specific fields */}
           {isBIProduct(form.produto) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-petrol-50 border border-petrol-100 rounded-lg">
               <FormField label="Origem dos Dados">
                 <TextInput
                   value={form.biOrigemDados}
@@ -1645,7 +1645,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             <select
               value={form.diaVencimento}
               onChange={(e) => updateField("diaVencimento", e.target.value)}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
             >
               {DIAS_VENCIMENTO.map((d) => (
                 <option key={d} value={String(d)}>Dia {d}</option>
@@ -1663,7 +1663,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             <select
               value={form.formaPagamento}
               onChange={(e) => updateField("formaPagamento", e.target.value)}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
             >
               {FORMAS_PAGAMENTO.map((f) => (
                 <option key={f.value} value={f.value}>{f.label}</option>
@@ -1738,7 +1738,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                 <button
                   type="button"
                   onClick={() => setShowWitnessPicker(showWitnessPicker === 1 ? null : 1)}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                  className="flex items-center gap-1 text-xs text-petrol-600 hover:text-petrol-700 font-medium transition-colors"
                 >
                   <Users size={12} />
                   Carregar salva
@@ -1760,7 +1760,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                     }));
                   }
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               >
                 <option value="">Preencher manualmente...</option>
                 {DEFAULT_WITNESSES.map((w, i) => (
@@ -1769,13 +1769,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               </select>
             </div>
             {showWitnessPicker === 1 && (
-              <div className="mb-3 border border-blue-100 rounded-md bg-blue-50 p-2 space-y-1">
+              <div className="mb-3 border border-petrol-100 rounded-md bg-petrol-50 p-2 space-y-1">
                 {savedWitnesses.map((w) => (
                   <button
                     key={w.id}
                     type="button"
                     onClick={() => selectWitness(w, 1)}
-                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-blue-100 rounded transition-colors"
+                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-petrol-100 rounded transition-colors"
                   >
                     <span className="font-medium">{w.nome}</span>
                     <span className="text-xs text-gray-500 ml-2">{w.cpf}</span>
@@ -1817,7 +1817,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                 <button
                   type="button"
                   onClick={() => setShowWitnessPicker(showWitnessPicker === 2 ? null : 2)}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                  className="flex items-center gap-1 text-xs text-petrol-600 hover:text-petrol-700 font-medium transition-colors"
                 >
                   <Users size={12} />
                   Carregar salva
@@ -1839,7 +1839,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                     }));
                   }
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               >
                 <option value="">Preencher manualmente...</option>
                 {DEFAULT_WITNESSES.map((w, i) => (
@@ -1848,13 +1848,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               </select>
             </div>
             {showWitnessPicker === 2 && (
-              <div className="mb-3 border border-blue-100 rounded-md bg-blue-50 p-2 space-y-1">
+              <div className="mb-3 border border-petrol-100 rounded-md bg-petrol-50 p-2 space-y-1">
                 {savedWitnesses.map((w) => (
                   <button
                     key={w.id}
                     type="button"
                     onClick={() => selectWitness(w, 2)}
-                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-blue-100 rounded transition-colors"
+                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-petrol-100 rounded transition-colors"
                   >
                     <span className="font-medium">{w.nome}</span>
                     <span className="text-xs text-gray-500 ml-2">{w.cpf}</span>
@@ -1899,7 +1899,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               onChange={(e) => updateField("observacao", e.target.value)}
               placeholder="Informações adicionais que serão incluídas como anexo no contrato..."
               rows={4}
-              className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 resize-y"
+              className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 resize-y"
             />
           </FormField>
           <FormField label="Link Read.ai (ata de reunião)">
@@ -1917,7 +1917,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       <div className="flex justify-end pt-2 pb-4">
         <button
           onClick={() => setMode("preview")}
-          className="flex items-center gap-2 text-sm font-medium text-white bg-blue-600 rounded-lg px-6 py-2.5 hover:bg-blue-700 transition-colors shadow-sm"
+          className="flex items-center gap-2 text-sm font-medium text-white bg-petrol-600 rounded-lg px-6 py-2.5 hover:bg-petrol-700 transition-colors shadow-sm"
         >
           <Eye size={16} />
           Visualizar Contrato

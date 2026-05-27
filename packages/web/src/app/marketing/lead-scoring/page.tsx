@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import Header from "@/components/layout/Header";
@@ -286,7 +286,7 @@ export default function LeadScoringPage() {
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => openEditModal(rule)}
-                              className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              className="p-1.5 rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors"
                               title="Editar"
                             >
                               <Pencil size={14} />
@@ -334,7 +334,7 @@ export default function LeadScoringPage() {
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-blue-500 rounded-full transition-all"
+                          className="h-full bg-petrol-500 rounded-full transition-all"
                           style={{
                             width: `${(item.count / maxCount) * 100}%`,
                           }}

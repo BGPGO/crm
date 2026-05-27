@@ -122,8 +122,8 @@ export default function PostponeDropdown({
         className={clsx(
           "flex items-center justify-center rounded-md transition-colors",
           size === "sm"
-            ? "w-7 h-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-            : "w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50",
+            ? "w-7 h-7 text-gray-400 hover:text-petrol-600 hover:bg-petrol-50"
+            : "w-8 h-8 text-gray-400 hover:text-petrol-600 hover:bg-petrol-50",
           loading && "opacity-50 cursor-not-allowed"
         )}
       >
@@ -143,7 +143,7 @@ export default function PostponeDropdown({
                 handleSelect(option);
               }}
               disabled={loading}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-petrol-50 hover:text-petrol-700 transition-colors disabled:opacity-50"
             >
               {option.label}
             </button>

@@ -200,7 +200,7 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
         >
           {saving ? (
             <Loader2 size={14} className="animate-spin" />
@@ -232,7 +232,7 @@ export default function FlowBuilder({ automationId }: FlowBuilderProps) {
               })}
               placeholder="Instruções que se aplicam a TODAS as mensagens desta automação. Ex: 'O lead já recebeu proposta. Seja sucinto, máx 2 linhas por mensagem. Foco em fechar a venda.'"
               rows={3}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
             />
             <p className="text-xs text-gray-400 mt-1">Este contexto será injetado em todas as mensagens de WhatsApp IA e emails gerados por IA desta automação.</p>
           </div>

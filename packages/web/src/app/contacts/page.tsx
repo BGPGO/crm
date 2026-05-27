@@ -161,7 +161,7 @@ export default function ContactsPage() {
               placeholder="Buscar contatos..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ export default function ContactsPage() {
                 >
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-petrol-100 text-petrol-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
                         {contact.name.charAt(0)}
                       </div>
                       <span className="font-medium text-gray-900">{contact.name}</span>
@@ -237,7 +237,7 @@ export default function ContactsPage() {
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Link
                       href={`/contacts/${contact.id}`}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-petrol-600 hover:underline"
                     >
                       Ver
                     </Link>
@@ -263,7 +263,7 @@ export default function ContactsPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button
@@ -312,7 +312,7 @@ export default function ContactsPage() {
             <select
               value={form.organizationId}
               onChange={(e) => setForm((f) => ({ ...f, organizationId: e.target.value }))}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
             >
               <option value="">Sem empresa</option>
               {organizations.map((org) => (

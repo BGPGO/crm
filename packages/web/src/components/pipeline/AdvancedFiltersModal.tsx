@@ -54,10 +54,10 @@ interface Props {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const SEL =
-  "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500";
 
 const INPUT =
-  "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500";
 
 function countActive(f: AdvancedFilters): number {
   return Object.values(f).filter((v) => v !== undefined && v !== "").length;
@@ -134,7 +134,7 @@ function MultiSelect({
                 <span
                   className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
                     isSelected
-                      ? "bg-blue-600 border-blue-600 text-white"
+                      ? "bg-petrol-600 border-petrol-600 text-white"
                       : "border-gray-300"
                   }`}
                 >
@@ -226,7 +226,7 @@ function CampaignMultiSelect({
                 <span
                   className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
                     isSelected
-                      ? "bg-blue-600 border-blue-600 text-white"
+                      ? "bg-petrol-600 border-petrol-600 text-white"
                       : "border-gray-300"
                   }`}
                 >
@@ -485,7 +485,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
             id="hasOverdueTask"
             checked={draft.hasOverdueTask === "true"}
             onChange={(e) => set("hasOverdueTask", e.target.checked ? "true" : "")}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="h-4 w-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
           />
           <label htmlFor="hasOverdueTask" className="text-sm text-gray-700 select-none">
             Com tarefa atrasada
@@ -619,7 +619,7 @@ export default function AdvancedFiltersModal({ isOpen, onClose, current, onApply
             <button
               type="button"
               onClick={handleApply}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+              className="px-4 py-2 text-sm font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-lg transition-colors shadow-sm"
             >
               Aplicar Filtros
             </button>

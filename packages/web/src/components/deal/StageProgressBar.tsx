@@ -52,8 +52,8 @@ export default function StageProgressBar({
               "h-7 px-3 first:rounded-l-full last:rounded-r-full transition-colors",
               "border-y border-r first:border-l",
               "-mr-px", // sobreposição para efeito de cadeia
-              isPast && "bg-blue-500 text-white border-blue-500 hover:bg-blue-600",
-              isCurrent && "bg-blue-600 text-white border-blue-700 ring-2 ring-blue-300 ring-offset-0 z-10",
+              isPast && "bg-petrol-500 text-white border-petrol-500 hover:bg-petrol-600",
+              isCurrent && "bg-petrol-600 text-white border-petrol-700 ring-2 ring-petrol-300 ring-offset-0 z-10",
               isFuture && !isLostStage && "bg-white text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-gray-600",
               isLostStage && "bg-red-100 text-red-500 border-red-200 cursor-default"
             )}

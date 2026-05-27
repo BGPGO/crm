@@ -102,6 +102,7 @@ const dealStatusLabel: Record<string, string> = {
   LOST: "Perdido",
 };
 
+// "blue" mantido como nome de variante do componente Badge (escopo do Squad ALPHA)
 const dealStatusVariant: Record<string, "green" | "red" | "blue" | "gray"> = {
   OPEN: "blue",
   WON: "green",
@@ -205,7 +206,7 @@ export default function OrganizationDetailPage() {
             <p className="text-gray-600 text-sm">{error || "Empresa não encontrada."}</p>
             <button
               onClick={() => router.push("/organizations")}
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-petrol-600 hover:underline"
             >
               Voltar para Empresas
             </button>
@@ -260,7 +261,7 @@ export default function OrganizationDetailPage() {
               </h3>
 
               {saving && (
-                <p className="text-xs text-blue-500 mb-2 animate-pulse">Salvando...</p>
+                <p className="text-xs text-petrol-500 mb-2 animate-pulse">Salvando...</p>
               )}
 
               <div className="divide-y divide-gray-100">
@@ -374,7 +375,7 @@ export default function OrganizationDetailPage() {
                   onClick={() => setActiveTab(tab.key)}
                   className={`px-4 py-2 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
-                      ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600"
+                      ? "text-petrol-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-petrol-600"
                       : "text-gray-500 hover:text-gray-800"
                   }`}
                 >
@@ -383,7 +384,7 @@ export default function OrganizationDetailPage() {
                     <span
                       className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
                         activeTab === tab.key
-                          ? "bg-blue-100 text-blue-600"
+                          ? "bg-petrol-100 text-petrol-600"
                           : "bg-gray-100 text-gray-500"
                       }`}
                     >
@@ -410,11 +411,11 @@ export default function OrganizationDetailPage() {
                           href={`/contacts/${contact.id}`}
                           className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors group"
                         >
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-petrol-100 text-petrol-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
                             {contact.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-petrol-600 transition-colors">
                               {contact.name}
                             </p>
                             <div className="flex items-center gap-3 mt-0.5">
@@ -434,7 +435,7 @@ export default function OrganizationDetailPage() {
                           </div>
                           <ChevronLeft
                             size={14}
-                            className="text-gray-300 group-hover:text-blue-400 rotate-180 flex-shrink-0"
+                            className="text-gray-300 group-hover:text-petrol-400 rotate-180 flex-shrink-0"
                           />
                         </Link>
                       </li>

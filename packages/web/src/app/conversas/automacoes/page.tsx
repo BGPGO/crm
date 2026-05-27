@@ -191,8 +191,8 @@ export default function ConversasAutomacoesPage() {
               label: "Em execução agora",
               value: loading ? "—" : (globalStats?.enrollmentsActive ?? 0),
               icon: Users,
-              color: "text-blue-600",
-              bg: "bg-blue-50",
+              color: "text-petrol-600",
+              bg: "bg-petrol-50",
             },
             {
               label: "Execuções hoje",
@@ -232,7 +232,7 @@ export default function ConversasAutomacoesPage() {
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold text-gray-900">Automações WhatsApp</h2>
             {!loading && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-petrol-100 text-petrol-700">
                 {automations.length}
               </span>
             )}
@@ -293,8 +293,8 @@ export default function ConversasAutomacoesPage() {
           </div>
         ) : automations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
-              <Zap size={32} className="text-blue-400" />
+            <div className="w-16 h-16 bg-petrol-50 rounded-2xl flex items-center justify-center mb-4">
+              <Zap size={32} className="text-petrol-400" />
             </div>
             <h3 className="text-base font-semibold text-gray-900 mb-1">
               Nenhuma automação criada
@@ -345,11 +345,11 @@ export default function ConversasAutomacoesPage() {
             {emailByStage.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <Mail size={16} className="text-indigo-600" />
-                  <h3 className="text-sm font-semibold text-indigo-700 uppercase tracking-wider">
+                  <Mail size={16} className="text-petrol-600" />
+                  <h3 className="text-sm font-semibold text-petrol-700 uppercase tracking-wider">
                     Emails por etapa
                   </h3>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-petrol-100 text-petrol-700">
                     {emailByStage.length}
                   </span>
                   <span className="text-xs text-gray-400">
@@ -364,7 +364,7 @@ export default function ConversasAutomacoesPage() {
                       )
                     )
                     .map((automation) => (
-                      <div key={automation.id} className="ring-2 ring-indigo-200 rounded-xl">
+                      <div key={automation.id} className="ring-2 ring-petrol-200 rounded-xl">
                         <AutomationCard
                           automation={automation}
                           onActivate={handleActivate}
@@ -509,8 +509,8 @@ function FollowUpSystemCard({
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-            <MessageSquare size={16} className="text-blue-600" />
+          <div className="w-8 h-8 rounded-lg bg-petrol-50 flex items-center justify-center flex-shrink-0">
+            <MessageSquare size={16} className="text-petrol-600" />
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900">Follow-up da Bia</p>
@@ -526,13 +526,13 @@ function FollowUpSystemCard({
             disabled={toggling || loading}
             className={clsx(
               "relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50",
-              enabled ? "bg-blue-600" : "bg-gray-300"
+              enabled ? "bg-petrol-600" : "bg-gray-300"
             )}
             title={enabled ? "Desativar follow-up" : "Ativar follow-up"}
           >
             <span className={clsx("inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform", enabled ? "translate-x-4.5" : "translate-x-0.5")} />
           </button>
-          <span className={clsx("text-xs font-medium", enabled ? "text-blue-600" : "text-gray-400")}>
+          <span className={clsx("text-xs font-medium", enabled ? "text-petrol-600" : "text-gray-400")}>
             {enabled ? "Ativo" : "Pausado"}
           </span>
           <button
@@ -561,7 +561,7 @@ function FollowUpSystemCard({
         <div className="border-t border-gray-100 px-4 py-4 space-y-3">
           {localSteps.map((step, idx) => (
             <div key={idx} className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-petrol-100 text-petrol-700 text-xs font-bold">
                 {step.order}
               </span>
               <div className="flex-1 grid grid-cols-2 gap-2">
@@ -571,7 +571,7 @@ function FollowUpSystemCard({
                     type="number" min={1}
                     value={step.delayMinutes}
                     onChange={(e) => updateStep(idx, "delayMinutes", parseInt(e.target.value) || 1)}
-                    className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   />
                 </div>
                 <div>
@@ -579,7 +579,7 @@ function FollowUpSystemCard({
                   <select
                     value={step.tone}
                     onChange={(e) => updateStep(idx, "tone", e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full px-2 py-1 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   >
                     {TONE_OPTIONS.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
@@ -596,7 +596,7 @@ function FollowUpSystemCard({
           <div className="flex items-center gap-2">
             <button
               onClick={addStep}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+              className="text-xs text-petrol-600 hover:text-petrol-700 font-medium flex items-center gap-1"
             >
               <Plus size={12} /> Adicionar etapa
             </button>
@@ -606,7 +606,7 @@ function FollowUpSystemCard({
             <button
               onClick={saveSteps}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors"
             >
               <Save size={12} />
               {saving ? "Salvando..." : "Salvar etapas"}

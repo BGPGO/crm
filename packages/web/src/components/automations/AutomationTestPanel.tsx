@@ -207,7 +207,7 @@ export default function AutomationTestPanel({ automationId, automationName, onCl
                   )}>
                     <div className="flex items-center gap-2">
                       {step.success ? (
-                        step.actionType === 'WAIT' ? <SkipForward size={14} className="text-blue-500" /> : <CheckCircle2 size={14} className="text-green-600" />
+                        step.actionType === 'WAIT' ? <SkipForward size={14} className="text-petrol-500" /> : <CheckCircle2 size={14} className="text-green-600" />
                       ) : (
                         <XCircle size={14} className="text-red-500" />
                       )}
@@ -224,7 +224,7 @@ export default function AutomationTestPanel({ automationId, automationName, onCl
                           <p className="text-xs text-gray-600">{step.output}</p>
                         ) : (
                           <div className="text-xs text-gray-500 space-y-0.5">
-                            {step.output.testMode && <p className="text-blue-600 font-medium">{step.output.testMode}</p>}
+                            {step.output.testMode && <p className="text-petrol-600 font-medium">{step.output.testMode}</p>}
                             {step.output.originalDuration && <p>Original: {step.output.originalDuration} {step.output.originalUnit}</p>}
                             {step.output.phone && <p>Telefone: {step.output.phone}</p>}
                             {step.output.messageLength && <p>Mensagem: {step.output.messageLength} caracteres</p>}
@@ -258,10 +258,10 @@ export default function AutomationTestPanel({ automationId, automationName, onCl
                             "max-w-[75%] rounded-xl px-3 py-2 shadow-sm",
                             isClient ? "bg-gray-200 text-gray-900"
                               : isBot ? "bg-green-100 border border-green-200 text-gray-900"
-                              : "bg-blue-100 border border-blue-200 text-gray-900"
+                              : "bg-petrol-100 border border-petrol-200 text-gray-900"
                           )}>
                             {!isClient && (
-                              <p className={clsx("text-[10px] font-semibold mb-0.5", isBot ? "text-green-700" : "text-blue-700")}>
+                              <p className={clsx("text-[10px] font-semibold mb-0.5", isBot ? "text-green-700" : "text-petrol-700")}>
                                 {isBot ? "Bot IA" : (msg.senderUser?.name || "Equipe")}
                               </p>
                             )}

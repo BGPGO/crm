@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Palette, Type, Layout } from "lucide-react";
 
@@ -134,7 +134,7 @@ function RangeRow({
         step={step || 1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-blue-600"
+        className="w-full accent-petrol-600"
       />
     </div>
   );

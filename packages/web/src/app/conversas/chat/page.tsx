@@ -314,7 +314,7 @@ export default function ConversasChatPage() {
           <span className="text-xs text-gray-600">Em atendimento: <strong className="text-gray-900">{stats.open}</strong></span>
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+          <div className="w-2 h-2 rounded-full bg-petrol-500 flex-shrink-0" />
           <span className="text-xs text-gray-600">Com IA: <strong className="text-gray-900">{stats.withAI}</strong></span>
         </div>
         <div className="flex items-center gap-2 whitespace-nowrap">
@@ -341,7 +341,7 @@ export default function ConversasChatPage() {
             onClick={() => setStageFilter('all')}
             className={clsx(
               "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
-              stageFilter === 'all' ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+              stageFilter === 'all' ? "bg-petrol-100 text-petrol-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
             )}
           >
             Todas
@@ -352,7 +352,7 @@ export default function ConversasChatPage() {
               onClick={() => setStageFilter(stageFilter === s.stageId ? 'all' : s.stageId)}
               className={clsx(
                 "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
-                stageFilter === s.stageId ? "bg-blue-100 text-blue-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                stageFilter === s.stageId ? "bg-petrol-100 text-petrol-700" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
               )}
             >
               {s.stageName} <span className="opacity-60">({s.count})</span>
@@ -388,7 +388,7 @@ export default function ConversasChatPage() {
                   searchTimeoutRef.current = setTimeout(() => fetchConversations(v), 300);
                 }}
                 placeholder="Buscar nome, email, telefone..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-petrol-500"
               />
               {searchQuery && (
                 <button onClick={() => { setSearchQuery(""); fetchConversations(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -412,7 +412,7 @@ export default function ConversasChatPage() {
                   className={clsx(
                     "px-2 py-1 rounded text-[11px] font-medium transition-colors",
                     activeFilter === f.key
-                      ? f.color === 'error' ? "bg-red-100 text-red-700" : f.color === 'cadence' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                      ? f.color === 'error' ? "bg-red-100 text-red-700" : f.color === 'cadence' ? "bg-purple-100 text-purple-700" : "bg-petrol-100 text-petrol-700"
                       : f.color === 'error' && f.count > 0 ? "bg-red-50 text-red-500 hover:bg-red-100" : f.color === 'cadence' && f.count > 0 ? "bg-purple-50 text-purple-500 hover:bg-purple-100" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
                   )}
                 >
@@ -424,7 +424,7 @@ export default function ConversasChatPage() {
               <select
                 value={userFilter}
                 onChange={(e) => setUserFilter(e.target.value)}
-                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-petrol-500"
               >
                 <option value="all">Todos os responsáveis</option>
                 {allUsers.map(u => (
@@ -437,14 +437,14 @@ export default function ConversasChatPage() {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-petrol-500"
                 placeholder="De"
               />
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-petrol-500"
                 placeholder="Até"
               />
               {(dateFrom || dateTo) && (
@@ -476,7 +476,7 @@ export default function ConversasChatPage() {
                   onClick={() => setSelectedId(conv.id)}
                   className={clsx(
                     "w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors",
-                    selectedId === conv.id && "bg-blue-50 border-l-2 border-l-blue-600"
+                    selectedId === conv.id && "bg-petrol-50 border-l-2 border-l-petrol-600"
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -514,7 +514,7 @@ export default function ConversasChatPage() {
                           <AlertCircle size={12} className="text-yellow-500 flex-shrink-0" />
                         )}
                         {!conv.needsHumanAttention && conv.isActive && conv.status !== 'closed' && (conv.unreadCount ?? 0) === 0 && (
-                          <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium flex-shrink-0">IA</span>
+                          <span className="text-[10px] px-1 py-0.5 bg-petrol-50 text-petrol-600 rounded font-medium flex-shrink-0">IA</span>
                         )}
                         {conv.needsHumanAttention && (
                           <span className="text-[10px] px-1 py-0.5 bg-yellow-50 text-yellow-600 rounded font-medium flex-shrink-0 ml-0.5">Humano</span>
@@ -698,13 +698,13 @@ export default function ConversasChatPage() {
                                   ? "bg-gray-200 text-gray-900"
                                   : isBot
                                   ? "bg-green-50 border border-green-200 text-gray-900"
-                                  : "bg-blue-50 border border-blue-200 text-gray-900"
+                                  : "bg-petrol-50 border border-petrol-200 text-gray-900"
                               )}
                             >
                               {!isClient && (
                                 <p className={clsx(
                                   "text-[10px] font-semibold mb-0.5",
-                                  isBot ? "text-green-600" : "text-blue-600"
+                                  isBot ? "text-green-600" : "text-petrol-600"
                                 )}>
                                   {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
                                 </p>
@@ -723,7 +723,7 @@ export default function ConversasChatPage() {
                                         handleCancelEdit();
                                       }
                                     }}
-                                    className="w-full text-sm border border-blue-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                    className="w-full text-sm border border-petrol-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
                                     rows={3}
                                     autoFocus
                                   />
@@ -738,7 +738,7 @@ export default function ConversasChatPage() {
                                     <button
                                       onClick={handleSaveEdit}
                                       disabled={!editText.trim() || savingEdit}
-                                      className="p-1 rounded hover:bg-blue-100 text-blue-600 disabled:opacity-50"
+                                      className="p-1 rounded hover:bg-petrol-100 text-petrol-600 disabled:opacity-50"
                                       title="Salvar (Ctrl+Enter)"
                                     >
                                       <Check size={14} />
@@ -806,7 +806,7 @@ export default function ConversasChatPage() {
                         <button
                           key={t.id}
                           onClick={() => selectTemplate(t)}
-                          className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                          className="w-full text-left px-3 py-2 hover:bg-petrol-50 transition-colors border-b border-gray-50 last:border-0"
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-gray-900">/{t.name}</span>
@@ -849,7 +849,7 @@ export default function ConversasChatPage() {
                       // Enter sem Ctrl = quebra de linha (comportamento padrão do textarea)
                     }}
                     placeholder="Digite / para usar um modelo... (Ctrl+Enter para enviar)"
-                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none"
                     disabled={sending}
                     rows={1}
                     style={{ maxHeight: "120px" }}
@@ -857,7 +857,7 @@ export default function ConversasChatPage() {
                   <button
                     onClick={handleSend}
                     disabled={!inputText.trim() || sending || showTemplates}
-                    className="p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    className="p-2.5 bg-petrol-600 text-white rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     title="Enviar (Ctrl+Enter)"
                   >
                     <Send size={18} />

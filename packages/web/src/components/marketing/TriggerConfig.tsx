@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
@@ -21,10 +21,10 @@ interface TriggerConfigProps {
 }
 
 const selectClass =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
 const inputClass =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
 // Inline tag selector with create support
 interface TagDropdownProps {
@@ -100,7 +100,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
               placeholder="Buscar ou criar tag..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-petrol-500"
               autoFocus
             />
           </div>
@@ -110,7 +110,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
                 type="button"
                 onClick={handleCreate}
                 disabled={creating}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 rounded-md hover:bg-blue-50 transition-colors text-left font-medium"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-petrol-600 rounded-md hover:bg-petrol-50 transition-colors text-left font-medium"
               >
                 <Plus size={14} className="flex-shrink-0" />
                 {creating ? "Criando..." : `Criar: "${search.trim()}"`}
@@ -131,7 +131,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
                     setOpen(false);
                   }}
                   className={`w-full flex items-center px-3 py-1.5 text-sm rounded-md hover:bg-gray-50 transition-colors text-left ${
-                    tag.id === value ? "text-blue-600 font-medium" : "text-gray-700"
+                    tag.id === value ? "text-petrol-600 font-medium" : "text-gray-700"
                   }`}
                 >
                   {tag.name}

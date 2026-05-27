@@ -92,7 +92,7 @@ export default function BatchLostModal({ isOpen, onClose, count, onConfirm }: Pr
               setSelectedReasonId(e.target.value);
               setError(null);
             }}
-            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
           >
             <option value="">Selecione o motivo...</option>
             {lostReasons.map((r) => (

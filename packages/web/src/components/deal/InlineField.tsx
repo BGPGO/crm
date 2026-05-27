@@ -55,7 +55,7 @@ export default function InlineField({
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              className="flex-1 text-sm border border-blue-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="flex-1 text-sm border border-petrol-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
             >
               <option value="">Selecione...</option>
               {options.map((o) => (
@@ -74,7 +74,7 @@ export default function InlineField({
                 if (e.key === "Enter") commit();
                 if (e.key === "Escape") cancel();
               }}
-              className="flex-1 text-sm border border-blue-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400"
+              className="flex-1 text-sm border border-petrol-400 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-petrol-400"
             />
           )}
           <button
@@ -103,7 +103,7 @@ export default function InlineField({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:underline truncate"
+            className="text-sm text-petrol-600 hover:underline truncate"
           >
             {displayValue || <span className="italic text-gray-300">—</span>}
           </a>
@@ -120,7 +120,7 @@ export default function InlineField({
             setEditing(true);
           }}
           className={clsx(
-            "text-sm text-left rounded px-1 -ml-1 hover:bg-blue-50 hover:text-blue-700 transition-colors",
+            "text-sm text-left rounded px-1 -ml-1 hover:bg-petrol-50 hover:text-petrol-700 transition-colors",
             value ? "text-gray-700" : "italic text-gray-300"
           )}
         >

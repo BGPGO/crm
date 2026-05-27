@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -42,11 +42,11 @@ const SECTION_ITEMS: PaletteItem[] = [
 // ---------------------------------------------------------------------------
 
 const CATEGORY_COLORS: Record<string, string> = {
-  "Cabeçalho": "border-l-blue-400",
+  "Cabeçalho": "border-l-petrol-400",
   Hero: "border-l-purple-400",
   "Conteúdo": "border-l-green-400",
   CTA: "border-l-orange-400",
-  Template: "border-l-indigo-400",
+  Template: "border-l-petrol-400",
   "Rodapé": "border-l-gray-400",
   Social: "border-l-pink-400",
 };
@@ -75,7 +75,7 @@ export default function SectionPalette({
           onClick={() => setActiveTab("sections")}
           className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
             activeTab === "sections"
-              ? "text-gray-900 border-b-2 border-blue-500"
+              ? "text-gray-900 border-b-2 border-petrol-500"
               : "text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -86,7 +86,7 @@ export default function SectionPalette({
           onClick={() => setActiveTab("blocks")}
           className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
             activeTab === "blocks"
-              ? "text-gray-900 border-b-2 border-blue-500"
+              ? "text-gray-900 border-b-2 border-petrol-500"
               : "text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -124,7 +124,7 @@ function SectionsGrid({
             key={item.type}
             type="button"
             onClick={() => onAddSection(item.type)}
-            className="flex flex-col items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3.5 text-gray-600 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 active:scale-95"
+            className="flex flex-col items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3.5 text-gray-600 transition-all hover:border-petrol-300 hover:bg-petrol-50 hover:text-petrol-600 active:scale-95"
           >
             <Icon className="h-5 w-5" />
             <span className="text-[10px] font-medium leading-tight text-center">
@@ -163,7 +163,7 @@ function BlocksList({
               }));
               onAddPrebuilt(cloned);
             }}
-            className={`w-full text-left rounded-lg border border-gray-200 border-l-[3px] ${borderColor} bg-white p-2.5 transition-all hover:border-blue-300 hover:shadow-sm active:scale-[0.98]`}
+            className={`w-full text-left rounded-lg border border-gray-200 border-l-[3px] ${borderColor} bg-white p-2.5 transition-all hover:border-petrol-300 hover:shadow-sm active:scale-[0.98]`}
           >
             <span className="text-xs font-medium text-gray-900 block">
               {block.name}

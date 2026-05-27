@@ -61,16 +61,16 @@ const nodeTypeConfig: Record<
   SEND_EMAIL: {
     label: "Enviar Email",
     icon: Mail,
-    borderColor: "border-l-indigo-500",
-    iconBg: "bg-indigo-50",
-    iconColor: "text-indigo-600",
+    borderColor: "border-l-petrol-500",
+    iconBg: "bg-petrol-50",
+    iconColor: "text-petrol-600",
   },
   WAIT: {
     label: "Aguardar",
     icon: Clock,
-    borderColor: "border-l-blue-500",
-    iconBg: "bg-blue-50",
-    iconColor: "text-blue-600",
+    borderColor: "border-l-petrol-500",
+    iconBg: "bg-petrol-50",
+    iconColor: "text-petrol-600",
   },
   CONDITION: {
     label: "Condição",

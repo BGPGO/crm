@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
@@ -33,10 +33,10 @@ interface ActionConfigProps {
 }
 
 const selectClass =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
 const inputClass =
-  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+  "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
 const WAIT_UNITS = [
   { value: "minutes", label: "Minutos" },
@@ -128,7 +128,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
               placeholder="Buscar ou criar tag..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-petrol-500"
               autoFocus
             />
           </div>
@@ -138,7 +138,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
                 type="button"
                 onClick={handleCreate}
                 disabled={creating}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 rounded-md hover:bg-blue-50 transition-colors text-left font-medium"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-petrol-600 rounded-md hover:bg-petrol-50 transition-colors text-left font-medium"
               >
                 <Plus size={14} className="flex-shrink-0" />
                 {creating ? "Criando..." : `Criar: "${search.trim()}"`}
@@ -159,7 +159,7 @@ function TagDropdown({ tags, value, onChange, onTagCreated }: TagDropdownProps) 
                     setOpen(false);
                   }}
                   className={`w-full flex items-center px-3 py-1.5 text-sm rounded-md hover:bg-gray-50 transition-colors text-left ${
-                    tag.id === value ? "text-blue-600 font-medium" : "text-gray-700"
+                    tag.id === value ? "text-petrol-600 font-medium" : "text-gray-700"
                   }`}
                 >
                   {tag.name}
@@ -367,7 +367,7 @@ export default function ActionConfig({
               onClick={() => onChange({ ...config, mode: 'template', customMessage: undefined })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 config?.mode !== 'custom'
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-petrol-100 text-petrol-700'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -378,7 +378,7 @@ export default function ActionConfig({
               onClick={() => onChange({ ...config, mode: 'custom', messageTemplateId: undefined })}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 config?.mode === 'custom'
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-petrol-100 text-petrol-700'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -397,7 +397,7 @@ export default function ActionConfig({
               onChange={(e) => onChange({ ...config, customMessage: e.target.value })}
               placeholder="Ola {{nome}}, tudo bem?"
               rows={4}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <p className="text-xs text-gray-500">
               Placeholders: {'{{nome}}'}, {'{{email}}'}, {'{{telefone}}'}, {'{{cidade}}'}, {'{{estado}}'}

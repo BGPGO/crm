@@ -22,7 +22,7 @@ interface Campaign {
 
 const statusConfig: Record<string, { label: string; classes: string }> = {
   DRAFT: { label: "Rascunho", classes: "bg-gray-100 text-gray-600" },
-  RUNNING: { label: "Enviando", classes: "bg-blue-100 text-blue-700 animate-pulse" },
+  RUNNING: { label: "Enviando", classes: "bg-petrol-100 text-petrol-700 animate-pulse" },
   PAUSED: { label: "Pausada", classes: "bg-yellow-100 text-yellow-700" },
   COMPLETED: { label: "Concluída", classes: "bg-green-100 text-green-700" },
 };
@@ -83,7 +83,7 @@ export default function ConversasCampanhasPage() {
           <h2 className="text-sm font-semibold text-gray-900">Todas as Campanhas</h2>
           <Link
             href="/conversas/campanhas/nova"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 transition-colors"
           >
             <Plus size={16} />
             Nova Campanha
@@ -128,7 +128,7 @@ export default function ConversasCampanhasPage() {
                         <td className="px-4 py-3 font-medium text-gray-900">{campaign.name}</td>
                         <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
                           {campaign.stage ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-petrol-50 text-petrol-700 font-medium">
                               Etapa: {campaign.stage.name}
                             </span>
                           ) : campaign.segment ? (
@@ -163,7 +163,7 @@ export default function ConversasCampanhasPage() {
                             )}
                             <Link
                               href={`/conversas/campanhas/${campaign.id}`}
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                              className="inline-flex items-center gap-1 text-xs text-petrol-600 font-medium hover:underline"
                             >
                               <Eye size={12} /> Ver
                             </Link>

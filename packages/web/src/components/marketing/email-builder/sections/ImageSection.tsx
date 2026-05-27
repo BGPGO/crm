@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef } from "react";
 import { Image as ImageIcon, Check } from "lucide-react";
@@ -75,7 +75,7 @@ export function ImageSection({ data, onUpdate }: ImageSectionProps) {
     return (
       <div className={`flex ${alignClass}`}>
         <div
-          className="flex w-full max-w-md flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-blue-300 bg-blue-50/40 text-blue-400 transition-colors hover:border-blue-400 hover:bg-blue-50"
+          className="flex w-full max-w-md flex-col items-center justify-center gap-3 rounded border-2 border-dashed border-petrol-300 bg-petrol-50/40 text-petrol-400 transition-colors hover:border-petrol-400 hover:bg-petrol-50"
           style={{ minHeight: showInlineInput ? "auto" : 160, padding: showInlineInput ? "16px" : "32px 16px" }}
           onClick={handlePlaceholderClick}
         >
@@ -83,8 +83,8 @@ export function ImageSection({ data, onUpdate }: ImageSectionProps) {
             <>
               <ImageIcon className="h-10 w-10 opacity-60" />
               <div className="text-center">
-                <p className="text-sm font-medium text-blue-500">Clique para inserir imagem</p>
-                <p className="text-xs text-blue-400 mt-0.5">Cole a URL da imagem aqui</p>
+                <p className="text-sm font-medium text-petrol-500">Clique para inserir imagem</p>
+                <p className="text-xs text-petrol-400 mt-0.5">Cole a URL da imagem aqui</p>
               </div>
             </>
           ) : (
@@ -92,7 +92,7 @@ export function ImageSection({ data, onUpdate }: ImageSectionProps) {
               className="flex w-full items-center gap-2"
               onClick={(e) => e.stopPropagation()}
             >
-              <ImageIcon className="h-5 w-5 shrink-0 text-blue-400" />
+              <ImageIcon className="h-5 w-5 shrink-0 text-petrol-400" />
               <input
                 ref={inputRef}
                 type="text"
@@ -100,13 +100,13 @@ export function ImageSection({ data, onUpdate }: ImageSectionProps) {
                 onChange={(e) => setUrlInput(e.target.value)}
                 onKeyDown={handleInputKeyDown}
                 placeholder="https://exemplo.com/imagem.jpg"
-                className="flex-1 rounded border border-blue-300 bg-white px-3 py-1.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+                className="flex-1 rounded border border-petrol-300 bg-white px-3 py-1.5 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-400/40"
               />
               <button
                 type="button"
                 onClick={handleConfirmUrl}
                 disabled={!urlInput.trim()}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-petrol-500 text-white hover:bg-petrol-600 disabled:opacity-40"
               >
                 <Check className="h-4 w-4" />
               </button>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -147,7 +147,7 @@ export default function EmailCampaignsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
             >
               <option value="">Todos os status</option>
               <option value="DRAFT">Rascunho</option>
@@ -215,7 +215,7 @@ export default function EmailCampaignsPage() {
                     <TableCell>
                       <Link
                         href={`/marketing/emails/${campaign.id}`}
-                        className="font-medium text-gray-900 hover:text-blue-600"
+                        className="font-medium text-gray-900 hover:text-petrol-600"
                       >
                         {campaign.name}
                       </Link>
@@ -241,7 +241,7 @@ export default function EmailCampaignsPage() {
                     <TableCell>
                       <Link
                         href={`/marketing/emails/${campaign.id}`}
-                        className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors inline-flex"
+                        className="p-1.5 rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors inline-flex"
                         title="Ver detalhes"
                       >
                         <Eye size={14} />
@@ -269,7 +269,7 @@ export default function EmailCampaignsPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button

@@ -95,7 +95,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
             onClick={() => onChange({ ...config, isAIGenerated: false })}
             className={`flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${
               mode === "template"
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700 font-medium"
+                ? "border-petrol-500 bg-petrol-50 text-petrol-700 font-medium"
                 : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -107,7 +107,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
             onClick={() => onChange({ ...config, isAIGenerated: true, templateId: undefined })}
             className={`flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${
               mode === "ai"
-                ? "border-indigo-500 bg-indigo-50 text-indigo-700 font-medium"
+                ? "border-petrol-500 bg-petrol-50 text-petrol-700 font-medium"
                 : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -126,7 +126,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
               value={config.templateId || ""}
               onChange={(e) => onChange({ ...config, templateId: e.target.value || undefined })}
               disabled={loadingList}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 bg-white"
             >
               <option value="">
                 {loadingList ? "Carregando templates..." : "— Selecione um template —"}
@@ -151,7 +151,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
               <button
                 type="button"
                 onClick={openPreview}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-700 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-petrol-700 bg-white border border-petrol-200 rounded-md hover:bg-petrol-50 transition-colors"
               >
                 <Eye size={12} />
                 Ver preview do email
@@ -171,7 +171,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
               value={config.subject || ""}
               onChange={(e) => onChange({ ...config, subject: e.target.value })}
               placeholder="Ex: Clareza financeira para o seu negócio"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
             />
           </div>
           <div>
@@ -181,7 +181,7 @@ export default function SendEmailNode({ config, onChange }: SendEmailNodeProps) 
               onChange={(e) => onChange({ ...config, prompt: e.target.value })}
               placeholder="Ex: Apresentação formal. O que o GoBI faz, CTA para agendar diagnóstico."
               rows={3}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
             />
             <p className="text-[11px] text-gray-400 mt-1">
               A IA gera o conteúdo baseado nestas instruções + dados do contato (nome, setor, empresa).

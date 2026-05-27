@@ -280,7 +280,7 @@ function StarRating({ value, onChange }: { value: number; onChange?: (v: number)
 
 function StatusBadge({ status }: { status: DealStatus }) {
   const map = {
-    active: { cls: "bg-blue-100 text-blue-700", label: "Em andamento" },
+    active: { cls: "bg-petrol-100 text-petrol-700", label: "Em andamento" },
     won: { cls: "bg-green-100 text-green-700", label: "VENDIDA" },
     lost: { cls: "bg-red-100 text-red-700", label: "PERDIDA" },
   };
@@ -397,7 +397,7 @@ function SidebarContact({
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-petrol-400"
               autoFocus
             />
           </div>
@@ -407,7 +407,7 @@ function SidebarContact({
               type="text"
               value={editPhone}
               onChange={(e) => { setEditPhone(e.target.value); if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined })); }}
-              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400", errors.phone ? "border-red-300" : "border-gray-200")}
+              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-petrol-400", errors.phone ? "border-red-300" : "border-gray-200")}
               placeholder="(00) 00000-0000"
             />
             {errors.phone && <p className="text-[10px] text-red-500 mt-0.5">{errors.phone}</p>}
@@ -418,7 +418,7 @@ function SidebarContact({
               type="email"
               value={editEmail}
               onChange={(e) => { setEditEmail(e.target.value); if (errors.email) setErrors((prev) => ({ ...prev, email: undefined })); }}
-              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400", errors.email ? "border-red-300" : "border-gray-200")}
+              className={clsx("w-full text-sm border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-petrol-400", errors.email ? "border-red-300" : "border-gray-200")}
               placeholder="email@exemplo.com"
             />
             {errors.email && <p className="text-[10px] text-red-500 mt-0.5">{errors.email}</p>}
@@ -427,7 +427,7 @@ function SidebarContact({
             <button
               onClick={handleSave}
               disabled={saving || !editName.trim()}
-              className="flex items-center gap-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-2.5 py-1 rounded transition-colors"
+              className="flex items-center gap-1 text-xs font-medium text-white bg-petrol-600 hover:bg-petrol-700 disabled:opacity-50 px-2.5 py-1 rounded transition-colors"
             >
               {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
               Salvar
@@ -448,13 +448,13 @@ function SidebarContact({
   return (
     <div className="py-2 border-b border-gray-100 last:border-0">
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-6 h-6 rounded-full bg-petrol-100 text-petrol-600 flex items-center justify-center flex-shrink-0">
           <User size={12} />
         </div>
         <span className="text-sm font-semibold text-gray-800 truncate flex-1">{contact.name}</span>
         <button
           onClick={handleStartEdit}
-          className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+          className="p-0.5 text-gray-300 hover:text-petrol-500 transition-colors flex-shrink-0"
           title="Editar contato"
         >
           <Pencil size={12} />
@@ -474,7 +474,7 @@ function SidebarContact({
         <div className="flex items-center gap-1 pl-8 mb-0.5">
           <a
             href={`tel:${contact.phone}`}
-            className="text-xs text-gray-600 hover:text-blue-600 transition-colors flex-1 truncate"
+            className="text-xs text-gray-600 hover:text-petrol-600 transition-colors flex-1 truncate"
           >
             {contact.phone}
           </a>
@@ -487,7 +487,7 @@ function SidebarContact({
           </button>
           <a
             href={`tel:${contact.phone}`}
-            className="p-0.5 text-gray-300 hover:text-blue-500 transition-colors"
+            className="p-0.5 text-gray-300 hover:text-petrol-500 transition-colors"
             title="Ligar"
           >
             <Phone size={11} />
@@ -508,7 +508,7 @@ function SidebarContact({
         <div className="flex items-center gap-1 pl-8">
           <a
             href={`mailto:${contact.email}`}
-            className="text-xs text-gray-600 hover:text-blue-600 transition-colors flex-1 truncate"
+            className="text-xs text-gray-600 hover:text-petrol-600 transition-colors flex-1 truncate"
           >
             {contact.email}
           </a>
@@ -556,7 +556,7 @@ function EditableTitle({
               setEditing(false);
             }
           }}
-          className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 outline-none bg-transparent flex-1"
+          className="text-2xl font-bold text-gray-900 border-b-2 border-petrol-500 outline-none bg-transparent flex-1"
         />
         <button onClick={commit} className="p-1 text-green-600 hover:text-green-700">
           <Check size={16} />
@@ -577,7 +577,7 @@ function EditableTitle({
       onClick={() => { setDraft(value); setEditing(true); }}
     >
       <h1 className="text-2xl font-bold text-gray-900 leading-tight">{value}</h1>
-      <Pencil size={14} className="text-gray-300 group-hover:text-blue-400 transition-colors flex-shrink-0" />
+      <Pencil size={14} className="text-gray-300 group-hover:text-petrol-400 transition-colors flex-shrink-0" />
     </div>
   );
 }
@@ -587,7 +587,7 @@ function EditableTitle({
 function LoadingState() {
   return (
     <div className="flex flex-col h-full items-center justify-center gap-3 bg-gray-50">
-      <Loader2 size={32} className="text-blue-500 animate-spin" />
+      <Loader2 size={32} className="text-petrol-500 animate-spin" />
       <p className="text-sm text-gray-500">Carregando negociação...</p>
     </div>
   );
@@ -1358,7 +1358,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex-shrink-0">
         <button
           onClick={() => router.push("/pipeline")}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mb-3 transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-petrol-600 mb-3 transition-colors"
         >
           <ChevronLeft size={16} />
           Funil de Vendas
@@ -1377,7 +1377,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleOpenAddProduct}
-                className="text-xl font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
+                className="text-xl font-bold text-petrol-600 hover:text-petrol-700 hover:underline cursor-pointer transition-colors"
                 title="Clique para adicionar produto"
               >
                 {formatCurrency(totalRecurrence || deal.value)}
@@ -1533,7 +1533,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 <span className="text-xs text-gray-400">Valor total</span>
                 <button
                   onClick={handleOpenAddProduct}
-                  className="block text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline mt-0.5 cursor-pointer transition-colors"
+                  className="block text-sm font-semibold text-petrol-600 hover:text-petrol-700 hover:underline mt-0.5 cursor-pointer transition-colors"
                   title="Clique para adicionar produto"
                 >
                   {formatCurrency(totalRecurrence || deal.value)}
@@ -1575,7 +1575,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     setDeal((d) => d ? { ...d, campaign: selected ? { id: selected.id, name: selected.name } : undefined } : d);
                     try { await api.put(`/deals/${dealId}`, { campaignId }); } catch { /* silent */ }
                   }}
-                  className="w-full mt-0.5 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
+                  className="w-full mt-0.5 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-petrol-400 cursor-pointer"
                 >
                   <option value="">Nenhuma</option>
                   {allCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1588,7 +1588,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     href={deal.leadTracking.landingPage}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 mt-0.5 break-all"
+                    className="flex items-center gap-1 text-sm text-petrol-600 hover:text-petrol-800 mt-0.5 break-all"
                   >
                     <ExternalLink size={12} className="flex-shrink-0" />
                     {(() => {
@@ -1612,7 +1612,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                       </span>
                     )}
                     {deal.leadTracking.utmMedium && (
-                      <span className="inline-flex items-center text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                      <span className="inline-flex items-center text-xs bg-petrol-50 text-petrol-700 px-1.5 py-0.5 rounded">
                         medium: {deal.leadTracking.utmMedium}
                       </span>
                     )}
@@ -1680,7 +1680,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               )}
               <button
                 onClick={handleOpenAddContact}
-                className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors mt-2"
+                className="flex items-center gap-1.5 text-xs text-petrol-600 hover:text-petrol-700 font-medium transition-colors mt-2"
               >
                 <UserPlus size={13} />
                 Adicionar contato
@@ -1735,7 +1735,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     href={`https://${deal.organization.website}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-2 transition-colors"
+                    className="flex items-center gap-1 text-xs text-petrol-600 hover:text-petrol-700 mt-2 transition-colors"
                   >
                     <ExternalLink size={11} />
                     Abrir página da Empresa
@@ -1748,7 +1748,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           {/* Seção: Responsável */}
           <CollapsibleSection title="Responsável" defaultOpen>
             <div className="flex items-center gap-2 py-2">
-              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-full bg-petrol-100 text-petrol-600 flex items-center justify-center flex-shrink-0">
                 <User size={14} />
               </div>
               <select
@@ -1764,7 +1764,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     alert("Erro ao alterar responsável");
                   }
                 }}
-                className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
               >
                 {!deal?.user && <option value="">Sem responsável</option>}
                 {allUsers.map((u) => (
@@ -1789,13 +1789,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   className={clsx(
                     "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                     activeTab === tab.key
-                      ? "border-blue-600 text-blue-600"
+                      ? "border-petrol-600 text-petrol-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   )}
                 >
                   {tab.label}
                   {tab.key === "tarefas" && pendingTaskCount > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
+                    <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-petrol-100 text-petrol-700 text-xs font-bold">
                       {pendingTaskCount}
                     </span>
                   )}
@@ -1860,7 +1860,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 {showAddTask && (
                   <div className={clsx(
                     "mt-4 border rounded-lg p-4 space-y-3",
-                    editingTask ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50"
+                    editingTask ? "border-amber-200 bg-amber-50" : "border-petrol-200 bg-petrol-50"
                   )}>
                     <p className="text-sm font-semibold text-gray-700">
                       {editingTask ? "Editar Tarefa" : "Nova Tarefa"}
@@ -1879,7 +1879,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                         <select
                           value={taskType}
                           onChange={(e) => setTaskType(e.target.value)}
-                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
                         >
                           {TASK_TYPES.map((t) => (
                             <option key={t.value} value={t.value}>{t.label}</option>
@@ -1892,7 +1892,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                           type="datetime-local"
                           value={taskDueDate}
                           onChange={(e) => setTaskDueDate(e.target.value)}
-                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                         />
                       </div>
                     </div>
@@ -1963,7 +1963,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 </svg>
                 <p className="text-sm font-medium text-gray-500">Nenhum arquivo anexado</p>
                 <p className="text-xs text-gray-400">Arraste arquivos aqui ou clique para fazer upload.</p>
-                <button className="mt-1 text-xs font-semibold text-blue-600 border border-blue-300 hover:bg-blue-50 px-4 py-2 rounded-md transition-colors">
+                <button className="mt-1 text-xs font-semibold text-petrol-600 border border-petrol-300 hover:bg-petrol-50 px-4 py-2 rounded-md transition-colors">
                   Anexar arquivo
                 </button>
               </div>
@@ -2068,7 +2068,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                             href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                            className="text-xs text-petrol-600 hover:text-petrol-800 hover:underline"
                           >
                             Ver no Read.ai
                           </a>
@@ -2106,21 +2106,21 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                               const value = (meeting.aiAnalysis as any)?.[key];
                               if (!value || value === 'Não mencionado') return null;
                               const colorMap: Record<string, string> = {
-                                blue: 'border-blue-200 bg-blue-50/40',
+                                blue: 'border-petrol-200 bg-petrol-50/40',
                                 amber: 'border-amber-200 bg-amber-50/40',
                                 gray: 'border-gray-200 bg-gray-50',
                                 red: 'border-red-200 bg-red-50/40',
                                 green: 'border-green-200 bg-green-50/40',
                                 purple: 'border-purple-200 bg-purple-50/40',
-                                indigo: 'border-indigo-200 bg-indigo-50/40',
+                                indigo: 'border-petrol-200 bg-petrol-50/40',
                                 emerald: 'border-emerald-200 bg-emerald-50/40',
                                 orange: 'border-orange-200 bg-orange-50/40',
                                 teal: 'border-teal-200 bg-teal-50/40',
                               };
                               const labelColorMap: Record<string, string> = {
-                                blue: 'text-blue-700', amber: 'text-amber-700', gray: 'text-gray-600',
+                                blue: 'text-petrol-700', amber: 'text-amber-700', gray: 'text-gray-600',
                                 red: 'text-red-700', green: 'text-green-700', purple: 'text-purple-700',
-                                indigo: 'text-indigo-700', emerald: 'text-emerald-700',
+                                indigo: 'text-petrol-700', emerald: 'text-emerald-700',
                                 orange: 'text-orange-700', teal: 'text-teal-700',
                               };
                               return (
@@ -2167,7 +2167,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                             <ul className="space-y-1.5">
                               {meeting.actionItems.map((item: any, i: number) => (
                                 <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                                  <span className="w-1.5 h-1.5 rounded-full bg-petrol-500 mt-1.5 flex-shrink-0" />
                                   <span>{typeof item === 'string' ? item : item.text || item.description || item.title || JSON.stringify(item)}</span>
                                 </li>
                               ))}
@@ -2210,7 +2210,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                             <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Participantes</h5>
                             <div className="flex flex-wrap gap-1">
                               {meeting.participants.map((p: any, i: number) => (
-                                <span key={i} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                <span key={i} className="text-[10px] bg-petrol-50 text-petrol-700 px-2 py-0.5 rounded-full">
                                   {typeof p === 'string' ? p : p.name || p.email || JSON.stringify(p)}
                                 </span>
                               ))}
@@ -2332,7 +2332,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               className={clsx(
                 "flex-1 py-2 text-xs font-medium transition-colors",
                 contactModalMode === "link"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-petrol-600 text-white"
                   : "bg-white text-gray-500 hover:bg-gray-50"
               )}
             >
@@ -2344,7 +2344,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               className={clsx(
                 "flex-1 py-2 text-xs font-medium transition-colors",
                 contactModalMode === "create"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-petrol-600 text-white"
                   : "bg-white text-gray-500 hover:bg-gray-50"
               )}
             >
@@ -2362,7 +2362,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   value={contactSearch}
                   onChange={(e) => setContactSearch(e.target.value)}
                   placeholder="Nome ou e-mail..."
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                 />
               </div>
               <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md divide-y divide-gray-100">
@@ -2377,7 +2377,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     className={clsx(
                       "w-full text-left px-3 py-2 text-sm transition-colors",
                       selectedContactId === c.id
-                        ? "bg-blue-50 text-blue-700"
+                        ? "bg-petrol-50 text-petrol-700"
                         : "hover:bg-gray-50 text-gray-700"
                     )}
                   >
@@ -2413,7 +2413,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   value={newContactForm.name}
                   onChange={(e) => setNewContactForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="Nome completo"
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                 />
               </div>
               <div>
@@ -2422,7 +2422,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   value={newContactForm.phone}
                   onChange={(e) => setNewContactForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder="(11) 99999-9999"
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                 />
               </div>
               <div>
@@ -2432,7 +2432,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   value={newContactForm.email}
                   onChange={(e) => setNewContactForm((f) => ({ ...f, email: e.target.value }))}
                   placeholder="email@exemplo.com"
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                 />
               </div>
               <div>
@@ -2441,7 +2441,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   value={newContactForm.position}
                   onChange={(e) => setNewContactForm((f) => ({ ...f, position: e.target.value }))}
                   placeholder="Ex: Diretor Comercial"
-                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                 />
               </div>
               <div className="flex gap-2 justify-end pt-2">
@@ -2478,7 +2478,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   setProductRecurrenceValue(prod.price);
                 }
               }}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white"
               disabled={!!editingProductId}
             >
               <option value="">Selecione um produto...</option>
@@ -2503,7 +2503,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                       setProductRecurrenceValue(v);
                       setProductUnitPrice(v);
                     }}
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   />
                 </div>
                 <div>
@@ -2513,7 +2513,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     min={1}
                     value={productQuantity}
                     onChange={(e) => setProductQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   />
                 </div>
               </div>
@@ -2528,7 +2528,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     step="0.01"
                     value={productDiscount}
                     onChange={(e) => setProductDiscount(Math.min(100, parseFloat(e.target.value) || 0))}
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   />
                 </div>
                 <div>
@@ -2539,7 +2539,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     value={productDiscountMonths ?? ""}
                     placeholder="Permanente"
                     onChange={(e) => setProductDiscountMonths(e.target.value ? parseInt(e.target.value) || null : null)}
-                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                   />
                 </div>
               </div>
@@ -2556,7 +2556,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                       value={productSetupPrice ?? ""}
                       placeholder="R$ 0,00"
                       onChange={(e) => setProductSetupPrice(e.target.value ? parseFloat(e.target.value) || null : null)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                     />
                   </div>
                   <div>
@@ -2567,7 +2567,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                       value={productSetupInstallments ?? ""}
                       placeholder="1x"
                       onChange={(e) => setProductSetupInstallments(e.target.value ? parseInt(e.target.value) || null : null)}
-                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
                     />
                   </div>
                 </div>

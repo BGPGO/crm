@@ -140,7 +140,7 @@ export default function WhatsAppTemplatePreview({ template, sampleParams, hideTi
               {buttons.map((btn, i) => (
                 <button
                   key={i}
-                  className="w-full py-2 text-center text-[13px] text-blue-500 font-medium border-t border-gray-100 dark:border-gray-600 first:border-t-0 flex items-center justify-center gap-1"
+                  className="w-full py-2 text-center text-[13px] text-petrol-500 font-medium border-t border-gray-100 dark:border-gray-600 first:border-t-0 flex items-center justify-center gap-1"
                   type="button"
                 >
                   {btn.type === "URL" && <ExternalLink size={12} />}

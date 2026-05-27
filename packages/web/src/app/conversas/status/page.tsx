@@ -308,7 +308,7 @@ export default function WhatsAppStatusPage() {
                         ? "bg-red-50 text-red-600"
                         : data.daily.usedPercent > 70
                           ? "bg-yellow-50 text-yellow-600"
-                          : "bg-blue-50 text-blue-600"
+                          : "bg-petrol-50 text-petrol-600"
                     )}
                   >
                     <BarChart3 size={22} />
@@ -437,11 +437,11 @@ export default function WhatsAppStatusPage() {
 
               {/* Breakdown */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xl font-semibold text-blue-700">
+                <div className="text-center p-3 bg-petrol-50 rounded-lg">
+                  <p className="text-xl font-semibold text-petrol-700">
                     {data.daily.breakdown.campaign}
                   </p>
-                  <p className="text-xs text-blue-600 mt-0.5">Campanhas</p>
+                  <p className="text-xs text-petrol-600 mt-0.5">Campanhas</p>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded-lg">
                   <p className="text-xl font-semibold text-green-700">
@@ -470,7 +470,7 @@ export default function WhatsAppStatusPage() {
               {/* Legend */}
               <div className="flex items-center gap-4 mb-4">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-sm bg-blue-500" />
+                  <div className="w-3 h-3 rounded-sm bg-petrol-500" />
                   <span className="text-xs text-gray-500">Campanhas</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -502,7 +502,7 @@ export default function WhatsAppStatusPage() {
                       <div className="w-full flex flex-col-reverse items-stretch h-[128px] relative">
                         {/* Campaign (bottom) */}
                         <div
-                          className="bg-blue-500 rounded-t-sm transition-all duration-500 ease-out"
+                          className="bg-petrol-500 rounded-t-sm transition-all duration-500 ease-out"
                           style={{
                             height: `${campaignH}%`,
                             minHeight: day.campaign > 0 ? "2px" : "0",
@@ -653,21 +653,21 @@ export default function WhatsAppStatusPage() {
                 </div>
                 <a
                   href="/conversas/automacoes"
-                  className="text-xs text-blue-600 hover:underline"
+                  className="text-xs text-petrol-600 hover:underline"
                 >
                   Gerenciar
                 </a>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg text-center">
+                <div className="p-4 bg-petrol-50 rounded-lg text-center">
                   <div className="flex justify-center mb-1">
-                    <Zap size={18} className="text-blue-600" />
+                    <Zap size={18} className="text-petrol-600" />
                   </div>
-                  <p className="text-2xl font-bold text-blue-700">
+                  <p className="text-2xl font-bold text-petrol-700">
                     {data.automations.active}
                   </p>
-                  <p className="text-xs text-blue-600 mt-0.5">Ativas</p>
+                  <p className="text-xs text-petrol-600 mt-0.5">Ativas</p>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg text-center">
                   <div className="flex justify-center mb-1">

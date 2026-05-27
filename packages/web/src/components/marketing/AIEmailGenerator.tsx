@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
@@ -88,7 +88,7 @@ export default function AIEmailGenerator({
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="Descreva o tema do email. Ex: Promoção de fim de ano com 30% de desconto em todos os planos..."
                 rows={3}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none"
               />
             </div>
 
@@ -100,7 +100,7 @@ export default function AIEmailGenerator({
               <select
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
               >
                 <option value="profissional">Profissional</option>
                 <option value="casual">Casual</option>
@@ -119,7 +119,7 @@ export default function AIEmailGenerator({
                 value={audience}
                 onChange={(e) => setAudience(e.target.value)}
                 placeholder="Ex: Donos de pequenas empresas, profissionais de marketing..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
 

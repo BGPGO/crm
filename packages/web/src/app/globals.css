@@ -1,6 +1,42 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ─── Tokens da marca Bertuzzi/BGP ────────────────────────────────
+   Petrol  = cor primária de ação (Pantone 7477C, #244C5A → petrol-700)
+   Water   = cor secundária de realce (Pantone 5513C, #ABC7C9 → water-300)
+   Em Tailwind v4 isto gera automaticamente as utilities
+   bg-petrol-600, text-petrol-700, ring-petrol-500, bg-water-100, etc. */
+@theme {
+  /* Petrol — azul petróleo (acento principal) */
+  --color-petrol-50: #f1f6f7;
+  --color-petrol-100: #dceaec;
+  --color-petrol-200: #bcd5d9;
+  --color-petrol-300: #8fb7bd;
+  --color-petrol-400: #5d8f99;
+  --color-petrol-500: #3d717c;
+  --color-petrol-600: #305c67;
+  --color-petrol-700: #244c5a; /* cor da marca */
+  --color-petrol-800: #1d3c47;
+  --color-petrol-900: #18313a;
+  --color-petrol-950: #0e1f25;
+
+  /* Water — verde-água claro (realce suave / fundos sutis) */
+  --color-water-50: #f4f8f8;
+  --color-water-100: #e6efef;
+  --color-water-200: #cfe0e1;
+  --color-water-300: #abc7c9; /* cor da marca */
+  --color-water-400: #84a8ab;
+  --color-water-500: #648c90;
+  --color-water-600: #517176;
+  --color-water-700: #445c61;
+  --color-water-800: #3a4d51;
+  --color-water-900: #334246;
+  --color-water-950: #1e292c;
+
+  /* Fonte padrão da UI: Inter (definida em layout.tsx via next/font/google) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
 /* Mobile menu slide-in animation */
 @keyframes slide-in-left {
   from {
@@ -147,6 +183,16 @@ html, body {
 .dark .bg-cyan-50 { background-color: rgba(6, 182, 212, 0.15) !important; }
 
 .dark .bg-blue-100 { background-color: rgba(59, 130, 246, 0.2) !important; }
+
+/* Tokens petrol/water no dark mode — fundos sutis suavizados */
+.dark .bg-petrol-50 { background-color: rgba(36, 76, 90, 0.18) !important; }
+.dark .bg-petrol-100 { background-color: rgba(36, 76, 90, 0.28) !important; }
+.dark .bg-water-50 { background-color: rgba(171, 199, 201, 0.10) !important; }
+.dark .bg-water-100 { background-color: rgba(171, 199, 201, 0.15) !important; }
+/* Texto do acento ganha um tom mais claro pra contrastar com fundo escuro */
+.dark .text-petrol-600 { color: #5d8f99 !important; }
+.dark .text-petrol-700 { color: #5d8f99 !important; }
+.dark .focus\:ring-petrol-500:focus { --tw-ring-color: #3d717c !important; }
 .dark .bg-green-100 { background-color: rgba(34, 197, 94, 0.2) !important; }
 .dark .bg-yellow-100 { background-color: rgba(234, 179, 8, 0.2) !important; }
 .dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }

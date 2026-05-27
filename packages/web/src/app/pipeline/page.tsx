@@ -110,7 +110,7 @@ type PeriodFilter = "all" | "today" | "this_week" | "this_month" | "last_3" | "l
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SELECT_CLASS =
-  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-petrol-500";
 
 const ALLOWED_COLORS = [
   "bg-slate-400",
@@ -149,8 +149,8 @@ function StatusBadge({ status }: { status: Deal["status"] }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
-      <span className="w-1.5 h-1.5 rounded-sm bg-blue-500 inline-block" />
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-petrol-700 bg-petrol-50 px-1.5 py-0.5 rounded">
+      <span className="w-1.5 h-1.5 rounded-sm bg-petrol-500 inline-block" />
       Em andamento
     </span>
   );
@@ -200,11 +200,11 @@ function UserMultiSelect({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className={`${selectClass} flex items-center gap-1.5 ${selected.length > 0 ? "text-blue-700 border-blue-300 bg-blue-50" : "text-gray-600"}`}
+        className={`${selectClass} flex items-center gap-1.5 ${selected.length > 0 ? "text-petrol-700 border-petrol-300 bg-petrol-50" : "text-gray-600"}`}
       >
         <span className="truncate max-w-[140px]">{label}</span>
         {selected.length > 0 && (
-          <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">
+          <span className="text-xs bg-petrol-600 text-white px-1.5 py-0.5 rounded-full font-medium shrink-0">
             {selected.length}
           </span>
         )}
@@ -215,9 +215,9 @@ function UserMultiSelect({
           <button
             type="button"
             onClick={() => onChange("")}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left border-b border-gray-100 ${selected.length === 0 ? "font-medium text-blue-700" : "text-gray-700"}`}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left border-b border-gray-100 ${selected.length === 0 ? "font-medium text-petrol-700" : "text-gray-700"}`}
           >
-            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.length === 0 ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"}`}>
+            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected.length === 0 ? "bg-petrol-600 border-petrol-600 text-white" : "border-gray-300"}`}>
               {selected.length === 0 && <Check size={12} />}
             </span>
             Todos
@@ -231,7 +231,7 @@ function UserMultiSelect({
                 onClick={() => toggle(u.id)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-left"
               >
-                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSel ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"}`}>
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSel ? "bg-petrol-600 border-petrol-600 text-white" : "border-gray-300"}`}>
                   {isSel && <Check size={12} />}
                 </span>
                 <span className="truncate">{u.name}</span>
@@ -919,7 +919,7 @@ export default function PipelinePage() {
             value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Buscar negociação..."
-            className="pl-8 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-md w-full sm:w-48 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="pl-8 pr-8 py-1.5 text-sm bg-white border border-gray-200 rounded-md w-full sm:w-48 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-petrol-500"
           />
           {searchInput && (
             <button
@@ -936,14 +936,14 @@ export default function PipelinePage() {
           onClick={() => setAdvancedOpen(true)}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border transition-colors ${
             advancedCount > 0
-              ? "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+              ? "border-petrol-300 bg-petrol-50 text-petrol-700 hover:bg-petrol-100"
               : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
           }`}
         >
           <SlidersHorizontal size={14} />
           Filtros
           {advancedCount > 0 && (
-            <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-medium">
+            <span className="text-xs bg-petrol-600 text-white px-1.5 py-0.5 rounded-full font-medium">
               {advancedCount}
             </span>
           )}
@@ -964,7 +964,7 @@ export default function PipelinePage() {
               onClick={() => setFilter(f.value)}
               className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
                 filter === f.value
-                  ? "bg-blue-600 text-white"
+                  ? "bg-petrol-600 text-white"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
@@ -995,7 +995,7 @@ export default function PipelinePage() {
           />
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md px-3 py-1.5 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 text-sm font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-md px-3 py-1.5 transition-colors shadow-sm"
           >
             <Plus size={14} />
             Criar
@@ -1022,7 +1022,7 @@ export default function PipelinePage() {
             </p>
             <button
               onClick={fetchPipeline}
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-petrol-600 hover:underline"
             >
               Tentar novamente
             </button>
@@ -1075,8 +1075,8 @@ export default function PipelinePage() {
             <>
               {/* Batch action bar */}
               {selectedDealIds.size > 0 && (
-                <div className="mb-3 flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
-                  <span className="text-sm font-medium text-blue-800">
+                <div className="mb-3 flex items-center gap-3 bg-petrol-50 border border-petrol-200 rounded-lg px-4 py-2.5">
+                  <span className="text-sm font-medium text-petrol-800">
                     {selectedDealIds.size} negociação(ões) selecionada(s)
                   </span>
                   <button
@@ -1088,7 +1088,7 @@ export default function PipelinePage() {
                   </button>
                   <button
                     onClick={() => setSelectedDealIds(new Set())}
-                    className="ml-auto text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                    className="ml-auto text-xs text-petrol-600 hover:text-petrol-800 transition-colors"
                   >
                     Limpar seleção
                   </button>
@@ -1107,7 +1107,7 @@ export default function PipelinePage() {
                           if (el) el.indeterminate = selectedDealIds.size > 0 && selectedDealIds.size < listDeals.length;
                         }}
                         onChange={toggleSelectAll}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500 cursor-pointer"
                       />
                     </TableHeader>
                     <TableHeader>Título</TableHeader>
@@ -1122,7 +1122,7 @@ export default function PipelinePage() {
                   {listDeals.map((deal) => (
                     <TableRow
                       key={deal.id}
-                      className={`cursor-pointer ${selectedDealIds.has(deal.id) ? "bg-blue-50" : ""}`}
+                      className={`cursor-pointer ${selectedDealIds.has(deal.id) ? "bg-petrol-50" : ""}`}
                       onClick={() => router.push(`/pipeline/${deal.id}`)}
                       onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); window.open(`/pipeline/${deal.id}`, '_blank'); } }}
                     >
@@ -1131,14 +1131,14 @@ export default function PipelinePage() {
                           type="checkbox"
                           checked={selectedDealIds.has(deal.id)}
                           onChange={() => toggleDealSelection(deal.id)}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500 cursor-pointer"
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">
                         {deal.title}
                       </TableCell>
                       <TableCell>{deal.stage?.name ?? "—"}</TableCell>
-                      <TableCell className="font-semibold text-blue-600">
+                      <TableCell className="font-semibold text-petrol-600">
                         {formatCurrency(deal.value ?? 0)}
                       </TableCell>
                       <TableCell>

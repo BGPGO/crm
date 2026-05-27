@@ -219,7 +219,7 @@ function formatDate(dateStr: string | null): string {
 function HeaderTypeIcon({ type }: { type: string | null }) {
   switch (type) {
     case "IMAGE":
-      return <Image size={14} className="text-blue-500" />;
+      return <Image size={14} className="text-petrol-500" />;
     case "VIDEO":
       return <Video size={14} className="text-purple-500" />;
     case "DOCUMENT":
@@ -333,7 +333,7 @@ function WhatsAppPreview({ form }: { form: FormState }) {
               {form.buttons.map((btn, i) => (
                 <button
                   key={i}
-                  className="w-full py-2 text-center text-[13px] text-blue-500 font-medium border-t border-gray-100 dark:border-gray-600 first:border-t-0 flex items-center justify-center gap-1"
+                  className="w-full py-2 text-center text-[13px] text-petrol-500 font-medium border-t border-gray-100 dark:border-gray-600 first:border-t-0 flex items-center justify-center gap-1"
                 >
                   {btn.type === "URL" && <ExternalLink size={12} />}
                   {btn.text || `Botao ${i + 1}`}
@@ -731,7 +731,7 @@ export default function TemplatesPage() {
             </button>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 transition-colors shadow-sm"
             >
               <Plus size={16} />
               Novo Template
@@ -773,7 +773,7 @@ export default function TemplatesPage() {
                 className={clsx(
                   "px-3 py-1.5 text-xs font-medium rounded-full border transition-colors",
                   statusFilter === pill.key
-                    ? "bg-blue-600 text-white border-blue-600"
+                    ? "bg-petrol-600 text-white border-petrol-600"
                     : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                 )}
               >
@@ -788,7 +788,7 @@ export default function TemplatesPage() {
                 onChange={(e) =>
                   setCategoryFilter(e.target.value as CategoryFilter)
                 }
-                className="appearance-none pl-3 pr-8 py-1.5 text-xs font-medium rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="appearance-none pl-3 pr-8 py-1.5 text-xs font-medium rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
               >
                 <option value="ALL">Todas categorias</option>
                 <option value="MARKETING">Marketing</option>
@@ -821,7 +821,7 @@ export default function TemplatesPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Buscar templates..."
-                className="w-full lg:w-60 pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full lg:w-60 pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -868,7 +868,7 @@ export default function TemplatesPage() {
               {templates.length === 0 && (
                 <button
                   onClick={openCreateModal}
-                  className="text-sm text-blue-600 font-medium hover:underline"
+                  className="text-sm text-petrol-600 font-medium hover:underline"
                 >
                   Criar primeiro template
                 </button>
@@ -976,7 +976,7 @@ export default function TemplatesPage() {
                       {tpl.buttons.map((btn: TemplateButton, i: number) => (
                         <span
                           key={i}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-petrol-50 dark:bg-petrol-900/20 text-petrol-600 dark:text-petrol-400 border border-petrol-100 dark:border-petrol-800"
                         >
                           {btn.type === "URL" && <ExternalLink size={10} />}
                           {btn.text}
@@ -1066,7 +1066,7 @@ export default function TemplatesPage() {
                         updateForm({ name: formatTemplateName(form.name) })
                       }
                       placeholder="ex: boas_vindas_lead"
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
                     />
                     <p className="text-xs text-gray-400 dark:text-gray-500">
                       Somente letras minusculas, numeros e underscores.
@@ -1084,7 +1084,7 @@ export default function TemplatesPage() {
                         onChange={(e) =>
                           updateForm({ language: e.target.value })
                         }
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                       >
                         {LANGUAGE_OPTIONS.map((l) => (
                           <option key={l.value} value={l.value}>
@@ -1104,7 +1104,7 @@ export default function TemplatesPage() {
                             category: e.target.value as FormState["category"],
                           })
                         }
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                       >
                         <option value="MARKETING">Marketing</option>
                         <option value="UTILITY">Utility</option>
@@ -1127,7 +1127,7 @@ export default function TemplatesPage() {
                           headerExample: "",
                         })
                       }
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                     >
                       {HEADER_TYPES.map((h) => (
                         <option key={h.value} value={h.value}>
@@ -1145,7 +1145,7 @@ export default function TemplatesPage() {
                         }
                         placeholder="Texto do cabecalho"
                         maxLength={60}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                       />
                     )}
 
@@ -1166,7 +1166,7 @@ export default function TemplatesPage() {
                               ? "video"
                               : "documento"
                           } de exemplo`}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                         />
                         <p className="text-xs text-gray-400">
                           A Meta exige um exemplo de midia para aprovacao.
@@ -1200,13 +1200,13 @@ export default function TemplatesPage() {
                         rows={8}
                         placeholder="Ola {{1}}, tudo bem? Temos novidades sobre {{2}}..."
                         maxLength={1024}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y font-mono leading-relaxed"
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-y font-mono leading-relaxed"
                       />
                     </div>
                     <button
                       type="button"
                       onClick={insertVariable}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-petrol-600 dark:text-petrol-400 bg-petrol-50 dark:bg-petrol-900/20 rounded-md hover:bg-petrol-100 dark:hover:bg-petrol-900/40 transition-colors border border-petrol-200 dark:border-petrol-800"
                     >
                       <Plus size={12} />
                       Adicionar variavel {`{{${variables.length + 1}}}`}
@@ -1237,7 +1237,7 @@ export default function TemplatesPage() {
                           return (
                             <div key={v} className="flex flex-col gap-2 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
                               {/* Variable label */}
-                              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-mono">
+                              <span className="text-xs font-semibold text-petrol-600 dark:text-petrol-400 font-mono">
                                 {v}
                                 {hintLabel && (
                                   <span className="ml-1.5 text-gray-400 dark:text-gray-500 font-normal font-sans">
@@ -1259,7 +1259,7 @@ export default function TemplatesPage() {
                                     updateForm({ bodyExamples: next });
                                   }}
                                   placeholder={`Ex: ${isCustom && customText ? customText : hintLabel ?? v}`}
-                                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                                 />
                               </div>
                               {/* Source dropdown */}
@@ -1278,7 +1278,7 @@ export default function TemplatesPage() {
                                         updateVariableSource(v, val);
                                       }
                                     }}
-                                    className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                    className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
                                   >
                                     <option value="">Selecione a fonte...</option>
                                     {VARIABLE_SOURCES.map((s) => (
@@ -1299,7 +1299,7 @@ export default function TemplatesPage() {
                                     value={customText}
                                     onChange={(e) => updateVariableCustomText(v, e.target.value)}
                                     placeholder="Digite o texto fixo..."
-                                    className="mt-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="mt-1 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                                   />
                                 )}
                               </div>
@@ -1333,7 +1333,7 @@ export default function TemplatesPage() {
                       onChange={(e) => updateForm({ footer: e.target.value })}
                       placeholder="Ex: Bertuzzi Patrimonial"
                       maxLength={60}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                     />
                   </div>
 
@@ -1347,7 +1347,7 @@ export default function TemplatesPage() {
                         <button
                           type="button"
                           onClick={addButton}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-petrol-600 dark:text-petrol-400 hover:underline"
                         >
                           <Plus size={12} />
                           Adicionar
@@ -1368,7 +1368,7 @@ export default function TemplatesPage() {
                               url: "",
                             })
                           }
-                          className="px-2 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-2 py-1.5 text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                         >
                           <option value="QUICK_REPLY">Resposta rapida</option>
                           <option value="URL">URL</option>
@@ -1381,7 +1381,7 @@ export default function TemplatesPage() {
                           }
                           placeholder="Texto do botao"
                           maxLength={25}
-                          className="flex-1 w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="flex-1 w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                         />
                         {btn.type === "URL" && (
                           <input
@@ -1391,7 +1391,7 @@ export default function TemplatesPage() {
                               updateButton(i, { url: e.target.value })
                             }
                             placeholder="https://..."
-                            className="flex-1 w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="flex-1 w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                           />
                         )}
                         <button
@@ -1432,7 +1432,7 @@ export default function TemplatesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving || !form.name.trim() || !form.body.trim()}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
                 {saving && (
                   <svg
@@ -1511,7 +1511,7 @@ function highlightVariables(
     /\{\{\d+\}\}/.test(part) ? (
       <span
         key={i}
-        className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-xs font-mono font-medium cursor-help"
+        className="px-1 py-0.5 bg-petrol-100 dark:bg-petrol-900/30 text-petrol-600 dark:text-petrol-400 rounded text-xs font-mono font-medium cursor-help"
         title={hints[part] || VARIABLE_HINTS[part] || `Variavel ${part}`}
       >
         {hints[part] || part}

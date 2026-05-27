@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -219,12 +219,12 @@ export default function TemplateEditorPage() {
         max-width: 100%;
       }
       [contenteditable] img:hover {
-        outline: 2px solid #3B82F6;
+        outline: 2px solid #3d717c;
         outline-offset: 2px;
       }
       [contenteditable] img.selected,
       [contenteditable] img:focus {
-        outline: 2px solid #3B82F6;
+        outline: 2px solid #3d717c;
         outline-offset: 2px;
       }
     `;
@@ -546,7 +546,7 @@ ${bodyHtml}
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || !subject.trim()}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -617,7 +617,7 @@ ${bodyHtml}
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
                       isActive
-                        ? "bg-blue-600 text-white shadow-sm"
+                        ? "bg-petrol-600 text-white shadow-sm"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
@@ -638,7 +638,7 @@ ${bodyHtml}
                   /* Generate mode */
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-petrol-500 to-purple-500">
                         <Sparkles size={14} className="text-white" />
                       </div>
                       <div>
@@ -657,7 +657,7 @@ ${bodyHtml}
                       placeholder="Sobre o que é o email? Ex: Promoção de consultoria patrimonial..."
                       rows={3}
                       disabled={aiLoading}
-                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50"
+                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50"
                     />
 
                     <div>
@@ -668,7 +668,7 @@ ${bodyHtml}
                         value={aiTone}
                         onChange={(e) => setAiTone(e.target.value)}
                         disabled={aiLoading}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50"
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50"
                       >
                         <option value="profissional">Profissional</option>
                         <option value="casual">Casual</option>
@@ -687,14 +687,14 @@ ${bodyHtml}
                         onChange={(e) => setAiAudience(e.target.value)}
                         placeholder="Ex: clientes e leads do CRM"
                         disabled={aiLoading}
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50 placeholder:text-gray-400"
+                        className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50 placeholder:text-gray-400"
                       />
                     </div>
 
                     <button
                       onClick={handleAiGenerate}
                       disabled={!aiTopic.trim() || aiLoading}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-petrol-600 to-petrol-500 rounded-lg hover:from-petrol-700 hover:to-petrol-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
                     >
                       {aiLoading ? (
                         <Loader2 size={14} className="animate-spin" />
@@ -714,7 +714,7 @@ ${bodyHtml}
                   /* Improve mode */
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-petrol-500 to-purple-500">
                         <Sparkles size={14} className="text-white" />
                       </div>
                       <div>
@@ -734,7 +734,7 @@ ${bodyHtml}
                           key={chip}
                           onClick={() => handleAiImprove(chip)}
                           disabled={aiLoading}
-                          className="px-2.5 py-1.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="px-2.5 py-1.5 text-xs font-medium rounded-full bg-petrol-50 text-petrol-700 border border-petrol-100 hover:bg-petrol-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           {chip}
                         </button>
@@ -742,10 +742,10 @@ ${bodyHtml}
                     </div>
 
                     {/* Custom instruction */}
-                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 transition-all">
+                    <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-petrol-500/20 focus-within:border-petrol-300 transition-all">
                       <Sparkles
                         size={14}
-                        className="text-blue-500 shrink-0"
+                        className="text-petrol-500 shrink-0"
                       />
                       <input
                         type="text"
@@ -768,7 +768,7 @@ ${bodyHtml}
                       <button
                         onClick={() => handleAiImprove()}
                         disabled={!aiInstruction.trim() || aiLoading}
-                        className="flex items-center justify-center w-7 h-7 rounded-md text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        className="flex items-center justify-center w-7 h-7 rounded-md text-white bg-petrol-500 hover:bg-petrol-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       >
                         {aiLoading ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -826,7 +826,7 @@ ${bodyHtml}
                                   setEditBtnHref(btn.href);
                                 }
                               }}
-                              className="text-[10px] text-blue-600 hover:underline"
+                              className="text-[10px] text-petrol-600 hover:underline"
                             >
                               {editingBtnIdx === btn.index ? 'Fechar' : 'Editar link'}
                             </button>
@@ -839,7 +839,7 @@ ${bodyHtml}
                                 value={editBtnHref}
                                 onChange={(e) => setEditBtnHref(e.target.value)}
                                 placeholder="https://..."
-                                className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-petrol-500"
                               />
                               <button
                                 onClick={() => {
@@ -849,7 +849,7 @@ ${bodyHtml}
                                   setHtmlContent(updated);
                                   setEditingBtnIdx(null);
                                 }}
-                                className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded font-medium hover:bg-blue-700"
+                                className="text-xs bg-petrol-600 text-white px-3 py-1.5 rounded font-medium hover:bg-petrol-700"
                               >
                                 Salvar
                               </button>

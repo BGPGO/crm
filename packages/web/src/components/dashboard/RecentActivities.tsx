@@ -22,12 +22,12 @@ const typeConfig: Record<
   Activity["type"],
   { icon: typeof Phone; color: string; bg: string }
 > = {
-  call: { icon: Phone, color: "text-blue-600", bg: "bg-blue-100" },
+  call: { icon: Phone, color: "text-petrol-600", bg: "bg-petrol-100" },
   email: { icon: Mail, color: "text-green-600", bg: "bg-green-100" },
   task: { icon: CheckCircle, color: "text-purple-600", bg: "bg-purple-100" },
   note: { icon: MessageSquare, color: "text-orange-600", bg: "bg-orange-100" },
   stage_change: { icon: MoveRight, color: "text-cyan-600", bg: "bg-cyan-100" },
-  new_lead: { icon: UserPlus, color: "text-indigo-600", bg: "bg-indigo-100" },
+  new_lead: { icon: UserPlus, color: "text-petrol-600", bg: "bg-petrol-100" },
   won: { icon: Trophy, color: "text-yellow-600", bg: "bg-yellow-100" },
 };
 
@@ -60,7 +60,7 @@ export default function RecentActivities({
                   {activity.dealId ? (
                     <a
                       href={`/pipeline/${activity.dealId}`}
-                      className="hover:text-blue-600 hover:underline transition-colors"
+                      className="hover:text-petrol-600 hover:underline transition-colors"
                     >
                       {activity.deal}
                     </a>

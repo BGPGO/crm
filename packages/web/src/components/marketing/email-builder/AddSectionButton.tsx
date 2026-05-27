@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import {
@@ -221,7 +221,7 @@ export function AddSectionButton({ onAdd }: AddSectionButtonProps) {
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
+        className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-petrol-400 hover:text-petrol-500 hover:bg-petrol-50 transition-all"
       >
         <Plus className="h-4 w-4" />
       </button>

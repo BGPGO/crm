@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { Users, Loader2 } from "lucide-react";
@@ -61,7 +61,7 @@ export default function AudienceSelector({
       <label
         className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
           selectedSegmentId === null
-            ? "border-blue-500 bg-blue-50"
+            ? "border-petrol-500 bg-petrol-50"
             : "border-gray-200 hover:border-gray-300"
         }`}
       >
@@ -70,7 +70,7 @@ export default function AudienceSelector({
           name="audience"
           checked={selectedSegmentId === null}
           onChange={() => onChange(null)}
-          className="text-blue-600 focus:ring-blue-500"
+          className="text-petrol-600 focus:ring-petrol-500"
         />
         <Users size={16} className="text-gray-400" />
         <div className="flex-1">
@@ -91,7 +91,7 @@ export default function AudienceSelector({
           key={segment.id}
           className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
             selectedSegmentId === segment.id
-              ? "border-blue-500 bg-blue-50"
+              ? "border-petrol-500 bg-petrol-50"
               : "border-gray-200 hover:border-gray-300"
           }`}
         >
@@ -100,7 +100,7 @@ export default function AudienceSelector({
             name="audience"
             checked={selectedSegmentId === segment.id}
             onChange={() => onChange(segment.id)}
-            className="text-blue-600 focus:ring-blue-500"
+            className="text-petrol-600 focus:ring-petrol-500"
           />
           <Users size={16} className="text-gray-400" />
           <div className="flex-1">
@@ -121,11 +121,11 @@ export default function AudienceSelector({
       )}
 
       {/* TIME BGP notice */}
-      <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
-        <span className="text-blue-500 text-sm mt-0.5">👥</span>
+      <div className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-petrol-50 border border-petrol-100">
+        <span className="text-petrol-500 text-sm mt-0.5">👥</span>
         <div>
-          <p className="text-xs font-medium text-blue-700">TIME BGP recebe cópia automaticamente</p>
-          <p className="text-[10px] text-blue-500 mt-0.5">
+          <p className="text-xs font-medium text-petrol-700">TIME BGP recebe cópia automaticamente</p>
+          <p className="text-[10px] text-petrol-500 mt-0.5">
             Além do segmento escolhido, os 16 membros do time interno recebem uma cópia
             com [TIME] no assunto para acompanhamento.
           </p>

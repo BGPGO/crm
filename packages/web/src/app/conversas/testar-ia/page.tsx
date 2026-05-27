@@ -126,10 +126,10 @@ export default function TestarIAPage() {
       <ConversasNav />
 
       {/* Simulate Lead Panel */}
-      <div className="bg-indigo-50 border border-indigo-200 mx-4 mt-3 rounded-xl overflow-hidden">
+      <div className="bg-petrol-50 border border-petrol-200 mx-4 mt-3 rounded-xl overflow-hidden">
         <button
           onClick={() => setSimPanelOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-petrol-700 hover:bg-petrol-100 transition-colors"
         >
           <span className="flex items-center gap-2">
             <UserPlus size={16} />
@@ -142,7 +142,7 @@ export default function TestarIAPage() {
           <div className="px-4 pb-4 pt-1 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                <label className="block text-xs font-medium text-petrol-800 mb-1">
                   Nome do Lead <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -151,11 +151,11 @@ export default function TestarIAPage() {
                   onChange={(e) => setContactName(e.target.value)}
                   placeholder="Ex: João Silva"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                <label className="block text-xs font-medium text-petrol-800 mb-1">
                   Campanha
                 </label>
                 <input
@@ -164,11 +164,11 @@ export default function TestarIAPage() {
                   onChange={(e) => setCampaignName(e.target.value)}
                   placeholder="Ex: GoBI Maio 2026"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                <label className="block text-xs font-medium text-petrol-800 mb-1">
                   Fonte
                 </label>
                 <input
@@ -177,7 +177,7 @@ export default function TestarIAPage() {
                   onChange={(e) => setSourceName(e.target.value)}
                   placeholder="Ex: Google Ads"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
             </div>
@@ -192,7 +192,7 @@ export default function TestarIAPage() {
             <button
               onClick={simulateLead}
               disabled={!contactName.trim() || simLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {simLoading ? (
                 <>
@@ -222,7 +222,7 @@ export default function TestarIAPage() {
           ) : (
             <div className="max-w-3xl mx-auto space-y-4">
               {simContext && (
-                <div className="flex items-start gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-700">
+                <div className="flex items-start gap-2 px-3 py-2 bg-petrol-50 border border-petrol-200 rounded-lg text-xs text-petrol-700">
                   <UserPlus size={13} className="mt-0.5 flex-shrink-0" />
                   <span><span className="font-medium">Contexto usado:</span> {simContext}</span>
                 </div>
@@ -239,7 +239,7 @@ export default function TestarIAPage() {
                     className={clsx(
                       "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
                       msg.role === "user"
-                        ? "bg-blue-600 text-white rounded-br-md"
+                        ? "bg-petrol-600 text-white rounded-br-md"
                         : msg.isError
                         ? "bg-red-50 border border-red-200 text-red-700 rounded-bl-md"
                         : "bg-gray-100 text-gray-900 rounded-bl-md"
@@ -297,12 +297,12 @@ export default function TestarIAPage() {
               onKeyDown={handleKeyDown}
               placeholder="Digite sua mensagem..."
               disabled={loading}
-              className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               onClick={sendMessage}
               disabled={!input.trim() || loading}
-              className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2.5 bg-petrol-600 text-white rounded-xl hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send size={18} />
             </button>

@@ -414,7 +414,7 @@ export default function SentDocuments({ dealId }: SentDocumentsProps) {
                       target="_blank"
                       rel="noopener noreferrer"
                       title="Link de assinatura"
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors"
                     >
                       <ExternalLink size={14} />
                     </a>

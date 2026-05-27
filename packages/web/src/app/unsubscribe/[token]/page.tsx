@@ -24,7 +24,7 @@ export default function UnsubscribePage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 max-w-md w-full text-center">
         {status === "loading" && (
           <>
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <div className="w-12 h-12 border-4 border-petrol-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <h1 className="text-lg font-semibold text-gray-900">Processando...</h1>
             <p className="text-sm text-gray-500 mt-2">Aguarde enquanto processamos sua solicitação.</p>
           </>

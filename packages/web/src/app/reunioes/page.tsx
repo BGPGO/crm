@@ -139,15 +139,15 @@ function MiniCalendar({ meetings, selectedDate, onSelectDate }: {
               }}
               className={clsx(
                 "bg-white min-h-[80px] p-1 text-left transition-colors flex flex-col",
-                sel ? "ring-2 ring-blue-500 ring-inset bg-blue-50/50" :
+                sel ? "ring-2 ring-petrol-500 ring-inset bg-petrol-50/50" :
                 "hover:bg-gray-50",
                 past && !sel && "opacity-60"
               )}
             >
               <span className={clsx(
                 "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-0.5",
-                tod ? "bg-blue-600 text-white" :
-                sel ? "text-blue-700 font-bold" :
+                tod ? "bg-petrol-600 text-white" :
+                sel ? "text-petrol-700 font-bold" :
                 "text-gray-600"
               )}>
                 {day}
@@ -162,7 +162,7 @@ function MiniCalendar({ meetings, selectedDate, onSelectDate }: {
                         ? "bg-red-50 text-red-500 line-through"
                         : past
                           ? "bg-gray-100 text-gray-500"
-                          : "bg-blue-50 text-blue-700"
+                          : "bg-petrol-50 text-petrol-700"
                     )}
                     title={`${formatChipTime(m.startTime)} - ${m.contact?.name || m.inviteeName || m.inviteeEmail}`}
                   >
@@ -391,7 +391,7 @@ export default function ReunioesPage() {
             className={clsx(
               "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors relative",
               readAiTab === tab.key
-                ? "border-blue-600 text-blue-600"
+                ? "border-petrol-600 text-petrol-600"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             )}
           >
@@ -412,8 +412,8 @@ export default function ReunioesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                <Calendar size={20} className="text-blue-600" />
+              <div className="w-10 h-10 rounded-lg bg-petrol-50 flex items-center justify-center">
+                <Calendar size={20} className="text-petrol-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
@@ -466,7 +466,7 @@ export default function ReunioesPage() {
               className={clsx(
                 "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                 period === f.key
-                  ? "bg-blue-100 text-blue-700"
+                  ? "bg-petrol-100 text-petrol-700"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               )}
             >
@@ -479,7 +479,7 @@ export default function ReunioesPage() {
             <select
               value={hostFilter}
               onChange={(e) => setHostFilter(e.target.value)}
-              className="appearance-none text-sm bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="appearance-none text-sm bg-white border border-gray-200 rounded-lg px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-petrol-500"
             >
               <option value="all">Todos os responsáveis</option>
               {hosts.map((h) => (
@@ -529,7 +529,7 @@ export default function ReunioesPage() {
                           "bg-yellow-50 border-l-4 border-l-yellow-400",
                         isToday(meeting.startTime) &&
                           !isSoon(meeting.startTime) &&
-                          "bg-blue-50/30"
+                          "bg-petrol-50/30"
                       )}
                     >
                       {/* Date/Time block */}
@@ -652,7 +652,7 @@ export default function ReunioesPage() {
               className={clsx(
                 "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                 readAiFilter === f.key
-                  ? f.key === 'unlinked' ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                  ? f.key === 'unlinked' ? "bg-amber-100 text-amber-700" : "bg-petrol-100 text-petrol-700"
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               )}
             >
@@ -722,7 +722,7 @@ export default function ReunioesPage() {
                           href={`https://app.read.ai/analytics/meetings/${meeting.sessionId}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[10px] text-blue-600 hover:underline"
+                          className="text-[10px] text-petrol-600 hover:underline"
                         >
                           Ver no Read.ai
                         </a>
@@ -750,7 +750,7 @@ export default function ReunioesPage() {
                               searchDeals(e.target.value);
                             }}
                             placeholder="Digite o nome do cliente ou negociação..."
-                            className="flex-1 text-sm border border-gray-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="flex-1 text-sm border border-gray-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-petrol-500"
                             autoFocus
                           />
                           <button
@@ -769,7 +769,7 @@ export default function ReunioesPage() {
                               <button
                                 key={deal.id}
                                 onClick={() => linkMeetingToDeal(meeting.id, deal.id)}
-                                className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors"
+                                className="w-full text-left px-3 py-2 hover:bg-petrol-50 transition-colors"
                               >
                                 <p className="text-sm text-gray-800">{deal.organization?.name || deal.contact?.name || deal.title}</p>
                                 <p className="text-[10px] text-gray-400">{deal.title}</p>

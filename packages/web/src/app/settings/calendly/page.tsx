@@ -164,7 +164,7 @@ export default function CalendlySettingsPage() {
         <Card>
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
-              <Calendar size={24} className="text-blue-600" />
+              <Calendar size={24} className="text-petrol-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Calendly</h3>
                 <p className="text-sm text-gray-500">
@@ -268,7 +268,7 @@ export default function CalendlySettingsPage() {
                     id="calendly-active"
                     checked={isActiveInput}
                     onChange={(e) => setIsActiveInput(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
                   />
                   <label htmlFor="calendly-active" className="text-sm text-gray-700">
                     Integração ativa
@@ -360,7 +360,7 @@ export default function CalendlySettingsPage() {
                         </td>
                         <td className="py-2 pr-4">
                           {ev.contact ? (
-                            <span className="text-blue-600">{ev.contact.name}</span>
+                            <span className="text-petrol-600">{ev.contact.name}</span>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}

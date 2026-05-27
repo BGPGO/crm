@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -168,7 +168,7 @@ export default function CampaignDetailPage() {
           <p className="text-gray-500 text-sm">Erro de conexão ao carregar a campanha.</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-petrol-600 hover:text-petrol-700 bg-petrol-50 hover:bg-petrol-100 rounded-lg transition-colors"
           >
             Tentar novamente
           </button>
@@ -268,7 +268,7 @@ export default function CampaignDetailPage() {
                   type="datetime-local"
                   value={newScheduleDate}
                   onChange={(e) => setNewScheduleDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                 />
               </div>
               <div className="flex items-center gap-2">

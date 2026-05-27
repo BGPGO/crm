@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -229,12 +229,12 @@ function NewCampaignPageInner() {
         max-width: 100%;
       }
       [contenteditable] img:hover {
-        outline: 2px solid #3B82F6;
+        outline: 2px solid #3d717c;
         outline-offset: 2px;
       }
       [contenteditable] img.selected,
       [contenteditable] img:focus {
-        outline: 2px solid #3B82F6;
+        outline: 2px solid #3d717c;
         outline-offset: 2px;
       }
     `;
@@ -261,8 +261,8 @@ function NewCampaignPageInner() {
       if (/<!DOCTYPE|<html[\s>]/i.test(htmlContent.trim().slice(0, 200))) {
         return htmlContent;
       }
-      // Snippet (IA gerou, edicao livre, etc) → wrap institucional AIMO
-      // com header (logo) + footer dark. Mirror exato do wrapAimoTemplate
+      // Snippet (IA gerou, edicao livre, etc) → wrap institucional Bertuzzi
+      // com header (logo) + footer petrol. Mirror exato do wrapAimoTemplate
       // backend e wrapAimoPreview (EmailPreview.tsx).
       return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -272,7 +272,7 @@ function NewCampaignPageInner() {
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 body { margin:0; padding:0; background-color:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
-a { color:#1E3FFF; }
+a { color:#244c5a; }
 </style>
 </head>
 <body>
@@ -280,21 +280,21 @@ a { color:#1E3FFF; }
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
 <tr><td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid #E6E8EF;">
-<img src="/aimo-logo.png" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+<img src="/bertuzzi-logo.png" alt="Bertuzzi" width="96" style="display:block;width:96px;height:auto;border:0;" />
 </td></tr>
 <tr><td style="padding:40px;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.65;color:#0A0E1F;">
 ${bodyHtml}
 </td></tr>
-<tr><td style="padding:32px 40px;background-color:#0A0E1F;border-top:1px solid #1A2040;">
+<tr><td style="padding:32px 40px;background-color:#244c5a;border-top:1px solid #1d3c47;">
 <table role="presentation" border="0" cellpadding="0" cellspacing="0">
 <tr>
-<td valign="middle" style="padding-right:12px;"><img src="/aimo-logo.png" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" /></td>
-<td valign="middle"><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span></td>
+<td valign="middle" style="padding-right:12px;"><img src="/bertuzzi-logo-white.png" alt="Bertuzzi" width="56" style="display:block;width:56px;height:auto;border:0;" /></td>
+<td valign="middle"><span style="font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">Bertuzzi Patrimonial</span></td>
 </tr>
 </table>
-<p style="margin:18px 0 0 0;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;color:#6B7390;">Gestão patrimonial inteligente.<br />aimocorp.com.br</p>
-<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
-<p style="margin:0;font-family:'Inter',sans-serif;font-size:11px;line-height:1.6;color:#6B7390;">Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO.</p>
+<p style="margin:18px 0 0 0;font-family:'Inter',sans-serif;font-size:12px;line-height:1.6;color:#ABC7C9;">Gestão patrimonial inteligente.<br />bertuzzipatrimonial.com.br</p>
+<div style="width:100%;height:1px;background-color:#1d3c47;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:'Inter',sans-serif;font-size:11px;line-height:1.6;color:#ABC7C9;">Você está recebendo este email porque demonstrou interesse em conteúdos da Bertuzzi Patrimonial.</p>
 </td></tr>
 </table>
 </td></tr></table>
@@ -612,9 +612,9 @@ ${bodyHtml}
                 disabled={i > step}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                   i === step
-                    ? "bg-blue-600 text-white"
+                    ? "bg-petrol-600 text-white"
                     : i < step
-                    ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    ? "bg-petrol-100 text-petrol-700 hover:bg-petrol-200"
                     : "bg-gray-100 text-gray-400"
                 }`}
               >
@@ -644,7 +644,7 @@ ${bodyHtml}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Newsletter Março 2026"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -656,7 +656,7 @@ ${bodyHtml}
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder="Ex: Novidades incríveis para você"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -669,7 +669,7 @@ ${bodyHtml}
                     value={fromName}
                     onChange={(e) => setFromName(e.target.value)}
                     placeholder="Ex: BGPGO"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -681,7 +681,7 @@ ${bodyHtml}
                     value={fromEmail}
                     onChange={(e) => setFromEmail(e.target.value)}
                     placeholder="Ex: contato@bgpgo.com"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -732,7 +732,7 @@ ${bodyHtml}
                           onClick={() => setActiveTab(tab.id)}
                           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
                             isActive
-                              ? "bg-blue-600 text-white shadow-sm"
+                              ? "bg-petrol-600 text-white shadow-sm"
                               : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                           }`}
                         >
@@ -753,7 +753,7 @@ ${bodyHtml}
                         /* Generate mode */
                         <div className="space-y-4">
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-petrol-500 to-purple-500">
                               <Sparkles size={14} className="text-white" />
                             </div>
                             <div>
@@ -772,7 +772,7 @@ ${bodyHtml}
                             placeholder="Sobre o que é o email? Ex: Promoção de consultoria patrimonial..."
                             rows={3}
                             disabled={aiLoading}
-                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50"
+                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-white placeholder:text-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50"
                           />
 
                           <div>
@@ -783,7 +783,7 @@ ${bodyHtml}
                               value={aiTone}
                               onChange={(e) => setAiTone(e.target.value)}
                               disabled={aiLoading}
-                              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50"
+                              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50"
                             >
                               <option value="profissional">Profissional</option>
                               <option value="casual">Casual</option>
@@ -802,14 +802,14 @@ ${bodyHtml}
                               onChange={(e) => setAiAudience(e.target.value)}
                               placeholder="Ex: clientes e leads do CRM"
                               disabled={aiLoading}
-                              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 disabled:opacity-50 placeholder:text-gray-400"
+                              className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500/30 focus:border-petrol-300 disabled:opacity-50 placeholder:text-gray-400"
                             />
                           </div>
 
                           <button
                             onClick={handleAiGenerate}
                             disabled={!aiTopic.trim() || aiLoading}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg hover:from-blue-700 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-petrol-600 to-petrol-500 rounded-lg hover:from-petrol-700 hover:to-petrol-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
                           >
                             {aiLoading ? (
                               <Loader2 size={14} className="animate-spin" />
@@ -829,7 +829,7 @@ ${bodyHtml}
                         /* Improve mode */
                         <div className="space-y-4">
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+                            <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-petrol-500 to-purple-500">
                               <Sparkles size={14} className="text-white" />
                             </div>
                             <div>
@@ -849,7 +849,7 @@ ${bodyHtml}
                                 key={chip}
                                 onClick={() => handleAiImprove(chip)}
                                 disabled={aiLoading}
-                                className="px-2.5 py-1.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="px-2.5 py-1.5 text-xs font-medium rounded-full bg-petrol-50 text-petrol-700 border border-petrol-100 hover:bg-petrol-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                               >
                                 {chip}
                               </button>
@@ -857,8 +857,8 @@ ${bodyHtml}
                           </div>
 
                           {/* Custom instruction */}
-                          <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-300 transition-all">
-                            <Sparkles size={14} className="text-blue-500 shrink-0" />
+                          <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-petrol-500/20 focus-within:border-petrol-300 transition-all">
+                            <Sparkles size={14} className="text-petrol-500 shrink-0" />
                             <input
                               type="text"
                               value={aiInstruction}
@@ -876,7 +876,7 @@ ${bodyHtml}
                             <button
                               onClick={() => handleAiImprove()}
                               disabled={!aiInstruction.trim() || aiLoading}
-                              className="flex items-center justify-center w-7 h-7 rounded-md text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              className="flex items-center justify-center w-7 h-7 rounded-md text-white bg-petrol-500 hover:bg-petrol-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             >
                               {aiLoading ? (
                                 <Loader2 size={12} className="animate-spin" />
@@ -953,7 +953,7 @@ ${bodyHtml}
                                         setEditBtnHref(btn.href);
                                       }
                                     }}
-                                    className="text-[10px] text-blue-600 hover:underline"
+                                    className="text-[10px] text-petrol-600 hover:underline"
                                   >
                                     {editingBtnIdx === btn.index ? "Fechar" : "Editar link"}
                                   </button>
@@ -966,7 +966,7 @@ ${bodyHtml}
                                       value={editBtnHref}
                                       onChange={(e) => setEditBtnHref(e.target.value)}
                                       placeholder="https://..."
-                                      className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      className="flex-1 text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-petrol-500"
                                     />
                                     <button
                                       onClick={() => {
@@ -981,7 +981,7 @@ ${bodyHtml}
                                         setHtmlContent(updated);
                                         setEditingBtnIdx(null);
                                       }}
-                                      className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded font-medium hover:bg-blue-700"
+                                      className="text-xs bg-petrol-600 text-white px-3 py-1.5 rounded font-medium hover:bg-petrol-700"
                                     >
                                       Salvar
                                     </button>
@@ -1256,7 +1256,7 @@ ${bodyHtml}
                           <>
                             {audienceState.filterGroups.filter(g => g.filters.length > 0).length} grupo(s) de filtros
                             {audienceState.previewCount !== null && (
-                              <span className="ml-1 text-blue-600 font-semibold">
+                              <span className="ml-1 text-petrol-600 font-semibold">
                                 — {audienceState.previewCount.toLocaleString("pt-BR")} contatos
                               </span>
                             )}
@@ -1279,8 +1279,8 @@ ${bodyHtml}
                       role="switch"
                       aria-checked={sendTeamCopy}
                       onClick={() => setSendTeamCopy(!sendTeamCopy)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        sendTeamCopy ? "bg-blue-600" : "bg-gray-200"
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:ring-offset-2 ${
+                        sendTeamCopy ? "bg-petrol-600" : "bg-gray-200"
                       }`}
                     >
                       <span
@@ -1330,7 +1330,7 @@ ${bodyHtml}
                             type="datetime-local"
                             value={scheduleDate}
                             onChange={(e) => setScheduleDate(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                           />
                         </div>
                         <div className="flex items-center gap-3">
@@ -1452,7 +1452,7 @@ ${bodyHtml}
                       key={tpl.id}
                       type="button"
                       onClick={() => loadTemplateIntoEditor(tpl)}
-                      className="text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      className="text-left p-3 rounded-lg border border-gray-200 hover:border-petrol-400 hover:bg-petrol-50 transition-colors"
                     >
                       <div className="h-16 bg-gray-100 rounded mb-2 overflow-hidden">
                         {tpl.htmlContent ? (
@@ -1507,7 +1507,7 @@ ${bodyHtml}
                       value={saveTemplateName}
                       onChange={(e) => setSaveTemplateName(e.target.value)}
                       placeholder="Ex: Newsletter BGP Março"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
                     />
                   </div>
                   <div className="flex gap-2 justify-end">

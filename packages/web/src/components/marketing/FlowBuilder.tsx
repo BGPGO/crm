@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
@@ -72,7 +72,7 @@ export default function FlowBuilder({
           onClick={() =>
             setShowPickerAt(showPickerAt === index ? null : index)
           }
-          className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+          className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-dashed border-gray-300 text-gray-400 hover:border-petrol-400 hover:text-petrol-500 hover:bg-petrol-50 transition-colors"
           title="Adicionar passo"
         >
           <Plus size={12} />
@@ -102,7 +102,7 @@ export default function FlowBuilder({
     <div className="space-y-0">
       {/* Start node */}
       <div className="flex justify-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-medium shadow-sm">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-petrol-600 text-white text-sm font-medium shadow-sm">
           <div className="w-2 h-2 rounded-full bg-white" />
           Início
         </div>
@@ -117,7 +117,7 @@ export default function FlowBuilder({
               onClick={() =>
                 setShowPickerAt(showPickerAt === -1 ? null : -1)
               }
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors text-sm"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-petrol-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors text-sm"
             >
               <Plus size={14} />
               Adicionar primeiro passo

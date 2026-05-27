@@ -72,7 +72,7 @@ export default function ConversasDashboardPage() {
       label: "Total Conversas",
       value: summary.totalConversas,
       icon: MessageSquare,
-      color: "bg-blue-50 text-blue-600",
+      color: "bg-petrol-50 text-petrol-600",
     },
     {
       label: "Leads Ativos",
@@ -100,7 +100,7 @@ export default function ConversasDashboardPage() {
       description: "Veja e responda mensagens do WhatsApp em tempo real",
       href: "/conversas/chat",
       icon: MessageSquare,
-      color: "bg-blue-50 text-blue-600",
+      color: "bg-petrol-50 text-petrol-600",
     },
     {
       label: "Leads WhatsApp",
@@ -188,7 +188,7 @@ export default function ConversasDashboardPage() {
                 <Link key={link.href} href={link.href}>
                   <Card
                     padding="md"
-                    className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+                    className="hover:border-petrol-300 hover:shadow-md transition-all cursor-pointer"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`p-2.5 rounded-xl flex-shrink-0 ${link.color}`}>

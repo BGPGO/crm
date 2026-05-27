@@ -205,7 +205,7 @@ export default function ContextosPage() {
               className={clsx(
                 "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
                 selectedContextId === ctx.id
-                  ? "bg-blue-50 border-l-2 border-l-blue-600"
+                  ? "bg-petrol-50 border-l-2 border-l-petrol-600"
                   : "hover:bg-gray-100"
               )}
             >
@@ -214,7 +214,7 @@ export default function ContextosPage() {
                   {ctx.campaign.name}
                 </span>
                 {ctx.isDefault && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                  <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-petrol-100 text-petrol-700 flex-shrink-0">
                     Padrao
                   </span>
                 )}
@@ -275,12 +275,12 @@ export default function ContextosPage() {
                   {triggers.map((trigger, index) => (
                     <span
                       key={index}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-blue-50 text-blue-700 rounded-lg border border-blue-200"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-petrol-50 text-petrol-700 rounded-lg border border-petrol-200"
                     >
                       {trigger}
                       <button
                         onClick={() => removeTrigger(index)}
-                        className="ml-0.5 text-blue-400 hover:text-blue-700 transition-colors"
+                        className="ml-0.5 text-petrol-400 hover:text-petrol-700 transition-colors"
                       >
                         <X size={12} />
                       </button>
@@ -300,7 +300,7 @@ export default function ContextosPage() {
                     onChange={(e) => setNewTrigger(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTrigger())}
                     placeholder="Novo trigger (ex: gobi, novo-gobi, lp.bertuzzi...)"
-                    className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent font-mono"
                   />
                   <button
                     onClick={addTrigger}
@@ -321,7 +321,7 @@ export default function ContextosPage() {
                 onChange={(e) => setContextText(e.target.value)}
                 rows={15}
                 placeholder="Descreva o produto, proposta, beneficios, publico-alvo, abordagem ideal..."
-                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y font-mono"
+                className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-y font-mono"
               />
 
               {/* Default checkbox */}
@@ -330,7 +330,7 @@ export default function ContextosPage() {
                   type="checkbox"
                   checked={isDefault}
                   onChange={(e) => setIsDefault(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
                 />
                 Usar como contexto padrao (quando nenhum trigger corresponder)
               </label>
@@ -353,7 +353,7 @@ export default function ContextosPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving || !contextText.trim()}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {saving ? (
                     <>
@@ -408,7 +408,7 @@ export default function ContextosPage() {
               <select
                 value={addCampaignId}
                 onChange={(e) => setAddCampaignId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent mb-4"
               >
                 <option value="">Selecione uma campanha...</option>
                 {campaignsWithoutContext.map((c) => (
@@ -429,7 +429,7 @@ export default function ContextosPage() {
               <button
                 onClick={handleAddContext}
                 disabled={!addCampaignId || saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 text-sm bg-petrol-600 text-white font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? "Criando..." : "Criar Contexto"}
               </button>

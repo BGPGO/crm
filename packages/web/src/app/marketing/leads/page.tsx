@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -212,7 +212,7 @@ export default function LeadsPage() {
                 placeholder="Buscar leads..."
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
               />
             </div>
 
@@ -228,7 +228,7 @@ export default function LeadsPage() {
             <select
               value={filterEngagement}
               onChange={(e) => setFilterEngagement(e.target.value)}
-              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
             >
               <option value="">Todos os engajamentos</option>
               <option value="ENGAGED">Engajado</option>
@@ -312,7 +312,7 @@ export default function LeadsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-petrol-100 text-petrol-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
                         {lead.name.charAt(0)}
                       </div>
                       <span className="font-medium text-gray-900">
@@ -367,7 +367,7 @@ export default function LeadsPage() {
                       ) : lead.deal.status === "LOST" ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Perda</span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Em andamento</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-petrol-100 text-petrol-800">Em andamento</span>
                       )
                     ) : (
                       <span className="text-gray-400 text-xs">{"\u2014"}</span>
@@ -376,7 +376,7 @@ export default function LeadsPage() {
                   <TableCell>
                     <Link
                       href={`/contacts/${lead.id}`}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-petrol-600 hover:underline"
                     >
                       Ver
                     </Link>
@@ -402,7 +402,7 @@ export default function LeadsPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button

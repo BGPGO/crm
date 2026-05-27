@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -52,8 +52,8 @@ const ACTION_META: Record<
   SEND_EMAIL: {
     label: "Enviar Email",
     icon: Mail,
-    color: "text-blue-600",
-    bg: "bg-blue-50 border-blue-200",
+    color: "text-petrol-600",
+    bg: "bg-petrol-50 border-petrol-200",
   },
   SEND_WHATSAPP: {
     label: "Enviar WhatsApp",
@@ -82,8 +82,8 @@ const ACTION_META: Record<
   CONDITION: {
     label: "Condição",
     icon: GitBranch,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50 border-indigo-200",
+    color: "text-petrol-600",
+    bg: "bg-petrol-50 border-petrol-200",
   },
 };
 
@@ -215,7 +215,7 @@ export default function FlowStepCard({
                       config: {},
                     })
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500"
                 >
                   {Object.entries(ACTION_META).map(([key, m]) => (
                     <option key={key} value={key}>

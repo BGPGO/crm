@@ -35,7 +35,7 @@ export default function WaitNode({ config, onChange }: NodeConfigProps) {
               onChange({ ...config, duration: parseInt(e.target.value) || 0 })
             }
             min={1}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
           />
         </div>
         <div className="flex-1">
@@ -45,7 +45,7 @@ export default function WaitNode({ config, onChange }: NodeConfigProps) {
           <select
             value={unit}
             onChange={(e) => onChange({ ...config, unit: e.target.value })}
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent bg-white"
           >
             <option value="minutes">Minutos</option>
             <option value="hours">Horas</option>
@@ -53,8 +53,8 @@ export default function WaitNode({ config, onChange }: NodeConfigProps) {
           </select>
         </div>
       </div>
-      <div className="bg-blue-50 rounded-lg px-3 py-2">
-        <p className="text-xs text-blue-700 font-medium">
+      <div className="bg-petrol-50 rounded-lg px-3 py-2">
+        <p className="text-xs text-petrol-700 font-medium">
           {computeLabel(duration, unit)}
         </p>
       </div>

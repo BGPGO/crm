@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -417,16 +417,16 @@ export default function ImportLeadsPage() {
                   {i > 0 && (
                     <div
                       className={`w-8 h-0.5 ${
-                        isPast ? "bg-blue-600" : "bg-gray-200"
+                        isPast ? "bg-petrol-600" : "bg-gray-200"
                       }`}
                     />
                   )}
                   <div
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
                       isActive
-                        ? "bg-blue-600 text-white"
+                        ? "bg-petrol-600 text-white"
                         : isPast
-                        ? "bg-blue-100 text-blue-700"
+                        ? "bg-petrol-100 text-petrol-700"
                         : "bg-gray-100 text-gray-500"
                     }`}
                   >
@@ -461,14 +461,14 @@ export default function ImportLeadsPage() {
                         onClick={() => setSelectedBrand(brand)}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-colors text-left ${
                           active
-                            ? "border-blue-600 bg-blue-50 text-blue-700"
+                            ? "border-petrol-600 bg-petrol-50 text-petrol-700"
                             : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                         }`}
                       >
                         <div
                           className={`w-9 h-9 rounded-lg flex items-center justify-center ${
                             active
-                              ? "bg-blue-600 text-white"
+                              ? "bg-petrol-600 text-white"
                               : "bg-gray-100 text-gray-500"
                           }`}
                         >
@@ -516,7 +516,7 @@ export default function ImportLeadsPage() {
                           onClick={() => toggleTag(tag.id)}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                             active
-                              ? "border-blue-600 bg-blue-600 text-white"
+                              ? "border-petrol-600 bg-petrol-600 text-white"
                               : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                           }`}
                           style={
@@ -535,7 +535,7 @@ export default function ImportLeadsPage() {
               </div>
 
               <div className="border-t border-gray-100 pt-6 text-center space-y-4">
-                <div className="mx-auto w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                <div className="mx-auto w-16 h-16 bg-petrol-50 text-petrol-600 rounded-2xl flex items-center justify-center">
                   <Upload size={28} />
                 </div>
                 <div>
@@ -562,21 +562,21 @@ export default function ImportLeadsPage() {
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
+                      e.currentTarget.classList.add("border-petrol-400", "bg-petrol-50/50");
                     }}
                     onDragLeave={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                      e.currentTarget.classList.remove("border-petrol-400", "bg-petrol-50/50");
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                      e.currentTarget.classList.remove("border-petrol-400", "bg-petrol-50/50");
                       const file = e.dataTransfer.files?.[0];
                       if (file) processFile(file);
                     }}
-                    className="mx-auto max-w-md border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-blue-400 hover:bg-blue-50/50 cursor-pointer transition-colors"
+                    className="mx-auto max-w-md border-2 border-dashed border-gray-300 rounded-xl p-8 hover:border-petrol-400 hover:bg-petrol-50/50 cursor-pointer transition-colors"
                   >
                     <FileSpreadsheet
                       size={32}
@@ -609,7 +609,7 @@ export default function ImportLeadsPage() {
                           : "Detectado: CSV (vírgula)"}
                       </span>
                       {isRdPreset && (
-                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                        <span className="px-2 py-0.5 rounded-full bg-petrol-100 text-petrol-700">
                           Preset RD Station aplicado
                         </span>
                       )}
@@ -642,7 +642,7 @@ export default function ImportLeadsPage() {
             <p className="text-sm text-gray-500 mb-4">
               Associe cada coluna do arquivo a um campo do contato.
               {isRdPreset && (
-                <span className="ml-1 text-blue-700">
+                <span className="ml-1 text-petrol-700">
                   Preset RD Station aplicado automaticamente.
                 </span>
               )}
@@ -669,7 +669,7 @@ export default function ImportLeadsPage() {
                     <select
                       value={mapping.contactField}
                       onChange={(e) => updateMapping(i, e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500"
                     >
                       {contactFields.map((f) => (
                         <option key={f.value} value={f.value}>
@@ -775,7 +775,7 @@ export default function ImportLeadsPage() {
             <div className="text-center space-y-4">
               {importing ? (
                 <>
-                  <Loader2 size={32} className="mx-auto text-blue-600 animate-spin" />
+                  <Loader2 size={32} className="mx-auto text-petrol-600 animate-spin" />
                   <h2 className="text-lg font-semibold text-gray-900">
                     Importando...
                   </h2>
@@ -786,7 +786,7 @@ export default function ImportLeadsPage() {
                 </>
               ) : (
                 <>
-                  <div className="mx-auto w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                  <div className="mx-auto w-16 h-16 bg-petrol-50 text-petrol-600 rounded-2xl flex items-center justify-center">
                     <FileSpreadsheet size={28} />
                   </div>
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -800,7 +800,7 @@ export default function ImportLeadsPage() {
                     contatos do arquivo{" "}
                     <span className="font-semibold text-gray-900">{fileName}</span>{" "}
                     para a marca{" "}
-                    <span className="font-semibold text-blue-700">
+                    <span className="font-semibold text-petrol-700">
                       {selectedBrand}
                     </span>
                     {selectedTagIds.length > 0 && (

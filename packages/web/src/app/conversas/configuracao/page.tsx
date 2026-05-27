@@ -342,7 +342,7 @@ export default function ConversasConfiguracaoPage() {
               className={clsx(
                 "px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px",
                 activeTab === tab.key
-                  ? "text-blue-600 border-blue-600"
+                  ? "text-petrol-600 border-petrol-600"
                   : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300"
               )}
             >
@@ -468,7 +468,7 @@ function TabConexao({
           href="https://app.z-api.io"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 transition-colors"
         >
           <ExternalLink size={16} />
           Painel Z-API
@@ -554,7 +554,7 @@ function TabIdentidade({
                 value={config.botName}
                 onChange={(e) => updateField("botName", e.target.value)}
                 placeholder="Bia"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
             </div>
             <div>
@@ -565,7 +565,7 @@ function TabIdentidade({
                 value={config.botCompany}
                 onChange={(e) => updateField("botCompany", e.target.value)}
                 placeholder="Bertuzzi Patrimonial"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
             </div>
           </div>
@@ -578,7 +578,7 @@ function TabIdentidade({
               value={config.meetingLink}
               onChange={(e) => updateField("meetingLink", e.target.value)}
               placeholder="https://calendly.com/xxx"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
             />
           </div>
 
@@ -592,14 +592,14 @@ function TabIdentidade({
               onChange={(e) => updateField("welcomeMessage", e.target.value)}
               placeholder={"Olá! Sou a Bia, da Bertuzzi Patrimonial. Como posso te ajudar?"}
               rows={4}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
             />
           </div>
 
           <button
             onClick={saveConfig}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Save size={16} />
             {saving ? "Salvando..." : "Salvar Identidade"}
@@ -704,31 +704,31 @@ function TabProdutos() {
     saveLabel: string;
     isSaving: boolean;
   }) => (
-    <div className="space-y-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <div className="space-y-3 p-4 bg-petrol-50 border border-petrol-200 rounded-lg">
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Nome do Produto <span className="text-red-500">*</span></label>
-        <input type="text" value={data.name || ""} onChange={(e) => setData({ ...data, name: e.target.value })} placeholder="Ex: Fundo GoBI" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input type="text" value={data.name || ""} onChange={(e) => setData({ ...data, name: e.target.value })} placeholder="Ex: Fundo GoBI" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500" />
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
-        <textarea value={data.description || ""} onChange={(e) => setData({ ...data, description: e.target.value })} placeholder="Descreva o produto de forma clara para a IA usar na conversa..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+        <textarea value={data.description || ""} onChange={(e) => setData({ ...data, description: e.target.value })} placeholder="Descreva o produto de forma clara para a IA usar na conversa..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Faixa de Preço / Aporte mínimo</label>
-          <input type="text" value={data.priceRange || ""} onChange={(e) => setData({ ...data, priceRange: e.target.value })} placeholder="Ex: A partir de R$ 10.000" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" value={data.priceRange || ""} onChange={(e) => setData({ ...data, priceRange: e.target.value })} placeholder="Ex: A partir de R$ 10.000" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Público-alvo</label>
-          <input type="text" value={data.targetAudience || ""} onChange={(e) => setData({ ...data, targetAudience: e.target.value })} placeholder="Ex: Investidores pessoa física acima de 30 anos" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" value={data.targetAudience || ""} onChange={(e) => setData({ ...data, targetAudience: e.target.value })} placeholder="Ex: Investidores pessoa física acima de 30 anos" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500" />
         </div>
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">Diferenciais</label>
-        <textarea value={data.differentials || ""} onChange={(e) => setData({ ...data, differentials: e.target.value })} placeholder="Liste os principais diferenciais que a Bia deve mencionar..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+        <textarea value={data.differentials || ""} onChange={(e) => setData({ ...data, differentials: e.target.value })} placeholder="Liste os principais diferenciais que a Bia deve mencionar..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none" />
       </div>
       <div className="flex items-center gap-2">
-        <button onClick={onSave} disabled={isSaving || !data.name?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+        <button onClick={onSave} disabled={isSaving || !data.name?.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors">
           <Save size={14} />
           {isSaving ? "Salvando..." : saveLabel}
         </button>
@@ -746,7 +746,7 @@ function TabProdutos() {
             <p className="text-xs text-gray-500 mt-0.5">A Bia usa esses dados para falar sobre seus produtos com os leads.</p>
           </div>
           {!showNew && (
-            <button onClick={() => { setShowNew(true); setEditingId(null); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+            <button onClick={() => { setShowNew(true); setEditingId(null); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-petrol-600 bg-petrol-50 rounded-lg hover:bg-petrol-100 transition-colors">
               <Plus size={12} />
               Novo Produto
             </button>
@@ -800,10 +800,10 @@ function TabProdutos() {
                       {p.description && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{p.description}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => toggleActive(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title={p.isActive ? "Desativar" : "Ativar"}>
+                      <button onClick={() => toggleActive(p)} className="p-1.5 text-gray-400 hover:text-petrol-600 transition-colors" title={p.isActive ? "Desativar" : "Ativar"}>
                         {p.isActive ? <Eye size={14} /> : <EyeOff size={14} />}
                       </button>
-                      <button onClick={() => startEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
+                      <button onClick={() => startEdit(p)} className="p-1.5 text-gray-400 hover:text-petrol-600 transition-colors" title="Editar">
                         <FileText size={14} />
                       </button>
                       <button onClick={() => deleteProduct(p.id)} disabled={deleting === p.id} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover">
@@ -980,7 +980,7 @@ function TabObjecoes() {
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{o.response}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => { setEditingId(o.id); setDraft({ ...o }); setShowNew(false); }} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
+                      <button onClick={() => { setEditingId(o.id); setDraft({ ...o }); setShowNew(false); }} className="p-1.5 text-gray-400 hover:text-petrol-600 transition-colors" title="Editar">
                         <FileText size={14} />
                       </button>
                       <button onClick={() => deleteObjection(o.id)} disabled={deleting === o.id} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50" title="Remover">
@@ -1167,7 +1167,7 @@ function TabContextos() {
             className={clsx(
               "w-full text-left px-4 py-3 border-b border-gray-100 transition-colors",
               selectedContextId === ctx.id
-                ? "bg-blue-50 border-l-2 border-l-blue-600"
+                ? "bg-petrol-50 border-l-2 border-l-petrol-600"
                 : "hover:bg-gray-100"
             )}
           >
@@ -1176,7 +1176,7 @@ function TabContextos() {
                 {ctx.campaign.name}
               </span>
               {ctx.isDefault && (
-                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-petrol-100 text-petrol-700 flex-shrink-0">
                   Padrao
                 </span>
               )}
@@ -1234,12 +1234,12 @@ function TabContextos() {
                 {triggers.map((trigger, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-blue-50 text-blue-700 rounded-lg border border-blue-200"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono bg-petrol-50 text-petrol-700 rounded-lg border border-petrol-200"
                   >
                     {trigger}
                     <button
                       onClick={() => removeTrigger(index)}
-                      className="ml-0.5 text-blue-400 hover:text-blue-700 transition-colors"
+                      className="ml-0.5 text-petrol-400 hover:text-petrol-700 transition-colors"
                     >
                       <X size={12} />
                     </button>
@@ -1257,7 +1257,7 @@ function TabContextos() {
                   onChange={(e) => setNewTrigger(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTrigger())}
                   placeholder="Novo trigger (ex: gobi, novo-gobi, lp.bertuzzi...)"
-                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                  className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent font-mono"
                 />
                 <button
                   onClick={addTrigger}
@@ -1276,7 +1276,7 @@ function TabContextos() {
               onChange={(e) => setContextText(e.target.value)}
               rows={15}
               placeholder="Descreva o produto, proposta, beneficios, publico-alvo, abordagem ideal..."
-              className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y font-mono"
+              className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-y font-mono"
             />
 
             {/* Default checkbox */}
@@ -1285,7 +1285,7 @@ function TabContextos() {
                 type="checkbox"
                 checked={isDefault}
                 onChange={(e) => setIsDefault(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
               />
               Usar como contexto padrao (quando nenhum trigger corresponder)
             </label>
@@ -1308,7 +1308,7 @@ function TabContextos() {
               <button
                 onClick={handleSave}
                 disabled={saving || !contextText.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? (
                   <>
@@ -1362,7 +1362,7 @@ function TabContextos() {
               <select
                 value={addCampaignId}
                 onChange={(e) => setAddCampaignId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent mb-4"
               >
                 <option value="">Selecione uma campanha...</option>
                 {campaignsWithoutContext.map((c) => (
@@ -1383,7 +1383,7 @@ function TabContextos() {
               <button
                 onClick={handleAddContext}
                 disabled={!addCampaignId || saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 text-sm bg-petrol-600 text-white font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? "Criando..." : "Criar Contexto"}
               </button>
@@ -1455,14 +1455,14 @@ function TabFollowup({
                   onClick={() => updateField(field, !config[field])}
                   className={clsx(
                     "relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors",
-                    config[field] ? "bg-blue-600" : "bg-gray-300"
+                    config[field] ? "bg-petrol-600" : "bg-gray-300"
                   )}
                 >
                   <span className={clsx("inline-block h-4 w-4 transform rounded-full bg-white transition-transform", config[field] ? "translate-x-6" : "translate-x-1")} />
                 </button>
               </div>
             ))}
-            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors">
               <Save size={16} />
               {saving ? "Salvando..." : "Salvar Toggles"}
             </button>
@@ -1473,13 +1473,13 @@ function TabFollowup({
       {/* Etapas → link para Automações */}
       <a
         href="/conversas/automacoes"
-        className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors group"
+        className="flex items-center justify-between p-4 bg-petrol-50 border border-petrol-200 rounded-xl hover:bg-petrol-100 transition-colors group"
       >
         <div>
-          <p className="text-sm font-semibold text-blue-800">Etapas de Follow-up</p>
-          <p className="text-xs text-blue-600 mt-0.5">Gerencie a sequência de etapas, delays e tons na aba Automações.</p>
+          <p className="text-sm font-semibold text-petrol-800">Etapas de Follow-up</p>
+          <p className="text-xs text-petrol-600 mt-0.5">Gerencie a sequência de etapas, delays e tons na aba Automações.</p>
         </div>
-        <ExternalLink size={16} className="text-blue-400 group-hover:text-blue-600 flex-shrink-0" />
+        <ExternalLink size={16} className="text-petrol-400 group-hover:text-petrol-600 flex-shrink-0" />
       </a>
 
       {/* Tone Texts */}
@@ -1507,11 +1507,11 @@ function TabFollowup({
                   onChange={(e) => updateField(field, e.target.value)}
                   placeholder="Deixe em branco para usar o texto padrão da IA..."
                   rows={3}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
                 />
               </div>
             ))}
-            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors">
               <Save size={16} />
               {saving ? "Salvando..." : "Salvar Tons"}
             </button>
@@ -1561,7 +1561,7 @@ function TabHorarios({
                   type="number" min={0} max={23}
                   value={config.businessHoursStart}
                   onChange={(e) => updateField("businessHoursStart", parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -1571,7 +1571,7 @@ function TabHorarios({
                   type="number" min={0} max={23}
                   value={config.businessHoursEndWeekday}
                   onChange={(e) => updateField("businessHoursEndWeekday", parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -1581,12 +1581,12 @@ function TabHorarios({
                   type="number" min={0} max={23}
                   value={config.businessHoursEndSaturday}
                   onChange={(e) => updateField("businessHoursEndSaturday", parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
             </div>
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-700">
+            <div className="p-3 bg-petrol-50 border border-petrol-200 rounded-lg">
+              <p className="text-xs text-petrol-700">
                 Padrão: 8h–18h seg–sex, 8h–12h sáb. Feriados nacionais são bloqueados automaticamente.
               </p>
             </div>
@@ -1600,11 +1600,11 @@ function TabHorarios({
                 type="number" min={1} max={20}
                 value={config.coldContactMaxMessages}
                 onChange={(e) => updateField("coldContactMaxMessages", parseInt(e.target.value) || 1)}
-                className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
             </div>
 
-            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors">
               <Save size={16} />
               {saving ? "Salvando..." : "Salvar Horários"}
             </button>
@@ -1667,7 +1667,7 @@ function TabAvancado({
               onChange={(e) => updateField("conversationRules", e.target.value)}
               placeholder={"Sempre seja educado.\nNunca prometa retornos garantidos.\nSe o lead pedir para falar com humano, transfira imediatamente."}
               rows={6}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-y"
             />
           </div>
 
@@ -1681,7 +1681,7 @@ function TabAvancado({
               onChange={(e) => updateField("funnelInstructions", e.target.value)}
               placeholder={"1. Entender o perfil do investidor.\n2. Apresentar o produto mais adequado.\n3. Superar objeções.\n4. Propor agendamento de reunião."}
               rows={6}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-y"
             />
           </div>
 
@@ -1702,7 +1702,7 @@ function TabAvancado({
             />
           </div>
 
-          <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <button onClick={saveConfig} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors">
             <Save size={16} />
             {saving ? "Salvando..." : "Salvar Avançado"}
           </button>
@@ -1820,10 +1820,10 @@ function TabTestarIA() {
   return (
     <div className="flex flex-col border border-gray-200 rounded-xl overflow-hidden bg-white" style={{ minHeight: 560 }}>
       {/* Simulate Lead Panel */}
-      <div className="bg-indigo-50 border-b border-indigo-200 overflow-hidden">
+      <div className="bg-petrol-50 border-b border-petrol-200 overflow-hidden">
         <button
           onClick={() => setSimPanelOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+          className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-petrol-700 hover:bg-petrol-100 transition-colors"
         >
           <span className="flex items-center gap-2">
             <UserPlus size={16} />
@@ -1836,7 +1836,7 @@ function TabTestarIA() {
           <div className="px-4 pb-4 pt-1 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">
+                <label className="block text-xs font-medium text-petrol-800 mb-1">
                   Nome do Lead <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1845,29 +1845,29 @@ function TabTestarIA() {
                   onChange={(e) => setContactName(e.target.value)}
                   placeholder="Ex: João Silva"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">Campanha</label>
+                <label className="block text-xs font-medium text-petrol-800 mb-1">Campanha</label>
                 <input
                   type="text"
                   value={campaignName}
                   onChange={(e) => setCampaignName(e.target.value)}
                   placeholder="Ex: GoBI Maio 2026"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-indigo-800 mb-1">Fonte</label>
+                <label className="block text-xs font-medium text-petrol-800 mb-1">Fonte</label>
                 <input
                   type="text"
                   value={sourceName}
                   onChange={(e) => setSourceName(e.target.value)}
                   placeholder="Ex: Google Ads"
                   disabled={simLoading}
-                  className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:opacity-50"
+                  className="w-full px-3 py-2 text-sm border border-petrol-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-petrol-400 focus:border-transparent disabled:opacity-50"
                 />
               </div>
             </div>
@@ -1882,7 +1882,7 @@ function TabTestarIA() {
             <button
               onClick={simulateLead}
               disabled={!contactName.trim() || simLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {simLoading ? (
                 <>
@@ -1911,7 +1911,7 @@ function TabTestarIA() {
         ) : (
           <div className="max-w-3xl mx-auto space-y-4">
             {simContext && (
-              <div className="flex items-start gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-700">
+              <div className="flex items-start gap-2 px-3 py-2 bg-petrol-50 border border-petrol-200 rounded-lg text-xs text-petrol-700">
                 <UserPlus size={13} className="mt-0.5 flex-shrink-0" />
                 <span>
                   <span className="font-medium">Contexto usado:</span> {simContext}
@@ -1927,7 +1927,7 @@ function TabTestarIA() {
                   className={clsx(
                     "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
                     msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-br-md"
+                      ? "bg-petrol-600 text-white rounded-br-md"
                       : msg.isError
                       ? "bg-red-50 border border-red-200 text-red-700 rounded-bl-md"
                       : "bg-gray-100 text-gray-900 rounded-bl-md"
@@ -1985,12 +1985,12 @@ function TabTestarIA() {
             onKeyDown={handleKeyDown}
             placeholder="Digite sua mensagem..."
             disabled={loading}
-            className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={sendMessage}
             disabled={!input.trim() || loading}
-            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2.5 bg-petrol-600 text-white rounded-xl hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send size={18} />
           </button>
@@ -2054,7 +2054,7 @@ function TabCredenciais({
                   value={config.zapiInstanceId}
                   onChange={(e) => updateField("zapiInstanceId", e.target.value)}
                   placeholder="ID da instância Z-API"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -2064,7 +2064,7 @@ function TabCredenciais({
                   value={config.zapiToken}
                   onChange={(e) => updateField("zapiToken", e.target.value)}
                   placeholder="Token da instância"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -2074,7 +2074,7 @@ function TabCredenciais({
                   value={config.zapiClientToken}
                   onChange={(e) => updateField("zapiClientToken", e.target.value)}
                   placeholder="Token de segurança (opcional)"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
             </div>
@@ -2090,7 +2090,7 @@ function TabCredenciais({
                 value={config.openaiApiKey}
                 onChange={(e) => updateField("openaiApiKey", e.target.value)}
                 placeholder="sk-..."
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
             </div>
           </div>
@@ -2106,7 +2106,7 @@ function TabCredenciais({
                   value={config.companyName}
                   onChange={(e) => updateField("companyName", e.target.value)}
                   placeholder="BGPGO"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -2116,7 +2116,7 @@ function TabCredenciais({
                   value={config.companyPhone}
                   onChange={(e) => updateField("companyPhone", e.target.value)}
                   placeholder="5511999999999"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -2126,7 +2126,7 @@ function TabCredenciais({
                   value={config.botPhoneNumber}
                   onChange={(e) => updateField("botPhoneNumber", e.target.value)}
                   placeholder="5511999999999"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
               <div>
@@ -2136,7 +2136,7 @@ function TabCredenciais({
                   value={config.baseUrl}
                   onChange={(e) => updateField("baseUrl", e.target.value)}
                   placeholder="https://api.bgpgo.com"
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
               </div>
             </div>
@@ -2145,7 +2145,7 @@ function TabCredenciais({
           <button
             onClick={saveConfig}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Save size={16} />
             {saving ? "Salvando..." : "Salvar Credenciais"}

@@ -62,7 +62,7 @@ function MetaInput({ metaKey, defaultValue, onSave }: { metaKey: string; default
   if (!editing) {
     return (
       <button onClick={() => { setValue(String(defaultValue)); setEditing(true); }}
-        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-blue-500 transition-colors">
+        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-petrol-500 transition-colors">
         Meta: {formatCurrency(defaultValue)} <Pencil size={9} />
       </button>
     );
@@ -72,7 +72,7 @@ function MetaInput({ metaKey, defaultValue, onSave }: { metaKey: string; default
     <div className="flex items-center gap-1">
       <span className="text-[10px] text-gray-400">Meta:</span>
       <input type="number" value={value} onChange={(e) => setValue(e.target.value)}
-        className="w-20 text-[10px] border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500" autoFocus />
+        className="w-20 text-[10px] border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-petrol-500" autoFocus />
       <button onClick={() => { onSave(Number(value) || 0); setEditing(false); }} className="text-green-500 hover:text-green-700"><Check size={12} /></button>
       <button onClick={() => setEditing(false)} className="text-gray-400 hover:text-gray-600"><X size={12} /></button>
     </div>
@@ -92,7 +92,7 @@ function saveMeta(key: string, value: number) {
 }
 
 const SELECT_CLASS =
-  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-petrol-500";
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 
@@ -217,12 +217,12 @@ export default function ReportsPage() {
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500">De:</label>
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500" />
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500">Até:</label>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="text-sm bg-white border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500" />
           </div>
           <div className="relative">
             <select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className={`${SELECT_CLASS} text-gray-600`}>
@@ -299,11 +299,11 @@ export default function ReportsPage() {
                       {/* Par de barras lado a lado */}
                       <div className="w-full flex items-end justify-center gap-1" style={{ height: '180px' }}>
                         <div className="flex-1 flex flex-col justify-end items-center" title={`Mensal: ${formatCurrency(m.totalMonthly)}`}>
-                          <span className="text-[9px] text-blue-600 font-medium mb-0.5 whitespace-nowrap">
+                          <span className="text-[9px] text-petrol-600 font-medium mb-0.5 whitespace-nowrap">
                             {m.totalMonthly > 0 ? formatCurrency(m.totalMonthly) : ""}
                           </span>
                           <div
-                            className="w-full bg-blue-500 rounded-t-md transition-all duration-700"
+                            className="w-full bg-petrol-500 rounded-t-md transition-all duration-700"
                             style={{ height: `${Math.max(monthlyPct, m.totalMonthly > 0 ? 2 : 0)}%`, maxWidth: '24px' }}
                           />
                         </div>
@@ -324,7 +324,7 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-4 mt-3 mb-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-blue-500" />
+                  <span className="w-3 h-3 rounded-sm bg-petrol-500" />
                   <span className="text-[10px] text-gray-400">Mensal</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -350,7 +350,7 @@ export default function ReportsPage() {
                       return (
                         <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                           <td className="py-2 px-3 text-gray-800 capitalize">{m.month}</td>
-                          <td className="py-2 px-3 text-right text-blue-600 font-medium">
+                          <td className="py-2 px-3 text-right text-petrol-600 font-medium">
                             {m.totalMonthly > 0 ? formatCurrency(m.totalMonthly) : "—"}
                           </td>
                           <td className="py-2 px-3 text-right text-orange-500">
@@ -402,14 +402,14 @@ export default function ReportsPage() {
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-gray-800">{t.product}</span>
-                        <span className="text-sm text-blue-600 font-bold">{formatCurrency(t.currentAvg)}</span>
+                        <span className="text-sm text-petrol-600 font-bold">{formatCurrency(t.currentAvg)}</span>
                       </div>
                       <span className="text-xs text-gray-400">
                         Mês anterior: {formatCurrency(t.lastMonthAvg)}
                       </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-6 relative overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full flex items-center justify-center transition-all duration-700"
+                      <div className="h-full bg-gradient-to-r from-petrol-600 to-petrol-400 rounded-full flex items-center justify-center transition-all duration-700"
                         style={{ width: `${barPct}%`, minWidth: '60px' }}>
                         <span className="text-[10px] font-bold text-white">{formatCurrency(t.currentAvg)}</span>
                       </div>

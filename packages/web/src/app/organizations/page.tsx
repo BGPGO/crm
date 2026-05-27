@@ -160,7 +160,7 @@ export default function OrganizationsPage() {
               placeholder="Buscar empresas..."
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -240,7 +240,7 @@ export default function OrganizationsPage() {
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Link
                       href={`/organizations/${org.id}`}
-                      className="text-sm text-blue-600 hover:underline"
+                      className="text-sm text-petrol-600 hover:underline"
                     >
                       Ver
                     </Link>
@@ -266,7 +266,7 @@ export default function OrganizationsPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button
@@ -302,7 +302,7 @@ export default function OrganizationsPage() {
             <select
               value={form.segment}
               onChange={(e) => setForm((f) => ({ ...f, segment: e.target.value }))}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
             >
               <option value="">Selecione um segmento</option>
               {SEGMENTS.map((s) => (

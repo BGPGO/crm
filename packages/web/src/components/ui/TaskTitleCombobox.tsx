@@ -96,8 +96,8 @@ export default function TaskTitleCombobox({
       placeholder={placeholder}
       className={clsx(
         compact
-          ? "w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-          : "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white placeholder:text-gray-400",
+          ? "w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400"
+          : "w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white placeholder:text-gray-400",
         className
       )}
     />
@@ -119,7 +119,7 @@ export default function TaskTitleCombobox({
               className={clsx(
                 "px-3 py-2 text-sm cursor-pointer transition-colors",
                 focusedIndex === idx
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-petrol-50 text-petrol-700"
                   : "text-gray-700 hover:bg-gray-50"
               )}
             >

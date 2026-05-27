@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   EmailSection,
@@ -290,8 +290,8 @@ function ImageEditor({
   return (
     <div className="space-y-3">
       {!hasImage && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
-          <p className="mb-2 text-xs font-semibold text-blue-700">Cole a URL da imagem</p>
+        <div className="rounded-lg border border-petrol-200 bg-petrol-50 px-3 py-2.5">
+          <p className="mb-2 text-xs font-semibold text-petrol-700">Cole a URL da imagem</p>
           <div className="space-y-1">
             <input
               type="text"
@@ -299,9 +299,9 @@ function ImageEditor({
               placeholder="https://exemplo.com/imagem.jpg"
               autoFocus
               onChange={(e) => onUpdate({ src: e.target.value })}
-              className="h-8 w-full rounded border border-blue-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+              className="h-8 w-full rounded border border-petrol-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-400/40"
             />
-            <p className="text-[10px] text-blue-500">
+            <p className="text-[10px] text-petrol-500">
               Ou clique no placeholder no canvas para inserir diretamente.
             </p>
           </div>
@@ -342,7 +342,7 @@ function ImageEditor({
                 onClick={() => onUpdate({ width: preset.value })}
                 className={`flex-1 rounded py-1 text-xs font-medium transition-colors ${
                   isActive
-                    ? "bg-blue-600 text-white"
+                    ? "bg-petrol-600 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >

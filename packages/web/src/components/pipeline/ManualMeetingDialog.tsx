@@ -59,7 +59,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
                 min={new Date().toISOString().split("T")[0]}
                 required
               />
@@ -72,7 +72,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
                 required
               />
             </div>
@@ -89,7 +89,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
                   onClick={() => setDuration(d)}
                   className={`flex-1 py-1.5 text-sm rounded-lg border transition-colors ${
                     duration === d
-                      ? "bg-blue-600 text-white border-blue-600"
+                      ? "bg-petrol-600 text-white border-petrol-600"
                       : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                   }`}
                 >
@@ -105,7 +105,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
             <select
               value={eventType}
               onChange={(e) => setEventType(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
             >
               <option value="Diagnóstico Financeiro">Diagnóstico Financeiro</option>
               <option value="Demonstração GoBI">Demonstração GoBI</option>
@@ -123,7 +123,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="Detalhes adicionais sobre a reunião..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none resize-none"
             />
           </div>
 
@@ -145,7 +145,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
           <button
             onClick={handleSubmit}
             disabled={!date || !time || saving}
-            className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 py-2 text-sm font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : null}
             {saving ? "Salvando..." : "Agendar Reunião"}

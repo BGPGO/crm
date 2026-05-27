@@ -140,7 +140,7 @@ const STAGE_BADGE: Record<string, "blue" | "green" | "yellow" | "orange" | "purp
 };
 
 const SELECT_CLASS =
-  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "appearance-none text-sm bg-white border border-gray-200 rounded-md px-3 py-1.5 pr-7 hover:bg-gray-50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-petrol-500";
 
 function mapActivityType(apiType: string): Activity["type"] {
   const map: Record<string, Activity["type"]> = {
@@ -366,8 +366,8 @@ export default function DashboardPage() {
           value: String(data.activeDealsCount),
           sub: "negociações ativas",
           icon: TrendingUp,
-          color: "text-blue-600",
-          bg: "bg-blue-50",
+          color: "text-petrol-600",
+          bg: "bg-petrol-50",
         },
         {
           title: "Valor Total no Pipeline",
@@ -470,7 +470,7 @@ export default function DashboardPage() {
                 onClick={() => setStatusFilter(f.value)}
                 className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
                   statusFilter === f.value
-                    ? "bg-blue-600 text-white"
+                    ? "bg-petrol-600 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -574,7 +574,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-blue-600">
+                      <p className="text-sm font-bold text-petrol-600">
                         {formatCurrency(deal.monthlyValue)}/mês
                       </p>
                       {deal.setupValue > 0 && (
@@ -599,7 +599,7 @@ export default function DashboardPage() {
         <Card padding="md">
           <CardHeader>
             <CardTitle>Últimas Atividades</CardTitle>
-            <Link href="/tasks" className="text-xs text-blue-600 hover:underline">
+            <Link href="/tasks" className="text-xs text-petrol-600 hover:underline">
               Ver todas
             </Link>
           </CardHeader>

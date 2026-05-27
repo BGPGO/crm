@@ -98,7 +98,7 @@ const typeLabels: Record<ApiTaskType, string> = {
 };
 
 const typeColors: Record<ApiTaskType, string> = {
-  CALL: "text-blue-600 bg-blue-100",
+  CALL: "text-petrol-600 bg-petrol-100",
   EMAIL: "text-green-600 bg-green-100",
   MEETING: "text-purple-600 bg-purple-100",
   VISIT: "text-orange-600 bg-orange-100",
@@ -457,7 +457,7 @@ export default function TasksPage() {
                   tab.key === "OVERDUE" && counts.OVERDUE > 0
                     ? "bg-red-500 text-white font-bold animate-pulse"
                     : activeFilter === tab.key
-                      ? "bg-blue-100 text-blue-700"
+                      ? "bg-petrol-100 text-petrol-700"
                       : "bg-gray-200 text-gray-500"
                 )}>
                   {counts[tab.key]}
@@ -470,7 +470,7 @@ export default function TasksPage() {
             <select
               value={userFilter}
               onChange={(e) => handleUserFilterChange(e.target.value)}
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-petrol-500"
             >
               <option value="">Todos os responsáveis</option>
               {users.map((u) => (
@@ -486,32 +486,32 @@ export default function TasksPage() {
 
         {/* Batch action bar */}
         {someSelected && (
-          <div className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 animate-in fade-in">
-            <span className="text-sm font-medium text-blue-800">
+          <div className="flex flex-wrap items-center gap-2 bg-petrol-50 border border-petrol-200 rounded-lg px-4 py-2.5 animate-in fade-in">
+            <span className="text-sm font-medium text-petrol-800">
               {selectedIds.size} {selectedIds.size === 1 ? "tarefa selecionada" : "tarefas selecionadas"}
             </span>
-            <div className="h-4 w-px bg-blue-200 mx-1" />
+            <div className="h-4 w-px bg-petrol-200 mx-1" />
             <button
               onClick={() => openBatchModal("dueDate")}
-              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              className="px-2.5 py-1 text-xs font-medium text-petrol-700 bg-white border border-petrol-200 rounded-md hover:bg-petrol-100 transition-colors"
             >
               Alterar Data
             </button>
             <button
               onClick={() => openBatchModal("userId")}
-              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              className="px-2.5 py-1 text-xs font-medium text-petrol-700 bg-white border border-petrol-200 rounded-md hover:bg-petrol-100 transition-colors"
             >
               Alterar Responsável
             </button>
             <button
               onClick={() => openBatchModal("status")}
-              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              className="px-2.5 py-1 text-xs font-medium text-petrol-700 bg-white border border-petrol-200 rounded-md hover:bg-petrol-100 transition-colors"
             >
               Alterar Status
             </button>
             <button
               onClick={() => openBatchModal("type")}
-              className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+              className="px-2.5 py-1 text-xs font-medium text-petrol-700 bg-white border border-petrol-200 rounded-md hover:bg-petrol-100 transition-colors"
             >
               Alterar Tipo
             </button>
@@ -524,7 +524,7 @@ export default function TasksPage() {
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="ml-auto p-1 text-blue-400 hover:text-blue-600 transition-colors"
+              className="ml-auto p-1 text-petrol-400 hover:text-petrol-600 transition-colors"
               title="Limpar seleção"
             >
               <X size={16} />
@@ -542,7 +542,7 @@ export default function TasksPage() {
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleSelectAll}
-                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500 cursor-pointer"
                 />
               </TableHeader>
               <TableHeader>Tarefa</TableHeader>
@@ -588,7 +588,7 @@ export default function TasksPage() {
                       isOverdue && !isSelected
                         ? "bg-red-50 border-l-4 border-l-red-500 hover:bg-red-100"
                         : isSelected
-                          ? "bg-blue-50 hover:bg-blue-100"
+                          ? "bg-petrol-50 hover:bg-petrol-100"
                           : "hover:bg-gray-50"
                     )}
                     onClick={() => openEditModal(task)}
@@ -599,7 +599,7 @@ export default function TasksPage() {
                         checked={isSelected}
                         onChange={(e) => { e.stopPropagation(); toggleSelect(task.id); }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500 cursor-pointer"
                       />
                     </TableCell>
                     <TableCell>
@@ -615,7 +615,7 @@ export default function TasksPage() {
                           ) : isOverdue ? (
                             <Clock size={16} className="text-red-500" />
                           ) : (
-                            <div className="w-4 h-4 rounded-full border-2 border-gray-300 hover:border-blue-400 transition-colors" />
+                            <div className="w-4 h-4 rounded-full border-2 border-gray-300 hover:border-petrol-400 transition-colors" />
                           )}
                         </button>
                         <span className={clsx(
@@ -692,7 +692,7 @@ export default function TasksPage() {
               >
                 <ChevronLeft size={16} />
               </button>
-              <span className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-medium">
+              <span className="px-3 py-1 rounded-md bg-petrol-600 text-white text-xs font-medium">
                 {meta.page}
               </span>
               <button
@@ -726,7 +726,7 @@ export default function TasksPage() {
                 value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ApiTaskType }))}
                 required
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               >
                 {TASK_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -739,7 +739,7 @@ export default function TasksPage() {
                 value={form.userId}
                 onChange={(e) => setForm((f) => ({ ...f, userId: e.target.value }))}
                 required
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               >
                 <option value="">Selecione...</option>
                 {users.map((u) => (
@@ -761,7 +761,7 @@ export default function TasksPage() {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               placeholder="Observações sobre a tarefa..."
               rows={3}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white resize-none"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white resize-none"
             />
           </div>
           <div className="flex items-center justify-between pt-2">
@@ -819,7 +819,7 @@ export default function TasksPage() {
               <select
                 value={batchValue}
                 onChange={(e) => setBatchValue(e.target.value)}
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               >
                 <option value="">Selecione...</option>
                 {users.map((u) => (
@@ -835,7 +835,7 @@ export default function TasksPage() {
               <select
                 value={batchValue}
                 onChange={(e) => setBatchValue(e.target.value)}
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               >
                 <option value="">Selecione...</option>
                 <option value="PENDING">Pendente</option>
@@ -850,7 +850,7 @@ export default function TasksPage() {
               <select
                 value={batchValue}
                 onChange={(e) => setBatchValue(e.target.value)}
-                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               >
                 <option value="">Selecione...</option>
                 {TASK_TYPES.map((t) => (

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -57,7 +57,7 @@ export default function MarketingDashboardPage() {
       label: "Total de Leads",
       value: summary.totalLeads,
       icon: Users,
-      color: "bg-blue-50 text-blue-600",
+      color: "bg-petrol-50 text-petrol-600",
     },
     {
       label: "Segmentos Ativos",
@@ -79,7 +79,7 @@ export default function MarketingDashboardPage() {
       description: "Visualize e gerencie seus leads com filtros avançados",
       href: "/marketing/leads",
       icon: Users,
-      color: "bg-blue-50 text-blue-600",
+      color: "bg-petrol-50 text-petrol-600",
     },
     {
       label: "Importar Leads",
@@ -167,7 +167,7 @@ export default function MarketingDashboardPage() {
                 <Link key={link.href} href={link.href}>
                   <Card
                     padding="md"
-                    className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
+                    className="hover:border-petrol-300 hover:shadow-md transition-all cursor-pointer"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`p-2.5 rounded-xl flex-shrink-0 ${link.color}`}>

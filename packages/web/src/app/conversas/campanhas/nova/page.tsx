@@ -28,7 +28,7 @@ interface CalendlyConfig {
 }
 
 const INPUT_CLASS =
-  "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500";
 
 export default function NovaCampanhaPage() {
   const router = useRouter();
@@ -277,7 +277,7 @@ export default function NovaCampanhaPage() {
                       onClick={() => setContactSource(opt.value)}
                       className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
                         contactSource === opt.value
-                          ? "bg-blue-50 border-blue-300 text-blue-700"
+                          ? "bg-petrol-50 border-petrol-300 text-petrol-700"
                           : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
                     >
@@ -327,7 +327,7 @@ export default function NovaCampanhaPage() {
                           onClick={() => setDealStatus(opt.value)}
                           className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
                             dealStatus === opt.value
-                              ? "bg-blue-600 text-white"
+                              ? "bg-petrol-600 text-white"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           }`}
                         >
@@ -382,9 +382,9 @@ export default function NovaCampanhaPage() {
                   </div>
 
                   {selectedStage && (
-                    <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                      <Users size={14} className="text-blue-600" />
-                      <p className="text-xs text-blue-700">
+                    <div className="flex items-center gap-2 p-2 bg-petrol-50 border border-petrol-200 rounded-lg">
+                      <Users size={14} className="text-petrol-600" />
+                      <p className="text-xs text-petrol-700">
                         Contatos serão extraídos das negociações
                         {dealStatus === "WON" ? " ganhas" : dealStatus === "LOST" ? " perdidas" : dealStatus === "OPEN" ? " em andamento" : ""} na etapa &quot;{selectedStage.name}&quot;
                         {(valueMin || valueMax) && (
@@ -457,7 +457,7 @@ export default function NovaCampanhaPage() {
               <button
                 type="submit"
                 disabled={saving || !canSubmit}
-                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-petrol-600 rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? "Criando..." : "Criar Campanha"}
               </button>
@@ -499,11 +499,11 @@ export default function NovaCampanhaPage() {
             )}
 
             {contactSource === "stage" && selectedStage && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs font-medium text-blue-700">
+              <div className="mt-4 p-3 bg-petrol-50 border border-petrol-200 rounded-lg">
+                <p className="text-xs font-medium text-petrol-700">
                   Contatos da etapa &quot;{selectedStage.name}&quot;
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-xs text-petrol-600 mt-1">
                   Os telefones serão extraídos automaticamente das negociações
                   {dealStatus ? ` (${dealStatus === "OPEN" ? "em andamento" : dealStatus === "WON" ? "ganhas" : "perdidas"})` : ""} nesta etapa ao criar a campanha.
                 </p>

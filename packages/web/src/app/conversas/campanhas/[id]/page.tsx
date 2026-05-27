@@ -31,7 +31,7 @@ interface CampaignDetail {
 
 const statusConfig: Record<string, { label: string; classes: string }> = {
   DRAFT: { label: "Rascunho", classes: "bg-gray-100 text-gray-600" },
-  RUNNING: { label: "Enviando", classes: "bg-blue-100 text-blue-700 animate-pulse" },
+  RUNNING: { label: "Enviando", classes: "bg-petrol-100 text-petrol-700 animate-pulse" },
   PAUSED: { label: "Pausada", classes: "bg-yellow-100 text-yellow-700" },
   COMPLETED: { label: "Concluída", classes: "bg-green-100 text-green-700" },
 };

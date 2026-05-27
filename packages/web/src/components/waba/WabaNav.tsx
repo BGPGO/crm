@@ -37,7 +37,7 @@ export default function WabaNav() {
                 className={clsx(
                   "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors",
                   active
-                    ? "text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-400"
+                    ? "text-petrol-600 border-petrol-600 dark:text-petrol-400 dark:border-petrol-400"
                     : "text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
                 )}
               >

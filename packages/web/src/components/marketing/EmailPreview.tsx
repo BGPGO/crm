@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import clsx from "clsx";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +12,7 @@ const BGP_LOGO_URL = 'https://email-editor-production.s3.amazonaws.com/images/66
 const BGP_WHATSAPP_LINK = 'https://wa.me/5551992091726?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20o%20meu%20financeiro!';
 const BGP_FONT = "Montserrat,'Trebuchet MS','Lucida Grande','Lucida Sans Unicode','Lucida Sans',Tahoma,sans-serif";
 
-const AIMO_LOGO_URL = '/aimo-logo.png';
+const AIMO_LOGO_URL = '/bertuzzi-logo.png';
 const AIMO_FONT = "'Space Grotesk','Inter','Helvetica Neue',Arial,sans-serif";
 const AIMO_PRIMARY = '#1E3FFF';
 
@@ -89,18 +89,18 @@ Caso não queira mais receber estes e-mails, <span style="text-decoration:underl
 }
 
 /**
- * AIMO brand preview — pass-through inteligente.
- * Se o html é doc completo (template AIMO self-contained), retorna intacto.
- * Senão, aplica wrap institucional AIMO com header (logo) + footer dark.
+ * Wrap de preview Bertuzzi — pass-through inteligente.
+ * Se o html é doc completo (template self-contained), retorna intacto.
+ * Senão, aplica wrap institucional Bertuzzi com header (logo) + footer dark.
  */
 export function wrapAimoPreview(bodyHtml: string): string {
-  // Detecta se já é doc HTML completo (template AIMO self-contained)
+  // Detecta se já é doc HTML completo (template self-contained)
   const isCompleteDoc = /<!DOCTYPE|<html[\s>]/i.test(bodyHtml.trim().slice(0, 200));
   if (isCompleteDoc) {
     return bodyHtml; // pass-through — respeita template completo
   }
 
-  // Snippet (IA, edição livre, etc) — wrap institucional AIMO
+  // Snippet (IA, edição livre, etc) — wrap institucional Bertuzzi
   // (mirror exato do wrapAimoTemplate backend).
   const content = stripToInnerBody(bodyHtml);
   return `<!DOCTYPE html>
@@ -111,7 +111,7 @@ export function wrapAimoPreview(bodyHtml: string): string {
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 body { margin:0; padding:0; background-color:#F4F5F8; font-family:'Inter','Space Grotesk',system-ui,Arial,sans-serif; color:#0A0E1F; }
-a { color:#1E3FFF; }
+a { color:#244c5a; }
 </style>
 </head>
 <body>
@@ -121,10 +121,10 @@ a { color:#1E3FFF; }
 <!-- Container principal 600px -->
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:12px;overflow:hidden;">
 
-<!-- Header com logo AIMO -->
+<!-- Header com logo Bertuzzi -->
 <tr>
 <td align="left" style="padding:32px 40px 24px 40px;background-color:#FFFFFF;border-bottom:1px solid #E6E8EF;">
-<img src="/aimo-logo.png" alt="AiMO" width="96" style="display:block;width:96px;height:auto;border:0;" />
+<img src="/bertuzzi-logo.png" alt="Bertuzzi" width="96" style="display:block;width:96px;height:auto;border:0;" />
 </td>
 </tr>
 
@@ -135,26 +135,26 @@ ${content}
 </td>
 </tr>
 
-<!-- Footer institucional AiMO (dark) -->
+<!-- Footer institucional Bertuzzi (dark) -->
 <tr>
-<td style="padding:32px 40px 32px 40px;background-color:#0A0E1F;border-top:1px solid #1A2040;">
+<td style="padding:32px 40px 32px 40px;background-color:#244c5a;border-top:1px solid #1d3c47;">
 <table role="presentation" border="0" cellpadding="0" cellspacing="0">
 <tr>
 <td valign="middle" style="padding-right:12px;">
-<img src="/aimo-logo.png" alt="AiMO" width="56" style="display:block;width:56px;height:auto;border:0;filter:brightness(0) invert(1);" />
+<img src="/bertuzzi-logo-white.png" alt="Bertuzzi" width="56" style="display:block;width:56px;height:auto;border:0;" />
 </td>
 <td valign="middle">
-<span style="font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">AiMO Corp</span>
+<span style="font-family:'Space Grotesk','Inter',system-ui,sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;letter-spacing:0.02em;">Bertuzzi Patrimonial</span>
 </td>
 </tr>
 </table>
-<p style="margin:18px 0 0 0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:12px;line-height:1.6;color:#6B7390;">
+<p style="margin:18px 0 0 0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:12px;line-height:1.6;color:#ABC7C9;">
 Gestão patrimonial inteligente.<br />
-aimocorp.com.br
+bertuzzipatrimonial.com.br
 </p>
-<div style="width:100%;height:1px;background-color:#1A2040;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
-<p style="margin:0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:11px;line-height:1.6;color:#6B7390;">
-Você está recebendo este email porque demonstrou interesse em conteúdos da AiMO.
+<div style="width:100%;height:1px;background-color:#1d3c47;margin:20px 0;font-size:0;line-height:0;">&nbsp;</div>
+<p style="margin:0;font-family:'Inter','Space Grotesk',system-ui,sans-serif;font-size:11px;line-height:1.6;color:#ABC7C9;">
+Você está recebendo este email porque demonstrou interesse em conteúdos da Bertuzzi Patrimonial.
 </p>
 </td>
 </tr>
@@ -296,7 +296,7 @@ export default function EmailPreview({
             className={clsx(
               "px-2 py-1 rounded",
               contactId === null
-                ? "bg-blue-100 text-blue-700 font-semibold"
+                ? "bg-petrol-100 text-petrol-700 font-semibold"
                 : "text-gray-600 hover:bg-gray-100",
             )}
           >
@@ -315,7 +315,7 @@ export default function EmailPreview({
                 setOpen(true);
                 setSearch("");
               }}
-              className="w-full text-xs px-2 py-1 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="w-full text-xs px-2 py-1 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500/30"
             />
             {open && results.length > 0 && (
               <>
@@ -333,7 +333,7 @@ export default function EmailPreview({
                         setSelectedLabel(c.name || c.email || c.id);
                         setOpen(false);
                       }}
-                      className="w-full text-left px-2 py-1.5 hover:bg-blue-50"
+                      className="w-full text-left px-2 py-1.5 hover:bg-petrol-50"
                     >
                       <div className="text-xs font-medium text-gray-800 truncate">
                         {c.name || "(sem nome)"}

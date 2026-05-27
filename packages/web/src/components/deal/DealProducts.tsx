@@ -38,7 +38,7 @@ export default function DealProducts({ products, onAdd, onEdit, onRemove }: Deal
         <div className="text-center py-8 text-gray-400 text-sm">
           Nenhum produto adicionado.
           <br />
-          <button onClick={onAdd} className="text-blue-600 hover:text-blue-700 font-medium mt-2 inline-flex items-center gap-1">
+          <button onClick={onAdd} className="text-petrol-600 hover:text-petrol-700 font-medium mt-2 inline-flex items-center gap-1">
             <Plus size={14} /> Adicionar produto
           </button>
         </div>
@@ -96,7 +96,7 @@ export default function DealProducts({ products, onAdd, onEdit, onRemove }: Deal
                       {onEdit && (
                         <button
                           onClick={() => onEdit(p.id)}
-                          className="p-1 text-gray-300 hover:text-blue-500 transition-colors rounded"
+                          className="p-1 text-gray-300 hover:text-petrol-500 transition-colors rounded"
                         >
                           <Pencil size={14} />
                         </button>
@@ -126,13 +126,13 @@ export default function DealProducts({ products, onAdd, onEdit, onRemove }: Deal
             )}
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Recorrência mensal</span>
-              <span className="font-bold text-blue-600">{formatCurrency(totalRecurrence)}</span>
+              <span className="font-bold text-petrol-600">{formatCurrency(totalRecurrence)}</span>
             </div>
           </div>
 
           <button
             onClick={onAdd}
-            className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-xs text-petrol-600 hover:text-petrol-700 font-medium transition-colors"
           >
             <Plus size={14} />
             Adicionar produto

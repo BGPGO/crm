@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useCallback } from "react";
 import {
@@ -114,7 +114,7 @@ export default function EmailBuilderCanvas({
                 <div
                   ref={provided.innerRef}
                   {...provided.droppableProps}
-                  className={snapshot.isDraggingOver ? "bg-blue-50/30 rounded" : ""}
+                  className={snapshot.isDraggingOver ? "bg-petrol-50/30 rounded" : ""}
                 >
                   {sections.map((section, index) => (
                     <React.Fragment key={section.id}>

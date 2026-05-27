@@ -391,7 +391,7 @@ function TeamTab() {
           {!loading && members.map((m) => (
             <div key={m.id} className="px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold">
+                <div className="w-9 h-9 rounded-full bg-petrol-600 text-white flex items-center justify-center text-sm font-semibold">
                   {m.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
@@ -1030,7 +1030,7 @@ function LostReasonsTab() {
                   if (e.key === "Escape") { setAdding(false); setNewValue(""); }
                 }}
                 placeholder="Nome do motivo..."
-                className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
               <Button size="sm" variant="primary" onClick={handleAdd} disabled={savingNew}>
                 {savingNew ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
@@ -1134,7 +1134,7 @@ function SourcesTab() {
             return (
               <div key={source.id} className="px-5 py-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Radio size={14} className="text-blue-400 flex-shrink-0" />
+                  <Radio size={14} className="text-petrol-400 flex-shrink-0" />
                   <p className="text-sm text-gray-800">{source.name}</p>
                   {useCount > 0 && (
                     <span className="text-xs text-gray-400">({useCount} uso{useCount !== 1 ? "s" : ""})</span>
@@ -1162,7 +1162,7 @@ function SourcesTab() {
                   if (e.key === "Escape") { setAdding(false); setNewValue(""); }
                 }}
                 placeholder="Nome da fonte..."
-                className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
               <Button size="sm" variant="primary" onClick={handleAdd} disabled={savingNew}>
                 {savingNew ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
@@ -1343,7 +1343,7 @@ function TagsTab() {
                     if (e.key === "Escape") { setAdding(false); setNewName(""); setNewColor("#3B82F6"); }
                   }}
                   placeholder="Nome da tag..."
-                  className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                 />
                 {newName && (
                   <TagBadge name={newName} color={newColor} />
@@ -1463,7 +1463,7 @@ function CopyButton({ value }: { value: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="text-gray-400 hover:text-blue-600 transition-colors flex-shrink-0"
+      className="text-gray-400 hover:text-petrol-600 transition-colors flex-shrink-0"
       title="Copiar URL"
     >
       {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
@@ -1477,7 +1477,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
       onClick={() => onChange(!enabled)}
       className={clsx(
         "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none",
-        enabled ? "bg-blue-600" : "bg-gray-200"
+        enabled ? "bg-petrol-600" : "bg-gray-200"
       )}
     >
       <span
@@ -1656,7 +1656,7 @@ function WebhooksTab() {
           </Button>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700">
+        <div className="bg-petrol-50 border border-petrol-200 rounded-xl px-4 py-3 text-xs text-petrol-700">
           Configure o URL gerado na sua landing page (GreatPages, etc.) para receber leads automaticamente no CRM.
         </div>
 
@@ -1676,7 +1676,7 @@ function WebhooksTab() {
               <div key={wh.id} className="px-5 py-4 space-y-2 hover:bg-gray-50/50 cursor-pointer transition-colors" onClick={() => openDetails(wh)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Globe size={15} className="text-blue-500 flex-shrink-0" />
+                    <Globe size={15} className="text-petrol-500 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-900">{wh.name}</span>
                     <Badge variant={wh.isActive ? "green" : "gray"}>
                       {wh.isActive ? "Ativo" : "Inativo"}
@@ -1702,7 +1702,7 @@ function WebhooksTab() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs text-gray-400">Eventos:</span>
                     {(wh.events as string[]).map((evt) => (
-                      <span key={evt} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
+                      <span key={evt} className="text-xs bg-petrol-50 text-petrol-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
                     ))}
                   </div>
                 )}
@@ -1824,7 +1824,7 @@ function WebhooksTab() {
                     <span className="text-[10px] font-semibold text-gray-400 uppercase">Eventos</span>
                     <div className="flex gap-1 flex-wrap mt-0.5">
                       {(selectedWh.events as string[]).map(evt => (
-                        <span key={evt} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
+                        <span key={evt} className="text-xs bg-petrol-50 text-petrol-600 px-2 py-0.5 rounded-full font-mono">{evt}</span>
                       ))}
                     </div>
                   </div>
@@ -1838,7 +1838,7 @@ function WebhooksTab() {
                     <div>
                       <span className="text-[10px] font-semibold text-gray-400 uppercase">URL Completa para Configurar</span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <code className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 flex-1 break-all">
+                        <code className="text-xs text-petrol-700 bg-petrol-50 border border-petrol-200 rounded px-2 py-1 flex-1 break-all">
                           {fullUrl}
                         </code>
                         <CopyButton value={fullUrl} />
@@ -1905,7 +1905,7 @@ function WebhooksTab() {
                       type="checkbox"
                       checked={newEvents.includes(evt)}
                       onChange={() => toggleEvent(evt)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
                     />
                     <span className="text-sm font-mono text-gray-700">{evt}</span>
                   </label>
@@ -2192,7 +2192,7 @@ function ProductsTab() {
               id="edit-active"
               checked={editActive}
               onChange={(e) => setEditActive(e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
             />
             <label htmlFor="edit-active" className="text-sm text-gray-700 cursor-pointer">
               Produto ativo
@@ -2328,12 +2328,12 @@ function NotificationsTab() {
               onChange={e => setNewEmail(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
               placeholder="novo@email.com"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={addEmail}
               disabled={!newEmail.trim() || !newEmail.includes("@")}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus size={16} />
             </button>
@@ -2354,12 +2354,12 @@ function NotificationsTab() {
               value={config.deal_won_subject || ""}
               onChange={e => setConfig(prev => ({ ...prev, deal_won_subject: e.target.value }))}
               placeholder="Contrato Assinado — {{cliente}}"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={() => save({ deal_won_subject: config.deal_won_subject || "" })}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
             </button>
@@ -2433,12 +2433,12 @@ function NotificationsTab() {
               value={config.deal_won_whatsapp_phone || "5551937111140"}
               onChange={e => setConfig(prev => ({ ...prev, deal_won_whatsapp_phone: e.target.value }))}
               placeholder="5551937111140"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={() => save({ deal_won_whatsapp_phone: config.deal_won_whatsapp_phone || "5551937111140" })}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
             </button>
@@ -2453,12 +2453,12 @@ function NotificationsTab() {
                 value={config.deal_won_whatsapp_format || "🎉 *VENDA!* R$ {{valor}} ! {{produto}} - {{cliente}}"}
                 onChange={e => setConfig(prev => ({ ...prev, deal_won_whatsapp_format: e.target.value }))}
                 placeholder="🎉 *VENDA!* R$ {{valor}} ! {{produto}} - {{cliente}}"
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
               />
               <button
                 onClick={() => save({ deal_won_whatsapp_format: config.deal_won_whatsapp_format || "" })}
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
               </button>
@@ -2537,8 +2537,8 @@ function LeadNotificationSection({
       <Card>
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-blue-50" : "bg-gray-100")}>
-              <Mail size={20} className={enabled ? "text-blue-600" : "text-gray-400"} />
+            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-petrol-50" : "bg-gray-100")}>
+              <Mail size={20} className={enabled ? "text-petrol-600" : "text-gray-400"} />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">Email de novo lead</p>
@@ -2585,12 +2585,12 @@ function LeadNotificationSection({
               onChange={e => setNewEmail(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
               placeholder="novo@email.com"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={addEmail}
               disabled={!newEmail.trim() || !newEmail.includes("@")}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus size={16} />
             </button>
@@ -2610,12 +2610,12 @@ function LeadNotificationSection({
               value={config.lead_created_subject || "Novo Lead — {{nome}}"}
               onChange={e => setConfig(prev => ({ ...prev, lead_created_subject: e.target.value }))}
               placeholder="Novo Lead — {{nome}}"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={() => save({ lead_created_subject: config.lead_created_subject || "" })}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : "Salvar"}
             </button>
@@ -2687,8 +2687,8 @@ function DailyReportSection({
       <Card>
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-indigo-50" : "bg-gray-100")}>
-              <Mail size={20} className={enabled ? "text-indigo-600" : "text-gray-400"} />
+            <div className={clsx("w-10 h-10 rounded-lg flex items-center justify-center", enabled ? "bg-petrol-50" : "bg-gray-100")}>
+              <Mail size={20} className={enabled ? "text-petrol-600" : "text-gray-400"} />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">Relatório diário por email</p>
@@ -2735,12 +2735,12 @@ function DailyReportSection({
               onChange={e => setNewEmail(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEmail(); } }}
               placeholder="novo@email.com"
-              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-petrol-500"
             />
             <button
               onClick={addEmail}
               disabled={!newEmail.trim() || !newEmail.includes("@")}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus size={16} />
             </button>
@@ -2768,7 +2768,7 @@ function DailyReportSection({
               setSending(false);
               setTimeout(() => setMsg(null), 5000);
             }}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-petrol-600 text-white text-sm font-medium rounded-lg hover:bg-petrol-700 disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {sending && <Loader2 size={14} className="animate-spin" />}
             Enviar Agora
@@ -2802,7 +2802,7 @@ export default function SettingsPage() {
                     className={clsx(
                       "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-colors",
                       activeTab === key
-                        ? "bg-blue-50 text-blue-700"
+                        ? "bg-petrol-50 text-petrol-700"
                         : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                     )}
                   >

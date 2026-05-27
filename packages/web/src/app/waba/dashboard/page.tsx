@@ -157,8 +157,8 @@ function FunnelBar({
 
   // Use stage color if available, otherwise gradient based on order
   const gradients = [
-    "from-blue-500 to-blue-400",
-    "from-indigo-500 to-indigo-400",
+    "from-petrol-500 to-petrol-400",
+    "from-petrol-500 to-petrol-400",
     "from-violet-500 to-violet-400",
     "from-purple-500 to-purple-400",
     "from-fuchsia-500 to-fuchsia-400",
@@ -301,7 +301,7 @@ export default function WabaDashboardPage() {
           value={data.conversations.active}
           sub={data.conversations.needsHuman}
           subLabel="aguardam humano"
-          valueClass="text-blue-400"
+          valueClass="text-petrol-400"
         />
         <StatCard
           icon={<Calendar size={16} />}
@@ -343,7 +343,7 @@ export default function WabaDashboardPage() {
               value={fmtCurrency(costPerLead)}
               sub={totalLeads}
               subLabel="leads no funil"
-              valueClass="text-blue-600 dark:text-blue-400"
+              valueClass="text-petrol-600 dark:text-petrol-400"
             />
             <StatCard
               icon={<Calendar size={16} />}
@@ -395,7 +395,7 @@ export default function WabaDashboardPage() {
               value={data.messages.marketingTemplates}
             />
             <MessageRow
-              icon={<ChevronRight size={14} className="text-blue-400" />}
+              icon={<ChevronRight size={14} className="text-petrol-400" />}
               label="Templates Utility"
               value={data.messages.utilityTemplates}
             />
@@ -432,7 +432,7 @@ export default function WabaDashboardPage() {
               value={data.automations.completedToday}
             />
             <MessageRow
-              icon={<PauseCircle size={14} className="text-blue-400" />}
+              icon={<PauseCircle size={14} className="text-petrol-400" />}
               label="Pausadas por resposta"
               value={data.automations.pausedByResponse}
             />
@@ -474,7 +474,7 @@ export default function WabaDashboardPage() {
             unit="conversas"
             rate={0.0477}
             total={data.cost.utility}
-            colorClass="text-blue-400"
+            colorClass="text-petrol-400"
           />
           <div className="flex items-center gap-2 text-gray-500 py-1">
             <span className="w-24 shrink-0">Service</span>

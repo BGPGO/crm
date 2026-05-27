@@ -47,14 +47,14 @@ const nodeOptions = [
     label: "Enviar Email",
     description: "Envia email (template ou gerado por IA)",
     icon: Mail,
-    color: "text-indigo-600 bg-indigo-50",
+    color: "text-petrol-600 bg-petrol-50",
   },
   {
     actionType: "WAIT",
     label: "Aguardar",
     description: "Espera um tempo antes de continuar",
     icon: Clock,
-    color: "text-blue-600 bg-blue-50",
+    color: "text-petrol-600 bg-petrol-50",
   },
   {
     actionType: "CONDITION",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useRef, useCallback } from "react";
 import type {
@@ -58,7 +58,7 @@ function ColumnCell({
       contentEditable
       suppressContentEditableWarning
       onBlur={handleBlur}
-      className="min-h-[40px] border border-dashed border-gray-200 rounded p-2 outline-none focus:border-blue-300"
+      className="min-h-[40px] border border-dashed border-gray-200 rounded p-2 outline-none focus:border-petrol-300"
       style={{
         fontFamily: globalStyle.fontFamily,
         fontSize: globalStyle.fontSize,

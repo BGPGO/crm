@@ -134,7 +134,7 @@ function TriggerNode({
   return (
     <div className="w-96">
       <div
-        className={`bg-gradient-to-r ${isCadence ? "from-purple-500 to-purple-600" : "from-blue-500 to-blue-600"} rounded-xl shadow-md text-white p-4 cursor-pointer transition-all hover:shadow-lg`}
+        className={`bg-gradient-to-r ${isCadence ? "from-purple-500 to-purple-600" : "from-petrol-500 to-petrol-600"} rounded-xl shadow-md text-white p-4 cursor-pointer transition-all hover:shadow-lg`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ function TriggerNode({
                   triggerConfig: { ...(isCadence ? { isCadence: true } : {}) },
                 })
               }
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
             >
               <option value="">Selecionar...</option>
               {Object.entries(triggerLabels).map(([key, label]) => (
@@ -209,7 +209,7 @@ function TriggerNode({
                     },
                   });
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               >
                 <option value="">Qualquer etapa</option>
                 {stages.map((s) => (
@@ -241,7 +241,7 @@ function TriggerNode({
                     },
                   });
                 }}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               >
                 <option value="">Selecionar tag...</option>
                 {tags.map((t) => (
@@ -265,7 +265,7 @@ function TriggerNode({
                     triggerConfig: { ...trigger.triggerConfig, field: e.target.value },
                   })
                 }
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
               >
                 <option value="">Selecionar campo...</option>
                 <option value="sector">Setor</option>

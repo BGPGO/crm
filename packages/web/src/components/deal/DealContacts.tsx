@@ -22,7 +22,7 @@ export default function DealContacts({ contacts, onAdd, onRemove }: DealContacts
         <h3 className="text-sm font-semibold text-gray-800">Contatos</h3>
         <button
           onClick={onAdd}
-          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+          className="flex items-center gap-1 text-xs text-petrol-600 hover:text-petrol-700 font-medium transition-colors"
         >
           <UserPlus size={13} />
           Adicionar contato
@@ -33,10 +33,10 @@ export default function DealContacts({ contacts, onAdd, onRemove }: DealContacts
         {contacts.map((contact) => (
           <div
             key={contact.id}
-            className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-lg group hover:border-blue-200 transition-colors"
+            className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-lg group hover:border-petrol-200 transition-colors"
           >
             {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-petrol-100 text-petrol-600 flex items-center justify-center flex-shrink-0">
               <User size={15} />
             </div>
 
@@ -46,7 +46,7 @@ export default function DealContacts({ contacts, onAdd, onRemove }: DealContacts
               {contact.phone && (
                 <a
                   href={`tel:${contact.phone}`}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 mt-0.5 transition-colors"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-petrol-600 mt-0.5 transition-colors"
                 >
                   <Phone size={11} />
                   {contact.phone}
@@ -55,7 +55,7 @@ export default function DealContacts({ contacts, onAdd, onRemove }: DealContacts
               {contact.email && (
                 <a
                   href={`mailto:${contact.email}`}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 mt-0.5 transition-colors"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-petrol-600 mt-0.5 transition-colors"
                 >
                   <Mail size={11} />
                   {contact.email}

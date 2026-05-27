@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -90,7 +90,7 @@ export default function NewSegmentPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Leads engajados últimos 30 dias"
                 required
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white"
               />
             </div>
 
@@ -104,7 +104,7 @@ export default function NewSegmentPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Descreva o objetivo deste segmento..."
                 rows={3}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white resize-none"
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-petrol-500 bg-white resize-none"
               />
             </div>
 
@@ -120,8 +120,8 @@ export default function NewSegmentPage() {
                 role="switch"
                 aria-checked={isActive}
                 onClick={() => setIsActive(!isActive)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  isActive ? "bg-blue-600" : "bg-gray-200"
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:ring-offset-2 ${
+                  isActive ? "bg-petrol-600" : "bg-gray-200"
                 }`}
               >
                 <span

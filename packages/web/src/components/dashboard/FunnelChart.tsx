@@ -46,7 +46,7 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
           onClick={() => setCumulative(false)}
           className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
             !cumulative
-              ? "bg-blue-100 text-blue-700"
+              ? "bg-petrol-100 text-petrol-700"
               : "bg-gray-100 text-gray-500 hover:bg-gray-200"
           }`}
         >
@@ -56,7 +56,7 @@ export default function FunnelChart({ stages }: FunnelChartProps) {
           onClick={() => setCumulative(true)}
           className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors ${
             cumulative
-              ? "bg-blue-100 text-blue-700"
+              ? "bg-petrol-100 text-petrol-700"
               : "bg-gray-100 text-gray-500 hover:bg-gray-200"
           }`}
         >

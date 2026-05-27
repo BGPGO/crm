@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -141,7 +141,7 @@ function ToolbarButton({
       className={clsx(
         "flex items-center justify-center w-8 h-8 rounded text-sm transition-colors",
         active
-          ? "bg-blue-100 text-blue-700"
+          ? "bg-petrol-100 text-petrol-700"
           : "text-gray-600 hover:bg-gray-100",
         disabled && "opacity-40 cursor-not-allowed"
       )}
@@ -192,7 +192,7 @@ function ColorPicker({ currentColor, onSelect, onClose }: ColorPickerProps) {
             className={clsx(
               "w-7 h-7 rounded border transition-transform hover:scale-110",
               color === currentColor
-                ? "ring-2 ring-blue-500 ring-offset-1"
+                ? "ring-2 ring-petrol-500 ring-offset-1"
                 : "border-gray-200"
             )}
             style={{ backgroundColor: color }}
@@ -212,7 +212,7 @@ function ColorPicker({ currentColor, onSelect, onClose }: ColorPickerProps) {
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
           placeholder="#000000"
-          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+          className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500 font-mono"
         />
         <button
           type="button"
@@ -220,7 +220,7 @@ function ColorPicker({ currentColor, onSelect, onClose }: ColorPickerProps) {
             onSelect(custom);
             onClose();
           }}
-          className="flex items-center justify-center w-7 h-7 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center w-7 h-7 rounded bg-petrol-600 text-white hover:bg-petrol-700 transition-colors"
           title="Aplicar cor"
         >
           <Check size={14} />
@@ -274,7 +274,7 @@ function LinkPopover({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://exemplo.com"
-          className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -290,7 +290,7 @@ function LinkPopover({
             onSubmit(url);
             onClose();
           }}
-          className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center justify-center w-8 h-8 rounded bg-petrol-600 text-white hover:bg-petrol-700 transition-colors"
           title="Aplicar"
         >
           <Check size={14} />
@@ -350,7 +350,7 @@ function ImagePopover({ onSubmit, onClose }: ImagePopoverProps) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://exemplo.com/imagem.png"
-          className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -371,7 +371,7 @@ function ImagePopover({ onSubmit, onClose }: ImagePopoverProps) {
             }
           }}
           disabled={!url.trim()}
-          className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-40"
+          className="flex items-center justify-center w-8 h-8 rounded bg-petrol-600 text-white hover:bg-petrol-700 transition-colors disabled:opacity-40"
           title="Inserir imagem"
         >
           <Check size={14} />
@@ -459,7 +459,7 @@ function Toolbar({ editor }: ToolbarProps) {
             editor.chain().focus().unsetFontFamily().run();
           }
         }}
-        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500 cursor-pointer"
         title="Fonte"
       >
         <option value="">Fonte</option>
@@ -491,7 +491,7 @@ function Toolbar({ editor }: ToolbarProps) {
               .run();
           }
         }}
-        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500 cursor-pointer"
         title="Tamanho da fonte"
       >
         <option value="">Tamanho</option>
@@ -595,7 +595,7 @@ function Toolbar({ editor }: ToolbarProps) {
               .run();
           }
         }}
-        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+        className="h-8 px-2 text-xs bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-petrol-500 cursor-pointer"
         title="Tipo de parágrafo"
       >
         {HEADING_OPTIONS.map((h) => (
@@ -735,7 +735,7 @@ export default function EmailEditor({
     <div
       className={clsx(
         "border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm",
-        "focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent",
+        "focus-within:ring-2 focus-within:ring-petrol-500 focus-within:border-transparent",
         className
       )}
     >

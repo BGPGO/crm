@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
@@ -150,7 +150,7 @@ export default function TemplatesPage() {
                 <div className="p-4">
                   <Link
                     href={`/marketing/emails/templates/${template.id}`}
-                    className="text-sm font-medium text-gray-900 hover:text-blue-600 truncate block"
+                    className="text-sm font-medium text-gray-900 hover:text-petrol-600 truncate block"
                   >
                     {template.name}
                   </Link>
@@ -173,7 +173,7 @@ export default function TemplatesPage() {
                     </Link>
                     <button
                       onClick={() => handleDuplicate(template)}
-                      className="p-1.5 rounded-md text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="p-1.5 rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors"
                       title="Duplicar"
                     >
                       <Copy size={14} />

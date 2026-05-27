@@ -3,6 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import Image from "next/image";
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
@@ -48,8 +49,8 @@ export default function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-400 border-t-transparent" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-petrol-950 via-petrol-900 to-petrol-950">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-petrol-300 border-t-transparent" />
       </div>
     );
   }
@@ -57,18 +58,23 @@ export default function LoginPage() {
   if (isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+    <div className="min-h-screen flex bg-gradient-to-br from-petrol-950 via-petrol-900 to-petrol-950">
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:flex-1 flex-col justify-between p-12 relative overflow-hidden">
         {/* Decorative circles */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-petrol-500/15 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] bg-water-300/10 rounded-full blur-3xl" />
 
         <div className="relative z-10">
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            Bertuzzi<span className="text-blue-400">Patrimonial</span>
-          </h1>
-          <p className="text-blue-200/60 text-sm mt-1">Plataforma de Gestão</p>
+          <Image
+            src="/bertuzzi-logo-white.png"
+            alt="Bertuzzi"
+            width={220}
+            height={48}
+            priority
+            className="h-10 w-auto"
+          />
+          <p className="text-water-200/60 text-sm mt-3">Plataforma de Gestão</p>
         </div>
 
         <div className="relative z-10 space-y-8">
@@ -77,7 +83,7 @@ export default function LoginPage() {
               CRM, Marketing<br />
               e Conversas.
             </h2>
-            <p className="text-blue-200/70 mt-4 text-lg max-w-md">
+            <p className="text-water-200/70 mt-4 text-lg max-w-md">
               Gerencie seu pipeline, automatize campanhas e converse com leads
               — tudo em uma plataforma.
             </p>
@@ -85,21 +91,21 @@ export default function LoginPage() {
 
           <div className="flex gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-blue-400" />
+              <div className="w-10 h-10 rounded-lg bg-petrol-500/20 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-petrol-300" />
               </div>
               <div>
                 <p className="text-white text-sm font-medium">Pipeline</p>
-                <p className="text-blue-200/50 text-xs">Kanban visual</p>
+                <p className="text-water-200/50 text-xs">Kanban visual</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-indigo-400" />
+              <div className="w-10 h-10 rounded-lg bg-petrol-500/20 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-petrol-300" />
               </div>
               <div>
                 <p className="text-white text-sm font-medium">Marketing</p>
-                <p className="text-blue-200/50 text-xs">Email & automação</p>
+                <p className="text-water-200/50 text-xs">Email & automação</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -108,13 +114,13 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="text-white text-sm font-medium">Conversas</p>
-                <p className="text-blue-200/50 text-xs">WhatsApp IA</p>
+                <p className="text-water-200/50 text-xs">WhatsApp IA</p>
               </div>
             </div>
           </div>
         </div>
 
-        <p className="relative z-10 text-blue-200/30 text-xs">
+        <p className="relative z-10 text-water-200/30 text-xs">
           &copy; {new Date().getFullYear()} Bertuzzi Patrimonial. Todos os direitos reservados.
         </p>
       </div>
@@ -123,16 +129,21 @@ export default function LoginPage() {
       <div className="flex-1 lg:max-w-lg flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm">
           {/* Mobile branding */}
-          <div className="lg:hidden text-center mb-10">
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Bertuzzi<span className="text-blue-400">Patrimonial</span>
-            </h1>
-            <p className="text-blue-200/50 text-sm mt-1">Plataforma de Gestão</p>
+          <div className="lg:hidden flex flex-col items-center text-center mb-10">
+            <Image
+              src="/bertuzzi-logo-white.png"
+              alt="Bertuzzi"
+              width={200}
+              height={44}
+              priority
+              className="h-9 w-auto"
+            />
+            <p className="text-water-200/50 text-sm mt-3">Plataforma de Gestão</p>
           </div>
 
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-white">Entrar</h2>
-            <p className="text-blue-200/50 text-sm mt-1">
+            <p className="text-water-200/50 text-sm mt-1">
               Acesse sua conta para continuar
             </p>
           </div>
@@ -148,14 +159,14 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-blue-100/70"
+                className="block text-sm font-medium text-water-100/70"
               >
                 E-mail
               </label>
               <div className="relative">
                 <Mail
                   size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300/40"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-petrol-300/50"
                 />
                 <input
                   id="email"
@@ -166,7 +177,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className="w-full pl-10 pr-4 py-3 text-sm text-white bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-blue-200/30"
+                  className="w-full pl-10 pr-4 py-3 text-sm text-white bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500/50 focus:border-petrol-500/50 transition-all placeholder-water-200/30"
                 />
               </div>
             </div>
@@ -174,14 +185,14 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-blue-100/70"
+                className="block text-sm font-medium text-water-100/70"
               >
                 Senha
               </label>
               <div className="relative">
                 <Lock
                   size={16}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-300/40"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-petrol-300/50"
                 />
                 <input
                   id="password"
@@ -191,12 +202,12 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Sua senha"
-                  className="w-full pl-10 pr-11 py-3 text-sm text-white bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder-blue-200/30"
+                  className="w-full pl-10 pr-11 py-3 text-sm text-white bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-petrol-500/50 focus:border-petrol-500/50 transition-all placeholder-water-200/30"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-300/40 hover:text-blue-200/70 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-petrol-300/50 hover:text-water-200/70 transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -207,7 +218,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 px-4 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+              className="w-full py-3 px-4 bg-petrol-600 text-white text-sm font-semibold rounded-xl hover:bg-petrol-500 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:ring-offset-2 focus:ring-offset-petrol-950 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
             >
               {submitting ? (
                 <>
@@ -226,8 +237,8 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-blue-200/20 mt-8">
-            BGPGO CRM &mdash; v2.0
+          <p className="text-center text-xs text-water-200/20 mt-8">
+            Bertuzzi CRM &mdash; v2.0
           </p>
         </div>
       </div>

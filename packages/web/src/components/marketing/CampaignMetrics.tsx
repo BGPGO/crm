@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { Loader2, Send, MailOpen, MousePointerClick, AlertTriangle, Users, ExternalLink } from "lucide-react";
@@ -104,8 +104,8 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
       value: stats.sent,
       icon: Send,
       rate: null as number | null,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
+      color: "text-petrol-600",
+      bgColor: "bg-petrol-100",
     },
     {
       label: "Abertos",
@@ -220,7 +220,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
           {!showRecipients ? (
             <button
               onClick={() => { setShowRecipients(true); fetchRecipients(); }}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              className="text-xs text-petrol-600 hover:text-petrol-700 font-medium"
             >
               Ver lista
             </button>
@@ -239,7 +239,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                   className={clsx(
                     "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
                     recipientFilter === f.key
-                      ? "bg-blue-100 text-blue-700"
+                      ? "bg-petrol-100 text-petrol-700"
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   )}
                 >
@@ -284,7 +284,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                     )}>
                       <td className="py-2 pr-2">
                         {r.contact ? (
-                          <a href={`/contacts/${r.contact.id}`} className="text-blue-600 hover:underline font-medium">
+                          <a href={`/contacts/${r.contact.id}`} className="text-petrol-600 hover:underline font-medium">
                             {r.contact.name}
                           </a>
                         ) : (
@@ -297,7 +297,7 @@ export default function CampaignMetrics({ campaignId }: CampaignMetricsProps) {
                           "inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium",
                           r.status === "CLICKED" ? "bg-purple-100 text-purple-700" :
                           r.status === "OPENED" ? "bg-green-100 text-green-700" :
-                          r.status === "DELIVERED" ? "bg-blue-100 text-blue-700" :
+                          r.status === "DELIVERED" ? "bg-petrol-100 text-petrol-700" :
                           r.status === "BOUNCED" ? "bg-red-100 text-red-700" :
                           r.status === "SPAM" ? "bg-red-100 text-red-700" :
                           "bg-gray-100 text-gray-600"

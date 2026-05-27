@@ -244,13 +244,13 @@ export default function WhatsAppSidebar({
                           ? "bg-gray-200 text-gray-900"
                           : isBot
                           ? "bg-green-100 border border-green-200 text-gray-900"
-                          : "bg-blue-100 border border-blue-200 text-gray-900"
+                          : "bg-petrol-100 border border-petrol-200 text-gray-900"
                       }`}
                     >
                       {!isClient && (
                         <p
                           className={`text-[10px] font-semibold mb-0.5 ${
-                            isBot ? "text-green-700" : "text-blue-700"
+                            isBot ? "text-green-700" : "text-petrol-700"
                           }`}
                         >
                           {isBot ? "Bot" : (msg.senderUser?.name || "Equipe")}
@@ -268,7 +268,7 @@ export default function WhatsAppSidebar({
                               }
                               if (e.key === "Escape") handleCancelEdit();
                             }}
-                            className="w-full text-sm border border-blue-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            className="w-full text-sm border border-petrol-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-petrol-500 resize-none"
                             rows={3}
                             autoFocus
                           />
@@ -276,7 +276,7 @@ export default function WhatsAppSidebar({
                             <button onClick={handleCancelEdit} className="p-0.5 rounded hover:bg-gray-200 text-gray-500" title="Cancelar">
                               <XCircle size={13} />
                             </button>
-                            <button onClick={handleSaveEdit} disabled={!editText.trim() || savingEdit} className="p-0.5 rounded hover:bg-blue-100 text-blue-600 disabled:opacity-50" title="Salvar (Ctrl+Enter)">
+                            <button onClick={handleSaveEdit} disabled={!editText.trim() || savingEdit} className="p-0.5 rounded hover:bg-petrol-100 text-petrol-600 disabled:opacity-50" title="Salvar (Ctrl+Enter)">
                               <Check size={13} />
                             </button>
                           </div>

@@ -15,7 +15,7 @@ export default function FlowConnector({ onAdd }: FlowConnectorProps) {
       {/* Add button centered on the line */}
       <button
         onClick={onAdd}
-        className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-2 border-dashed border-gray-300 bg-white flex items-center justify-center text-gray-400 hover:border-blue-500 hover:text-blue-500 hover:bg-blue-50 transition-colors z-10"
+        className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-2 border-dashed border-gray-300 bg-white flex items-center justify-center text-gray-400 hover:border-petrol-500 hover:text-petrol-500 hover:bg-petrol-50 transition-colors z-10"
         title="Adicionar etapa"
       >
         <Plus size={14} />

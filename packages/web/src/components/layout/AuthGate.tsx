@@ -33,7 +33,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-petrol-600" />
           <span className="text-sm text-gray-500">Carregando...</span>
         </div>
       </div>

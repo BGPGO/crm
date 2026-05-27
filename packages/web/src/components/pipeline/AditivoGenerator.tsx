@@ -1454,11 +1454,11 @@ export default function AditivoGenerator({
                     </td>
                     <td />
                   </tr>
-                  <tr className="border-t border-gray-200 bg-blue-50 font-bold">
-                    <td className="p-2 text-blue-800" colSpan={2}>
+                  <tr className="border-t border-gray-200 bg-petrol-50 font-bold">
+                    <td className="p-2 text-petrol-800" colSpan={2}>
                       Novo valor mensal do contrato
                     </td>
-                    <td className="p-2 text-right text-blue-800">
+                    <td className="p-2 text-right text-petrol-800">
                       {formatCurrency(novoValorTotal)}
                     </td>
                     <td />

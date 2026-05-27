@@ -179,11 +179,11 @@ function getInitials(name: string | null | undefined): string {
 
 function getAvatarColor(name: string | null | undefined): string {
   const colors = [
-    "bg-blue-500",
+    "bg-petrol-500",
     "bg-green-500",
     "bg-purple-500",
     "bg-pink-500",
-    "bg-indigo-500",
+    "bg-petrol-700",
     "bg-teal-500",
     "bg-orange-500",
     "bg-cyan-500",
@@ -280,7 +280,7 @@ function DeliveryTicks({ status }: { status: WaMessage["status"] }) {
     case "WA_DELIVERED":
       return <span className="text-gray-400 text-[10px] ml-1" title="Entregue">&#x2713;&#x2713;</span>;
     case "WA_READ":
-      return <span className="text-blue-500 text-[10px] ml-1" title="Lida">&#x2713;&#x2713;</span>;
+      return <span className="text-petrol-500 text-[10px] ml-1" title="Lida">&#x2713;&#x2713;</span>;
     case "WA_FAILED":
       return <span className="text-red-500 text-[10px] ml-1" title="Falhou">&#x274C;</span>;
     default:
@@ -410,7 +410,7 @@ function MessageContent({ msg }: { msg: WaMessage }) {
               href={mediaUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline break-all"
+              className="text-sm text-petrol-600 hover:underline break-all"
             >
               {body || "Documento"}
             </a>
@@ -464,14 +464,14 @@ function MessageContent({ msg }: { msg: WaMessage }) {
                     href={btn.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block text-center text-sm text-blue-600 dark:text-blue-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="block text-center text-sm text-petrol-600 dark:text-petrol-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     {btn.text}
                   </a>
                 ) : (
                   <span
                     key={i}
-                    className="block text-center text-sm text-blue-600 dark:text-blue-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg"
+                    className="block text-center text-sm text-petrol-600 dark:text-petrol-400 font-medium py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg"
                   >
                     {btn.text}
                   </span>
@@ -493,7 +493,7 @@ function MessageContent({ msg }: { msg: WaMessage }) {
                 (btn, i) => (
                   <span
                     key={btn.id || i}
-                    className="px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg"
+                    className="px-3 py-1.5 text-xs font-medium text-petrol-600 dark:text-petrol-400 bg-petrol-50 dark:bg-petrol-900/30 border border-petrol-200 dark:border-petrol-700 rounded-lg"
                   >
                     {btn.title}
                   </span>
@@ -1070,7 +1070,7 @@ export default function WabaChatPage() {
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Conversas</span>
           <button
             onClick={() => setShowNewConv(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-lg transition-colors"
           >
             <Plus size={14} /> Nova
           </button>
@@ -1088,7 +1088,7 @@ export default function WabaChatPage() {
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Buscar nome, telefone..."
-              className="w-full pl-8 pr-8 py-2 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+              className="w-full pl-8 pr-8 py-2 text-xs border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 placeholder-gray-400"
             />
             {searchQuery && (
               <button
@@ -1126,7 +1126,7 @@ export default function WabaChatPage() {
                       ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
                       : f.color === "emerald"
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                        : "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                        : "bg-petrol-100 text-petrol-700 dark:bg-petrol-900/50 dark:text-petrol-300"
                     : f.color === "amber"
                       ? "bg-amber-50 text-amber-500 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/40"
                       : f.color === "emerald"
@@ -1156,7 +1156,7 @@ export default function WabaChatPage() {
                 className={clsx(
                   "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
                   dealStatusFilter === s.key
-                    ? s.color === "blue" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                    ? s.color === "blue" ? "bg-petrol-100 text-petrol-700 dark:bg-petrol-900/50 dark:text-petrol-300"
                     : s.color === "green" ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
                     : s.color === "red" ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
                     : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
@@ -1191,7 +1191,7 @@ export default function WabaChatPage() {
               className={clsx(
                 "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
                 stageFilter === "all"
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                  ? "bg-petrol-100 text-petrol-700 dark:bg-petrol-900/50 dark:text-petrol-300"
                   : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
               )}
             >
@@ -1204,7 +1204,7 @@ export default function WabaChatPage() {
                 className={clsx(
                   "px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0",
                   stageFilter === s.stageId
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                    ? "bg-petrol-100 text-petrol-700 dark:bg-petrol-900/50 dark:text-petrol-300"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
                 )}
               >
@@ -1254,7 +1254,7 @@ export default function WabaChatPage() {
                   className={clsx(
                     "w-full text-left px-3 py-3 transition-colors border-l-2",
                     isSelected
-                      ? "bg-blue-50 dark:bg-blue-900/20 border-l-blue-600"
+                      ? "bg-petrol-50 dark:bg-petrol-900/20 border-l-petrol-600"
                       : "border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50"
                   )}
                 >
@@ -1301,7 +1301,7 @@ export default function WabaChatPage() {
                           className={clsx(
                             "text-[10px] flex-shrink-0 whitespace-nowrap",
                             hasUnread
-                              ? "text-blue-600 dark:text-blue-400 font-semibold"
+                              ? "text-petrol-600 dark:text-petrol-400 font-semibold"
                               : "text-gray-400 dark:text-gray-500"
                           )}
                         >
@@ -1342,7 +1342,7 @@ export default function WabaChatPage() {
                         </p>
                         {/* Unread badge */}
                         {hasUnread && (
-                          <span className="flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center bg-blue-600 text-white text-[10px] font-bold rounded-full px-1">
+                          <span className="flex-shrink-0 min-w-[18px] h-[18px] flex items-center justify-center bg-petrol-600 text-white text-[10px] font-bold rounded-full px-1">
                             {conv.unreadCount}
                           </span>
                         )}
@@ -1497,9 +1497,9 @@ export default function WabaChatPage() {
                             key={u.id}
                             onClick={() => handleAssign(u.id)}
                             className={clsx(
-                              "w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors",
+                              "w-full text-left px-3 py-2 text-xs hover:bg-petrol-50 dark:hover:bg-petrol-900/20 transition-colors",
                               selectedConv?.assignedUser?.id === u.id
-                                ? "text-blue-600 font-medium"
+                                ? "text-petrol-600 font-medium"
                                 : "text-gray-700 dark:text-gray-300"
                             )}
                           >
@@ -1516,7 +1516,7 @@ export default function WabaChatPage() {
                     className={clsx(
                       "p-1.5 rounded-lg transition-colors",
                       showDetails
-                        ? "bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-400"
+                        ? "bg-petrol-100 text-petrol-600 hover:bg-petrol-200 dark:bg-petrol-900/40 dark:text-petrol-400"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
                     )}
                     title={showDetails ? "Ocultar detalhes" : "Ver detalhes"}
@@ -1539,7 +1539,7 @@ export default function WabaChatPage() {
             >
               {messagesLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 size={28} className="animate-spin text-blue-500" />
+                  <Loader2 size={28} className="animate-spin text-petrol-500" />
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 gap-2">
@@ -1607,7 +1607,7 @@ export default function WabaChatPage() {
                                   isOutbound ? "text-right" : "text-left",
                                   msg.senderType === "WA_BOT"
                                     ? "text-green-600 dark:text-green-400"
-                                    : "text-blue-600 dark:text-blue-400"
+                                    : "text-petrol-600 dark:text-petrol-400"
                                 )}
                               >
                                 {label}
@@ -1772,7 +1772,7 @@ export default function WabaChatPage() {
                       }
                     }}
                     placeholder={isOptedOut ? "Bloqueado: contato fez opt-out" : "Digite / para templates... (Ctrl+Enter para enviar)"}
-                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent resize-none placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={sending || isOptedOut}
                     rows={1}
                     style={{ maxHeight: "120px" }}
@@ -1851,7 +1851,7 @@ export default function WabaChatPage() {
                   <button
                     onClick={handleSend}
                     disabled={!inputText.trim() || sending}
-                    className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    className="p-2.5 bg-petrol-600 text-white rounded-xl hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     title="Enviar (Ctrl+Enter)"
                   >
                     {sending ? (
@@ -1922,7 +1922,7 @@ export default function WabaChatPage() {
                       onClick={() => setShowTemplatePicker(!showTemplatePicker)}
                       disabled={sending || isOptedOut}
                       title={isOptedOut ? "Bloqueado: contato fez opt-out" : undefined}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-petrol-600 text-white rounded-xl hover:bg-petrol-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                     >
                       {sending ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -1950,7 +1950,7 @@ export default function WabaChatPage() {
                               key={t.id}
                               onClick={() => handleSendTemplate(t)}
                               className={clsx(
-                                "w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0",
+                                "w-full text-left px-4 py-3 hover:bg-petrol-50 dark:hover:bg-petrol-900/20 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-0",
                                 blocked && "opacity-50"
                               )}
                             >
@@ -2101,7 +2101,7 @@ export default function WabaChatPage() {
               <select
                 value={selectedConv.assignedUser?.id || ""}
                 onChange={(e) => handleAssign(e.target.value || null)}
-                className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[140px]"
+                className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-petrol-500 max-w-[140px]"
               >
                 <option value="">Nenhum</option>
                 {users.map((u) => (
@@ -2149,7 +2149,7 @@ export default function WabaChatPage() {
                 {contactDetail.tags.map((tag) => (
                   <span
                     key={tag.id}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-petrol-50 text-petrol-700 dark:bg-petrol-900/30 dark:text-petrol-400 border border-petrol-200 dark:border-petrol-800"
                     style={
                       tag.color
                         ? {
@@ -2202,7 +2202,7 @@ export default function WabaChatPage() {
                 )}
                 <a
                   href={`/deals/${dealSummary.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                  className="inline-flex items-center gap-1 text-xs text-petrol-600 dark:text-petrol-400 hover:underline mt-1"
                 >
                   <ExternalLink size={11} />
                   Ver negociacao
@@ -2272,7 +2272,7 @@ export default function WabaChatPage() {
                   <div className="mt-1">
                     <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
                       <div
-                        className="h-1.5 rounded-full bg-blue-500 transition-all duration-300"
+                        className="h-1.5 rounded-full bg-petrol-500 transition-all duration-300"
                         style={{ width: `${Math.round((automationInfo.currentStep.order / automationInfo.totalSteps) * 100)}%` }}
                       />
                     </div>
@@ -2322,7 +2322,7 @@ export default function WabaChatPage() {
           {/* Loading overlay */}
           {detailLoading && (
             <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 flex items-center justify-center">
-              <Loader2 size={20} className="animate-spin text-blue-500" />
+              <Loader2 size={20} className="animate-spin text-petrol-500" />
             </div>
           )}
         </div>
@@ -2374,7 +2374,7 @@ export default function WabaChatPage() {
                   value={newConvSearch}
                   onChange={(e) => searchContacts(e.target.value)}
                   placeholder="Buscar contato por nome, telefone..."
-                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 placeholder-gray-400"
                   autoFocus
                 />
               </div>

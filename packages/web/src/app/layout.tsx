@@ -7,11 +7,13 @@ import { BrandProvider } from "@/contexts/BrandContext";
 import AuthGate from "@/components/layout/AuthGate";
 import { BrandStripe } from "@/components/BrandSwitcher";
 
-const inter = Inter({ subsets: ["latin", "latin-ext"] });
+// Fonte da UI — Inter (Almarena fica só para peças de marca, não para a interface)
+const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "CRM BGPGO",
-  description: "CRM próprio inspirado no RD Station CRM",
+  title: "CRM Bertuzzi",
+  description: "Plataforma de gestão de vendas e marketing da Bertuzzi Patrimonial",
+  icons: { icon: "/bertuzzi-icon.png" },
 };
 
 export default function RootLayout({
@@ -20,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${inter.className} flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden transition-colors`}>
+    <html lang="pt-BR" suppressHydrationWarning className={inter.variable}>
+      <body className={`${inter.variable} font-sans flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden transition-colors`}>
         <ThemeProvider>
           <BrandProvider>
             <AuthProvider>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { Search, Plus } from "lucide-react";
@@ -87,7 +87,7 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
     <div ref={wrapperRef} className="relative">
       {/* Selected tags */}
       <div
-        className="flex flex-wrap items-center gap-1.5 min-h-[38px] px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg cursor-pointer focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
+        className="flex flex-wrap items-center gap-1.5 min-h-[38px] px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg cursor-pointer focus-within:ring-2 focus-within:ring-petrol-500 focus-within:border-petrol-500"
         onClick={() => setOpen(true)}
       >
         {selectedTags.map((tag) => (
@@ -118,7 +118,7 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
                 placeholder="Buscar ou criar tag..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-petrol-500"
                 autoFocus
               />
             </div>
@@ -132,7 +132,7 @@ export default function TagSelector({ selectedTagIds, onChange }: TagSelectorPro
                 type="button"
                 onClick={handleCreate}
                 disabled={creating}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 rounded-md hover:bg-blue-50 transition-colors text-left font-medium"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-petrol-600 rounded-md hover:bg-petrol-50 transition-colors text-left font-medium"
               >
                 <Plus size={14} className="flex-shrink-0" />
                 {creating ? "Criando..." : `Criar tag: "${search.trim()}"`}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useEffect } from "react";
 import {
@@ -321,7 +321,7 @@ export default function EmailContentPanel({
                       key={tag.key}
                       type="button"
                       onClick={() => handleInsertTag(tag.key)}
-                      className="w-full text-left px-3 py-2 hover:bg-blue-50 flex flex-col gap-0.5"
+                      className="w-full text-left px-3 py-2 hover:bg-petrol-50 flex flex-col gap-0.5"
                     >
                       <span className="text-xs font-semibold text-gray-800">
                         {tag.label}
@@ -377,14 +377,14 @@ export default function EmailContentPanel({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleAddImageUrl();
                   }}
-                  className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
+                  className="w-full text-sm pl-8 pr-3 py-1.5 border border-gray-200 rounded bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500/20 focus:border-petrol-300"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleAddImageUrl}
                 disabled={!imageUrl.trim()}
-                className="text-sm px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                className="text-sm px-3 py-1.5 rounded bg-petrol-600 text-white hover:bg-petrol-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
               >
                 Inserir
               </button>
@@ -454,7 +454,7 @@ export default function EmailContentPanel({
             type="button"
             onClick={handleInsertButton}
             disabled={!btnText.trim() || !btnUrl.trim()}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded bg-petrol-600 text-white hover:bg-petrol-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <MousePointerClick className="h-4 w-4" />
             Inserir botão
