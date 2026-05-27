@@ -298,7 +298,7 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
         produto: docTypeLabel,
         valorMensal: sentDoc.deal?.value ?? null,
         deal: sentDoc.deal,
-      }, { kind: sentDoc.documentType, documentName: sentDoc.documentName, autentiqueDocumentId: sentDoc.autentiqueDocumentId });
+      }, { kind: sentDoc.documentType as 'contract' | 'aditivo' | 'distrato', documentName: sentDoc.documentName, autentiqueDocumentId: sentDoc.autentiqueDocumentId });
     }
 
     res.json({ data: updated });
