@@ -26,6 +26,8 @@ interface ContractLike {
   emailRepresentante?: string | null;
   produto?: string | null;
   valorMensal?: unknown; // Prisma Decimal | number | string | null
+  valorImplementacao?: unknown; // setup / implementação (one-time)
+  implementacaoParcelas?: number | null;
   deal?: {
     contact?: { phone?: string | null } | null;
     organization?: { phone?: string | null } | null;
@@ -64,6 +66,8 @@ export async function signalFinhubContractStage(
     telefone: contract.deal?.contact?.phone ?? contract.deal?.organization?.phone ?? null,
     produto: contract.produto ?? null,
     valorMensal: toNumber(contract.valorMensal),
+    valorImplementacao: toNumber(contract.valorImplementacao),
+    implementacaoParcelas: contract.implementacaoParcelas ?? null,
   };
 
   try {
