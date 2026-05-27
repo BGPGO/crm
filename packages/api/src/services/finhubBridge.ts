@@ -44,7 +44,7 @@ function toNumber(v: unknown): number | null {
 export async function signalFinhubContractStage(
   stage: ContractStage,
   contract: ContractLike,
-  extra?: { autentiqueDocumentId?: string | null },
+  extra?: { autentiqueDocumentId?: string | null; kind?: "contract" | "aditivo" | "distrato"; documentName?: string | null },
 ): Promise<void> {
   const url = process.env.FINHUB_INGEST_URL;
   const secret = process.env.CRM_INGEST_SECRET;
@@ -55,6 +55,8 @@ export async function signalFinhubContractStage(
 
   const payload = {
     stage,
+    kind: extra?.kind ?? "contract",
+    documentName: extra?.documentName ?? null,
     crmContractId: contract.id,
     autentiqueDocumentId: extra?.autentiqueDocumentId ?? contract.autentiqueDocumentId ?? null,
     isTest: !!contract.isTest,

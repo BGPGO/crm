@@ -225,6 +225,22 @@ async function handleSentDocumentSigned(sentDocument: any) {
     },
   });
 
+  // Sinaliza o FinHub p/ aparecer no monitor "Gestão de Contratos CRM".
+  // Aditivo/Distrato não tem produto/valor estruturado no SentDocument, então
+  // vai como registro (a ingestão trata kind!=contract como log-only, sem mutar cliente).
+  const orgName = sentDocument.deal?.organization?.name;
+  void signalFinhubContractStage('signed', {
+    id: sentDocument.id,
+    autentiqueDocumentId: sentDocument.autentiqueDocumentId,
+    isTest: false,
+    cnpj: sentDocument.deal?.organization?.cnpj ?? null,
+    razaoSocial: orgName && orgName !== '-' ? orgName : (sentDocument.deal?.title ?? sentDocument.documentName),
+    nomeFantasia: sentDocument.documentName,
+    produto: docTypeLabel,
+    valorMensal: sentDocument.deal?.value ?? null,
+    deal: sentDocument.deal,
+  }, { kind: sentDocument.documentType, documentName: sentDocument.documentName, autentiqueDocumentId: sentDocument.autentiqueDocumentId });
+
   // Notification (email + WhatsApp) using deal data, since SentDocument doesn't have produto/valorMensal
   const clientName = sentDocument.deal?.organization?.name || sentDocument.deal?.contact?.name || 'Cliente';
   const dealTitle = sentDocument.deal?.title || sentDocument.documentName;
