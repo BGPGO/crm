@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
-import { signalFinhubContractStage } from '../services/finhubBridge';
 
 const router = Router();
 
@@ -96,9 +95,8 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       include: { signatures: true },
     });
 
-    // Sinaliza o FinHub: contrato criado (registra no log "Gestão de Contratos CRM")
-    void signalFinhubContractStage('created', contract);
-
+    // NÃO sinaliza o FinHub na criação — o processo do FinHub só começa quando o
+    // contrato é ASSINADO (handleAllSigned). Etapas-meio não vão pro monitor.
     res.status(201).json({ data: contract });
   } catch (err) {
     next(err);
@@ -312,8 +310,7 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       },
     });
 
-    // Sinaliza o FinHub: contrato enviado pra assinatura
-    void signalFinhubContractStage('sent', contract, { autentiqueDocumentId: autentiqueData.id });
+    // NÃO sinaliza o FinHub no envio — só quando assinar (handleAllSigned).
 
     // Create signature records — derive role from action/email (not array position,
     // since frontend may send signers in any order).

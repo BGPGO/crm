@@ -124,7 +124,7 @@ export async function handleAutentiqueWebhook(req: Request, res: Response) {
         });
         console.log(`[contract-webhook] Pending contract signatures in DB: ${pending}`);
         if (pending === 0) await handleAllSigned(contract);
-        else void signalFinhubContractStage('signature', contract);
+        // (sem sinal de 'signature' — o FinHub só recebe quando o contrato está 100% assinado)
       }
 
       return res.status(200).json({ received: true });
