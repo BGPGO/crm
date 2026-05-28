@@ -15,6 +15,7 @@ import {
   ChevronUp,
   Users,
   RefreshCw,
+  Info,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -278,14 +279,26 @@ function FormField({
   label,
   children,
   className = "",
+  hint,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
+  hint?: string;
 }) {
   return (
     <div className={className}>
-      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+        {label}
+        {hint && (
+          <span className="relative inline-flex group">
+            <Info size={12} className="text-gray-400 cursor-help" />
+            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 z-20 hidden group-hover:block whitespace-normal w-64 bg-gray-800 text-white text-[11px] leading-snug rounded px-2 py-1.5 shadow-lg">
+              {hint}
+            </span>
+          </span>
+        )}
+      </label>
       {children}
     </div>
   );
@@ -1097,6 +1110,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     return () => { cancelled = true; };
   }, [dealId, prefillFromDeal]);
 
+  // ── Manter valorMensal sempre em sincronia com o card do deal ──
+  // Fonte única de verdade é deal.value (soma dos produtos do card, usada na Conta Azul).
+  useEffect(() => {
+    const v = deal.value != null ? String(deal.value) : "";
+    setForm((prev) => (prev.valorMensal === v ? prev : { ...prev, valorMensal: v }));
+  }, [deal.value]);
+
   // ── Auto-save on form change (debounced) ──
   useEffect(() => {
     if (loading) return;
@@ -1634,10 +1654,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       {/* 3. Valores e Pagamento */}
       <FormSection title="Valores e Pagamento">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Valor Mensal (R$)">
+          <FormField
+            label="Valor Mensal (R$)"
+            hint="Para alterar o valor do contrato, edite o preço dos produtos no card do deal. O valor sincroniza automaticamente com o que sobe pra Conta Azul."
+          >
             <TextInput
               value={form.valorMensal}
-              onChange={(v) => updateField("valorMensal", v)}
+              readOnly
               placeholder="0,00"
             />
           </FormField>

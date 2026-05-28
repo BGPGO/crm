@@ -72,7 +72,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       biOrigemDados: overrides.biOrigemDados || null,
       biQtdLicencas: overrides.biQtdLicencas || null,
       biQtdTelasPersonalizadas: overrides.biQtdTelasPersonalizadas || null,
-      valorMensal: parseFloat(overrides.valorMensal) || deal.value || 0,
+      // valorMensal sempre vem do card do deal (sum de dealProducts via syncDealValue).
+      // Ignora override do body — fonte única de verdade é deal.value.
+      valorMensal: deal.value ? Number(deal.value) : 0,
       diaVencimento: parseInt(overrides.diaVencimento) || 10,
       dataInicio: overrides.dataInicio ? new Date(overrides.dataInicio) : new Date(),
       formaPagamento: overrides.formaPagamento || 'boleto',
@@ -124,11 +126,13 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (!existing) return next(createError('Contract not found', 404));
     if (existing.status !== 'DRAFT') return next(createError('Only draft contracts can be edited', 400));
 
+    // valorMensal é controlado pelo card do deal — não aceita edição via body.
+    // O resync é feito abaixo após o update.
     const allowedFields = [
       'razaoSocial', 'nomeFantasia', 'cnpj', 'endereco', 'representante',
       'cpfRepresentante', 'emailRepresentante', 'emailFinanceiro',
       'produto', 'strategyModules', 'biOrigemDados', 'biQtdLicencas', 'biQtdTelasPersonalizadas',
-      'valorMensal', 'diaVencimento', 'dataInicio', 'formaPagamento',
+      'diaVencimento', 'dataInicio', 'formaPagamento',
       'valorImplementacao', 'implementacaoParcelas', 'descontoMeses', 'descontoPercentual',
       'observacao', 'linkReadAi',
       'testemunha1Nome', 'testemunha1Cpf', 'testemunha1Email',
@@ -137,9 +141,9 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     ];
 
     const intFields = new Set(['diaVencimento', 'implementacaoParcelas', 'descontoMeses']);
-    const decimalFields = new Set(['valorMensal', 'valorImplementacao', 'descontoPercentual']);
+    const decimalFields = new Set(['valorImplementacao', 'descontoPercentual']);
     // Required numeric fields cannot be null — default to 0 instead
-    const requiredNumeric = new Set(['valorMensal', 'diaVencimento']);
+    const requiredNumeric = new Set(['diaVencimento']);
 
     const data: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -158,6 +162,14 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         }
       }
     }
+
+    // Sempre re-sincroniza valorMensal a partir do card do deal —
+    // garante que o contrato bate com o que sobe pra Conta Azul.
+    const deal = await prisma.deal.findUnique({
+      where: { id: existing.dealId },
+      select: { value: true },
+    });
+    data.valorMensal = deal?.value ? Number(deal.value) : 0;
 
     const contract = await prisma.contract.update({
       where: { id: req.params.id },
