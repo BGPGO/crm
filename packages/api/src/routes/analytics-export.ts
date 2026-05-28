@@ -68,6 +68,18 @@ interface GreatPagesSection {
   utmBreakdown: Record<string, number>;
 }
 
+interface MeetingsSection {
+  total: number;
+  byDay: { date: string; count: number }[];
+  byChannel: {
+    calendly_email: number;
+    calendly_lp: number;
+    sdr_ia: number;
+    humano: number;
+    desconhecido: number;
+  };
+}
+
 interface ExportResponse {
   period: { from: string; to: string };
   leads?: LeadsSection;
@@ -75,6 +87,7 @@ interface ExportResponse {
   email?: EmailSection;
   whatsapp?: WhatsAppSection;
   greatpages?: GreatPagesSection;
+  meetings?: MeetingsSection;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -398,6 +411,72 @@ async function queryGreatPages(dateFrom: Date, dateTo: Date): Promise<GreatPages
   };
 }
 
+async function queryMeetings(dateFrom: Date, dateTo: Date, brand: Brand): Promise<MeetingsSection> {
+  // Reuniões agendadas no período: Task type=MEETING criada na janela.
+  // Conta TODAS (status COMPLETED ou pendentes) — o que importa pra atribuição
+  // é "quando foi agendada", não se foi concluída.
+  // Task não tem brand direto — filtramos pelo Deal OU Contact relacionado.
+  // Task sem deal nem contact (raro) entra no resultado se brand bater em
+  // qualquer relação; sem relação fica fora (não é atribuível a uma brand).
+  const meetings = await prisma.task.findMany({
+    where: {
+      type: 'MEETING',
+      createdAt: { gte: dateFrom, lte: dateTo },
+      OR: [
+        { deal: { brand } },
+        { contact: { brand } },
+      ],
+    },
+    select: {
+      createdAt: true,
+      meetingSource: true,
+    },
+  });
+
+  // byDay — group by data de criação (YYYY-MM-DD)
+  const byDayMap = new Map<string, number>();
+  // byChannel — group by meetingSource enum (CALENDLY_EMAIL | CALENDLY_LP | SDR_IA | HUMANO | null)
+  const channelCounts = {
+    calendly_email: 0,
+    calendly_lp: 0,
+    sdr_ia: 0,
+    humano: 0,
+    desconhecido: 0,
+  };
+
+  for (const m of meetings) {
+    const dia = m.createdAt.toISOString().slice(0, 10);
+    byDayMap.set(dia, (byDayMap.get(dia) ?? 0) + 1);
+
+    switch (m.meetingSource) {
+      case 'CALENDLY_EMAIL':
+        channelCounts.calendly_email += 1;
+        break;
+      case 'CALENDLY_LP':
+        channelCounts.calendly_lp += 1;
+        break;
+      case 'SDR_IA':
+        channelCounts.sdr_ia += 1;
+        break;
+      case 'HUMANO':
+        channelCounts.humano += 1;
+        break;
+      default:
+        channelCounts.desconhecido += 1;
+    }
+  }
+
+  const byDay = Array.from(byDayMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  return {
+    total: meetings.length,
+    byDay,
+    byChannel: channelCounts,
+  };
+}
+
 // ── Endpoint principal ────────────────────────────────────────────────────────
 
 router.get(
@@ -443,7 +522,7 @@ router.get(
       }
 
       // ── Filtro de métricas ────────────────────────────────────────────────
-      const ALL_METRICS = ['leads', 'funnel', 'email', 'whatsapp', 'greatpages'] as const;
+      const ALL_METRICS = ['leads', 'funnel', 'email', 'whatsapp', 'greatpages', 'meetings'] as const;
       type MetricKey = (typeof ALL_METRICS)[number];
 
       let requestedMetrics: MetricKey[];
@@ -459,12 +538,13 @@ router.get(
       }
 
       // ── Executa queries em paralelo ──────────────────────────────────────
-      const [leadsData, funnelData, emailData, whatsappData, greatpagesData] = await Promise.all([
+      const [leadsData, funnelData, emailData, whatsappData, greatpagesData, meetingsData] = await Promise.all([
         requestedMetrics.includes('leads') ? queryLeads(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
         requestedMetrics.includes('funnel') ? queryFunnel(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
         requestedMetrics.includes('email') ? queryEmail(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
         requestedMetrics.includes('whatsapp') ? queryWhatsApp(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
         requestedMetrics.includes('greatpages') ? queryGreatPages(dateFrom, dateTo) : Promise.resolve(undefined),
+        requestedMetrics.includes('meetings') ? queryMeetings(dateFrom, dateTo, req.brand) : Promise.resolve(undefined),
       ]);
 
       // ── Monta resposta ───────────────────────────────────────────────────
@@ -480,6 +560,7 @@ router.get(
       if (emailData) response.email = emailData;
       if (whatsappData) response.whatsapp = whatsappData;
       if (greatpagesData) response.greatpages = greatpagesData;
+      if (meetingsData) response.meetings = meetingsData;
 
       return res.json(response);
     } catch (err) {
