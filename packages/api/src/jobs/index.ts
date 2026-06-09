@@ -13,6 +13,7 @@ import { startScheduledEmailCron } from './scheduledEmailCron';
 import { startScheduledBroadcastCron } from './scheduledBroadcastCron';
 import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
 import { runReleaseHeldBroadcastContacts } from './releaseHeldBroadcastContacts';
+import { startFinhubActiveClientsSync } from './finhubActiveClientsSync';
 import cron from 'node-cron';
 
 export function startAllJobs() {
@@ -41,6 +42,9 @@ export function startAllJobs() {
 
   // Broadcasts WABA agendados (status=WA_SCHEDULED com scheduledAt passado)
   startScheduledBroadcastCron();
+
+  // Segmento "Clientes Ativos" sincronizado do FinHub (diário 3h BRT)
+  startFinhubActiveClientsSync();
 
   // Health check de templates WABA (a cada 1h)
   cron.schedule('0 * * * *', async () => {
