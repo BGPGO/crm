@@ -500,6 +500,100 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/internal/ads-attribution?since=YYYY-MM-DD&until=YYYY-MM-DD
+ *
+ * Atribuição de VENDAS fechadas (deals WON) a campanhas/criativos de tráfego pago,
+ * via last-touch UTM. Consumido pela ContIA (tela /anuncios) pra mostrar ROAS real.
+ *
+ * - Janela pela data de fechamento do deal (closedAt).
+ * - Last touch: o LeadTracking mais recente do contato do deal.
+ * - Receita separada: MRR (Σ DealProduct.recurrenceValue) e Setup (Σ setupPrice).
+ *   Fallback: deal sem produtos cadastrados → Deal.value entra como MRR.
+ * - Chaves em lowercase (match exato com títulos da ContIA é case-insensitive).
+ *
+ * Auth: header x-internal-secret (reusa META_ADS_INTERNAL_SECRET do Coolify).
+ */
+router.get('/ads-attribution', async (req: Request, res: Response) => {
+  const secret = req.header('x-internal-secret');
+  const expected = process.env.META_ADS_INTERNAL_SECRET;
+  if (!expected || secret !== expected) {
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+
+  const sinceRaw = (req.query.since as string | undefined) ?? '';
+  const untilRaw = (req.query.until as string | undefined) ?? '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceRaw) || !/^\d{4}-\d{2}-\d{2}$/.test(untilRaw)) {
+    return res.status(400).json({ error: 'since e until obrigatórios (YYYY-MM-DD)' });
+  }
+  const since = new Date(`${sinceRaw}T00:00:00.000Z`);
+  const until = new Date(`${untilRaw}T23:59:59.999Z`);
+
+  try {
+    const deals = await prisma.deal.findMany({
+      where: { status: 'WON', closedAt: { gte: since, lte: until } },
+      select: {
+        id: true,
+        value: true,
+        contactId: true,
+        products: { select: { quantity: true, setupPrice: true, recurrenceValue: true } },
+      },
+    });
+
+    const contactIds = [...new Set(deals.map(d => d.contactId).filter((id): id is string => !!id))];
+
+    // Last touch: ordena DESC e fica com o primeiro de cada contato.
+    const trackings = contactIds.length > 0
+      ? await prisma.leadTracking.findMany({
+          where: { contactId: { in: contactIds } },
+          orderBy: { createdAt: 'desc' },
+          select: { contactId: true, utmCampaign: true, utmTerm: true },
+        })
+      : [];
+    const lastByContact = new Map<string, { utmCampaign: string | null; utmTerm: string | null }>();
+    for (const t of trackings) {
+      if (!lastByContact.has(t.contactId)) lastByContact.set(t.contactId, t);
+    }
+
+    type Bucket = { won: number; mrr: number; setup: number };
+    const byCampaign: Record<string, Bucket> = {};
+    const byTerm: Record<string, Bucket> = {};
+    const add = (map: Record<string, Bucket>, key: string, mrr: number, setup: number) => {
+      const b = (map[key] ??= { won: 0, mrr: 0, setup: 0 });
+      b.won += 1; b.mrr += mrr; b.setup += setup;
+    };
+
+    let attributed = 0, unattributed = 0;
+    let totalMrr = 0, totalSetup = 0;
+
+    for (const d of deals) {
+      const ps = d.products ?? [];
+      let mrr = ps.reduce((s, p) => s + Number(p.recurrenceValue ?? 0) * (p.quantity || 1), 0);
+      const setup = ps.reduce((s, p) => s + Number(p.setupPrice ?? 0) * (p.quantity || 1), 0);
+      if (ps.length === 0) mrr += Number(d.value ?? 0); // fallback sem produtos
+      totalMrr += mrr; totalSetup += setup;
+
+      const t = d.contactId ? lastByContact.get(d.contactId) : null;
+      if (!t || !t.utmTerm) { unattributed += 1; continue; }
+      attributed += 1;
+      const camp = (t.utmCampaign ?? '').trim().toLowerCase();
+      const term = (t.utmTerm ?? '').trim().toLowerCase();
+      if (camp) add(byCampaign, camp, mrr, setup);
+      if (term) add(byTerm, term, mrr, setup);
+    }
+
+    return res.json({
+      period: { since: sinceRaw, until: untilRaw },
+      totals: { wonDeals: deals.length, attributed, unattributed, mrr: totalMrr, setup: totalSetup },
+      byCampaign,
+      byTerm,
+    });
+  } catch (err) {
+    console.error('[internal/ads-attribution] erro:', err);
+    return res.status(500).json({ error: String(err) });
+  }
+});
+
 function buildMeetingsWarnings(total: number, withoutDeal: number, activityCount: number): string[] {
   const warnings: string[] = [];
   if (withoutDeal > 0) {
