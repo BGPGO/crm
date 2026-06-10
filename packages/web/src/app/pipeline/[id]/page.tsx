@@ -76,6 +76,7 @@ interface DealDetail {
   expectedCloseDate?: string;
   expectedReturnDate?: string;
   closedAt?: string;
+  churnedAt?: string;
   noShow?: boolean;
   noShowAt?: string;
   meetingSource?: MeetingSource | null;
@@ -171,6 +172,7 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     expectedCloseDate: data.expectedCloseDate as string | undefined,
     expectedReturnDate: data.expectedReturnDate as string | undefined,
     closedAt: data.closedAt as string | undefined,
+    churnedAt: data.churnedAt as string | undefined,
     noShow: data.noShow as boolean | undefined,
     noShowAt: data.noShowAt as string | undefined,
     meetingSource: data.meetingSource as MeetingSource | undefined,
@@ -1556,6 +1558,16 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 onChange={(v) => {
                   setDeal((d) => d ? { ...d, expectedReturnDate: v } : d);
                   handleUpdateDeal("expectedReturnDate", v);
+                }}
+                formatValue={(v) => (v ? formatDate(v) : "")}
+              />
+              <InlineField
+                label="Data de saída (churn)"
+                value={deal.churnedAt ? deal.churnedAt.slice(0, 10) : ""}
+                type="date"
+                onChange={(v) => {
+                  setDeal((d) => d ? { ...d, churnedAt: v || undefined } : d);
+                  handleUpdateDeal("churnedAt", v);
                 }}
                 formatValue={(v) => (v ? formatDate(v) : "")}
               />

@@ -177,16 +177,30 @@ async function moveDealToWon(opts: {
   source: 'contract-signed' | 'sentdocument-signed';
   activityContent: string;
   activityMetadata: Record<string, any>;
+  // Distrato: registra a saída do cliente (churn) mantendo o deal em Ganho fechado,
+  // sem sobrescrever o closedAt original (a data em que virou cliente).
+  isChurn?: boolean;
 }) {
   const ganhoStage = await prisma.pipelineStage.findFirst({
     where: { name: { contains: 'Ganho fechado', mode: 'insensitive' } },
   });
   if (ganhoStage && opts.deal) {
+    const now = new Date();
+    const data: Record<string, unknown> = { stageId: ganhoStage.id, status: 'WON' };
+    if (opts.isChurn) {
+      data.churnedAt = now;
+      // Preserva a data de entrada como cliente; só preenche se ainda não houver.
+      if (!opts.deal.closedAt) data.closedAt = now;
+    } else {
+      data.closedAt = now;
+    }
     await prisma.deal.update({
       where: { id: opts.dealId },
-      data: { stageId: ganhoStage.id, status: 'WON', closedAt: new Date() },
+      data,
     });
-    console.log(`[contract-webhook] Deal ${opts.dealId} moved to "Ganho fechado" (${opts.source})`);
+    console.log(
+      `[contract-webhook] Deal ${opts.dealId} ${opts.isChurn ? 'marcado como churn (mantido em "Ganho fechado")' : 'moved to "Ganho fechado"'} (${opts.source})`
+    );
   }
 
   if (opts.deal?.userId) {
@@ -208,20 +222,27 @@ async function handleSentDocumentSigned(sentDocument: any) {
     return;
   }
 
+  const isChurn = sentDocument.documentType === 'distrato';
   const docTypeLabel =
     sentDocument.documentType === 'aditivo' ? 'Aditivo'
-      : sentDocument.documentType === 'distrato' ? 'Distrato'
+      : isChurn ? 'Distrato'
       : 'Documento';
+
+  const activityContent = isChurn
+    ? `Distrato "${sentDocument.documentName}" assinado por todas as partes! Cliente marcado como churn — data de saída registrada (deal mantido em Ganho Fechado).`
+    : `${docTypeLabel} "${sentDocument.documentName}" assinado por todas as partes! Deal movido para Ganho Fechado.`;
 
   await moveDealToWon({
     dealId: sentDocument.dealId,
     deal: sentDocument.deal,
     source: 'sentdocument-signed',
-    activityContent: `${docTypeLabel} "${sentDocument.documentName}" assinado por todas as partes! Deal movido para Ganho Fechado.`,
+    isChurn,
+    activityContent,
     activityMetadata: {
       sentDocumentId: sentDocument.id,
       documentType: sentDocument.documentType,
       autentiqueDocumentId: sentDocument.autentiqueDocumentId,
+      ...(isChurn ? { churn: true } : {}),
     },
   });
 

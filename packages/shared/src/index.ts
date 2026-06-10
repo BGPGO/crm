@@ -120,6 +120,7 @@ export interface IDeal {
   value?: number | null;
   expectedCloseDate?: Date | null;
   closedAt?: Date | null;
+  churnedAt?: Date | null;
   status: DealStatus;
   pipelineId: string;
   stageId: string;

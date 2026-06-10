@@ -374,6 +374,9 @@ model Deal {
   status             DealStatus     @default(OPEN)
   noShow             Boolean        @default(false)
   noShowAt           DateTime?
+  // Data de saída do cliente (churn) — preenchida quando um distrato é assinado.
+  // O deal PERMANECE em "Ganho fechado"/WON; este campo marca quando deixou de ser cliente.
+  churnedAt          DateTime?
   // Origem da reunião agendada — espelha o meetingSource da task MEETING mais recente
   meetingSource      MeetingSource?
   classification     String?
@@ -429,6 +432,7 @@ model Deal {
   @@index([status, createdAt])
   @@index([createdAt])
   @@index([brand])
+  @@index([churnedAt])
 }
 
 model Product {

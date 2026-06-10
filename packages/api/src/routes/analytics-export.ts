@@ -44,6 +44,7 @@ interface FunnelSection {
   conversionRate: number;
   wonDeals: number;
   wonRevenue: number;
+  churnedDeals: number;
 }
 
 interface EmailSection {
@@ -192,6 +193,7 @@ async function queryFunnel(dateFrom: Date, dateTo: Date, brand: Brand): Promise<
       conversionRate: 0,
       wonDeals: 0,
       wonRevenue: 0,
+      churnedDeals: 0,
     };
   }
 
@@ -229,12 +231,21 @@ async function queryFunnel(dateFrom: Date, dateTo: Date, brand: Brand): Promise<
   const wonRevenue = Number(wonDealsData._sum.value ?? 0);
   const conversionRate = totalEntered > 0 ? (wonDeals / totalEntered) * 100 : 0;
 
+  // Clientes que saíram (churn) no período — distrato assinado preenche churnedAt.
+  const churnedDeals = await prisma.deal.count({
+    where: {
+      brand,
+      churnedAt: { gte: dateFrom, lte: dateTo },
+    },
+  });
+
   return {
     totalEntered,
     atStage,
     conversionRate: Math.round(conversionRate * 100) / 100,
     wonDeals,
     wonRevenue,
+    churnedDeals,
   };
 }
 

@@ -255,17 +255,30 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
       const ganhoStage = await prisma.pipelineStage.findFirst({
         where: { name: { contains: 'Ganho fechado', mode: 'insensitive' } },
       });
+      // Distrato: registra a saída do cliente (churn) mantendo o deal em Ganho fechado,
+      // sem sobrescrever o closedAt original (a data em que virou cliente).
+      const isChurn = sentDoc.documentType === 'distrato';
       if (ganhoStage) {
+        const now = new Date();
+        const dealData: Record<string, unknown> = { stageId: ganhoStage.id, status: 'WON' };
+        if (isChurn) {
+          dealData.churnedAt = now;
+          if (!sentDoc.deal?.closedAt) dealData.closedAt = now;
+        } else {
+          dealData.closedAt = now;
+        }
         await prisma.deal.update({
           where: { id: sentDoc.dealId },
-          data: { stageId: ganhoStage.id, status: 'WON', closedAt: new Date() },
+          data: dealData,
         });
-        console.log(`[sent-documents] Deal ${sentDoc.dealId} moved to "Ganho fechado" via check-status`);
+        console.log(
+          `[sent-documents] Deal ${sentDoc.dealId} ${isChurn ? 'marcado como churn (mantido em "Ganho fechado")' : 'moved to "Ganho fechado"'} via check-status`
+        );
       }
 
       const docTypeLabel =
         sentDoc.documentType === 'aditivo' ? 'Aditivo'
-          : sentDoc.documentType === 'distrato' ? 'Distrato'
+          : isChurn ? 'Distrato'
           : 'Documento';
 
       const userId = sentDoc.deal?.userId || (req as any).user?.id;
@@ -273,13 +286,16 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
         await prisma.activity.create({
           data: {
             type: 'NOTE',
-            content: `${docTypeLabel} "${sentDoc.documentName}" assinado por todas as partes! Deal movido para Ganho Fechado.`,
+            content: isChurn
+              ? `Distrato "${sentDoc.documentName}" assinado por todas as partes! Cliente marcado como churn — data de saída registrada (deal mantido em Ganho Fechado).`
+              : `${docTypeLabel} "${sentDoc.documentName}" assinado por todas as partes! Deal movido para Ganho Fechado.`,
             dealId: sentDoc.dealId,
             userId,
             metadata: {
               source: 'sentdocument-signed-checkstatus',
               sentDocumentId: sentDoc.id,
               documentType: sentDoc.documentType,
+              ...(isChurn ? { churn: true } : {}),
             },
           },
         });

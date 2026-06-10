@@ -206,6 +206,7 @@ const DEAL_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'utmMedium', label: 'UTM Medium' },
   { key: 'createdAt', label: 'Criado em' },
   { key: 'closedAt', label: 'Fechado em' },
+  { key: 'churnedAt', label: 'Saída (Churn)' },
   { key: 'expectedCloseDate', label: 'Previsão de Fechamento' },
 ];
 
@@ -585,6 +586,7 @@ router.get('/export', async (req: Request, res: Response, next: NextFunction) =>
           utmMedium: firstTracking?.utmMedium ?? '',
           createdAt: deal.createdAt,
           closedAt: deal.closedAt ?? '',
+          churnedAt: deal.churnedAt ?? '',
           expectedCloseDate: deal.expectedCloseDate ?? '',
         };
       }
@@ -664,6 +666,8 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (sourceId !== undefined) data.sourceId = sourceId;
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate;
     if (expectedReturnDate !== undefined) data.expectedReturnDate = expectedReturnDate;
+    // churnedAt: ajuste manual da data de saída do cliente ("" limpa o campo).
+    if (req.body.churnedAt !== undefined) data.churnedAt = req.body.churnedAt ? new Date(req.body.churnedAt) : null;
     if (classification !== undefined) data.classification = typeof classification === 'string' ? parseInt(classification) : classification;
     if (contaAzulCode !== undefined) data.contaAzulCode = contaAzulCode;
     if (recurrence !== undefined) data.recurrence = recurrence;
