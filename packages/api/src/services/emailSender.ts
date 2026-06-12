@@ -398,3 +398,53 @@ export async function sendTestEmail(campaignId: string, email: string): Promise<
     html: finalHtml,
   });
 }
+
+/** Lista fixa de aprovação da AiMO (recebem o email com [Aprovação] antes do disparo real). */
+export const AIMO_APPROVAL_EMAILS = [
+  'vitor@bertuzzipatrimonial.com.br',
+  'fernanda@bertuzzipatrimonial.com.br',
+  'oliver@bertuzzipatrimonial.com.br',
+  'eduardo@goldstay.com.br',
+];
+
+/**
+ * Envia o email da campanha para a lista de aprovação, com "[Aprovação]" no assunto.
+ * Não cria EmailSend records. Usa o mesmo wrap de marca do envio real, então a peça
+ * chega exatamente como será disparada. Envia individualmente (sem expor a lista no To).
+ */
+export async function sendApprovalEmail(
+  campaignId: string,
+  recipients: string[] = AIMO_APPROVAL_EMAILS,
+): Promise<{ recipients: string[] }> {
+  const campaign = await prisma.emailCampaign.findUniqueOrThrow({
+    where: { id: campaignId },
+    include: { template: true },
+  });
+
+  if (!campaign.template) {
+    throw new Error(`Campaign ${campaignId} has no template assigned`);
+  }
+
+  const isAimo = campaign.brand === 'AIMO';
+  const fromAddress = `${campaign.fromName} <${campaign.fromEmail}>`;
+  const baseHtml = isAimo
+    ? campaign.template.htmlContent
+    : stripOuterWrapper(campaign.template.htmlContent);
+  const brandedHtml = wrapInBrandTemplate(baseHtml, { brand: campaign.brand });
+  const finalHtml = rewriteCalendlyLinksInHtml(brandedHtml, EMAIL_CAMPAIGN_UTMS);
+  const replyToAddress = isAimo
+    ? 'oliver@bertuzzipatrimonial.com.br'
+    : 'vitor@bertuzzipatrimonial.com.br';
+
+  for (const to of recipients) {
+    await resend.emails.send({
+      from: fromAddress,
+      to,
+      replyTo: replyToAddress,
+      subject: `[Aprovação] ${campaign.subject}`,
+      html: finalHtml,
+    });
+  }
+
+  return { recipients };
+}

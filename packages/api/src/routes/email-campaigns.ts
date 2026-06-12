@@ -121,8 +121,8 @@ router.post(
         finalTemplateId = inlineTemplate.id;
       }
 
-      // Brand-aware defaults: AIMO usa AiMO + noreply@aimocorp.com.br,
-      // BGP mantém comportamento legado byte-for-byte.
+      // Brand-aware defaults: AIMO usa AiMO + noreply@aimocorp.app.br (domínio
+      // próprio, verificado no Resend). BGP mantém comportamento legado byte-for-byte.
       const resolvedBrand = (req.body.brand ?? req.brand) as 'BGP' | 'AIMO';
       const isAimo = resolvedBrand === 'AIMO';
 
@@ -132,7 +132,7 @@ router.post(
           subject,
           fromName: fromName || (isAimo ? 'AiMO' : 'BGPGO'),
           fromEmail:
-            fromEmail || (isAimo ? 'noreply@aimocorp.com.br' : 'noreply@bertuzzipatrimonial.com.br'),
+            fromEmail || (isAimo ? 'noreply@aimocorp.app.br' : 'noreply@bertuzzipatrimonial.com.br'),
           templateId: finalTemplateId,
           segmentId: segmentId ?? null,
           filters: filterGroups ?? null,
@@ -384,6 +384,24 @@ router.get('/:id/recipients', async (req: Request, res: Response, next: NextFunc
     }));
 
     res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/email-campaigns/:id/send-approval  — envia pra lista de aprovação (AIMO only)
+router.post('/:id/send-approval', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const campaign = await prisma.emailCampaign.findUnique({ where: { id: req.params.id } });
+    if (!campaign) return next(createError('Email campaign not found', 404));
+    if (campaign.brand !== 'AIMO') {
+      return next(createError('Envio para aprovação disponível apenas para campanhas AiMO', 400));
+    }
+
+    const { sendApprovalEmail } = await import('../services/emailSender');
+    const result = await sendApprovalEmail(campaign.id);
+
+    res.json({ data: { success: true, recipients: result.recipients } });
   } catch (err) {
     next(err);
   }

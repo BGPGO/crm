@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import Badge from "@/components/ui/Badge";
 import MarketingNav from "@/components/marketing/MarketingNav";
 import CampaignMetrics from "@/components/marketing/CampaignMetrics";
 import EmailPreview from "@/components/marketing/EmailPreview";
-import { Send, ArrowLeft, Loader2, Clock, X } from "lucide-react";
+import { Send, ArrowLeft, Loader2, Clock, X, Save, CalendarClock, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
 
@@ -33,6 +33,11 @@ interface Campaign {
   totalRecipients?: number;
 }
 
+interface SegmentLite {
+  id: string;
+  name: string;
+}
+
 const statusConfig: Record<
   CampaignStatus,
   { variant: "gray" | "blue" | "yellow" | "green" | "red"; label: string }
@@ -44,6 +49,9 @@ const statusConfig: Record<
   FAILED: { variant: "red", label: "Falhou" },
 };
 
+const inputCls =
+  "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent";
+
 export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -54,10 +62,27 @@ export default function CampaignDetailPage() {
   const [sending, setSending] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [unscheduling, setUnscheduling] = useState(false);
-  const [showRescheduleInput, setShowRescheduleInput] = useState(false);
+  const [showScheduleInput, setShowScheduleInput] = useState(false);
   const [newScheduleDate, setNewScheduleDate] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [error, setError] = useState<"not_found" | "network" | null>(null);
+
+  // ── Edição (DRAFT) ──────────────────────────────────────────────────────
+  const [segments, setSegments] = useState<SegmentLite[]>([]);
+  const [editSubject, setEditSubject] = useState("");
+  const [editFromName, setEditFromName] = useState("");
+  const [editFromEmail, setEditFromEmail] = useState("");
+  const [editSegmentId, setEditSegmentId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
+
+  function hydrateEdit(c: Campaign) {
+    setEditSubject(c.subject ?? "");
+    setEditFromName(c.fromName ?? "");
+    setEditFromEmail(c.fromEmail ?? "");
+    setEditSegmentId(c.segment?.id ?? "");
+  }
 
   useEffect(() => {
     async function fetchCampaign() {
@@ -66,6 +91,7 @@ export default function CampaignDetailPage() {
       try {
         const result = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
         setCampaign(result.data);
+        hydrateEdit(result.data);
       } catch (err: unknown) {
         console.error("Erro ao buscar campanha:", err);
         const status = (err as { status?: number })?.status ?? (err as { response?: { status?: number } })?.response?.status;
@@ -77,19 +103,80 @@ export default function CampaignDetailPage() {
     fetchCampaign();
   }, [id]);
 
+  // Carrega segmentos da marca atual (X-Brand vai automático no client)
+  useEffect(() => {
+    api
+      .get<{ data: SegmentLite[] }>(`/segments?limit=100`)
+      .then((resp) => setSegments(resp?.data ?? []))
+      .catch(() => setSegments([]));
+  }, []);
+
+  const refetch = async () => {
+    const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
+    setCampaign(updated.data);
+    hydrateEdit(updated.data);
+  };
+
   const handleSend = async () => {
     if (!confirm("Tem certeza que deseja enviar esta campanha agora?")) return;
     setSending(true);
     setActionError(null);
+    setActionMsg(null);
     try {
       await api.post(`/email-campaigns/${id}/send`, {});
-      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
-      setCampaign(updated.data);
+      await refetch();
     } catch (err) {
       console.error("Erro ao enviar campanha:", err);
       setActionError(err instanceof Error ? err.message : "Erro ao enviar campanha");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editSubject.trim()) {
+      setActionError("O assunto não pode ficar vazio.");
+      return;
+    }
+    setSaving(true);
+    setActionError(null);
+    setActionMsg(null);
+    try {
+      await api.put(`/email-campaigns/${id}`, {
+        subject: editSubject.trim(),
+        fromName: editFromName.trim() || undefined,
+        fromEmail: editFromEmail.trim() || undefined,
+        segmentId: editSegmentId || null,
+      });
+      await refetch();
+      setActionMsg("Alterações salvas.");
+    } catch (err) {
+      console.error("Erro ao salvar campanha:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendApproval = async () => {
+    if (!confirm("Enviar este email para a lista de aprovação da AiMO?")) return;
+    setApproving(true);
+    setActionError(null);
+    setActionMsg(null);
+    try {
+      const resp = await api.post<{ data: { recipients: string[] } }>(
+        `/email-campaigns/${id}/send-approval`,
+        {},
+      );
+      const list = resp?.data?.recipients ?? [];
+      setActionMsg(
+        `Email de aprovação enviado para ${list.length} pessoa(s)${list.length ? ": " + list.join(", ") : ""}.`,
+      );
+    } catch (err) {
+      console.error("Erro ao enviar para aprovação:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao enviar para aprovação");
+    } finally {
+      setApproving(false);
     }
   };
 
@@ -99,17 +186,18 @@ export default function CampaignDetailPage() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
-  const openReschedule = () => {
+  const openSchedule = () => {
     setNewScheduleDate(campaign?.scheduledAt ? toLocalDatetimeInput(campaign.scheduledAt) : "");
-    setShowRescheduleInput(true);
+    setShowScheduleInput(true);
     setActionError(null);
+    setActionMsg(null);
   };
 
-  const handleReschedule = async () => {
+  const handleSchedule = async () => {
     if (!newScheduleDate) return;
     const parsed = new Date(newScheduleDate);
     if (isNaN(parsed.getTime()) || parsed.getTime() <= Date.now()) {
-      setActionError("A nova data precisa estar no futuro.");
+      setActionError("A data precisa estar no futuro.");
       return;
     }
     setRescheduling(true);
@@ -118,12 +206,12 @@ export default function CampaignDetailPage() {
       await api.post(`/email-campaigns/${id}/schedule`, {
         scheduledAt: parsed.toISOString(),
       });
-      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
-      setCampaign(updated.data);
-      setShowRescheduleInput(false);
+      await refetch();
+      setShowScheduleInput(false);
+      setActionMsg("Campanha agendada.");
     } catch (err) {
-      console.error("Erro ao reagendar campanha:", err);
-      setActionError(err instanceof Error ? err.message : "Erro ao reagendar");
+      console.error("Erro ao agendar campanha:", err);
+      setActionError(err instanceof Error ? err.message : "Erro ao agendar");
     } finally {
       setRescheduling(false);
     }
@@ -135,9 +223,8 @@ export default function CampaignDetailPage() {
     setActionError(null);
     try {
       await api.post(`/email-campaigns/${id}/unschedule`, {});
-      const updated = await api.get<{ data: Campaign }>(`/email-campaigns/${id}`);
-      setCampaign(updated.data);
-      setShowRescheduleInput(false);
+      await refetch();
+      setShowScheduleInput(false);
     } catch (err) {
       console.error("Erro ao desagendar campanha:", err);
       setActionError(err instanceof Error ? err.message : "Erro ao desagendar");
@@ -190,6 +277,9 @@ export default function CampaignDetailPage() {
   }
 
   const config = statusConfig[campaign.status] ?? statusConfig.DRAFT;
+  const isDraft = campaign.status === "DRAFT";
+  const isAimo = campaign.brand === "AIMO";
+  const canApprove = isAimo && (campaign.status === "DRAFT" || campaign.status === "SCHEDULED");
 
   return (
     <div className="flex flex-col h-full overflow-auto">
@@ -210,65 +300,92 @@ export default function CampaignDetailPage() {
             Voltar
           </button>
 
-          {campaign.status === "DRAFT" && (
-            <Button
-              variant="primary"
-              size="sm"
-              loading={sending}
-              onClick={handleSend}
-            >
-              <Send size={14} />
-              Enviar Agora
-            </Button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {canApprove && (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={approving}
+                disabled={sending || rescheduling}
+                onClick={handleSendApproval}
+              >
+                <ShieldCheck size={14} />
+                Enviar pra aprovação
+              </Button>
+            )}
 
-          {campaign.status === "SCHEDULED" && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={openReschedule}
-                disabled={rescheduling || unscheduling || sending}
-              >
-                <Clock size={14} />
-                Alterar horário
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={unscheduling}
-                disabled={rescheduling || sending}
-                onClick={handleUnschedule}
-              >
-                <X size={14} />
-                Desagendar
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                loading={sending}
-                disabled={rescheduling || unscheduling}
-                onClick={handleSend}
-              >
-                <Send size={14} />
-                Enviar Agora
-              </Button>
-            </div>
-          )}
+            {isDraft && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={openSchedule}
+                  disabled={sending || rescheduling || approving}
+                >
+                  <CalendarClock size={14} />
+                  Agendar
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={sending}
+                  disabled={rescheduling || approving}
+                  onClick={handleSend}
+                >
+                  <Send size={14} />
+                  Enviar Agora
+                </Button>
+              </>
+            )}
+
+            {campaign.status === "SCHEDULED" && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={openSchedule}
+                  disabled={rescheduling || unscheduling || sending}
+                >
+                  <Clock size={14} />
+                  Alterar horário
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={unscheduling}
+                  disabled={rescheduling || sending}
+                  onClick={handleUnschedule}
+                >
+                  <X size={14} />
+                  Desagendar
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={sending}
+                  disabled={rescheduling || unscheduling}
+                  onClick={handleSend}
+                >
+                  <Send size={14} />
+                  Enviar Agora
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
-        {campaign.status === "SCHEDULED" && showRescheduleInput && (
+        {showScheduleInput && (campaign.status === "DRAFT" || campaign.status === "SCHEDULED") && (
           <Card padding="md">
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Novo horário
+                  {campaign.status === "DRAFT" ? "Agendar para" : "Novo horário"}
                 </label>
                 <input
                   type="datetime-local"
                   value={newScheduleDate}
                   onChange={(e) => setNewScheduleDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500 focus:border-transparent"
+                  className={inputCls}
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -277,16 +394,16 @@ export default function CampaignDetailPage() {
                   size="md"
                   loading={rescheduling}
                   disabled={!newScheduleDate}
-                  onClick={handleReschedule}
+                  onClick={handleSchedule}
                 >
-                  Salvar
+                  {campaign.status === "DRAFT" ? "Agendar" : "Salvar"}
                 </Button>
                 <Button
                   variant="secondary"
                   size="md"
                   disabled={rescheduling}
                   onClick={() => {
-                    setShowRescheduleInput(false);
+                    setShowScheduleInput(false);
                     setActionError(null);
                   }}
                 >
@@ -301,6 +418,74 @@ export default function CampaignDetailPage() {
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {actionError}
           </div>
+        )}
+        {actionMsg && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            {actionMsg}
+          </div>
+        )}
+
+        {/* Edição (DRAFT) — assunto, remetente, audiência */}
+        {isDraft && (
+          <Card padding="md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">Editar campanha</h3>
+              <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>
+                <Save size={14} />
+                Salvar
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Assunto</label>
+                <input
+                  type="text"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  className={inputCls}
+                  placeholder="Assunto do email"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Nome do remetente</label>
+                <input
+                  type="text"
+                  value={editFromName}
+                  onChange={(e) => setEditFromName(e.target.value)}
+                  className={inputCls}
+                  placeholder="AiMO"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email do remetente</label>
+                <input
+                  type="text"
+                  value={editFromEmail}
+                  onChange={(e) => setEditFromEmail(e.target.value)}
+                  className={inputCls}
+                  placeholder="noreply@aimocorp.app.br"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Audiência</label>
+                <select
+                  value={editSegmentId}
+                  onChange={(e) => setEditSegmentId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Todos os contatos</option>
+                  {segments.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Selecione um segmento ou deixe em &quot;Todos os contatos&quot;. Salve para atualizar os destinatários.
+                </p>
+              </div>
+            </div>
+          </Card>
         )}
 
         {/* Campaign info */}

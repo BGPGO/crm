@@ -307,10 +307,10 @@ NÃO inclua assinatura — ela é adicionada automaticamente.${generalContext ? 
   // Tagueia links do Calendly com UTMs para o webhook classificar como CALENDLY_EMAIL
   const taggedHtml = rewriteCalendlyLinksInHtml(htmlContent, EMAIL_CAMPAIGN_UTMS);
 
-  // Brand-aware From header. Mesmo domínio Resend (bertuzzipatrimonial.app.br),
-  // muda apenas o label visível pra preservar identidade AiMO.
+  // Brand-aware From header. AIMO usa domínio próprio (aimocorp.app.br, verificado
+  // no Resend); BGP mantém bertuzzipatrimonial.app.br.
   const fromHeader = resolvedBrand === 'AIMO'
-    ? 'AiMO <noreply@bertuzzipatrimonial.app.br>'
+    ? 'AiMO <noreply@aimocorp.app.br>'
     : 'BGPGO CRM <noreply@bertuzzipatrimonial.app.br>';
 
   const result = await resend.emails.send({
