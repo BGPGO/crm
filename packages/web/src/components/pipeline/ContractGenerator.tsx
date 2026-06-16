@@ -97,6 +97,7 @@ const PRODUTOS = [
   "BGP Strategy",
   "BGP Valuation",
   "Brand Growth",
+  "GO BI by AiMO",
 ];
 
 const FORMAS_PAGAMENTO = [
@@ -366,7 +367,7 @@ const RESPONSAVEL_LEGAL = {
 
 const ALL_CONTRACT_PRODUCTS = [
   "BGP GO I", "BGP GO II", "BGP GO III", "BGP BI",
-  "BI Personalizado", "BGP Strategy", "BGP Valuation", "Brand Growth",
+  "BI Personalizado", "BGP Strategy", "BGP Valuation", "Brand Growth", "GO BI by AiMO",
 ] as const;
 
 const contractProductLabels: Record<string, string> = {
@@ -378,6 +379,7 @@ const contractProductLabels: Record<string, string> = {
   "BGP Strategy": "BGP STRATEGY",
   "BGP Valuation": "BGP VALUATION",
   "Brand Growth": "BRAND GROWTH",
+  "GO BI by AiMO": "GO BI BY AiMO",
 };
 
 function getDateString(): string {
