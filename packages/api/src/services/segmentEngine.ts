@@ -66,6 +66,10 @@ function isFilterGroupArray(input: SegmentFilter[] | FilterGroup[]): input is Fi
  */
 function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
   const conditions: Record<string, any>[] = [];
+  // Filtros de CAMPO de deal (status, etapa, valor, datas...) descrevem UM
+  // mesmo deal — são acumulados aqui e correlacionados num único `deals.some`
+  // depois do loop. (has*Deal são checagens de existência e ficam separados.)
+  const dealFieldConds: Record<string, any>[] = [];
 
   for (const filter of filters) {
     const { field, operator, value } = filter;
@@ -121,53 +125,56 @@ function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
       continue;
     }
 
-    // ── Deal-related (via contact → deals) ────────────────────────────
+    // ── Deal-related FIELD filters (via contact → deals) ──────────────
+    // NÃO fixam status: a etapa do funil é a posição do deal independente de
+    // estar OPEN/WON/LOST (um lead perdido continua na etapa em que foi perdido).
+    // Pra "lost na etapa X", combine dealStageName com dealStatus=LOST.
     if (field === 'dealStatus') {
-      conditions.push({ deals: { some: { status: mapOp(operator, value) } } });
+      dealFieldConds.push({ status: mapOp(operator, value) });
       continue;
     }
     if (field === 'dealStageId') {
-      conditions.push({ deals: { some: { stageId: mapOp(operator, value), status: 'OPEN' } } });
+      dealFieldConds.push({ stageId: mapOp(operator, value) });
       continue;
     }
     if (field === 'dealStageName') {
-      conditions.push({ deals: { some: { stage: { name: mapOp(operator, value) }, status: 'OPEN' } } });
+      dealFieldConds.push({ stage: { name: mapOp(operator, value) } });
       continue;
     }
     if (field === 'dealValue') {
-      conditions.push({ deals: { some: { value: mapOp(operator, coerceNumber(value)) } } });
+      dealFieldConds.push({ value: mapOp(operator, coerceNumber(value)) });
       continue;
     }
     if (field === 'dealSourceId') {
-      conditions.push({ deals: { some: { sourceId: mapOp(operator, value) } } });
+      dealFieldConds.push({ sourceId: mapOp(operator, value) });
       continue;
     }
     if (field === 'dealLostReasonId') {
-      conditions.push({ deals: { some: { lostReasonId: mapOp(operator, value), status: 'LOST' } } });
+      dealFieldConds.push({ lostReasonId: mapOp(operator, value), status: 'LOST' });
       continue;
     }
     if (field === 'dealProductId') {
-      conditions.push({ deals: { some: { products: { some: { productId: mapOp(operator, value) } } } } });
+      dealFieldConds.push({ products: { some: { productId: mapOp(operator, value) } } });
       continue;
     }
     if (field === 'dealProductName') {
-      conditions.push({ deals: { some: { products: { some: { product: { name: mapOp(operator, value) } } } } } });
+      dealFieldConds.push({ products: { some: { product: { name: mapOp(operator, value) } } } });
       continue;
     }
     if (field === 'dealUserId') {
-      conditions.push({ deals: { some: { userId: mapOp(operator, value) } } });
+      dealFieldConds.push({ userId: mapOp(operator, value) });
       continue;
     }
     if (field === 'dealCreatedAt') {
-      conditions.push({ deals: { some: { createdAt: mapOp(operator, coerceDate(value)) } } });
+      dealFieldConds.push({ createdAt: mapOp(operator, coerceDate(value)) });
       continue;
     }
     if (field === 'dealClosedAt') {
-      conditions.push({ deals: { some: { closedAt: mapOp(operator, coerceDate(value)) } } });
+      dealFieldConds.push({ closedAt: mapOp(operator, coerceDate(value)) });
       continue;
     }
     if (field === 'dealCampaignId') {
-      conditions.push({ deals: { some: { campaignId: mapOp(operator, value) } } });
+      dealFieldConds.push({ campaignId: mapOp(operator, value) });
       continue;
     }
 
@@ -303,6 +310,14 @@ function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
     const isDateField = ['createdAt', 'updatedAt', 'birthday'].includes(field);
     const parsedValue = isDateField ? coerceDate(value) : value;
     conditions.push({ [field]: mapOp(operator, parsedValue) });
+  }
+
+  // Correlaciona os filtros de campo de deal num ÚNICO deal: 1 filtro → some
+  // direto; 2+ → AND dentro do mesmo `some` (todos descrevem o mesmo deal).
+  if (dealFieldConds.length === 1) {
+    conditions.push({ deals: { some: dealFieldConds[0] } });
+  } else if (dealFieldConds.length > 1) {
+    conditions.push({ deals: { some: { AND: dealFieldConds } } });
   }
 
   return conditions;
