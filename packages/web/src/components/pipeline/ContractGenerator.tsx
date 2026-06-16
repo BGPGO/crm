@@ -25,6 +25,13 @@ interface ContractFormData {
   nomeFantasia: string;
   cnpj: string;
   endereco: string;
+  cep: string;
+  logradouro: string;
+  numeroEndereco: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  estado: string;
   representante: string;
   cpfRepresentante: string;
   emailRepresentante: string;
@@ -37,6 +44,7 @@ interface ContractFormData {
   valorMensal: string;
   diaVencimento: string;
   dataInicio: string;
+  dataPrimeiraParcela: string;
   formaPagamento: string;
   valorImplementacao: string;
   implementacaoParcelas: string;
@@ -105,6 +113,13 @@ const INITIAL_FORM: ContractFormData = {
   nomeFantasia: "",
   cnpj: "",
   endereco: "",
+  cep: "",
+  logradouro: "",
+  numeroEndereco: "",
+  complemento: "",
+  bairro: "",
+  cidade: "",
+  estado: "",
   representante: "",
   cpfRepresentante: "",
   emailRepresentante: "",
@@ -117,6 +132,7 @@ const INITIAL_FORM: ContractFormData = {
   valorMensal: "",
   diaVencimento: "10",
   dataInicio: "",
+  dataPrimeiraParcela: "",
   formaPagamento: "boleto",
   valorImplementacao: "",
   implementacaoParcelas: "1",
@@ -200,6 +216,15 @@ function validateContractForm(form: ContractFormData): string[] {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Monta o endereço de exibição a partir dos campos estruturados (CEP validado).
+function composeEndereco(form: ContractFormData): string {
+  const ruaNumero = [form.logradouro, form.numeroEndereco].filter((p) => p && p.trim()).join(", ");
+  const cidadeUf = [form.cidade, form.estado].filter((p) => p && p.trim()).join("/");
+  return [ruaNumero, form.complemento, form.bairro, cidadeUf, form.cep ? `CEP ${form.cep}` : ""]
+    .filter((p) => p && p.trim())
+    .join(" - ");
+}
 
 function formatCurrencyBR(value: string | number): string {
   let num: number;
@@ -421,7 +446,7 @@ function ContractContent({ form }: { form: ContractFormData }) {
           </tr>
           <tr>
             <td style={{ fontWeight: "bold", border: "1px solid #000", padding: "6px 8px" }}>Endereço:</td>
-            <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{form.endereco}</td>
+            <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{composeEndereco(form) || form.endereco}</td>
           </tr>
           <tr>
             <td style={{ fontWeight: "bold", border: "1px solid #000", padding: "6px 8px" }}>Representante Legal:</td>
@@ -528,7 +553,7 @@ function ContractContent({ form }: { form: ContractFormData }) {
         <strong>5.1.</strong> Pelos serviços prestados, a CONTRATANTE pagará à CONTRATADA os valores definidos na descrição do produto contratado.
       </p>
       <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
-        <strong>5.2.</strong> Os valores serão devidos mensalmente, com vencimento no dia {form.diaVencimento} de cada mês, sendo o primeiro pagamento devido no mês de início dos serviços.
+        <strong>5.2.</strong> Os valores serão devidos mensalmente, com vencimento no dia {form.diaVencimento} de cada mês, sendo o primeiro pagamento devido {form.dataPrimeiraParcela ? `em ${new Date(form.dataPrimeiraParcela + "T12:00:00").toLocaleDateString("pt-BR")}` : "no mês de início dos serviços"}.
       </p>
       <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
         <strong>5.3.</strong> O atraso no pagamento implicará multa de 2% sobre o valor devido, acrescido de juros de mora de 1% ao mês, calculados pro rata die.
@@ -986,6 +1011,37 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [orderedSigners, setOrderedSigners] = useState<Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}>>([]);
   const [sortable, setSortable] = useState(true);
+  // Status da validação do CEP. Endereço estruturado é imperativo p/ gerar cobrança na Conta Azul.
+  const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
+
+  // ── Valida e autopreenche endereço pelo CEP (ViaCEP) ──
+  const lookupCep = useCallback(async (rawCep: string) => {
+    const digits = (rawCep || "").replace(/\D/g, "");
+    if (digits.length !== 8) {
+      setCepStatus(digits.length === 0 ? "idle" : "invalid");
+      return;
+    }
+    setCepStatus("loading");
+    try {
+      const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await resp.json();
+      if (!resp.ok || data?.erro) {
+        setCepStatus("invalid");
+        return;
+      }
+      setForm((prev) => ({
+        ...prev,
+        cep: digits,
+        logradouro: data.logradouro || prev.logradouro,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+        estado: data.uf || prev.estado,
+      }));
+      setCepStatus("valid");
+    } catch {
+      setCepStatus("invalid");
+    }
+  }, []);
 
   const contractRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1085,6 +1141,8 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
             setForm({ ...INITIAL_FORM, ...restored });
+            // CEP já salvo (8 dígitos) é considerado válido — não força re-lookup ao editar.
+            if (((restored as any).cep || "").replace(/\D/g, "").length === 8) setCepStatus("valid");
           } else {
             prefillFromDeal();
           }
@@ -1240,19 +1298,36 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       return;
     }
 
+    // Endereço (CEP válido) é imperativo p/ gerar cobrança na Conta Azul — trava se inválido.
+    const cepDigits = (form.cep || "").replace(/\D/g, "");
+    if (cepStatus === "loading") {
+      alert("Aguarde a validação do CEP antes de enviar.");
+      return;
+    }
+    if (cepDigits.length !== 8 || cepStatus === "invalid") {
+      alert("CEP inválido ou não preenchido. O endereço é obrigatório para gerar a cobrança — corrija o CEP.");
+      return;
+    }
+    if (!form.numeroEndereco?.trim()) {
+      alert("Informe o número do endereço.");
+      return;
+    }
+
     setSendingAutentique(true);
     try {
+      // Endereço composto a partir dos campos estruturados (âncora = CEP validado)
+      const formToSave = { ...form, endereco: composeEndereco(form) };
       // Ensure contract exists
       let cId = contractId;
       if (!cId) {
-        const res = await api.post<{ data: { id: string } }>("/contracts", { dealId, ...form });
+        const res = await api.post<{ data: { id: string } }>("/contracts", { dealId, ...formToSave });
         cId = res.data.id;
         setContractId(cId);
       }
 
       // Save HTML content first
       const html = generateContractHTML();
-      await api.put(`/contracts/${cId}`, { ...form, htmlContent: html });
+      await api.put(`/contracts/${cId}`, { ...formToSave, htmlContent: html });
 
       // Build signers from orderedSigners state.
       // Quando sortable=true, a Autentique respeita a ordem do array.
@@ -1530,15 +1605,41 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               placeholder="00.000.000/0000-00"
             />
           </FormField>
-          <FormField label="Endereço Completo">
-            <TextInput
-              value={form.endereco}
-              onChange={(v) => updateField("endereco", v)}
-              placeholder="Rua, número, bairro, cidade/UF, CEP"
+          <FormField label="CEP">
+            <input
+              type="text"
+              value={form.cep}
+              onChange={(e) => { updateField("cep", e.target.value); setCepStatus("idle"); }}
+              onBlur={(e) => lookupCep(e.target.value)}
+              placeholder="00000-000"
+              className={`w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white ${cepStatus === "invalid" ? "border-red-400" : "border-gray-200"}`}
             />
+            {cepStatus === "loading" && <p className="text-xs text-gray-500 mt-1">Validando CEP…</p>}
+            {cepStatus === "invalid" && <p className="text-xs text-red-600 mt-1">CEP inválido — corrija para gerar o contrato.</p>}
+            {cepStatus === "valid" && <p className="text-xs text-green-600 mt-1">CEP válido ✓ — endereço preenchido automaticamente.</p>}
           </FormField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Logradouro">
+              <TextInput value={form.logradouro} onChange={(v) => updateField("logradouro", v)} placeholder="Rua / Avenida" />
+            </FormField>
+            <FormField label="Número">
+              <TextInput value={form.numeroEndereco} onChange={(v) => updateField("numeroEndereco", v)} placeholder="123" />
+            </FormField>
+            <FormField label="Complemento">
+              <TextInput value={form.complemento} onChange={(v) => updateField("complemento", v)} placeholder="Sala, andar (opcional)" />
+            </FormField>
+            <FormField label="Bairro">
+              <TextInput value={form.bairro} onChange={(v) => updateField("bairro", v)} placeholder="Bairro" />
+            </FormField>
+            <FormField label="Cidade">
+              <TextInput value={form.cidade} onChange={(v) => updateField("cidade", v)} placeholder="Cidade" />
+            </FormField>
+            <FormField label="UF">
+              <TextInput value={form.estado} onChange={(v) => updateField("estado", v)} placeholder="UF" />
+            </FormField>
+          </div>
           <FormField label="Representante Legal">
-            <TextInput
+    <TextInput
               value={form.representante}
               onChange={(v) => updateField("representante", v)}
               placeholder="Nome completo do representante"
@@ -1681,6 +1782,14 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               onChange={(v) => updateField("dataInicio", v)}
               type="date"
             />
+          </FormField>
+          <FormField label="Data da 1ª Parcela">
+            <TextInput
+              value={form.dataPrimeiraParcela}
+              onChange={(v) => updateField("dataPrimeiraParcela", v)}
+              type="date"
+            />
+            <p className="text-xs text-gray-500 mt-1">Vencimento da 1ª cobrança (pode ser posterior ao início). Define o início do faturamento na Conta Azul.</p>
           </FormField>
           <FormField label="Forma de Pagamento">
             <select

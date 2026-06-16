@@ -63,6 +63,13 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       nomeFantasia: overrides.nomeFantasia || '',
       cnpj: overrides.cnpj || deal.organization?.cnpj || '',
       endereco: overrides.endereco || deal.organization?.address || '',
+      cep: overrides.cep || null,
+      logradouro: overrides.logradouro || null,
+      numeroEndereco: overrides.numeroEndereco || null,
+      complemento: overrides.complemento || null,
+      bairro: overrides.bairro || null,
+      cidade: overrides.cidade || null,
+      estado: overrides.estado || null,
       representante: overrides.representante || deal.contact?.name || '',
       cpfRepresentante: overrides.cpfRepresentante || '',
       emailRepresentante: overrides.emailRepresentante || deal.contact?.email || '',
@@ -77,6 +84,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       valorMensal: deal.value ? Number(deal.value) : 0,
       diaVencimento: parseInt(overrides.diaVencimento) || 10,
       dataInicio: overrides.dataInicio ? new Date(overrides.dataInicio) : new Date(),
+      dataPrimeiraParcela: overrides.dataPrimeiraParcela ? new Date(overrides.dataPrimeiraParcela) : null,
       formaPagamento: overrides.formaPagamento || 'boleto',
       valorImplementacao: overrides.valorImplementacao ? parseFloat(overrides.valorImplementacao) : null,
       implementacaoParcelas: overrides.implementacaoParcelas ? parseInt(overrides.implementacaoParcelas) : null,
@@ -130,9 +138,10 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     // O resync é feito abaixo após o update.
     const allowedFields = [
       'razaoSocial', 'nomeFantasia', 'cnpj', 'endereco', 'representante',
+      'cep', 'logradouro', 'numeroEndereco', 'complemento', 'bairro', 'cidade', 'estado',
       'cpfRepresentante', 'emailRepresentante', 'emailFinanceiro',
       'produto', 'strategyModules', 'biOrigemDados', 'biQtdLicencas', 'biQtdTelasPersonalizadas',
-      'diaVencimento', 'dataInicio', 'formaPagamento',
+      'diaVencimento', 'dataInicio', 'dataPrimeiraParcela', 'formaPagamento',
       'valorImplementacao', 'implementacaoParcelas', 'descontoMeses', 'descontoPercentual',
       'observacao', 'linkReadAi',
       'testemunha1Nome', 'testemunha1Cpf', 'testemunha1Email',
@@ -142,6 +151,9 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
     const intFields = new Set(['diaVencimento', 'implementacaoParcelas', 'descontoMeses']);
     const decimalFields = new Set(['valorImplementacao', 'descontoPercentual']);
+    // dataInicio é obrigatório (não-nulo); dataPrimeiraParcela é opcional (aceita null)
+    const dateFields = new Set(['dataInicio', 'dataPrimeiraParcela']);
+    const nullableDateFields = new Set(['dataPrimeiraParcela']);
     // Required numeric fields cannot be null — default to 0 instead
     const requiredNumeric = new Set(['diaVencimento']);
 
@@ -149,8 +161,8 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         const val = req.body[field];
-        if (field === 'dataInicio') {
-          data[field] = new Date(val);
+        if (dateFields.has(field)) {
+          data[field] = (val === null || val === '') && nullableDateFields.has(field) ? null : new Date(val);
         } else if (intFields.has(field)) {
           const parsed = val !== null && val !== '' ? parseInt(val) : NaN;
           data[field] = Number.isNaN(parsed) || parsed === null ? (requiredNumeric.has(field) ? 0 : null) : parsed;

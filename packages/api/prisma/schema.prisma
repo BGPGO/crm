@@ -983,7 +983,15 @@ model Contract {
   razaoSocial        String
   nomeFantasia       String?
   cnpj               String
-  endereco           String
+  endereco           String // composto a partir dos campos estruturados abaixo (display/legado)
+  // Endereço estruturado (âncora p/ cadastro na Conta Azul — CEP validado na montagem)
+  cep                String?
+  logradouro         String?
+  numeroEndereco     String?
+  complemento        String?
+  bairro             String?
+  cidade             String?
+  estado             String? // UF
   representante      String
   cpfRepresentante   String
   emailRepresentante String
@@ -1000,6 +1008,7 @@ model Contract {
   valorMensal           Decimal  @db.Decimal(15, 2)
   diaVencimento         Int
   dataInicio            DateTime
+  dataPrimeiraParcela   DateTime? // data de vencimento da 1ª parcela definida pelo comercial (pode ser > dataInicio)
   formaPagamento        String   @default("boleto")
   valorImplementacao    Decimal? @db.Decimal(15, 2)
   implementacaoParcelas Int?
