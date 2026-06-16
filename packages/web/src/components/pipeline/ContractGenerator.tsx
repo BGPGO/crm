@@ -1011,37 +1011,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [orderedSigners, setOrderedSigners] = useState<Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}>>([]);
   const [sortable, setSortable] = useState(true);
-  // Status da validação do CEP. Endereço estruturado é imperativo p/ gerar cobrança na Conta Azul.
-  const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "valid" | "invalid">("idle");
-
-  // ── Valida e autopreenche endereço pelo CEP (ViaCEP) ──
-  const lookupCep = useCallback(async (rawCep: string) => {
-    const digits = (rawCep || "").replace(/\D/g, "");
-    if (digits.length !== 8) {
-      setCepStatus(digits.length === 0 ? "idle" : "invalid");
-      return;
-    }
-    setCepStatus("loading");
-    try {
-      const resp = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const data = await resp.json();
-      if (!resp.ok || data?.erro) {
-        setCepStatus("invalid");
-        return;
-      }
-      setForm((prev) => ({
-        ...prev,
-        cep: digits,
-        logradouro: data.logradouro || prev.logradouro,
-        bairro: data.bairro || prev.bairro,
-        cidade: data.localidade || prev.cidade,
-        estado: data.uf || prev.estado,
-      }));
-      setCepStatus("valid");
-    } catch {
-      setCepStatus("invalid");
-    }
-  }, []);
+  // Validação/autocomplete de CEP DESATIVADA temporariamente (preenchimento manual do endereço).
 
   const contractRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1141,8 +1111,6 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
             setForm({ ...INITIAL_FORM, ...restored });
-            // CEP já salvo (8 dígitos) é considerado válido — não força re-lookup ao editar.
-            if (((restored as any).cep || "").replace(/\D/g, "").length === 8) setCepStatus("valid");
           } else {
             prefillFromDeal();
           }
@@ -1298,21 +1266,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       return;
     }
 
-    // Endereço (CEP válido) é imperativo p/ gerar cobrança na Conta Azul — trava se inválido.
-    const cepDigits = (form.cep || "").replace(/\D/g, "");
-    if (cepStatus === "loading") {
-      alert("Aguarde a validação do CEP antes de enviar.");
-      return;
-    }
-    if (cepDigits.length !== 8 || cepStatus === "invalid") {
-      alert("CEP inválido ou não preenchido. O endereço é obrigatório para gerar a cobrança — corrija o CEP.");
-      return;
-    }
-    if (!form.numeroEndereco?.trim()) {
-      alert("Informe o número do endereço.");
-      return;
-    }
-
+    // Validação de CEP DESATIVADA temporariamente (não trava o envio) — preenchimento manual.
     setSendingAutentique(true);
     try {
       // Endereço composto a partir dos campos estruturados (âncora = CEP validado)
@@ -1606,17 +1560,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             />
           </FormField>
           <FormField label="CEP">
-            <input
-              type="text"
-              value={form.cep}
-              onChange={(e) => { updateField("cep", e.target.value); setCepStatus("idle"); }}
-              onBlur={(e) => lookupCep(e.target.value)}
-              placeholder="00000-000"
-              className={`w-full border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-petrol-400 bg-white ${cepStatus === "invalid" ? "border-red-400" : "border-gray-200"}`}
-            />
-            {cepStatus === "loading" && <p className="text-xs text-gray-500 mt-1">Validando CEP…</p>}
-            {cepStatus === "invalid" && <p className="text-xs text-red-600 mt-1">CEP inválido — corrija para gerar o contrato.</p>}
-            {cepStatus === "valid" && <p className="text-xs text-green-600 mt-1">CEP válido ✓ — endereço preenchido automaticamente.</p>}
+            <TextInput value={form.cep} onChange={(v) => updateField("cep", v)} placeholder="00000-000" />
           </FormField>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Logradouro">
