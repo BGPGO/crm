@@ -262,16 +262,21 @@ async function handleSentDocumentSigned(sentDocument: any) {
     deal: sentDocument.deal,
   }, { kind: sentDocument.documentType, documentName: sentDocument.documentName, autentiqueDocumentId: sentDocument.autentiqueDocumentId });
 
-  // Notification (email + WhatsApp) using deal data, since SentDocument doesn't have produto/valorMensal
-  const clientName = sentDocument.deal?.organization?.name || sentDocument.deal?.contact?.name || 'Cliente';
-  const dealTitle = sentDocument.deal?.title || sentDocument.documentName;
-  const dealValue = sentDocument.deal?.value != null ? String(sentDocument.deal.value) : '—';
-  await sendDealWonNotifications({
-    clientName,
-    dealTitle,
-    produto: docTypeLabel,
-    valorMensal: dealValue,
-  });
+  // Notificação de "contrato ganho" (email verde de celebração) só faz sentido p/
+  // contrato/aditivo. Distrato é churn — a notificação acionável do financeiro (Edu)
+  // é tratada no FinHub (tela "Gestão de Contratos CRM" + lembrete de revisão), via
+  // o sinal acima com kind='distrato'. Aqui NÃO mandamos o email de "won".
+  if (!isChurn) {
+    const clientName = sentDocument.deal?.organization?.name || sentDocument.deal?.contact?.name || 'Cliente';
+    const dealTitle = sentDocument.deal?.title || sentDocument.documentName;
+    const dealValue = sentDocument.deal?.value != null ? String(sentDocument.deal.value) : '—';
+    await sendDealWonNotifications({
+      clientName,
+      dealTitle,
+      produto: docTypeLabel,
+      valorMensal: dealValue,
+    });
+  }
 }
 
 async function handleAllSigned(contract: any) {
