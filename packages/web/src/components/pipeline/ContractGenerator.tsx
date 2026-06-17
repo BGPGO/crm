@@ -218,15 +218,6 @@ function validateContractForm(form: ContractFormData): string[] {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Monta o endereço de exibição a partir dos campos estruturados (CEP validado).
-function composeEndereco(form: ContractFormData): string {
-  const ruaNumero = [form.logradouro, form.numeroEndereco].filter((p) => p && p.trim()).join(", ");
-  const cidadeUf = [form.cidade, form.estado].filter((p) => p && p.trim()).join("/");
-  return [ruaNumero, form.complemento, form.bairro, cidadeUf, form.cep ? `CEP ${form.cep}` : ""]
-    .filter((p) => p && p.trim())
-    .join(" - ");
-}
-
 function formatCurrencyBR(value: string | number): string {
   let num: number;
   if (typeof value === "number") {
@@ -448,7 +439,7 @@ function ContractContent({ form }: { form: ContractFormData }) {
           </tr>
           <tr>
             <td style={{ fontWeight: "bold", border: "1px solid #000", padding: "6px 8px" }}>Endereço:</td>
-            <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{composeEndereco(form) || form.endereco}</td>
+            <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{form.endereco}</td>
           </tr>
           <tr>
             <td style={{ fontWeight: "bold", border: "1px solid #000", padding: "6px 8px" }}>Representante Legal:</td>
@@ -1302,11 +1293,9 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       return;
     }
 
-    // Validação de CEP DESATIVADA temporariamente (não trava o envio) — preenchimento manual.
     setSendingAutentique(true);
     try {
-      // Endereço composto a partir dos campos estruturados (âncora = CEP validado)
-      const formToSave = { ...form, endereco: composeEndereco(form) };
+      const formToSave = form;
       // Ensure contract exists
       let cId = contractId;
       if (!cId) {
@@ -1595,29 +1584,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               placeholder="00.000.000/0000-00"
             />
           </FormField>
-          <FormField label="CEP">
-            <TextInput value={form.cep} onChange={(v) => updateField("cep", v)} placeholder="00000-000" />
+          <FormField label="Endereço Completo">
+            <TextInput
+              value={form.endereco}
+              onChange={(v) => updateField("endereco", v)}
+              placeholder="Rua, número, complemento, bairro, cidade/UF, CEP"
+            />
           </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Logradouro">
-              <TextInput value={form.logradouro} onChange={(v) => updateField("logradouro", v)} placeholder="Rua / Avenida" />
-            </FormField>
-            <FormField label="Número">
-              <TextInput value={form.numeroEndereco} onChange={(v) => updateField("numeroEndereco", v)} placeholder="123" />
-            </FormField>
-            <FormField label="Complemento">
-              <TextInput value={form.complemento} onChange={(v) => updateField("complemento", v)} placeholder="Sala, andar (opcional)" />
-            </FormField>
-            <FormField label="Bairro">
-              <TextInput value={form.bairro} onChange={(v) => updateField("bairro", v)} placeholder="Bairro" />
-            </FormField>
-            <FormField label="Cidade">
-              <TextInput value={form.cidade} onChange={(v) => updateField("cidade", v)} placeholder="Cidade" />
-            </FormField>
-            <FormField label="UF">
-              <TextInput value={form.estado} onChange={(v) => updateField("estado", v)} placeholder="UF" />
-            </FormField>
-          </div>
           <FormField label="Representante Legal">
     <TextInput
               value={form.representante}
