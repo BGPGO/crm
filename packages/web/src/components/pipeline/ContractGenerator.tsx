@@ -265,7 +265,7 @@ function todayISO(): string {
 }
 
 function isBIProduct(produto: string): boolean {
-  return produto === "BGP BI" || produto === "BI Personalizado";
+  return produto === "BGP BI" || produto === "BI Personalizado" || produto === "GO BI by AiMO";
 }
 
 function isStrategyProduct(produto: string): boolean {
@@ -652,13 +652,13 @@ function ContractContent({ form }: { form: ContractFormData }) {
       </table>
 
       {/* Anexo BGP BI */}
-      {(form.produto === "BGP BI" || form.produto === "BI Personalizado") && (form.biOrigemDados || form.biQtdLicencas || form.biQtdTelasPersonalizadas) && (
+      {isBIProduct(form.produto) && (form.biOrigemDados || form.biQtdLicencas || form.biQtdTelasPersonalizadas) && (
         <div style={{ pageBreakBefore: "always", marginTop: 40 }}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <img src={logoSrc} alt="BGP Logo" style={{ height: 40 }} />
           </div>
           <h1 style={{ fontSize: "14pt", fontWeight: "bold", textAlign: "center", margin: "24px 0 20px", textTransform: "uppercase" }}>
-            ANEXO I – ESPECIFICAÇÕES {form.produto === "BI Personalizado" ? "BGP BI PERSONALIZADO" : "BGP BI"}
+            ANEXO I – ESPECIFICAÇÕES {form.produto === "BI Personalizado" ? "BGP BI PERSONALIZADO" : form.produto === "GO BI by AiMO" ? "GO BI BY AiMO" : "BGP BI"}
           </h1>
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
             <tbody>
@@ -883,6 +883,40 @@ function ProductBlock({
             <strong>1.1.5.</strong> A licença da Plataforma de BI e os serviços a ele inerentes serão fornecidos mensalmente e de modo contínuo durante toda a vigência do Contrato.
           </p>
           <h3 style={{ fontWeight: "bold", marginTop: 12 }}>VALORES BGP BI E DADOS DE PAGAMENTO:</h3>
+          <div style={{ border: "1px solid #999", padding: 10, margin: "10px 0", whiteSpace: "pre-wrap", fontSize: "12pt" }}>{valoresText}</div>
+        </div>
+      );
+    case "GO BI by AiMO":
+      return (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ border: "1px solid #000", padding: "8px 12px", margin: "10px 0", fontWeight: "bold", fontSize: "12pt" }}>{marker} GO BI BY AiMO</div>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.1.</strong> A contratação do "GO BI by AiMO" contempla a outorga de uma licença não-exclusiva, temporária, revogável e condicionada ao devido cumprimento do presente Contrato para uso da plataforma de Business Intelligence (BI) ("Plataforma de BI") explorada pela CONTRATADA, voltada à análise de dados operacionais e imobiliários, para os exclusivos fins de acesso e visualização dos dados, indicadores e informações de mercado relacionados ao negócio da CONTRATANTE nos termos ora contratados.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.2.</strong> Também faz parte do presente Contrato:
+          </p>
+          <div style={{ paddingLeft: "1.25cm" }}>
+            <p>(a) Os serviços para implantação da Plataforma BI junto à CONTRATANTE;</p>
+            <p>(b) A integração da Plataforma BI com os sistemas/planilhas utilizados pela CONTRATANTE, caso compatíveis;</p>
+            <p>(c) O serviço de suporte, via e-mail ou tickets abertos dentro da própria Plataforma, para fins de suporte técnico no caso de mal funcionamento da Plataforma de BI e orientação da CONTRATANTE.</p>
+          </div>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.3.</strong> Para a implementação da solução, a CONTRATANTE deverá disponibilizar acesso às bases de dados necessárias à operação do sistema, mediante concessão de acesso à API do sistema utilizado e/ou mediante o envio de planilhas contendo os dados operacionais e/ou imobiliários pertinentes à análise.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.4.</strong> A CONTRATANTE declara-se ciente de que será necessário um prazo técnico inicial estimado de até 15 (quinze) dias, contado da disponibilização das bases de dados, para fins de coleta, extração, tratamento e consolidação das informações, bem como para o treinamento, parametrização e calibração do algoritmo e das estruturas analíticas utilizadas pela solução, etapa indispensável para o pleno funcionamento da Plataforma de BI.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.5.</strong> As informações de mercado utilizadas pela solução serão atualizadas pela CONTRATADA em periodicidade semanal, enquanto os dados provenientes dos sistemas da CONTRATANTE serão atualizados conforme periodicidade a ser definida entre as partes no momento da contratação, adotando-se, como padrão, a atualização diária, sempre que houver disponibilidade técnica para integração ou sincronização automática entre os sistemas.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.6.</strong> A CONTRATADA oferece à CONTRATANTE a opção de personalização/customização de análises/telas da Plataforma de BI, conforme disponibilidade da Plataforma de BI e das informações disponíveis para tal fim, sendo devido valor adicional por cada análise/tela personalizada criada, conforme anexo.
+          </p>
+          <p style={{ textAlign: "justify", textIndent: "1.25cm" }}>
+            <strong>1.1.7.</strong> A licença da Plataforma de BI e os serviços a ela inerentes serão fornecidos mensalmente e de modo contínuo durante toda a vigência do Contrato.
+          </p>
+          <h3 style={{ fontWeight: "bold", marginTop: 12 }}>VALORES GO BI BY AiMO E DADOS DE PAGAMENTO:</h3>
           <div style={{ border: "1px solid #999", padding: 10, margin: "10px 0", whiteSpace: "pre-wrap", fontSize: "12pt" }}>{valoresText}</div>
         </div>
       );
