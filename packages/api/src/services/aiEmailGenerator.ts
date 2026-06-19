@@ -81,10 +81,14 @@ DESTAQUE/QUOTE (para frases de impacto):
 <p style="margin:0;font-size:15px;font-style:italic;color:#244c5a;line-height:1.6;">Frase de destaque aqui</p>
 </div>
 
-BOTÃO CTA (use data-cta="true" para o editor detectar):
+BOTÃO CTA:
 <div style="text-align:center;margin:32px 0;">
 <a href="https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp" data-cta="true" style="display:inline-block;background-color:#3ae056;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px;font-family:'Montserrat',Arial,sans-serif;letter-spacing:0.3px;">Texto do botão →</a>
 </div>
+REGRA OBRIGATÓRIA DOS BOTÕES (o editor de links depende disso):
+- TODO botão/CTA precisa ter o atributo data-cta="true" na tag <a> — sem exceção, inclusive o 2º e 3º botões.
+- Cada botão precisa de um href ÚNICO e real. NUNCA repita o mesmo link em dois botões; se houver só um destino, use um botão só.
+- Você é livre pra escolher cor, texto, formato e quantidade — só não pode quebrar essas duas regras.
 
 ASSINATURA:
 <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e5e5e5;">
@@ -169,10 +173,14 @@ DESTAQUE/QUOTE:
 <p style="margin:0;font-size:15px;color:#0A0E1F;line-height:1.6;font-family:'Inter',Arial,sans-serif;">Frase de destaque</p>
 </div>
 
-BOTÃO CTA (use data-cta="true"):
+BOTÃO CTA:
 <div style="text-align:center;margin:32px 0;">
 <a href="https://calendly.com/aimocorp/diagnostico" data-cta="true" style="display:inline-block;background-color:#1E3FFF;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;font-family:'Space Grotesk','Inter',Arial,sans-serif;letter-spacing:0.2px;">Texto do botão →</a>
 </div>
+REGRA OBRIGATÓRIA DOS BOTÕES (o editor de links depende disso):
+- TODO botão/CTA precisa ter o atributo data-cta="true" na tag <a> — sem exceção, inclusive o 2º e 3º botões.
+- Cada botão precisa de um href ÚNICO e real. NUNCA repita o mesmo link em dois botões; se houver só um destino, use um botão só.
+- Você é livre pra escolher cor, texto, formato e quantidade — só não pode quebrar essas duas regras.
 
 ASSINATURA:
 <div style="margin-top:32px;padding-top:20px;border-top:1px solid #E6E8EF;">
@@ -238,7 +246,7 @@ REGRAS DE DESIGN:
 - Títulos: <h2 style="margin:32px 0 16px 0;font-size:20px;font-weight:700;color:#244c5a;">
 - Divisórias: <hr style="border:none;border-top:2px solid #abc7c9;margin:32px 0;">
 - Destaques: <div style="background-color:#f0f7f8;border-left:4px solid #244c5a;padding:16px 20px;margin:24px 0;border-radius:0 8px 8px 0;">
-- Botões: <a href="URL" data-cta="true" style="display:inline-block;background-color:#3ae056;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px;">
+- Botões: <a href="URL" data-cta="true" style="display:inline-block;background-color:#3ae056;color:#ffffff;padding:14px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:15px;"> — TODO botão precisa de data-cta="true" e href único (nunca repita link entre botões)
 - Assinatura: borda top #e5e5e5, nome em #244c5a bold
 
 REGRAS DE COPY:
@@ -260,7 +268,7 @@ REGRAS DE DESIGN (AIMO):
 - Títulos: <h2 style="margin:32px 0 16px 0;font-size:22px;font-weight:600;color:#0A0E1F;font-family:'Space Grotesk','Inter',Arial,sans-serif;letter-spacing:-0.01em;">
 - Divisórias: <hr style="border:none;border-top:1px solid #E6E8EF;margin:32px 0;">
 - Destaques: <div style="background-color:#EEF1FF;border-left:4px solid #1E3FFF;padding:18px 22px;margin:24px 0;border-radius:0 8px 8px 0;">
-- Botões: <a href="https://calendly.com/aimocorp/diagnostico" data-cta="true" style="display:inline-block;background-color:#1E3FFF;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;font-family:'Space Grotesk','Inter',Arial,sans-serif;">
+- Botões: <a href="URL" data-cta="true" style="display:inline-block;background-color:#1E3FFF;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;font-family:'Space Grotesk','Inter',Arial,sans-serif;"> — TODO botão precisa de data-cta="true" e href único (nunca repita link entre botões)
 - Assinatura: borda top #E6E8EF, "Equipe AiMO Corp" em #1E3FFF bold (sem nome de pessoa)
 
 REGRAS DE COPY:

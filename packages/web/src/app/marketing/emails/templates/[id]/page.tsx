@@ -21,6 +21,7 @@ import {
   PenLine,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { extractButtons, replaceButtonHrefAt } from "@/lib/emailButtons";
 import { useBrand } from "@/contexts/BrandContext";
 import EmailPreview from "@/components/marketing/EmailPreview";
 
@@ -65,26 +66,6 @@ function removeImageFromHtml(html: string, src: string): string {
     ""
   );
   return result;
-}
-
-function extractButtons(html: string): { text: string; href: string; index: number }[] {
-  const buttons: { text: string; href: string; index: number }[] = [];
-  // Match <a> tags that look like buttons (have data-cta, or padding+background-color in style)
-  const regex = /<a\s[^>]*href=["']([^"']*)["'][^>]*(?:data-cta|padding[^"]*background)[^>]*>([\s\S]*?)<\/a>/gi;
-  let match;
-  let i = 0;
-  while ((match = regex.exec(html))) {
-    const text = match[2].replace(/<[^>]+>/g, '').trim();
-    buttons.push({ href: match[1], text, index: i++ });
-  }
-  return buttons;
-}
-
-function replaceButtonHref(html: string, oldHref: string, newHref: string): string {
-  return html.replace(
-    new RegExp(`(href=["'])${oldHref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(["'])`, "g"),
-    `$1${newHref}$2`
-  );
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -844,7 +825,7 @@ ${bodyHtml}
                               <button
                                 onClick={() => {
                                   const current = previewRef.current?.innerHTML ?? htmlContent;
-                                  const updated = replaceButtonHref(current, btn.href, editBtnHref);
+                                  const updated = replaceButtonHrefAt(current, btn.index, editBtnHref);
                                   editorInitialised.current = false;
                                   setHtmlContent(updated);
                                   setEditingBtnIdx(null);
