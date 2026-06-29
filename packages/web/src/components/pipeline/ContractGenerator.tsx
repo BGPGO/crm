@@ -1074,6 +1074,65 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     setForm((prev) => ({ ...prev, [field]: value }));
   }, []);
 
+  const [cepLoading, setCepLoading] = useState(false);
+
+  // Texto do endereço (vai no documento do contrato) montado dos campos estruturados.
+  const composeEnderecoText = (f: Partial<ContractFormData>) => {
+    const cepFmt = (f.cep || "").replace(/\D/g, "").replace(/^(\d{5})(\d{3}).*/, "$1-$2");
+    const parts = [
+      [f.logradouro, f.numeroEndereco].filter(Boolean).join(", "),
+      f.complemento,
+      f.bairro,
+      [f.cidade, f.estado].filter(Boolean).join(" - "),
+      cepFmt ? `CEP ${cepFmt}` : "",
+    ].filter(Boolean);
+    return parts.length ? parts.join(", ") + "." : "";
+  };
+
+  // Atualiza um campo estruturado e recompõe o texto do endereço (não trava edição manual).
+  const updateAddressField = useCallback((field: keyof ContractFormData, value: string) => {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      next.endereco = composeEnderecoText(next);
+      return next;
+    });
+  }, []);
+
+  // Busca endereço pelo CEP (ViaCEP, fallback BrasilAPI). Conveniência — campos seguem editáveis.
+  const lookupCep = useCallback(async (rawCep: string) => {
+    const cep = (rawCep || "").replace(/\D/g, "");
+    if (cep.length !== 8) return;
+    setCepLoading(true);
+    try {
+      let data: { logradouro?: string; bairro?: string; cidade?: string; estado?: string } | null = null;
+      try {
+        const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const j = await r.json();
+        if (j && !j.erro) data = { logradouro: j.logradouro, bairro: j.bairro, cidade: j.localidade, estado: j.uf };
+      } catch { /* tenta fallback */ }
+      if (!data) {
+        try {
+          const r = await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`);
+          if (r.ok) { const j = await r.json(); data = { logradouro: j.street, bairro: j.neighborhood, cidade: j.city, estado: j.state }; }
+        } catch { /* ignora */ }
+      }
+      if (!data) { showToast("warning", "CEP não encontrado. Preencha o endereço manualmente."); return; }
+      setForm((prev) => {
+        const next = {
+          ...prev, cep,
+          logradouro: data!.logradouro || prev.logradouro,
+          bairro: data!.bairro || prev.bairro,
+          cidade: data!.cidade || prev.cidade,
+          estado: data!.estado || prev.estado,
+        };
+        next.endereco = composeEnderecoText(next);
+        return next;
+      });
+    } finally {
+      setCepLoading(false);
+    }
+  }, []);
+
   // ── Pre-fill from deal data ──
   const prefillFromDeal = useCallback(() => {
     const updates: Partial<ContractFormData> = {};
@@ -1584,11 +1643,66 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               placeholder="00.000.000/0000-00"
             />
           </FormField>
-          <FormField label="Endereço Completo">
+          <FormField label="CEP">
+            <TextInput
+              value={form.cep}
+              onChange={(v) => {
+                const digits = v.replace(/\D/g, "").slice(0, 8);
+                const masked = digits.replace(/^(\d{5})(\d{0,3})/, (_m, a, b) => (b ? `${a}-${b}` : a));
+                updateAddressField("cep", masked);
+                if (digits.length === 8) lookupCep(digits);
+              }}
+              placeholder="00000-000"
+            />
+            {cepLoading && <p className="text-xs text-gray-500 mt-1">Buscando endereço…</p>}
+          </FormField>
+          <FormField label="Logradouro">
+            <TextInput
+              value={form.logradouro}
+              onChange={(v) => updateAddressField("logradouro", v)}
+              placeholder="Rua / Avenida"
+            />
+          </FormField>
+          <FormField label="Número">
+            <TextInput
+              value={form.numeroEndereco}
+              onChange={(v) => updateAddressField("numeroEndereco", v)}
+              placeholder="123"
+            />
+          </FormField>
+          <FormField label="Complemento">
+            <TextInput
+              value={form.complemento}
+              onChange={(v) => updateAddressField("complemento", v)}
+              placeholder="Sala, andar (opcional)"
+            />
+          </FormField>
+          <FormField label="Bairro">
+            <TextInput
+              value={form.bairro}
+              onChange={(v) => updateAddressField("bairro", v)}
+              placeholder="Bairro"
+            />
+          </FormField>
+          <FormField label="Cidade">
+            <TextInput
+              value={form.cidade}
+              onChange={(v) => updateAddressField("cidade", v)}
+              placeholder="Cidade"
+            />
+          </FormField>
+          <FormField label="Estado (UF)">
+            <TextInput
+              value={form.estado}
+              onChange={(v) => updateAddressField("estado", v.toUpperCase().slice(0, 2))}
+              placeholder="SP"
+            />
+          </FormField>
+          <FormField label="Endereço (como aparece no contrato)">
             <TextInput
               value={form.endereco}
               onChange={(v) => updateField("endereco", v)}
-              placeholder="Rua, número, complemento, bairro, cidade/UF, CEP"
+              placeholder="Preenchido automaticamente pelo CEP — editável"
             />
           </FormField>
           <FormField label="Representante Legal">
