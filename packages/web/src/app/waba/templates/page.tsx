@@ -275,6 +275,10 @@ function WhatsAppPreview({ form }: { form: FormState }) {
     return text.replace(v, example);
   }, form.body);
 
+  // Header de mídia (IMAGE/VIDEO/DOCUMENT): a URL fica em headerExample
+  // (exemplo exigido pela Meta); headerContent é usado só pra header TEXT.
+  const headerMediaUrl = form.headerExample || form.headerContent || "";
+
   return (
     <div className="flex flex-col items-center">
       <p className="text-xs font-medium text-gray-500 mb-3">Preview WhatsApp</p>
@@ -283,19 +287,39 @@ function WhatsAppPreview({ form }: { form: FormState }) {
         <div className="bg-white dark:bg-gray-700 rounded-lg shadow-sm overflow-hidden max-w-[260px]">
           {/* Header */}
           {form.headerType === "IMAGE" && (
-            <div className="bg-gray-100 dark:bg-gray-600 h-32 flex items-center justify-center">
-              <Image size={32} className="text-gray-400" />
-            </div>
+            /^https?:\/\//i.test(headerMediaUrl) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={headerMediaUrl}
+                alt="Header"
+                className="w-full h-40 object-cover bg-gray-100"
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  el.style.display = "none";
+                  el.parentElement?.classList.add("h-32", "bg-gray-100", "flex", "items-center", "justify-center");
+                }}
+              />
+            ) : (
+              <div className="bg-gray-100 dark:bg-gray-600 h-32 flex items-center justify-center">
+                <Image size={32} className="text-gray-400" />
+              </div>
+            )
           )}
           {form.headerType === "VIDEO" && (
-            <div className="bg-gray-100 dark:bg-gray-600 h-32 flex items-center justify-center">
-              <Video size={32} className="text-gray-400" />
-            </div>
+            /^https?:\/\//i.test(headerMediaUrl) ? (
+              <video src={headerMediaUrl} controls className="w-full h-40 object-cover bg-black" />
+            ) : (
+              <div className="bg-gray-100 dark:bg-gray-600 h-32 flex items-center justify-center">
+                <Video size={32} className="text-gray-400" />
+              </div>
+            )
           )}
           {form.headerType === "DOCUMENT" && (
             <div className="bg-gray-100 dark:bg-gray-600 h-16 flex items-center justify-center gap-2">
               <FileText size={20} className="text-gray-400" />
-              <span className="text-xs text-gray-500">documento.pdf</span>
+              <span className="text-xs text-gray-500">
+                {/^https?:\/\//i.test(headerMediaUrl) ? headerMediaUrl.split("/").pop() : "documento.pdf"}
+              </span>
             </div>
           )}
           {form.headerType === "TEXT" && form.headerContent && (
