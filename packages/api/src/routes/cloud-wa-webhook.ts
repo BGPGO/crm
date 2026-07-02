@@ -225,19 +225,33 @@ async function handleMessagesChange(value: any) {
       // Por enquanto só loga e armazena
       console.log(`[cloud-webhook] 📩 ${from} (${pushName}): ${text || `[${type}]`}`);
 
-      // Track button click: when user taps a CTA URL button, Meta sends it as type "button"
-      // Mark as "clicked" on the most recent broadcast contact for this phone
+      // Track button click: toque em QUICK_REPLY / botão interativo chega como
+      // mensagem inbound tipo "button"/"interactive". Marca o clique APENAS no
+      // broadcast mais recente enviado a este número (o updateMany antigo
+      // marcava em TODAS as campanhas passadas do contato) e incrementa o
+      // contador denormalizado (que antes nunca era incrementado por esta via).
       if (type === 'button' || type === 'interactive') {
         try {
           const normalizedFrom = from.startsWith('55') ? from : `55${from}`;
-          await prisma.waBroadcastContact.updateMany({
+          const target = await prisma.waBroadcastContact.findFirst({
             where: {
               phone: normalizedFrom,
               status: 'WA_BC_SENT',
               clickedAt: null,
             },
-            data: { clickedAt: new Date() },
+            orderBy: { sentAt: 'desc' },
+            select: { id: true, broadcastId: true },
           });
+          if (target) {
+            await prisma.waBroadcastContact.update({
+              where: { id: target.id },
+              data: { clickedAt: new Date() },
+            });
+            await prisma.waBroadcast.update({
+              where: { id: target.broadcastId },
+              data: { clickedCount: { increment: 1 } },
+            });
+          }
         } catch {
           // Non-critical
         }

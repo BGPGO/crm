@@ -65,6 +65,23 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       }),
     ]);
 
+    // Cliques reais são contados AO VIVO a partir de `clickedAt` (o campo
+    // denormalizado `clickedCount` pode estar defasado — antes só era escrito
+    // pelo tracker /api/t/, que quase nunca é atingido). Sobrescreve o valor
+    // pra a lista bater com a tela de detalhe.
+    const ids = data.map((b) => b.id);
+    if (ids.length > 0) {
+      const grouped = await prisma.waBroadcastContact.groupBy({
+        by: ['broadcastId'],
+        where: { broadcastId: { in: ids }, clickedAt: { not: null } },
+        _count: { _all: true },
+      });
+      const clickMap = new Map(grouped.map((g) => [g.broadcastId, g._count._all]));
+      for (const b of data) {
+        (b as typeof b & { clickedCount: number }).clickedCount = clickMap.get(b.id) ?? 0;
+      }
+    }
+
     res.json({
       data,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
