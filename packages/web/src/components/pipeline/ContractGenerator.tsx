@@ -213,6 +213,19 @@ function validateContractForm(form: ContractFormData): string[] {
   if (!form.cpfRepresentante?.trim()) errors.push('CPF do representante é obrigatório');
   if (!form.emailRepresentante?.trim()) errors.push('Email do representante é obrigatório');
 
+  // Endereço — CEP é IMPERATIVO p/ faturar no Conta Azul: tem que existir, ter 8 dígitos e
+  // ter preenchido o endereço (só acontece via lookup do CEP ou preenchimento manual completo).
+  const cepDigits = (form.cep || '').replace(/\D/g, '');
+  if (cepDigits.length !== 8) {
+    errors.push('CEP é obrigatório e deve ter 8 dígitos válidos. Se não souber, use "Buscar pelo endereço" (Correios/ViaCEP).');
+  } else {
+    if (!form.logradouro?.trim()) errors.push('Logradouro é obrigatório (preenchido pelo CEP)');
+    if (!form.bairro?.trim()) errors.push('Bairro é obrigatório (preenchido pelo CEP)');
+    if (!form.cidade?.trim()) errors.push('Cidade é obrigatória (preenchida pelo CEP)');
+    if (!form.estado?.trim()) errors.push('Estado (UF) é obrigatório (preenchido pelo CEP)');
+  }
+  if (!form.numeroEndereco?.trim()) errors.push('Número do endereço é obrigatório');
+
   return errors;
 }
 
@@ -1042,7 +1055,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [orderedSigners, setOrderedSigners] = useState<Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}>>([]);
   const [sortable, setSortable] = useState(true);
-  // Validação/autocomplete de CEP DESATIVADA temporariamente (preenchimento manual do endereço).
+  // CEP: validador (trava o envio) + autocomplete + pesquisador reverso (endereço → CEP). Reativado 03/07/26.
 
   const contractRef = useRef<HTMLDivElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1079,6 +1092,11 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   }, []);
 
   const [cepLoading, setCepLoading] = useState(false);
+  const [cepStatus, setCepStatus] = useState<"idle" | "valid" | "invalid">("idle");
+  // Pesquisador reverso de CEP (endereço → CEP, ViaCEP) — evita ter que ir no site dos Correios.
+  const [cepSearchOpen, setCepSearchOpen] = useState(false);
+  const [cepSearchLoading, setCepSearchLoading] = useState(false);
+  const [cepSearchResults, setCepSearchResults] = useState<Array<{ cep: string; logradouro: string; bairro: string; localidade: string; uf: string }>>([]);
 
   // Texto do endereço (vai no documento do contrato) montado dos campos estruturados.
   const composeEnderecoText = (f: Partial<ContractFormData>) => {
@@ -1120,7 +1138,11 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           if (r.ok) { const j = await r.json(); data = { logradouro: j.street, bairro: j.neighborhood, cidade: j.city, estado: j.state }; }
         } catch { /* ignora */ }
       }
-      if (!data) { showToast("warning", "CEP não encontrado. Preencha o endereço manualmente."); return; }
+      if (!data) {
+        setCepStatus("invalid");
+        showToast("warning", "CEP não encontrado. Confira o CEP ou use \"Buscar pelo endereço\".");
+        return;
+      }
       setForm((prev) => {
         const next = {
           ...prev, cep,
@@ -1132,9 +1154,58 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         next.endereco = composeEnderecoText(next);
         return next;
       });
+      setCepStatus("valid");
     } finally {
       setCepLoading(false);
     }
+  }, []);
+
+  // Pesquisa CEP a partir do endereço (UF + cidade + logradouro) via ViaCEP — retorna candidatos.
+  const searchCepByAddress = useCallback(async () => {
+    const uf = (form.estado || "").trim().toUpperCase();
+    const cidade = (form.cidade || "").trim();
+    const logradouro = (form.logradouro || "").trim();
+    if (uf.length !== 2 || cidade.length < 3 || logradouro.length < 3) {
+      showToast("warning", "Para buscar o CEP, preencha UF (2 letras), Cidade e Logradouro (mín. 3 letras cada).");
+      return;
+    }
+    setCepSearchLoading(true);
+    setCepSearchResults([]);
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${uf}/${encodeURIComponent(cidade)}/${encodeURIComponent(logradouro)}/json/`);
+      const j = await r.json();
+      if (Array.isArray(j) && j.length) {
+        setCepSearchResults(j.slice(0, 50).map((x: { cep: string; logradouro: string; bairro: string; localidade: string; uf: string }) => ({
+          cep: x.cep, logradouro: x.logradouro, bairro: x.bairro, localidade: x.localidade, uf: x.uf,
+        })));
+      } else {
+        showToast("warning", "Nenhum CEP encontrado para esse endereço. Confira UF/cidade/logradouro.");
+      }
+    } catch {
+      showToast("error", "Falha ao pesquisar o CEP. Tente novamente.");
+    } finally {
+      setCepSearchLoading(false);
+    }
+  }, [form.estado, form.cidade, form.logradouro]);
+
+  // Aplica um resultado da pesquisa reversa: preenche CEP + endereço e marca como válido.
+  const applyCepResult = useCallback((res: { cep: string; logradouro: string; bairro: string; localidade: string; uf: string }) => {
+    const digits = (res.cep || "").replace(/\D/g, "");
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        cep: digits.replace(/^(\d{5})(\d{3}).*/, "$1-$2"),
+        logradouro: res.logradouro || prev.logradouro,
+        bairro: res.bairro || prev.bairro,
+        cidade: res.localidade || prev.cidade,
+        estado: res.uf || prev.estado,
+      };
+      next.endereco = composeEnderecoText(next);
+      return next;
+    });
+    setCepStatus("valid");
+    setCepSearchResults([]);
+    setCepSearchOpen(false);
   }, []);
 
   // ── Pre-fill from deal data ──
@@ -1647,7 +1718,7 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               placeholder="00.000.000/0000-00"
             />
           </FormField>
-          <FormField label="CEP">
+          <FormField label="CEP *">
             <TextInput
               value={form.cep}
               onChange={(v) => {
@@ -1655,10 +1726,56 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
                 const masked = digits.replace(/^(\d{5})(\d{0,3})/, (_m, a, b) => (b ? `${a}-${b}` : a));
                 updateAddressField("cep", masked);
                 if (digits.length === 8) lookupCep(digits);
+                else setCepStatus("idle");
               }}
               placeholder="00000-000"
             />
             {cepLoading && <p className="text-xs text-gray-500 mt-1">Buscando endereço…</p>}
+            {!cepLoading && cepStatus === "valid" && (
+              <p className="text-xs text-green-600 mt-1">✓ CEP válido — endereço preenchido</p>
+            )}
+            {!cepLoading && cepStatus === "invalid" && (
+              <p className="text-xs text-red-600 mt-1">CEP não encontrado. Confira, ou use a busca por endereço abaixo.</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setCepSearchOpen((o) => !o)}
+              className="text-xs text-blue-600 underline mt-1"
+            >
+              {cepSearchOpen ? "Fechar busca por endereço" : "Não sei o CEP? Buscar pelo endereço"}
+            </button>
+            {cepSearchOpen && (
+              <div className="mt-2 p-2 border border-gray-200 rounded bg-gray-50 space-y-2">
+                <p className="text-xs text-gray-600">
+                  Preencha <strong>Estado (UF)</strong>, <strong>Cidade</strong> e <strong>Logradouro</strong> abaixo
+                  (use o endereço do CNPJ) e pesquise. Fonte: Correios/ViaCEP.
+                </p>
+                <button
+                  type="button"
+                  onClick={searchCepByAddress}
+                  disabled={cepSearchLoading}
+                  className="text-xs px-2 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                >
+                  {cepSearchLoading ? "Pesquisando…" : "Pesquisar CEP pelo endereço"}
+                </button>
+                {cepSearchResults.length > 0 && (
+                  <ul className="max-h-40 overflow-auto text-xs divide-y divide-gray-200 bg-white rounded border border-gray-200">
+                    {cepSearchResults.map((res, i) => (
+                      <li key={`${res.cep}-${i}`}>
+                        <button
+                          type="button"
+                          onClick={() => applyCepResult(res)}
+                          className="w-full text-left px-2 py-1 hover:bg-blue-50"
+                        >
+                          <span className="font-mono">{res.cep}</span> — {res.logradouro}
+                          {res.bairro ? `, ${res.bairro}` : ""} ({res.localidade}/{res.uf})
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </FormField>
           <FormField label="Logradouro">
             <TextInput
