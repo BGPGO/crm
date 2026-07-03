@@ -496,7 +496,11 @@ function ContractContent({ form }: { form: ContractFormData }) {
         <p>(a) A transferência de tecnologia e conhecimento pela CONTRATADA à CONTRATANTE;</p>
         <p>(b) O licenciamento direto de softwares ou produtos, ressalvado o licenciamento expressamente contratado acima;</p>
         <p>(c) A realização de serviços contábeis e da contabilidade da CONTRATANTE e todos os serviços a isso inerentes (ex.: declarações fiscais, submissão de SPED contábil, elaboração e assinatura de balanços e DRES etc.);</p>
-        <p>(d) A realização de reuniões online e/ou presenciais não previstas na contratação, que poderão ser contratadas de forma avulsa mediante consulta prévia à CONTRATADA;</p>
+        {isBIProduct(form.produto) ? (
+          <p>(d) A realização de reuniões online e/ou presenciais não previstas na contratação, que poderão ser contratadas de forma avulsa mediante consulta prévia à CONTRATADA. Para o produto GO BI, estão previstas na contratação 1 (uma) reunião de alinhamento, 1 (uma) reunião de onboarding e podendo ter até 4 (quatro) reuniões de ajustes ou solicitação de nova tela no mês, todas com 30 (trinta) minutos de duração cada, sendo que reuniões de caráter mais estratégico poderão ter custo adicional;</p>
+        ) : (
+          <p>(d) A realização de reuniões online e/ou presenciais não previstas na contratação, que poderão ser contratadas de forma avulsa mediante consulta prévia à CONTRATADA;</p>
+        )}
         <p>(e) Demais serviços que não estejam expressamente previstos neste Contrato;</p>
       </div>
 
