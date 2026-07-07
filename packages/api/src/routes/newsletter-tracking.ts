@@ -79,6 +79,14 @@ router.get('/c/:editionId/:slot/:emailB64', async (req: Request, res: Response) 
       },
     });
 
+    // Descadastrar: redireciona pra página de unsubscribe do CRM já
+    // personalizada com o email do destinatário (infra existente do
+    // email marketing — GET confirma, POST grava na UnsubscribeList).
+    if (slot === 'footer-descadastrar' && email) {
+      const base = process.env.API_URL || '/api';
+      return res.redirect(302, `${base}/unsubscribe/email/${emailB64}`);
+    }
+
     const links = (edition.links as unknown as NewsletterLinksMap | null) || {};
     const target = links[slot]?.url;
     return res.redirect(302, target || FALLBACK_URL);
