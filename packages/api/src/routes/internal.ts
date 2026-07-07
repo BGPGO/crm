@@ -511,8 +511,10 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
  * - Receita separada: MRR (Σ DealProduct.recurrenceValue) e Setup (Σ setupPrice).
  *   Fallback: deal sem produtos cadastrados → Deal.value entra como MRR.
  * - Chaves em lowercase (match exato com títulos da ContIA é case-insensitive).
- * - Reuniões realizadas: CalendlyEvents ativos com startTime dentro da janela e
- *   já no passado, atribuídos pelo mesmo last-touch UTM do contato.
+ * - Reuniões realizadas: PESSOAS (contatos distintos) CRIADAS dentro da janela que
+ *   já fizeram >=1 reunião (CalendlyEvent ativo com startTime no passado), atribuídas
+ *   pelo mesmo last-touch UTM. Coorte alinhada à data de criação do lead — reunião de
+ *   lead de meses anteriores não infla o período; reagendamento não conta 2x.
  *
  * Auth: header x-internal-secret (reusa META_ADS_INTERNAL_SECRET do Coolify).
  */
@@ -542,19 +544,22 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
       },
     });
 
-    // Reuniões realizadas: eventos ativos que já aconteceram dentro da janela.
-    const now = new Date();
-    const meetingsUntil = until < now ? until : now;
-    const meetingEvents = since <= meetingsUntil
-      ? await prisma.calendlyEvent.findMany({
-          where: { status: 'active', startTime: { gte: since, lte: meetingsUntil } },
-          select: { contactId: true },
-        })
-      : [];
+    // Reuniões realizadas: pessoas criadas na janela com >=1 reunião já ocorrida.
+    const meetingEvents = await prisma.calendlyEvent.findMany({
+      where: {
+        status: 'active',
+        startTime: { lte: new Date() },
+        contactId: { not: null },
+        contact: { createdAt: { gte: since, lte: until } },
+      },
+      select: { contactId: true },
+    });
+    const meetingContactIds = [...new Set(
+      meetingEvents.map(m => m.contactId).filter((id): id is string => !!id),
+    )];
 
     const contactIds = [...new Set(
-      [...deals.map(d => d.contactId), ...meetingEvents.map(m => m.contactId)]
-        .filter((id): id is string => !!id),
+      [...deals.map(d => d.contactId).filter((id): id is string => !!id), ...meetingContactIds],
     )];
 
     // Last touch: ordena DESC e fica com o primeiro de cada contato.
@@ -600,8 +605,8 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
     }
 
     let meetingsAttributed = 0, meetingsUnattributed = 0;
-    for (const ev of meetingEvents) {
-      const t = ev.contactId ? lastByContact.get(ev.contactId) : null;
+    for (const contactId of meetingContactIds) {
+      const t = lastByContact.get(contactId);
       if (!t || !t.utmTerm) { meetingsUnattributed += 1; continue; }
       meetingsAttributed += 1;
       const camp = (t.utmCampaign ?? '').trim().toLowerCase();
@@ -614,7 +619,7 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
       period: { since: sinceRaw, until: untilRaw },
       totals: {
         wonDeals: deals.length, attributed, unattributed, mrr: totalMrr, setup: totalSetup,
-        meetings: { held: meetingEvents.length, attributed: meetingsAttributed, unattributed: meetingsUnattributed },
+        meetings: { held: meetingContactIds.length, attributed: meetingsAttributed, unattributed: meetingsUnattributed },
       },
       byCampaign,
       byTerm,
