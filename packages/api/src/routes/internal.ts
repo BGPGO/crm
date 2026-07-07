@@ -511,6 +511,8 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
  * - Receita separada: MRR (Σ DealProduct.recurrenceValue) e Setup (Σ setupPrice).
  *   Fallback: deal sem produtos cadastrados → Deal.value entra como MRR.
  * - Chaves em lowercase (match exato com títulos da ContIA é case-insensitive).
+ * - Reuniões realizadas: CalendlyEvents ativos com startTime dentro da janela e
+ *   já no passado, atribuídos pelo mesmo last-touch UTM do contato.
  *
  * Auth: header x-internal-secret (reusa META_ADS_INTERNAL_SECRET do Coolify).
  */
@@ -540,7 +542,20 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
       },
     });
 
-    const contactIds = [...new Set(deals.map(d => d.contactId).filter((id): id is string => !!id))];
+    // Reuniões realizadas: eventos ativos que já aconteceram dentro da janela.
+    const now = new Date();
+    const meetingsUntil = until < now ? until : now;
+    const meetingEvents = since <= meetingsUntil
+      ? await prisma.calendlyEvent.findMany({
+          where: { status: 'active', startTime: { gte: since, lte: meetingsUntil } },
+          select: { contactId: true },
+        })
+      : [];
+
+    const contactIds = [...new Set(
+      [...deals.map(d => d.contactId), ...meetingEvents.map(m => m.contactId)]
+        .filter((id): id is string => !!id),
+    )];
 
     // Last touch: ordena DESC e fica com o primeiro de cada contato.
     const trackings = contactIds.length > 0
@@ -555,11 +570,13 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
       if (!lastByContact.has(t.contactId)) lastByContact.set(t.contactId, t);
     }
 
-    type Bucket = { won: number; mrr: number; setup: number };
+    type Bucket = { won: number; mrr: number; setup: number; meetings: number };
     const byCampaign: Record<string, Bucket> = {};
     const byTerm: Record<string, Bucket> = {};
+    const bucketOf = (map: Record<string, Bucket>, key: string): Bucket =>
+      (map[key] ??= { won: 0, mrr: 0, setup: 0, meetings: 0 });
     const add = (map: Record<string, Bucket>, key: string, mrr: number, setup: number) => {
-      const b = (map[key] ??= { won: 0, mrr: 0, setup: 0 });
+      const b = bucketOf(map, key);
       b.won += 1; b.mrr += mrr; b.setup += setup;
     };
 
@@ -582,9 +599,23 @@ router.get('/ads-attribution', async (req: Request, res: Response) => {
       if (term) add(byTerm, term, mrr, setup);
     }
 
+    let meetingsAttributed = 0, meetingsUnattributed = 0;
+    for (const ev of meetingEvents) {
+      const t = ev.contactId ? lastByContact.get(ev.contactId) : null;
+      if (!t || !t.utmTerm) { meetingsUnattributed += 1; continue; }
+      meetingsAttributed += 1;
+      const camp = (t.utmCampaign ?? '').trim().toLowerCase();
+      const term = (t.utmTerm ?? '').trim().toLowerCase();
+      if (camp) bucketOf(byCampaign, camp).meetings += 1;
+      if (term) bucketOf(byTerm, term).meetings += 1;
+    }
+
     return res.json({
       period: { since: sinceRaw, until: untilRaw },
-      totals: { wonDeals: deals.length, attributed, unattributed, mrr: totalMrr, setup: totalSetup },
+      totals: {
+        wonDeals: deals.length, attributed, unattributed, mrr: totalMrr, setup: totalSetup,
+        meetings: { held: meetingEvents.length, attributed: meetingsAttributed, unattributed: meetingsUnattributed },
+      },
       byCampaign,
       byTerm,
     });
