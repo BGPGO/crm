@@ -33,3 +33,14 @@ CREATE TABLE IF NOT EXISTS "NewsletterEvent" (
 
 CREATE INDEX IF NOT EXISTS "NewsletterEvent_editionId_type_idx" ON "NewsletterEvent"("editionId", "type");
 CREATE INDEX IF NOT EXISTS "NewsletterEvent_editionId_slot_idx" ON "NewsletterEvent"("editionId", "slot");
+
+CREATE TABLE IF NOT EXISTS "NewsletterConfig" (
+  "id" TEXT NOT NULL DEFAULT 'singleton',
+  "enabled" BOOLEAN NOT NULL DEFAULT false,
+  "recipients" JSONB NOT NULL DEFAULT '[]',
+  "lastRunAt" TIMESTAMP(3),
+  "lastRunStatus" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "NewsletterConfig_pkey" PRIMARY KEY ("id")
+);

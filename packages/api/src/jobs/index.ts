@@ -9,6 +9,7 @@ import { initFollowUpScheduler } from '../services/followUpScheduler';
 import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
 import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 import { startDailyReportCron } from './dailyReportCron';
+import { startNewsletterCron } from './newsletterCron';
 import { startScheduledEmailCron } from './scheduledEmailCron';
 import { startScheduledBroadcastCron } from './scheduledBroadcastCron';
 import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
@@ -36,6 +37,9 @@ export function startAllJobs() {
 
   // Relatório diário do funil por email (7h BRT)
   startDailyReportCron();
+
+  // Newsletter semanal BGP Insights (segunda 5h BRT)
+  startNewsletterCron();
 
   // Email campaigns agendadas (status=SCHEDULED com scheduledAt passado)
   startScheduledEmailCron();

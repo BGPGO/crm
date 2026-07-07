@@ -5,9 +5,82 @@ import {
   getEditionMetrics,
   sendNewsletterTo,
 } from '../services/newsletterService';
+import {
+  getOrCreateConfig,
+  runNewsletterAutomation,
+  runNewsletterTest,
+} from '../services/newsletterAutomation';
 import { isValidEmail } from './email-tracking';
 
 const router = Router();
+
+// ─── GET /newsletters/config — configuração da automação ────────────────────
+
+router.get('/config', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const config = await getOrCreateConfig();
+    return res.json({ data: config });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── PUT /newsletters/config — atualiza automação (liga/desliga, lista) ─────
+
+router.put('/config', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { enabled, recipients } = req.body as { enabled?: boolean; recipients?: unknown };
+
+    const data: { enabled?: boolean; recipients?: string[] } = {};
+    if (typeof enabled === 'boolean') data.enabled = enabled;
+    if (recipients !== undefined) {
+      if (!Array.isArray(recipients)) {
+        return res.status(400).json({ error: 'recipients deve ser uma lista de emails' });
+      }
+      const clean = [...new Set(recipients.map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+      const invalid = clean.filter((e) => !isValidEmail(e));
+      if (invalid.length > 0) {
+        return res.status(400).json({ error: `Emails inválidos: ${invalid.join(', ')}` });
+      }
+      data.recipients = clean;
+    }
+
+    await getOrCreateConfig();
+    const config = await prisma.newsletterConfig.update({
+      where: { id: 'singleton' },
+      data,
+    });
+    return res.json({ data: config });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── POST /newsletters/run-now — monta a edição agora ───────────────────────
+// body: { testEmail } → edição de teste só pra esse email;
+// body: {}            → execução completa (envia pra lista configurada)
+
+router.post('/run-now', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { testEmail } = req.body as { testEmail?: string };
+
+    if (testEmail) {
+      if (!isValidEmail(testEmail)) {
+        return res.status(400).json({ error: 'testEmail inválido' });
+      }
+      const { editionId } = await runNewsletterTest(testEmail);
+      return res.json({ data: { editionId, sent: 1, test: true } });
+    }
+
+    const result = await runNewsletterAutomation({ force: true });
+    if (result.skipped === 'lista vazia') {
+      return res.status(400).json({ error: 'Lista de destinatários vazia — configure antes de enviar.' });
+    }
+    return res.json({ data: result });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // ─── GET /newsletters — lista edições com métricas resumidas ────────────────
 
