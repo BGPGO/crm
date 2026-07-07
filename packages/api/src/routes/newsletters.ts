@@ -7,6 +7,7 @@ import {
 } from '../services/newsletterService';
 import {
   getOrCreateConfig,
+  resolveAudience,
   runNewsletterAutomation,
   runNewsletterTest,
 } from '../services/newsletterAutomation';
@@ -19,7 +20,14 @@ const router = Router();
 router.get('/config', async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const config = await getOrCreateConfig();
-    return res.json({ data: config });
+    const segment = config.segmentId
+      ? await prisma.segment.findUnique({
+          where: { id: config.segmentId },
+          select: { id: true, name: true, contactCount: true },
+        })
+      : null;
+    const audienceCount = (await resolveAudience(config)).length;
+    return res.json({ data: { ...config, segment, audienceCount } });
   } catch (error) {
     return next(error);
   }
@@ -29,10 +37,25 @@ router.get('/config', async (_req: Request, res: Response, next: NextFunction) =
 
 router.put('/config', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { enabled, recipients } = req.body as { enabled?: boolean; recipients?: unknown };
+    const { enabled, recipients, segmentId } = req.body as {
+      enabled?: boolean;
+      recipients?: unknown;
+      segmentId?: string | null;
+    };
 
-    const data: { enabled?: boolean; recipients?: string[] } = {};
+    const data: { enabled?: boolean; recipients?: string[]; segmentId?: string | null } = {};
     if (typeof enabled === 'boolean') data.enabled = enabled;
+    if (segmentId !== undefined) {
+      if (segmentId === null || segmentId === '') {
+        data.segmentId = null;
+      } else {
+        const segment = await prisma.segment.findUnique({ where: { id: segmentId } });
+        if (!segment) {
+          return res.status(400).json({ error: 'Segmento não encontrado' });
+        }
+        data.segmentId = segmentId;
+      }
+    }
     if (recipients !== undefined) {
       if (!Array.isArray(recipients)) {
         return res.status(400).json({ error: 'recipients deve ser uma lista de emails' });
@@ -50,7 +73,14 @@ router.put('/config', async (req: Request, res: Response, next: NextFunction) =>
       where: { id: 'singleton' },
       data,
     });
-    return res.json({ data: config });
+    const segment = config.segmentId
+      ? await prisma.segment.findUnique({
+          where: { id: config.segmentId },
+          select: { id: true, name: true, contactCount: true },
+        })
+      : null;
+    const audienceCount = (await resolveAudience(config)).length;
+    return res.json({ data: { ...config, segment, audienceCount } });
   } catch (error) {
     return next(error);
   }
@@ -72,11 +102,17 @@ router.post('/run-now', async (req: Request, res: Response, next: NextFunction) 
       return res.json({ data: { editionId, sent: 1, test: true } });
     }
 
-    const result = await runNewsletterAutomation({ force: true });
-    if (result.skipped === 'lista vazia') {
-      return res.status(400).json({ error: 'Lista de destinatários vazia — configure antes de enviar.' });
+    const config = await getOrCreateConfig();
+    const audience = await resolveAudience(config);
+    if (audience.length === 0) {
+      return res.status(400).json({ error: 'Audiência vazia — escolha um segmento ou adicione emails antes de enviar.' });
     }
-    return res.json({ data: result });
+
+    // Envio pode levar minutos (600ms/destinatário) — roda em background
+    runNewsletterAutomation({ force: true }).catch((err) =>
+      console.error('[newsletter] run-now falhou:', err)
+    );
+    return res.json({ data: { started: true, audienceCount: audience.length } });
   } catch (error) {
     return next(error);
   }

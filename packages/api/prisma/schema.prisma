@@ -889,7 +889,8 @@ model NewsletterEdition {
 model NewsletterConfig {
   id            String    @id @default("singleton")
   enabled       Boolean   @default(false)
-  recipients    Json      @default("[]") // string[] de emails
+  recipients    Json      @default("[]") // string[] de emails avulsos
+  segmentId     String? // segmento de marketing como audiência (além dos avulsos)
   lastRunAt     DateTime?
   lastRunStatus String? // ok | erro: <msg>
 

@@ -21,8 +21,17 @@ import { formatDate } from "@/lib/formatters";
 interface NewsletterConfig {
   enabled: boolean;
   recipients: string[];
+  segmentId: string | null;
+  segment: { id: string; name: string; contactCount: number } | null;
+  audienceCount: number;
   lastRunAt: string | null;
   lastRunStatus: string | null;
+}
+
+interface SegmentOption {
+  id: string;
+  name: string;
+  contactCount: number;
 }
 
 interface Edition {
@@ -61,6 +70,7 @@ const statusConfig: Record<
 
 function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void }) {
   const [config, setConfig] = useState<NewsletterConfig | null>(null);
+  const [segments, setSegments] = useState<SegmentOption[]>([]);
   const [recipientsText, setRecipientsText] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [saving, setSaving] = useState(false);
@@ -75,6 +85,10 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
         setRecipientsText((r.data.recipients || []).join("\n"));
       })
       .catch(() => setMessage({ ok: false, text: "Erro ao carregar a automação." }));
+    api
+      .get<{ data: SegmentOption[] }>("/segments?limit=100")
+      .then((r) => setSegments(r.data))
+      .catch(() => {});
   }, []);
 
   const parseRecipients = () =>
@@ -83,7 +97,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
 
-  const save = async (patch: { enabled?: boolean; recipients?: string[] }) => {
+  const save = async (patch: { enabled?: boolean; recipients?: string[]; segmentId?: string | null }) => {
     setSaving(true);
     setMessage(null);
     try {
@@ -107,7 +121,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
     if (
       mode === "full" &&
       !window.confirm(
-        `Montar a edição AGORA e enviar pra lista (${config?.recipients.length || 0} destinatários)?`
+        `Montar a edição AGORA e enviar pra audiência (${config?.audienceCount || 0} destinatários)?`
       )
     ) {
       return;
@@ -124,7 +138,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
         text:
           mode === "test"
             ? `Edição de teste montada e enviada pra ${testEmail.trim()}.`
-            : "Edição montada e enviada pra lista.",
+            : "Montagem iniciada — o envio roda em segundo plano e a edição aparece na lista abaixo em ~1 min.",
       });
       onEditionCreated();
     } catch (err) {
@@ -187,9 +201,36 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Segmento (audiência principal)
+            </label>
+            <select
+              value={config.segmentId || ""}
+              disabled={saving}
+              onChange={(e) => save({ segmentId: e.target.value || null })}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
+            >
+              <option value="">Nenhum — só emails avulsos</option>
+              {segments.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} (~{s.contactCount} contatos)
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Os mesmos segmentos do email marketing. Audiência final:{" "}
+              <span className="font-medium text-gray-600">
+                {config.audienceCount} destinatário{config.audienceCount === 1 ? "" : "s"}
+              </span>{" "}
+              (segmento + avulsos, sem duplicados e sem descadastrados).
+            </p>
+          </div>
+
+          <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
-            Destinatários ({parseRecipients().length}) — um email por linha
+            Emails avulsos ({parseRecipients().length}) — um por linha
           </label>
           <textarea
             value={recipientsText}
@@ -207,6 +248,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
             >
               Salvar lista
             </Button>
+          </div>
           </div>
         </div>
 
@@ -245,7 +287,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
           <Button
             variant="primary"
             size="sm"
-            disabled={running !== null || config.recipients.length === 0}
+            disabled={running !== null || config.audienceCount === 0}
             onClick={() => runNow("full")}
           >
             {running === "full" ? (
@@ -253,7 +295,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
             ) : (
               <Send size={14} />
             )}
-            Montar e enviar pra lista agora
+            Montar e enviar pra audiência agora
           </Button>
         </div>
       </div>

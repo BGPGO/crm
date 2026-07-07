@@ -44,3 +44,5 @@ CREATE TABLE IF NOT EXISTS "NewsletterConfig" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "NewsletterConfig_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "NewsletterConfig" ADD COLUMN IF NOT EXISTS "segmentId" TEXT;

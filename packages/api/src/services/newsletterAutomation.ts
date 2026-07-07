@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { buildEdition } from './newsletterBuilder';
 import { sendNewsletterTo } from './newsletterService';
+import { buildSegmentWhere, SegmentFilter, FilterGroup } from './segmentEngine';
 
 const SEND_DELAY_MS = 600; // Resend: ~10 req/s — folga confortável
 
@@ -12,6 +13,42 @@ export async function getOrCreateConfig() {
     update: {},
     create: { id: 'singleton' },
   });
+}
+
+/**
+ * Audiência final: contatos do segmento (se houver) + emails avulsos,
+ * dedupado e sem quem está na UnsubscribeList.
+ */
+export async function resolveAudience(config: {
+  recipients: unknown;
+  segmentId: string | null;
+}): Promise<string[]> {
+  const manual = (Array.isArray(config.recipients) ? config.recipients : []) as string[];
+
+  let segmentEmails: string[] = [];
+  if (config.segmentId) {
+    const segment = await prisma.segment.findUnique({ where: { id: config.segmentId } });
+    if (segment) {
+      const where = buildSegmentWhere(
+        segment.filters as unknown as SegmentFilter[] | FilterGroup[],
+        segment.brand
+      );
+      const contacts = await prisma.contact.findMany({
+        where: { ...where, email: { not: null }, brand: segment.brand },
+        select: { email: true },
+      });
+      segmentEmails = contacts.map((c) => c.email).filter((e): e is string => Boolean(e));
+    } else {
+      console.warn(`[newsletter] segmento ${config.segmentId} não existe mais — usando só avulsos`);
+    }
+  }
+
+  const unsub = await prisma.unsubscribeList.findMany({ select: { email: true } });
+  const unsubSet = new Set(unsub.map((u) => u.email.toLowerCase()));
+
+  return [...new Set([...manual, ...segmentEmails].map((e) => e.trim().toLowerCase()))].filter(
+    (e) => e && !unsubSet.has(e)
+  );
 }
 
 /**
@@ -44,15 +81,16 @@ export async function runNewsletterAutomation(opts?: { force?: boolean }): Promi
     return { editionId: null, sent: 0, skipped: 'desativada' };
   }
 
-  const recipients = (Array.isArray(config.recipients) ? config.recipients : []) as string[];
+  const recipients = await resolveAudience(config);
   if (recipients.length === 0) {
     await prisma.newsletterConfig.update({
       where: { id: 'singleton' },
-      data: { lastRunAt: new Date(), lastRunStatus: 'erro: lista de destinatários vazia' },
+      data: { lastRunAt: new Date(), lastRunStatus: 'erro: audiência vazia (sem segmento nem avulsos)' },
     });
-    console.warn('[newsletter] lista de destinatários vazia — nada enviado');
+    console.warn('[newsletter] audiência vazia — nada enviado');
     return { editionId: null, sent: 0, skipped: 'lista vazia' };
   }
+  console.log(`[newsletter] audiência resolvida: ${recipients.length} destinatários`);
 
   try {
     const { id, subject } = await buildEdition();
