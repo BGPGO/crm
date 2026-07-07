@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, Filter, TrendingUp, Mail, Zap } from "lucide-react";
+import { Users, Filter, TrendingUp, Mail, Newspaper, Zap } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -10,6 +10,7 @@ const tabs = [
   { label: "Segmentos", href: "/marketing/segments", icon: Filter },
   { label: "Lead Scoring", href: "/marketing/lead-scoring", icon: TrendingUp },
   { label: "Emails", href: "/marketing/emails", icon: Mail },
+  { label: "Newsletter", href: "/marketing/newsletter", icon: Newspaper },
   { label: "Automações", href: "/marketing/automations", icon: Zap },
 ] as const;
 

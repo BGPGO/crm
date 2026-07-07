@@ -49,6 +49,8 @@ import waBroadcastsRouter from './wa-broadcasts';
 import waTemplateHealthRouter from './wa-template-health';
 import waContactsRiskRouter from './wa-contacts-risk';
 import trackRouter from './track';
+import newsletterTrackingRouter from './newsletter-tracking';
+import newslettersRouter from './newsletters';
 import botProductsRouter from './bot-products';
 import botObjectionsRouter from './bot-objections';
 import calendlyWebhookRouter from './calendly-webhook';
@@ -85,6 +87,7 @@ router.use('/contracts/webhook', contractWebhookRouter);
 router.use('/webhooks', webhooksRouter);  // Incoming lead webhooks (public — has own secret validation)
 router.use('/readai', readaiRouter);
 router.use('/t', trackRouter); // Click tracking redirect (public)
+router.use('/nl', newsletterTrackingRouter); // Newsletter: pixel + clique por botão (public)
 router.use('/internal', internalRouter); // Edge Function callbacks (public)
 router.use('/analytics', analyticsExportRouter); // Analytics export — API key protected (no JWT)
 
@@ -115,6 +118,7 @@ router.use('/lead-scores', leadScoresRouter);
 router.use('/contact-imports', contactImportsRouter);
 router.use('/email-templates', emailTemplatesRouter);
 router.use('/email-campaigns', emailCampaignsRouter);
+router.use('/newsletters', newslettersRouter);
 router.use('/email', emailMergeTagsRouter);
 router.use('/ai', aiEmailRouter);
 router.use('/automations', automationsRouter);

@@ -861,6 +861,47 @@ model UnsubscribeList {
   @@index([email])
 }
 
+// ─── Newsletter semanal (BGP Insights) ──────────────────────────────────────
+// Edições do email semanal (radar do setor + BGP Academy). Tracking próprio
+// por slot: cada <a data-slot="..."> do HTML vira um redirect /api/nl/c/...,
+// permitindo medir clique por botão. Separado de EmailCampaign porque lá o
+// clique não tem atribuição por link+destinatário.
+
+model NewsletterEdition {
+  id             String    @id @default(cuid())
+  subject        String
+  status         String    @default("DRAFT") // DRAFT | SENT
+  isTest         Boolean   @default(false)
+  html           String? // HTML cru com data-slot nos links (sem tracking)
+  links          Json? // { slot: { url, label } } — destinos por botão
+  sentAt         DateTime?
+  recipientCount Int       @default(0)
+
+  events NewsletterEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([sentAt])
+}
+
+model NewsletterEvent {
+  id        String            @id @default(cuid())
+  editionId String
+  edition   NewsletterEdition @relation(fields: [editionId], references: [id], onDelete: Cascade)
+
+  type      String // OPEN | CLICK
+  slot      String? // qual botão (só CLICK)
+  email     String? // destinatário
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([editionId, type])
+  @@index([editionId, slot])
+}
+
 // ─── Automações de Marketing ────────────────────────────────────────────────
 
 model Automation {
