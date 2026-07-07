@@ -58,6 +58,7 @@ const TIME_BGP_EMAILS = [
   'vicenza.porto@bertuzzipatrimonial.com.br',
   'vitor@bertuzzipatrimonial.com.br',
   'oliver@bertuzzipatrimonial.com.br',
+  'chai@bertuzzipatrimonial.com.br',
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
