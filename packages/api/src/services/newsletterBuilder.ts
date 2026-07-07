@@ -62,25 +62,60 @@ export async function fetchBlogPosts(): Promise<BlogPost[]> {
     `${base}/rest/v1/seo_articles` +
     `?status=eq.publicado&wix_post_url=not.is.null` +
     `&select=titulo,meta_description,featured_image_url,wix_post_url,published_at,reading_time_min` +
-    `&order=published_at.desc&limit=6`;
+    `&order=published_at.desc&limit=200`;
   const res = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
   if (!res.ok) throw new Error(`ContIA PostgREST ${res.status}`);
-  const rows = (await res.json()) as BlogPost[];
+  return (await res.json()) as BlogPost[];
+}
 
-  // Muitos artigos não têm featured_image_url no ContIA — a capa real vive na
-  // página publicada do Wix (og:image). Resolver antes de escolher os 3.
+/**
+ * Escolhe 3 posts com variação: exclui o que apareceu nas últimas 4 edições,
+ * fixa o destaque no mais recente ainda não usado e sorteia os outros 2 do
+ * restante do acervo. Só volta a repetir quando o catálogo esgota.
+ */
+export async function selectPosts(candidates: BlogPost[]): Promise<BlogPost[]> {
+  const recentEditions = await prisma.newsletterEdition.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 4,
+    select: { links: true },
+  });
+
+  const usedUrls = new Set<string>();
+  for (const edition of recentEditions) {
+    const links = edition.links as Record<string, { url?: string }> | null;
+    for (const slot of ['academy-destaque', 'academy-post-2', 'academy-post-3']) {
+      const u = links?.[slot]?.url;
+      if (u) usedUrls.add(u);
+    }
+  }
+
+  const fresh = candidates.filter((c) => !usedUrls.has(c.wix_post_url));
+  // Se o catálogo esgotou, readmite os já usados (mais antigos na frente do rodízio)
+  const pool = fresh.length >= 3 ? fresh : [...fresh, ...candidates.filter((c) => usedUrls.has(c.wix_post_url))];
+  if (pool.length < 3) return pool;
+
+  const destaque = pool[0]; // mais recente ainda não usado
+  const resto = pool.slice(1);
+  // Sorteio dos outros 2 — varia a combinação a cada edição
+  for (let i = resto.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [resto[i], resto[j]] = [resto[j], resto[i]];
+  }
+  return [destaque, resto[0], resto[1]];
+}
+
+/**
+ * Muitos artigos não têm featured_image_url no ContIA — a capa real vive na
+ * página publicada do Wix (og:image). Resolver só pros 3 escolhidos.
+ */
+export async function resolvePostImages(posts: BlogPost[]): Promise<void> {
   await Promise.all(
-    rows.map(async (r) => {
-      if (!r.featured_image_url) {
-        r.featured_image_url = await fetchOgImage(r.wix_post_url);
+    posts.map(async (p) => {
+      if (!p.featured_image_url) {
+        p.featured_image_url = await fetchOgImage(p.wix_post_url);
       }
     })
   );
-
-  // Preferir posts com imagem, mantendo a ordem por data
-  const comImagem = rows.filter((r) => r.featured_image_url);
-  const semImagem = rows.filter((r) => !r.featured_image_url);
-  return [...comImagem, ...semImagem].slice(0, 3);
 }
 
 // ─── Feeds RSS ───────────────────────────────────────────────────────────────
@@ -458,8 +493,10 @@ ${postCard(post3, 'academy-post-3')}
 // ─── Orquestração ────────────────────────────────────────────────────────────
 
 export async function buildEdition(opts?: { isTest?: boolean }): Promise<{ id: string; subject: string }> {
-  const [posts, feedItems] = await Promise.all([fetchBlogPosts(), fetchFeedItems()]);
+  const [candidates, feedItems] = await Promise.all([fetchBlogPosts(), fetchFeedItems()]);
+  const posts = await selectPosts(candidates);
   if (posts.length < 3) throw new Error(`ContIA retornou só ${posts.length} posts publicados`);
+  await resolvePostImages(posts);
 
   const curated = await curateNews(feedItems);
   if (curated.length < 3) throw new Error(`Curadoria retornou só ${curated.length} notícias`);
