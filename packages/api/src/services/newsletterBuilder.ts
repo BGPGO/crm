@@ -66,10 +66,21 @@ export async function fetchBlogPosts(): Promise<BlogPost[]> {
   const res = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
   if (!res.ok) throw new Error(`ContIA PostgREST ${res.status}`);
   const rows = (await res.json()) as BlogPost[];
-  // Preferir posts com capa própria; completar com os demais
-  const comCapa = rows.filter((r) => r.featured_image_url?.includes('supabase'));
-  const resto = rows.filter((r) => !comCapa.includes(r));
-  return [...comCapa, ...resto].slice(0, 3);
+
+  // Muitos artigos não têm featured_image_url no ContIA — a capa real vive na
+  // página publicada do Wix (og:image). Resolver antes de escolher os 3.
+  await Promise.all(
+    rows.map(async (r) => {
+      if (!r.featured_image_url) {
+        r.featured_image_url = await fetchOgImage(r.wix_post_url);
+      }
+    })
+  );
+
+  // Preferir posts com imagem, mantendo a ordem por data
+  const comImagem = rows.filter((r) => r.featured_image_url);
+  const semImagem = rows.filter((r) => !r.featured_image_url);
+  return [...comImagem, ...semImagem].slice(0, 3);
 }
 
 // ─── Feeds RSS ───────────────────────────────────────────────────────────────
@@ -188,20 +199,24 @@ export async function curateNews(items: FeedItem[]): Promise<CuratedNews[]> {
 
 // ─── Imagem da notícia (og:image quando o RSS não trouxe) ────────────────────
 
-export async function resolveNewsImage(news: CuratedNews): Promise<string | null> {
-  if (news.image) return news.image;
+export async function fetchOgImage(pageUrl: string): Promise<string | null> {
   try {
-    const res = await fetchWithTimeout(news.url, 8000);
+    const res = await fetchWithTimeout(pageUrl, 8000);
     if (!res.ok) return null;
     const html = (await res.text()).slice(0, 300000);
     const og =
       html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)?.[1] ||
       html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)?.[1] ||
       html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i)?.[1];
-    return og || null;
+    return og ? decodeEntities(og) : null;
   } catch {
     return null;
   }
+}
+
+export async function resolveNewsImage(news: CuratedNews): Promise<string | null> {
+  if (news.image) return news.image;
+  return fetchOgImage(news.url);
 }
 
 // ─── Render do HTML ──────────────────────────────────────────────────────────
@@ -245,12 +260,20 @@ function newsItem(news: CuratedNews, idx: number, last: boolean): string {
       </table>`;
 }
 
+function brandBlock(height: number, symbolHeight: number, radius = 8): string {
+  return `<div style="width:100%; height:${height}px; border-radius:${radius}px; background-color:#244C5A; text-align:center; line-height:${height}px; font-size:0;">
+              <img src="${SYMBOL_URL}" alt="" height="${symbolHeight}" style="vertical-align:middle; height:${symbolHeight}px; width:auto; opacity:0.9;">
+            </div>`;
+}
+
 function postCard(post: BlogPost, slot: string): string {
-  const img = post.featured_image_url || '';
+  const media = post.featured_image_url
+    ? `<img src="${esc(post.featured_image_url)}" alt="${esc(post.titulo)}" width="265"
+                   style="display:block; width:100%; border-radius:8px; border:0; background-color:#eef2f3;">`
+    : brandBlock(150, 40);
   return `
             <a href="${esc(post.wix_post_url)}" style="text-decoration:none;" data-slot="${slot}">
-              <img src="${esc(img)}" alt="${esc(post.titulo)}" width="265"
-                   style="display:block; width:100%; border-radius:8px; border:0; background-color:#eef2f3;">
+              ${media}
             </a>
             <div style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#8aa0a8; margin:12px 0 6px;">${post.reading_time_min || 5} min</div>
             <a href="${esc(post.wix_post_url)}" data-slot="${slot}"
@@ -347,8 +370,10 @@ ${news.map((n, i) => newsItem(n, i, i === news.length - 1)).join('\n')}
       <div style="height:1px; background-color:#dfe8ea; margin:12px 0 24px;"></div>
 
       <a href="${esc(destaque.wix_post_url)}" style="text-decoration:none;" data-slot="academy-destaque">
-        <img src="${esc(destaque.featured_image_url || '')}" alt="${esc(destaque.titulo)}" width="560"
-             style="display:block; width:100%; border-radius:10px; border:0; background-color:#eef2f3;">
+        ${destaque.featured_image_url
+          ? `<img src="${esc(destaque.featured_image_url)}" alt="${esc(destaque.titulo)}" width="560"
+             style="display:block; width:100%; border-radius:10px; border:0; background-color:#eef2f3;">`
+          : brandBlock(220, 52, 10)}
       </a>
       <div style="padding:18px 2px 26px;">
         <div style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#8aa0a8; margin-bottom:8px;">Destaque da semana · ${destaque.reading_time_min || 5} min de leitura</div>
