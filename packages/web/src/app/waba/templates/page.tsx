@@ -186,11 +186,20 @@ interface FormState {
 }
 
 // Tipos de arquivo aceitos por header de mídia (limites da Cloud API)
+// VIDEO aceita qualquer formato: acima de 16MB ou fora de MP4/3GP a
+// plataforma oferece compressão/conversão automática.
 const MEDIA_ACCEPT: Record<string, { accept: string; hint: string }> = {
   IMAGE: { accept: "image/jpeg,image/png", hint: "JPEG ou PNG, máx 5MB" },
-  VIDEO: { accept: "video/mp4,video/3gpp", hint: "MP4 ou 3GP, máx 16MB" },
+  VIDEO: { accept: "video/*", hint: "MP4 ou 3GP até 16MB — maiores (ou outros formatos) são comprimidos na plataforma" },
   DOCUMENT: { accept: "application/pdf", hint: "PDF, máx 100MB" },
 };
+
+const VIDEO_LIMIT_BYTES = 16 * 1024 * 1024;
+const WA_VIDEO_MIMES = ["video/mp4", "video/3gpp"];
+
+function formatMB(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -541,6 +550,8 @@ export default function TemplatesPage() {
     setEditingTemplate(null);
     setForm({ ...EMPTY_FORM });
     setFormError(null);
+    setPendingVideo(null);
+    setCompressInfo(null);
     setShowModal(true);
   };
 
@@ -570,33 +581,57 @@ export default function TemplatesPage() {
       variableMapping: tpl.variableMapping || [],
     });
     setFormError(null);
+    setPendingVideo(null);
+    setCompressInfo(null);
     setShowModal(true);
   };
 
   // ── Upload de mídia do header (IMAGE/VIDEO/DOCUMENT) ──────────────────────
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  // Vídeo que precisa de compressão/conversão antes de subir (aguardando o clique)
+  const [pendingVideo, setPendingVideo] = useState<{ file: File; reason: string } | null>(null);
+  const [compressing, setCompressing] = useState(false);
+  const [compressInfo, setCompressInfo] = useState<{ from: number; to: number } | null>(null);
+
+  const clearMediaFlow = () => {
+    setPendingVideo(null);
+    setCompressInfo(null);
+  };
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
     if (!file) return;
+
+    clearMediaFlow();
+    setFormError(null);
+
+    if (form.headerType === "VIDEO") {
+      const tooBig = file.size > VIDEO_LIMIT_BYTES;
+      const wrongFormat = !WA_VIDEO_MIMES.includes(file.type);
+      if (tooBig || wrongFormat) {
+        const reason = tooBig
+          ? `O vídeo tem ${formatMB(file.size)} — o WhatsApp aceita no máximo 16MB.`
+          : `O formato ${file.type || "desconhecido"} não é aceito pelo WhatsApp (precisa ser MP4).`;
+        setPendingVideo({ file, reason });
+        return;
+      }
+    }
 
     const limits: Record<string, number> = {
       IMAGE: 5 * 1024 * 1024,
-      VIDEO: 16 * 1024 * 1024,
       DOCUMENT: 100 * 1024 * 1024,
     };
     const max = limits[form.headerType];
     if (max && file.size > max) {
       setFormError(
-        `Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Limite: ${MEDIA_ACCEPT[form.headerType]?.hint}.`
+        `Arquivo muito grande (${formatMB(file.size)}). Limite: ${MEDIA_ACCEPT[form.headerType]?.hint}.`
       );
-      if (mediaInputRef.current) mediaInputRef.current.value = "";
       return;
     }
 
     setUploadingMedia(true);
-    setFormError(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -626,7 +661,44 @@ export default function TemplatesPage() {
       );
     } finally {
       setUploadingMedia(false);
-      if (mediaInputRef.current) mediaInputRef.current.value = "";
+    }
+  };
+
+  const handleCompressVideo = async () => {
+    if (!pendingVideo) return;
+    setCompressing(true);
+    setFormError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingVideo.file);
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/whatsapp/cloud/templates/compress-video", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message || body?.message || "Compressao falhou");
+      }
+      const { data } = await res.json();
+      updateForm({
+        headerExample: data.publicUrl,
+        headerHandle: data.headerHandle || "",
+      });
+      setCompressInfo({ from: data.originalSize, to: data.compressedSize });
+      setPendingVideo(null);
+      if (data.warning) {
+        addToast(data.warning, "error");
+      } else {
+        addToast("Video comprimido e enviado.", "success");
+      }
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? `Erro ao comprimir: ${err.message}` : "Erro ao comprimir o video."
+      );
+    } finally {
+      setCompressing(false);
     }
   };
 
@@ -1227,14 +1299,15 @@ export default function TemplatesPage() {
                     </label>
                     <select
                       value={form.headerType}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         updateForm({
                           headerType: e.target.value,
                           headerContent: "",
                           headerExample: "",
                           headerHandle: "",
-                        })
-                      }
+                        });
+                        clearMediaFlow();
+                      }}
                       className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                     >
                       {HEADER_TYPES.map((h) => (
@@ -1271,7 +1344,7 @@ export default function TemplatesPage() {
                         <button
                           type="button"
                           onClick={() => mediaInputRef.current?.click()}
-                          disabled={uploadingMedia}
+                          disabled={uploadingMedia || compressing}
                           className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-petrol-600 dark:text-petrol-400 bg-petrol-50 dark:bg-petrol-900/20 rounded-lg hover:bg-petrol-100 dark:hover:bg-petrol-900/40 transition-colors border border-petrol-200 dark:border-petrol-800 disabled:opacity-60"
                         >
                           {uploadingMedia ? (
@@ -1290,9 +1363,77 @@ export default function TemplatesPage() {
                           {MEDIA_ACCEPT[form.headerType]?.hint}. A Meta exige o
                           arquivo de exemplo para aprovar o template.
                         </p>
+
+                        {/* Vídeo grande/formato errado → oferecer compressão na plataforma */}
+                        {pendingVideo && (
+                          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                              <div className="text-xs text-amber-800 dark:text-amber-200">
+                                <p className="font-medium">{pendingVideo.reason}</p>
+                                <p className="mt-0.5">
+                                  Voce pode comprimir na plataforma — o video e
+                                  convertido pra MP4 ate 720p, otimizado pra
+                                  WhatsApp (tela de celular).
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleCompressVideo}
+                                disabled={compressing}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-60"
+                              >
+                                {compressing ? (
+                                  <>
+                                    <Loader2 size={13} className="animate-spin" />
+                                    Comprimindo... (pode levar 1-2 min)
+                                  </>
+                                ) : (
+                                  <>
+                                    <Video size={13} />
+                                    Comprimir video ({formatMB(pendingVideo.file.size)})
+                                  </>
+                                )}
+                              </button>
+                              {!compressing && (
+                                <button
+                                  type="button"
+                                  onClick={() => mediaInputRef.current?.click()}
+                                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 underline"
+                                >
+                                  escolher outro arquivo
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {compressInfo && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            ✓ Comprimido: {formatMB(compressInfo.from)} →{" "}
+                            {formatMB(compressInfo.to)} — confira o resultado no
+                            preview ao lado
+                          </p>
+                        )}
+
                         {form.headerExample && (
                           <p className="text-xs text-green-600 dark:text-green-400 break-all">
                             ✓ Midia pronta: {form.headerExample}
+                            {/^https?:\/\//i.test(form.headerExample) && (
+                              <>
+                                {" · "}
+                                <a
+                                  href={form.headerExample}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline inline-flex items-center gap-0.5"
+                                >
+                                  abrir <ExternalLink size={10} />
+                                </a>
+                              </>
+                            )}
                           </p>
                         )}
                         <input

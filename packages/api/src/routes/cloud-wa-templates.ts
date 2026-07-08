@@ -98,6 +98,41 @@ async function fetchHandleFromUrl(client: WhatsAppCloudClient, url: string): Pro
   }
 }
 
+/**
+ * Núcleo do upload duplo: Supabase Storage (URL pública pro ENVIO) +
+ * Meta Resumable Upload (header_handle pra CRIAÇÃO do template).
+ * Usado pelo /upload-media e pelo /compress-video.
+ */
+async function uploadMediaCore(
+  buffer: Buffer,
+  mimeType: string,
+  originalName: string,
+): Promise<{ publicUrl: string; headerHandle: string | null; warning: string | null }> {
+  // 1. Supabase Storage → URL pública (usada no envio)
+  await ensureMediaBucket();
+  const remotePath = `templates/${Date.now()}-${sanitizeFileName(originalName)}`;
+  const { error: uploadErr } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .upload(remotePath, buffer, { contentType: mimeType, upsert: false });
+  if (uploadErr) {
+    throw createError(`Falha ao subir para o Storage: ${uploadErr.message}`, 502);
+  }
+  const { data: pub } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(remotePath);
+
+  // 2. Meta Resumable Upload → header_handle (usado na criação do template)
+  let headerHandle: string | null = null;
+  let warning: string | null = null;
+  try {
+    const client = await WhatsAppCloudClient.fromDB();
+    headerHandle = await client.uploadTemplateExampleMedia(buffer, mimeType, sanitizeFileName(originalName));
+  } catch (err: any) {
+    warning = `Mídia salva, mas o upload de exemplo pra Meta falhou: ${err.message}`;
+    console.error('[cloud-templates] resumable upload falhou:', err.message);
+  }
+
+  return { publicUrl: pub.publicUrl, headerHandle, warning };
+}
+
 // POST /api/whatsapp/cloud/templates/upload-media
 router.post('/upload-media', mediaUpload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -115,28 +150,7 @@ router.post('/upload-media', mediaUpload.single('file'), async (req: Request, re
       return next(createError(`Arquivo excede o limite de ${rule.label}.`, 400));
     }
 
-    // 1. Supabase Storage → URL pública (usada no envio)
-    await ensureMediaBucket();
-    const remotePath = `templates/${Date.now()}-${sanitizeFileName(file.originalname)}`;
-    const { error: uploadErr } = await supabase.storage
-      .from(MEDIA_BUCKET)
-      .upload(remotePath, file.buffer, { contentType: file.mimetype, upsert: false });
-    if (uploadErr) {
-      return next(createError(`Falha ao subir para o Storage: ${uploadErr.message}`, 502));
-    }
-    const { data: pub } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(remotePath);
-    const publicUrl = pub.publicUrl;
-
-    // 2. Meta Resumable Upload → header_handle (usado na criação do template)
-    let headerHandle: string | null = null;
-    let warning: string | null = null;
-    try {
-      const client = await WhatsAppCloudClient.fromDB();
-      headerHandle = await client.uploadTemplateExampleMedia(file.buffer, file.mimetype, sanitizeFileName(file.originalname));
-    } catch (err: any) {
-      warning = `Mídia salva, mas o upload de exemplo pra Meta falhou: ${err.message}`;
-      console.error('[cloud-templates] upload-media: resumable upload falhou:', err.message);
-    }
+    const { publicUrl, headerHandle, warning } = await uploadMediaCore(file.buffer, file.mimetype, file.originalname);
 
     res.json({
       data: {
@@ -145,6 +159,53 @@ router.post('/upload-media', mediaUpload.single('file'), async (req: Request, re
         mimeType: file.mimetype,
         fileName: file.originalname,
         fileSize: file.size,
+        warning,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/whatsapp/cloud/templates/compress-video
+//
+// Recebe um vídeo grande demais (>16MB) ou em formato não aceito pelo WhatsApp
+// (.mov de iPhone, .webm...), comprime/converte pra MP4 H.264 dentro do limite
+// e já faz o upload duplo. Resposta inclui tamanhos pra UI mostrar o antes/depois.
+const VIDEO_LIMIT_BYTES = 16 * 1024 * 1024;
+
+const compressUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 300 * 1024 * 1024 }, // entrada generosa; a saída é que precisa caber em 16MB
+});
+
+router.post('/compress-video', compressUpload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const file = (req as any).file as { buffer: Buffer; mimetype: string; originalname: string; size: number } | undefined;
+    if (!file) return next(createError('Arquivo é obrigatório (campo "file")', 400));
+    if (!file.mimetype.startsWith('video/')) {
+      return next(createError(`Este endpoint só aceita vídeo (recebi ${file.mimetype}).`, 400));
+    }
+
+    console.log(`[cloud-templates] compress-video: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+    const { compressVideoToLimit } = await import('../utils/videoCompressor');
+    const result = await compressVideoToLimit(file.buffer, VIDEO_LIMIT_BYTES);
+    console.log(
+      `[cloud-templates] compress-video: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(result.buffer.length / 1024 / 1024).toFixed(1)}MB ` +
+      `(${result.videoKbps}kbps, ${result.attempts} tentativa(s)${result.targetHeight ? `, ${result.targetHeight}p` : ''})`
+    );
+
+    const outName = sanitizeFileName(file.originalname).replace(/\.[^.]*$/, '') + '.mp4';
+    const { publicUrl, headerHandle, warning } = await uploadMediaCore(result.buffer, 'video/mp4', outName);
+
+    res.json({
+      data: {
+        publicUrl,
+        headerHandle,
+        mimeType: 'video/mp4',
+        fileName: outName,
+        originalSize: file.size,
+        compressedSize: result.buffer.length,
         warning,
       },
     });
