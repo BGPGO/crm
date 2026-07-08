@@ -509,6 +509,7 @@ router.post('/', async (req: Request, res: Response) => {
                 timezone,
                 cancelUrl,
                 rescheduleUrl,
+                location: scheduledEvent.location ?? null,
                 questionsAndAnswers,
               },
               userId: activityUserId,

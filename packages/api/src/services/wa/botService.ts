@@ -25,6 +25,7 @@ import { WaMessageService } from './messageService';
 import { WindowService } from './windowService';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
 import { sanitizeGreetingName } from '../../utils/nameSanitizer';
+import { buildMeetingContext } from './meetingContext';
 
 // ─── UTM Helper ─────────────────────────────────────────────────────────────
 
@@ -776,7 +777,21 @@ export class WaBotService {
       },
     });
 
-    if (!deal) return '';
+    if (!deal) {
+      // Sem deal aberto: ainda assim injeta o contexto de reunião (atrás de flag)
+      // — evita recitar reunião antiga como atual em conversa órfã de deal.
+      const cfgNoDeal = await prisma.whatsAppConfig.findFirst({
+        select: { enableMeetingContext: true },
+      });
+      if (cfgNoDeal?.enableMeetingContext) {
+        try {
+          return await buildMeetingContext(contactId, null);
+        } catch {
+          return '';
+        }
+      }
+      return '';
+    }
 
     const stageName = deal.stage?.name || 'Desconhecida';
     let ctx = `\n\n=== CONTEXTO DA NEGOCIAÇÃO ===`;
@@ -798,6 +813,7 @@ export class WaBotService {
         stagePromptProposalSent: true,
         stagePromptWaitingData: true,
         stagePromptWaitingSignature: true,
+        enableMeetingContext: true,
       },
     });
 
@@ -813,6 +829,18 @@ export class WaBotService {
     }
 
     if (stagePrompt) ctx += '\n' + stagePrompt;
+
+    // Contexto de reunião (CalendlyEvent + links) — atrás de flag, falha segura
+    if (cfg?.enableMeetingContext) {
+      try {
+        ctx += await buildMeetingContext(contactId, {
+          noShow: deal.noShow,
+          noShowAt: deal.noShowAt,
+        });
+      } catch {
+        /* segue sem o bloco — comportamento igual ao atual */
+      }
+    }
 
     return ctx;
   }

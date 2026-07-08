@@ -1256,6 +1256,9 @@ model WhatsAppConfig {
   // Cold contact limit (stop follow-ups after N messages with no reply)
   coldContactMaxMessages Int @default(2)
 
+  // Injeta contexto de reunião (CalendlyEvent + links) no prompt da BIA
+  enableMeetingContext Boolean @default(false)
+
   // Business hours (Brasília)
   businessHoursStart       Int @default(8)
   businessHoursEndWeekday  Int @default(18)
