@@ -75,10 +75,13 @@ export class WhatsAppCloudClient {
   private client: AxiosInstance;
   private phoneNumberId: string;
   private wabaId: string;
+  private accessToken: string;
+  private cachedAppId: string | null = null;
 
   constructor(config: CloudApiConfig) {
     this.phoneNumberId = config.phoneNumberId;
     this.wabaId = config.wabaId;
+    this.accessToken = config.accessToken;
 
     this.client = axios.create({
       baseURL: GRAPH_API_BASE,
@@ -485,6 +488,92 @@ export class WhatsAppCloudClient {
       headers: form.getHeaders(),
     });
     return res.data;
+  }
+
+  /**
+   * Descobre o App ID associado ao access token.
+   * Ordem: env META_APP_ID → GET /app → GET /debug_token.
+   * Necessário para a Resumable Upload API (upload de exemplo de mídia de template).
+   */
+  private async getAppId(): Promise<string> {
+    if (this.cachedAppId) return this.cachedAppId;
+
+    if (process.env.META_APP_ID) {
+      this.cachedAppId = process.env.META_APP_ID;
+      return this.cachedAppId;
+    }
+
+    try {
+      const res = await this.client.get('/app', { params: { fields: 'id' } });
+      if (res.data?.id) {
+        this.cachedAppId = String(res.data.id);
+        return this.cachedAppId;
+      }
+    } catch {
+      // alguns tipos de token não suportam /app — tenta debug_token
+    }
+
+    const res = await this.client.get('/debug_token', {
+      params: { input_token: this.accessToken },
+    });
+    const appId = res.data?.data?.app_id;
+    if (!appId) {
+      throw new Error(
+        '[WhatsAppCloudClient] Não foi possível descobrir o App ID do token. ' +
+        'Defina a env META_APP_ID no servidor.'
+      );
+    }
+    this.cachedAppId = String(appId);
+    return this.cachedAppId;
+  }
+
+  /**
+   * Upload de mídia via Resumable Upload API — retorna o `header_handle`
+   * exigido pela Meta no `example` de templates com header IMAGE/VIDEO/DOCUMENT.
+   *
+   * (Diferente de uploadMedia(), que gera um media_id para ENVIO de mensagens.
+   *  O handle serve só para CRIAÇÃO/EDIÇÃO de template.)
+   */
+  async uploadTemplateExampleMedia(
+    buffer: Buffer,
+    mimeType: string,
+    fileName: string,
+  ): Promise<string> {
+    const appId = await this.getAppId();
+
+    // 1. Abre a sessão de upload
+    const session = await this.client.post(
+      `/${appId}/uploads`,
+      null,
+      {
+        params: {
+          file_name: fileName,
+          file_length: buffer.length,
+          file_type: mimeType,
+        },
+      }
+    );
+    const sessionId: string = session.data?.id; // formato "upload:XXXX"
+    if (!sessionId) {
+      throw new Error('[WhatsAppCloudClient] Resumable upload: sessão sem id');
+    }
+
+    // 2. Envia o binário (a Resumable Upload API usa "OAuth", não "Bearer")
+    const uploadRes = await this.client.post(`/${sessionId}`, buffer, {
+      headers: {
+        'Authorization': `OAuth ${this.accessToken}`,
+        'file_offset': '0',
+        'Content-Type': 'application/octet-stream',
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+
+    const handle: string = uploadRes.data?.h;
+    if (!handle) {
+      throw new Error('[WhatsAppCloudClient] Resumable upload: resposta sem handle (h)');
+    }
+    return handle;
   }
 
   /**

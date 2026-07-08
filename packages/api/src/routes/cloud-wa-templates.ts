@@ -20,12 +20,138 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
+import axios from 'axios';
+import multer from 'multer';
 import prisma from '../lib/prisma';
+import { supabase } from '../lib/supabase';
 import { createError } from '../middleware/errorHandler';
 import { WhatsAppCloudClient } from '../services/whatsappCloudClient';
 import { extractHeaderContent, resolveSyncedHeaderContent } from '../utils/templateHeaderBuilder';
 
 const router = Router();
+
+// ─── Upload de mídia de header (IMAGE/VIDEO/DOCUMENT) ───────────────────────
+//
+// Templates com header de mídia precisam de DUAS coisas:
+//   1. `header_handle` (Resumable Upload API) — exigido pela Meta na CRIAÇÃO/aprovação
+//   2. URL pública (Supabase Storage)         — usada no ENVIO (image/video.link);
+//      a URL scontent.whatsapp.net da Meta NÃO serve (incidente GOBI 2026-05-21, erro 131053)
+
+const MEDIA_BUCKET = 'wa-media';
+
+// Limites da Cloud API por tipo de mídia
+const MEDIA_RULES: Array<{ mimes: string[]; maxBytes: number; label: string }> = [
+  { mimes: ['image/jpeg', 'image/png'], maxBytes: 5 * 1024 * 1024, label: 'imagem (JPEG/PNG, máx 5MB)' },
+  { mimes: ['video/mp4', 'video/3gpp'], maxBytes: 16 * 1024 * 1024, label: 'vídeo (MP4/3GP, máx 16MB)' },
+  { mimes: ['application/pdf'], maxBytes: 100 * 1024 * 1024, label: 'documento (PDF, máx 100MB)' },
+];
+
+const mediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 },
+});
+
+let bucketEnsured = false;
+async function ensureMediaBucket(): Promise<void> {
+  if (bucketEnsured) return;
+  const { data } = await supabase.storage.getBucket(MEDIA_BUCKET);
+  if (data) {
+    if (!data.public) {
+      await supabase.storage.updateBucket(MEDIA_BUCKET, { public: true });
+    }
+  } else {
+    const { error } = await supabase.storage.createBucket(MEDIA_BUCKET, { public: true });
+    // corrida entre requests: se outro criou primeiro, segue
+    if (error && !/already exists/i.test(error.message)) {
+      throw new Error(`Falha ao criar bucket ${MEDIA_BUCKET}: ${error.message}`);
+    }
+  }
+  bucketEnsured = true;
+}
+
+function sanitizeFileName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(-80);
+}
+
+/**
+ * Fallback: baixa a mídia de uma URL pública e sobe pra Meta via Resumable Upload,
+ * devolvendo o header_handle. Usado quando o frontend só mandou URL (sem upload de arquivo).
+ */
+async function fetchHandleFromUrl(client: WhatsAppCloudClient, url: string): Promise<string | null> {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 60_000,
+      maxContentLength: 100 * 1024 * 1024,
+    });
+    const buffer = Buffer.from(res.data);
+    const mimeType = (res.headers['content-type'] || 'application/octet-stream').split(';')[0];
+    const fileName = sanitizeFileName(url.split('/').pop() || 'media') || 'media';
+    return await client.uploadTemplateExampleMedia(buffer, mimeType, fileName);
+  } catch (err: any) {
+    console.warn('[cloud-templates] Fallback header_handle via URL falhou:', err.message);
+    return null;
+  }
+}
+
+// POST /api/whatsapp/cloud/templates/upload-media
+router.post('/upload-media', mediaUpload.single('file'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const file = (req as any).file as { buffer: Buffer; mimetype: string; originalname: string; size: number } | undefined;
+    if (!file) return next(createError('Arquivo é obrigatório (campo "file")', 400));
+
+    const rule = MEDIA_RULES.find((r) => r.mimes.includes(file.mimetype));
+    if (!rule) {
+      return next(createError(
+        `Tipo de arquivo não suportado (${file.mimetype}). Aceitos: JPEG/PNG, MP4/3GP ou PDF.`,
+        400
+      ));
+    }
+    if (file.size > rule.maxBytes) {
+      return next(createError(`Arquivo excede o limite de ${rule.label}.`, 400));
+    }
+
+    // 1. Supabase Storage → URL pública (usada no envio)
+    await ensureMediaBucket();
+    const remotePath = `templates/${Date.now()}-${sanitizeFileName(file.originalname)}`;
+    const { error: uploadErr } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(remotePath, file.buffer, { contentType: file.mimetype, upsert: false });
+    if (uploadErr) {
+      return next(createError(`Falha ao subir para o Storage: ${uploadErr.message}`, 502));
+    }
+    const { data: pub } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(remotePath);
+    const publicUrl = pub.publicUrl;
+
+    // 2. Meta Resumable Upload → header_handle (usado na criação do template)
+    let headerHandle: string | null = null;
+    let warning: string | null = null;
+    try {
+      const client = await WhatsAppCloudClient.fromDB();
+      headerHandle = await client.uploadTemplateExampleMedia(file.buffer, file.mimetype, sanitizeFileName(file.originalname));
+    } catch (err: any) {
+      warning = `Mídia salva, mas o upload de exemplo pra Meta falhou: ${err.message}`;
+      console.error('[cloud-templates] upload-media: resumable upload falhou:', err.message);
+    }
+
+    res.json({
+      data: {
+        publicUrl,
+        headerHandle,
+        mimeType: file.mimetype,
+        fileName: file.originalname,
+        fileSize: file.size,
+        warning,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ─── GET /api/whatsapp/cloud/templates — Listar templates ───────────────────
 
@@ -78,6 +204,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       category,
       headerType,
       headerContent,
+      headerHandle,
       body,
       footer,
       buttons,
@@ -130,8 +257,19 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           headerComponent.example = { header_text: [headerExample] };
         }
       } else {
-        // IMAGE, VIDEO, DOCUMENT
-        headerComponent.example = { header_url: [headerContent] };
+        // IMAGE, VIDEO, DOCUMENT — a Meta exige header_handle (Resumable Upload API).
+        // Se o frontend não mandou o handle (ex: colou só a URL), tenta gerar
+        // baixando a URL; header_url fica como último recurso (nem sempre aceito).
+        let handle: string | null = headerHandle || null;
+        if (!handle && /^https?:\/\//i.test(headerContent)) {
+          try {
+            const client = await WhatsAppCloudClient.fromDB();
+            handle = await fetchHandleFromUrl(client, headerContent);
+          } catch { /* Cloud API não configurada — segue sem handle */ }
+        }
+        headerComponent.example = handle
+          ? { header_handle: [handle] }
+          : { header_url: [headerContent] };
       }
       components.push(headerComponent);
     }
@@ -244,7 +382,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError('Limite de edições atingido (10 por 30 dias). Aguarde para editar novamente.', 429));
     }
 
-    const { headerType, headerContent, body, footer, buttons, bodyExamples, headerExample, variableMapping } = req.body;
+    const { headerType, headerContent, headerHandle, body, footer, buttons, bodyExamples, headerExample, variableMapping } = req.body;
 
     // Montar components atualizados
     const components: any[] = [];
@@ -260,7 +398,17 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       if (newHeaderType === 'TEXT') {
         headerComponent.text = newHeaderContent;
       } else {
-        headerComponent.example = { header_url: [newHeaderContent] };
+        // Mídia: mesma regra do POST — preferir header_handle
+        let handle: string | null = headerHandle || null;
+        if (!handle && /^https?:\/\//i.test(newHeaderContent)) {
+          try {
+            const client = await WhatsAppCloudClient.fromDB();
+            handle = await fetchHandleFromUrl(client, newHeaderContent);
+          } catch { /* Cloud API não configurada — segue sem handle */ }
+        }
+        headerComponent.example = handle
+          ? { header_handle: [handle] }
+          : { header_url: [newHeaderContent] };
       }
       components.push(headerComponent);
     }

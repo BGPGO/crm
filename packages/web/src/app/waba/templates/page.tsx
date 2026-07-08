@@ -18,9 +18,11 @@ import {
   Type,
   ChevronDown,
   ExternalLink,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
-import { api } from "@/lib/api";
+import { api, getAuthHeaders } from "@/lib/api";
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 
@@ -159,6 +161,7 @@ const EMPTY_FORM: FormState = {
   category: "MARKETING",
   headerType: "",
   headerContent: "",
+  headerHandle: "",
   body: "",
   footer: "",
   buttons: [],
@@ -173,6 +176,7 @@ interface FormState {
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   headerType: string;
   headerContent: string;
+  headerHandle: string; // handle da Resumable Upload API (exigido pela Meta pra header de mídia)
   body: string;
   footer: string;
   buttons: TemplateButton[];
@@ -180,6 +184,13 @@ interface FormState {
   headerExample: string;
   variableMapping: VariableMappingItem[];
 }
+
+// Tipos de arquivo aceitos por header de mídia (limites da Cloud API)
+const MEDIA_ACCEPT: Record<string, { accept: string; hint: string }> = {
+  IMAGE: { accept: "image/jpeg,image/png", hint: "JPEG ou PNG, máx 5MB" },
+  VIDEO: { accept: "video/mp4,video/3gpp", hint: "MP4 ou 3GP, máx 16MB" },
+  DOCUMENT: { accept: "application/pdf", hint: "PDF, máx 100MB" },
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -546,15 +557,77 @@ export default function TemplatesPage() {
       category: tpl.category,
       headerType: tpl.headerType || "",
       headerContent: tpl.headerContent || "",
+      headerHandle: "",
       body: tpl.body,
       footer: tpl.footer || "",
       buttons: tpl.buttons || [],
       bodyExamples: examples,
-      headerExample: tpl.headerExample || "",
+      // Pra header de mídia a URL pública fica em headerContent (headerExample é legado)
+      headerExample:
+        tpl.headerType && tpl.headerType !== "TEXT"
+          ? tpl.headerContent || tpl.headerExample || ""
+          : tpl.headerExample || "",
       variableMapping: tpl.variableMapping || [],
     });
     setFormError(null);
     setShowModal(true);
+  };
+
+  // ── Upload de mídia do header (IMAGE/VIDEO/DOCUMENT) ──────────────────────
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const limits: Record<string, number> = {
+      IMAGE: 5 * 1024 * 1024,
+      VIDEO: 16 * 1024 * 1024,
+      DOCUMENT: 100 * 1024 * 1024,
+    };
+    const max = limits[form.headerType];
+    if (max && file.size > max) {
+      setFormError(
+        `Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Limite: ${MEDIA_ACCEPT[form.headerType]?.hint}.`
+      );
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
+      return;
+    }
+
+    setUploadingMedia(true);
+    setFormError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/whatsapp/cloud/templates/upload-media", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message || body?.message || "Upload falhou");
+      }
+      const { data } = await res.json();
+      updateForm({
+        headerExample: data.publicUrl,
+        headerHandle: data.headerHandle || "",
+      });
+      if (data.warning) {
+        addToast(data.warning, "error");
+      } else {
+        addToast("Midia enviada com sucesso.", "success");
+      }
+    } catch (err: unknown) {
+      setFormError(
+        err instanceof Error ? `Erro no upload: ${err.message}` : "Erro no upload da midia."
+      );
+    } finally {
+      setUploadingMedia(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
+    }
   };
 
   const handleSave = async () => {
@@ -572,6 +645,11 @@ export default function TemplatesPage() {
     }
     if (form.footer && form.footer.length > 60) {
       setFormError("O rodape excede 60 caracteres.");
+      return;
+    }
+    const isMediaHeader = ["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerType);
+    if (isMediaHeader && !form.headerExample.trim()) {
+      setFormError("Envie o arquivo do cabecalho (ou cole uma URL publica).");
       return;
     }
 
@@ -597,7 +675,12 @@ export default function TemplatesPage() {
       language: form.language,
       category: form.category,
       headerType: form.headerType || null,
-      headerContent: form.headerContent || null,
+      // Pra header de mídia, headerContent = URL pública (usada no envio);
+      // pra TEXT continua sendo o texto do cabeçalho.
+      headerContent: isMediaHeader
+        ? form.headerExample.trim() || null
+        : form.headerContent || null,
+      headerHandle: isMediaHeader ? form.headerHandle || null : null,
       body: form.body.trim(),
       footer: form.footer.trim() || null,
       buttons: form.buttons.length > 0 ? form.buttons : null,
@@ -1149,6 +1232,7 @@ export default function TemplatesPage() {
                           headerType: e.target.value,
                           headerContent: "",
                           headerExample: "",
+                          headerHandle: "",
                         })
                       }
                       className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500"
@@ -1178,23 +1262,51 @@ export default function TemplatesPage() {
                       form.headerType === "DOCUMENT") && (
                       <div className="space-y-2">
                         <input
+                          ref={mediaInputRef}
+                          type="file"
+                          accept={MEDIA_ACCEPT[form.headerType]?.accept}
+                          onChange={handleMediaUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => mediaInputRef.current?.click()}
+                          disabled={uploadingMedia}
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-petrol-600 dark:text-petrol-400 bg-petrol-50 dark:bg-petrol-900/20 rounded-lg hover:bg-petrol-100 dark:hover:bg-petrol-900/40 transition-colors border border-petrol-200 dark:border-petrol-800 disabled:opacity-60"
+                        >
+                          {uploadingMedia ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" />
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={14} />
+                              {form.headerExample ? "Trocar arquivo" : "Enviar arquivo"}
+                            </>
+                          )}
+                        </button>
+                        <p className="text-xs text-gray-400">
+                          {MEDIA_ACCEPT[form.headerType]?.hint}. A Meta exige o
+                          arquivo de exemplo para aprovar o template.
+                        </p>
+                        {form.headerExample && (
+                          <p className="text-xs text-green-600 dark:text-green-400 break-all">
+                            ✓ Midia pronta: {form.headerExample}
+                          </p>
+                        )}
+                        <input
                           type="url"
                           value={form.headerExample}
                           onChange={(e) =>
-                            updateForm({ headerExample: e.target.value })
+                            updateForm({
+                              headerExample: e.target.value,
+                              headerHandle: "",
+                            })
                           }
-                          placeholder={`URL do ${
-                            form.headerType === "IMAGE"
-                              ? "imagem"
-                              : form.headerType === "VIDEO"
-                              ? "video"
-                              : "documento"
-                          } de exemplo`}
+                          placeholder="ou cole uma URL publica da midia"
                           className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-petrol-500"
                         />
-                        <p className="text-xs text-gray-400">
-                          A Meta exige um exemplo de midia para aprovacao.
-                        </p>
                       </div>
                     )}
                   </div>
