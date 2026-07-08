@@ -232,6 +232,154 @@ export async function curateNews(items: FeedItem[]): Promise<CuratedNews[]> {
   return out;
 }
 
+// ─── BGP na mídia (busca Globo: Valor Econômico + O Globo) ──────────────────
+
+export interface MediaMention {
+  veiculo: string; // 'Valor Econômico' | 'O Globo'
+  logoUrl: string | null; // wordmark do veículo (PNG público, bucket newsletter-assets)
+  title: string;
+  url: string;
+  issued: Date | null;
+  quote: string; // trecho da matéria que cita a Bertuzzi
+}
+
+const MEDIA_ASSETS = 'https://gqjgbwzxlqkwvrtorhvb.supabase.co/storage/v1/object/public/newsletter-assets';
+
+const MEDIA_TENANTS = [
+  {
+    tenant: 'valor',
+    veiculo: 'Valor Econômico',
+    logoUrl: `${MEDIA_ASSETS}/logo-valor.png`,
+    origin: 'https://valor.globo.com',
+    profile: 'sp_valor_globo_com',
+    query: 'valor.info_query_recency',
+  },
+  {
+    tenant: 'oglobo',
+    veiculo: 'O Globo',
+    logoUrl: `${MEDIA_ASSETS}/logo-oglobo.png`,
+    origin: 'https://oglobo.globo.com',
+    profile: 'sp_oglobo_globo_com',
+    query: 'oglobo.info_query_recency',
+  },
+];
+
+/** A busca devolve URLs embrulhadas no redirect de métricas (measures.globo.com);
+ * o destino real vem no parâmetro `u`. */
+function unwrapMeasuresUrl(raw: string): string {
+  const m = raw.match(/[?&]u=([^&]+)/);
+  if (!m) return raw;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return raw;
+  }
+}
+
+/** Primeira frase do corpo que cita a Bertuzzi (fallback: subtítulo/1ª frase). */
+function extractMentionQuote(body: string, caption: string): string {
+  const frases = (body || '').split(/(?<=[.!?”])\s+/);
+  const hit = frases.find((f) => /bertuzzi/i.test(f));
+  const quote = (hit || caption || frases[0] || '').replace(/\s+/g, ' ').trim();
+  return quote.length > 240 ? `${quote.slice(0, 237).trimEnd()}…` : quote;
+}
+
+/**
+ * A busca do Globo é fuzzy (retorna "Belluzzo", homônimos de esporte etc.).
+ * Só vale como citação a matéria que menciona a NOSSA Bertuzzi: exige
+ * "bertuzzi" no texto E um sinal de contexto BGP por perto.
+ */
+function isBgpMention(texto: string): boolean {
+  if (!/bertuzzi/i.test(texto)) return false;
+  return /bertuzzi\s+gest[ãa]o|gest[ãa]o\s+patrimonial|v[ií]tor\s+bertuzzi|\bbgp\b/i.test(texto);
+}
+
+/**
+ * Busca matérias que citam a Bertuzzi no Valor Econômico e no O Globo via a
+ * API de busca do grupo Globo (mesma chamada que a página /busca/?q=bertuzzi
+ * faz; exige os headers de origem/tenant). Dedup por título (a mesma matéria
+ * sai nos dois veículos) e ordena da mais recente pra mais antiga.
+ */
+export async function fetchMediaMentions(): Promise<MediaMention[]> {
+  const results = await Promise.allSettled(
+    MEDIA_TENANTS.map(async (t) => {
+      const res = await fetch('https://busca.globo.com/v1/search', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: t.origin,
+          referer: `${t.origin}/busca/?q=bertuzzi`,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'x-tenant-id': t.tenant,
+        },
+        body: JSON.stringify([
+          { search_profile: t.profile, query: t.query, params: { q: 'bertuzzi', from: 0, size: 15 } },
+        ]),
+      });
+      if (!res.ok) throw new Error(`${t.veiculo} busca ${res.status}`);
+      const json = (await res.json()) as {
+        result?: { hits?: { hits?: { _source?: Record<string, string> }[] } };
+      }[];
+      const hits = json?.[0]?.result?.hits?.hits || [];
+      const out: MediaMention[] = [];
+      for (const h of hits) {
+        const s = h._source || {};
+        const title = (s.title || '').replace(/\s+/g, ' ').trim();
+        const url = unwrapMeasuresUrl(s.url || '');
+        if (!title || !url) continue;
+        if (!isBgpMention(`${title} ${s.caption || ''} ${s.body || ''}`)) continue;
+        const issued = s.issued ? new Date(s.issued) : null;
+        out.push({
+          veiculo: t.veiculo,
+          logoUrl: t.logoUrl,
+          title,
+          url,
+          issued: issued && !isNaN(issued.getTime()) ? issued : null,
+          quote: extractMentionQuote(s.body || '', s.caption || ''),
+        });
+      }
+      return out;
+    })
+  );
+
+  const all: MediaMention[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') all.push(...r.value);
+    else console.warn('[newsletter] busca de mídia falhou:', r.reason?.message || r.reason);
+  }
+
+  // Mais recentes primeiro; dedup por título normalizado (mesma matéria nos 2 veículos)
+  all.sort((a, b) => (b.issued?.getTime() ?? 0) - (a.issued?.getTime() ?? 0));
+  const vistos = new Set<string>();
+  return all.filter((m) => {
+    const chave = m.title.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '');
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+}
+
+/**
+ * Rodízio da citação: exclui as usadas nas últimas edições (janela = tamanho
+ * do acervo - 1, garantindo sempre ao menos 1 inédita no ciclo) e pega a mais
+ * recente disponível. Acervo vazio → seção não aparece na edição.
+ */
+export async function selectMediaMention(pool: MediaMention[]): Promise<MediaMention | null> {
+  if (pool.length === 0) return null;
+  const lookback = Math.max(pool.length - 1, 1);
+  const recentEditions = await prisma.newsletterEdition.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: lookback,
+    select: { links: true },
+  });
+  const used = new Set<string>();
+  for (const edition of recentEditions) {
+    const u = (edition.links as Record<string, { url?: string }> | null)?.['midia-1']?.url;
+    if (u) used.add(u);
+  }
+  return pool.find((m) => !used.has(m.url)) || pool[0];
+}
+
 // ─── Imagem da notícia (og:image quando o RSS não trouxe) ────────────────────
 
 export async function fetchOgImage(pageUrl: string): Promise<string | null> {
@@ -320,7 +468,57 @@ function postCard(post: BlogPost, slot: string): string {
             </div>`;
 }
 
-export function renderNewsletterHtml(news: CuratedNews[], posts: BlogPost[], dateLabel: string): string {
+function mediaSection(mention: MediaMention | null): string {
+  if (!mention) return '';
+  const dataLabel = mention.issued
+    ? mention.issued
+        .toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' })
+        .replace(/\./g, '')
+    : '';
+  return `
+    <!-- BGP NA MÍDIA -->
+    <tr><td class="px" style="background-color:#ffffff; padding:28px 40px 8px;">
+      <div style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:#244C5A; font-weight:700;">
+        ▪&nbsp; BGP na mídia
+      </div>
+      <div style="height:1px; background-color:#dfe8ea; margin:12px 0 22px;"></div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f8f9; border-radius:10px;">
+        <tr><td style="padding:26px 30px 28px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td valign="middle">
+                ${mention.logoUrl
+                  ? `<img src="${esc(mention.logoUrl)}" alt="${esc(mention.veiculo)}" height="22" style="display:block; height:22px; width:auto;">`
+                  : `<div style="font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:#244C5A; font-weight:700;">${esc(mention.veiculo)}</div>`}
+              </td>
+              <td align="right" valign="top" style="font-size:40px; line-height:0.6; font-family:Georgia, 'Times New Roman', serif; color:#ABC7C9;">&ldquo;</td>
+            </tr>
+          </table>
+          <div style="font-size:16px; line-height:1.6; color:#244C5A; font-style:italic; margin-top:14px;">
+            ${esc(mention.quote)}
+          </div>
+          <div style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#8aa0a8; font-weight:700; margin-top:16px;">
+            ${esc(mention.veiculo)}${dataLabel ? ` · ${esc(dataLabel)}` : ''}
+          </div>
+          <a href="${esc(mention.url)}" data-slot="midia-1"
+             style="display:block; font-size:15px; line-height:1.4; color:#244C5A; font-weight:700; text-decoration:none; margin-top:8px;">
+            ${esc(mention.title)}
+          </a>
+          <a href="${esc(mention.url)}" data-slot="midia-1"
+             style="display:inline-block; margin-top:12px; font-size:13.5px; font-weight:600; color:#244C5A; text-decoration:none; border-bottom:2px solid #ABC7C9; padding-bottom:2px;">
+            Ler no ${esc(mention.veiculo)} →
+          </a>
+        </td></tr>
+      </table>
+    </td></tr>`;
+}
+
+export function renderNewsletterHtml(
+  news: CuratedNews[],
+  posts: BlogPost[],
+  dateLabel: string,
+  midia: MediaMention | null = null
+): string {
   const [destaque, post2, post3] = posts;
   const preheader = news.map((n) => n.title).slice(0, 2).join(', ');
 
@@ -436,7 +634,7 @@ ${postCard(post3, 'academy-post-3')}
         </tr>
       </table>
     </td></tr>
-
+${mediaSection(midia)}
     <!-- CTA -->
     <tr><td class="px" style="background-color:#ffffff; padding:8px 40px 40px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ABC7C9; border-radius:10px;">
@@ -493,7 +691,15 @@ ${postCard(post3, 'academy-post-3')}
 // ─── Orquestração ────────────────────────────────────────────────────────────
 
 export async function buildEdition(opts?: { isTest?: boolean }): Promise<{ id: string; subject: string }> {
-  const [candidates, feedItems] = await Promise.all([fetchBlogPosts(), fetchFeedItems()]);
+  const [candidates, feedItems, mentions] = await Promise.all([
+    fetchBlogPosts(),
+    fetchFeedItems(),
+    // Citação na mídia é opcional: falha na busca não derruba a edição.
+    fetchMediaMentions().catch((e) => {
+      console.warn('[newsletter] BGP na mídia indisponível:', e?.message || e);
+      return [] as MediaMention[];
+    }),
+  ]);
   const posts = await selectPosts(candidates);
   if (posts.length < 3) throw new Error(`ContIA retornou só ${posts.length} posts publicados`);
   await resolvePostImages(posts);
@@ -504,6 +710,9 @@ export async function buildEdition(opts?: { isTest?: boolean }): Promise<{ id: s
   const withImages = await Promise.all(
     curated.map(async (n) => ({ ...n, image: await resolveNewsImage(n) }))
   );
+
+  const midia = await selectMediaMention(mentions);
+  if (!midia) console.warn('[newsletter] edição sem seção BGP na mídia (acervo vazio)');
 
   const now = new Date();
   const dateLabel = now.toLocaleDateString('pt-BR', {
@@ -518,7 +727,7 @@ export async function buildEdition(opts?: { isTest?: boolean }): Promise<{ id: s
     timeZone: 'America/Sao_Paulo',
   });
 
-  const html = renderNewsletterHtml(withImages, posts, dateLabel);
+  const html = renderNewsletterHtml(withImages, posts, dateLabel, midia);
   const subject = `BGP Insights — Sua semana em gestão financeira · ${ddmm}`;
 
   // extractLinks importado dinamicamente evitaria ciclo, mas não há ciclo aqui:
