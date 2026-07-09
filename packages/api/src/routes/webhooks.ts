@@ -11,6 +11,28 @@ import { sendLeadNotifications } from '../services/leadNotificationService';
 
 const router = Router();
 
+// Extrai o fbclid de uma URL (query param). A GreatPages não manda o fbclid
+// como campo solto — ele vem embutido na URL da landing page (landing_page).
+function extractFbclid(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = /[?&]fbclid=([^&#]+)/i.exec(url);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// Monta o `fbc` no formato exigido pela Meta CAPI: fb.1.<timestamp_ms>.<fbclid>.
+// Ordem de preferência: cookie _fbc já formatado (começa com "fb.") → fbclid cru
+// enviado no corpo → fbclid extraído da URL da landing page.
+function buildFbc(
+  rawFbc: string | undefined,
+  landingPage: string | undefined,
+  nowMs: number
+): string | null {
+  if (rawFbc && rawFbc.startsWith('fb.')) return rawFbc;
+  const fbclid = (rawFbc && rawFbc.trim() !== '' ? rawFbc : null) ?? extractFbclid(landingPage);
+  if (!fbclid) return null;
+  return `fb.1.${nowMs}.${fbclid}`;
+}
+
 // ── Shared handler for incoming webhooks (POST + GET) ───────────────────────
 
 async function handleIncoming(req: Request, res: Response, next: NextFunction) {
@@ -105,12 +127,14 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     const landingPage = resolveField(['landing_page', 'page_url', 'pageUrl', 'page']);
     const ip = req.ip ?? req.headers['x-forwarded-for']?.toString().split(',')[0].trim() ?? null;
     const userAgent = req.headers['user-agent'] ?? null;
-    // Meta Pixel cookies (capturados pela LP via JS e enviados no body do webhook):
-    //   _fbp  → cookie do Pixel (gerado em todo pageview com FBQ)
-    //   _fbc  → cookie do click ID (gerado quando a URL traz fbclid=...)
+    // Meta Pixel cookies / click id (para matching na Conversions API):
+    //   _fbp  → cookie do Pixel (gerado em todo pageview com FBQ) — só chega se a LP mandar
+    //   _fbc  → click ID; derivado do fbclid. A GreatPages não manda campo solto, então
+    //           extraímos o fbclid da URL da landing page e montamos fb.1.<ts>.<fbclid>.
     // Aceitamos múltiplos nomes para compatibilidade com diferentes templates de LP.
     const fbp = resolveField(['fbp', '_fbp', 'fb_pixel_id']);
-    const fbc = resolveField(['fbc', '_fbc', 'fb_click_id', 'fbclid']);
+    const rawFbc = resolveField(['fbc', '_fbc', 'fb_click_id', 'fbclid']);
+    const fbc = buildFbc(rawFbc, landingPage, Date.now());
 
     // 5. Find default admin user for deal assignment
     const defaultUser = await prisma.user.findFirst({
