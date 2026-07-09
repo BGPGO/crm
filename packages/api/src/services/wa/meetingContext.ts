@@ -83,7 +83,7 @@ export async function buildMeetingContext(
       if (joinUrl) {
         ctx += `\nSe pedir o link pra ENTRAR na reunião (videochamada): envie ${joinUrl}`;
       } else {
-        ctx += `\nLink pra ENTRAR na reunião (videochamada): você NÃO tem. Se o lead pedir, diga que vai acionar o time pra enviar imediatamente — NUNCA responda com link/botão de agendamento e NUNCA diga "vou te mandar o link" sem explicar que vem de um humano.`;
+        ctx += `\nLink pra ENTRAR na reunião (videochamada): você NÃO tem. Se o lead pedir, diga que vai acionar o time pra enviar imediatamente — NUNCA responda com link/botão de agendamento e NUNCA diga "vou te mandar o link" sem explicar que vem de um humano. Nesse caso, termine sua resposta com o marcador [ACIONAR_HUMANO] (interno — o lead não vê; ele aciona o time de verdade).`;
       }
       if (rescheduleUrl) {
         ctx += `\nSe quiser REAGENDAR: envie este link na própria resposta: ${rescheduleUrl}`;

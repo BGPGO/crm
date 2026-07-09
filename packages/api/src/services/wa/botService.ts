@@ -424,6 +424,18 @@ export class WaBotService {
         dealContext || undefined,
       );
 
+      // 7b. Marcador interno [ACIONAR_HUMANO] (instruído pelo contexto de reunião
+      // quando a BIA promete ação de um humano, ex.: link do Meet que ela não tem).
+      // Remove do texto antes de enviar; após o envio, marca a conversa pra
+      // atendimento humano de verdade (senão a promessa fica vazia).
+      const needsHumanHandoff = aiReply.includes('[ACIONAR_HUMANO]');
+      let cleanReply = needsHumanHandoff
+        ? aiReply.replace(/\s*\[ACIONAR_HUMANO\]\s*/g, ' ').replace(/ {2,}/g, ' ').trim()
+        : aiReply;
+      if (needsHumanHandoff && !cleanReply) {
+        cleanReply = 'Já acionei nosso time aqui pra te enviar o link da reunião, um instante! 😊';
+      }
+
       // 8. (removido — WaMessageService.sendText já salva no banco, evita duplicação)
 
       // 9. Save AI history
@@ -431,7 +443,7 @@ export class WaBotService {
         data: { conversationId, role: 'user', content: combinedText },
       });
       await prisma.waAIHistory.create({
-        data: { conversationId, role: 'assistant', content: aiReply },
+        data: { conversationId, role: 'assistant', content: cleanReply },
       });
 
       // 10. Cap AI history at 20
@@ -473,16 +485,28 @@ export class WaBotService {
       });
 
       // 13. Send the response via Cloud API
+      // No handoff, NÃO passa meetingLink: evita o CTA "Agendar Reuniao" por cima
+      // da resposta "vou acionar o time" (lead pediu link de ENTRAR, não de marcar).
       await WaBotService.sendBotResponse(
         conversationId,
         phone,
-        aiReply,
-        config.meetingLink || undefined,
+        cleanReply,
+        needsHumanHandoff ? undefined : config.meetingLink || undefined,
         config.botProducts || [],
       );
 
+      // 13b. Handoff de verdade: fila de atendimento humano + silencia o bot
+      // nesta conversa até o time resolver (mesma fila que o time já monitora).
+      if (needsHumanHandoff) {
+        await prisma.waConversation.update({
+          where: { id: conversationId },
+          data: { needsHumanAttention: true },
+        });
+        console.log(`[WaBot] [ACIONAR_HUMANO] — conversa ${conversationId} movida pra atendimento humano`);
+      }
+
       // 14. Ensure meeting link if AI mentioned meeting but forgot the link
-      await WaBotService.ensureMeetingLink(conversationId, aiReply, config.meetingLink || undefined);
+      await WaBotService.ensureMeetingLink(conversationId, cleanReply, config.meetingLink || undefined);
 
       // 15. Register in daily limit
       const { registerSent } = await import('../dailyLimitService');
@@ -636,13 +660,24 @@ export class WaBotService {
         select: { contactId: true },
       });
       if (conv?.contactId) {
+        // Quem JÁ TEM reunião futura marcada nunca recebe CTA de agendamento —
+        // checagem por dado (CalendlyEvent), independente do nome da etapa.
+        const upcomingMeeting = await prisma.calendlyEvent.findFirst({
+          where: { contactId: conv.contactId, status: 'active', startTime: { gt: new Date() } },
+          select: { id: true },
+        });
+        if (upcomingMeeting) {
+          console.log(`[WaBot] Contato já tem reunião futura — CTA Calendly bloqueado`);
+          return;
+        }
+
         const deal = await prisma.deal.findFirst({
           where: { contactId: conv.contactId, status: 'OPEN' },
           include: { stage: { select: { name: true } } },
         });
         if (deal?.stage) {
           const stageLC = deal.stage.name.toLowerCase();
-          const LATE_STAGES = ['reunião agendada', 'reuniao agendada', 'proposta', 'aguardando', 'ganho', 'fechado'];
+          const LATE_STAGES = ['reunião agendada', 'reuniao agendada', 'reunião marcada', 'reuniao marcada', 'proposta', 'aguardando', 'ganho', 'fechado'];
           if (LATE_STAGES.some(s => stageLC.includes(s))) {
             console.log(`[WaBot] Etapa "${deal.stage.name}" — CTA Calendly bloqueado (reunião já agendada ou etapa avançada)`);
             return;
