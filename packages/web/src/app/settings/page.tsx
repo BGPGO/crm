@@ -300,7 +300,7 @@ function TeamTab() {
 
   const loadMembers = useCallback(() => {
     setLoading(true);
-    api.get<{ data: ApiUser[] }>("/users")
+    api.get<{ data: ApiUser[] }>("/users?limit=100")
       .then((res) => setMembers(res.data))
       .catch(() => setFeedback({ type: "error", text: "Erro ao carregar equipe." }))
       .finally(() => setLoading(false));

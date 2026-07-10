@@ -469,7 +469,7 @@ export default function PipelinePage() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await api.get<ApiUsersResponse>("/users");
+      const res = await api.get<ApiUsersResponse>("/users?limit=100");
       setUsers(res.data);
     } catch {
       // If /users endpoint doesn't exist, fail silently

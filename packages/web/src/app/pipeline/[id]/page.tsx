@@ -806,7 +806,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     loadDeal();
     loadTimeline();
     loadWhatsAppConversation();
-    api.get<{ data: Array<{ id: string; name: string }> }>("/users")
+    api.get<{ data: Array<{ id: string; name: string }> }>("/users?limit=100")
       .then((res) => setAllUsers((res as { data: Array<{ id: string; name: string }> }).data || []))
       .catch(() => {});
     api.get<{ data: Array<{ id: string; name: string }> }>("/campaigns?limit=200")
