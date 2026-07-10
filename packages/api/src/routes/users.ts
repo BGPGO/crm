@@ -25,11 +25,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { teamId, role } = req.query;
+    const { teamId, role, isActive } = req.query;
 
     const where: Record<string, unknown> = {};
     if (teamId) where.teamId = teamId as string;
     if (role) where.role = role as string;
+    if (isActive !== undefined) where.isActive = isActive === 'true';
 
     const [total, data] = await Promise.all([
       prisma.user.count({ where }),

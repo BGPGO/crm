@@ -806,7 +806,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     loadDeal();
     loadTimeline();
     loadWhatsAppConversation();
-    api.get<{ data: Array<{ id: string; name: string }> }>("/users?limit=100")
+    api.get<{ data: Array<{ id: string; name: string }> }>("/users?limit=100&isActive=true")
       .then((res) => setAllUsers((res as { data: Array<{ id: string; name: string }> }).data || []))
       .catch(() => {});
     api.get<{ data: Array<{ id: string; name: string }> }>("/campaigns?limit=200")
@@ -1779,7 +1779,11 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
               >
                 {!deal?.user && <option value="">Sem responsável</option>}
-                {allUsers.map((u) => (
+                {/* Preserva o dono atual como opção mesmo se ele estiver inativo (senão o select fica em branco) */}
+                {(deal?.user && !allUsers.some((u) => u.id === deal.user!.id)
+                  ? [{ id: deal.user.id, name: `${deal.user.name} (inativo)` }, ...allUsers]
+                  : allUsers
+                ).map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </select>

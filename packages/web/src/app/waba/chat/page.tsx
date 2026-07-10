@@ -670,7 +670,7 @@ export default function WabaChatPage() {
   // ── Load users + templates + cloud config once ──
   useEffect(() => {
     api
-      .get<{ data: WaUser[] }>("/users?limit=100")
+      .get<{ data: WaUser[] }>("/users?limit=100&isActive=true")
       .then((res) => setUsers(res.data ?? []))
       .catch(() => {});
     api

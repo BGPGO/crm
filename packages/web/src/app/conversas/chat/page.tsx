@@ -141,7 +141,7 @@ export default function ConversasChatPage() {
     api.get<{ data: ConvTag[] }>("/tags")
       .then(res => setAllTags(Array.isArray(res) ? res : res.data ?? []))
       .catch(() => {});
-    api.get<{ data: Array<{id: string, name: string}> }>("/users?limit=100")
+    api.get<{ data: Array<{id: string, name: string}> }>("/users?limit=100&isActive=true")
       .then(res => setAllUsers(res.data ?? []))
       .catch(() => {});
   }, []);
