@@ -32,6 +32,41 @@ interface ContiaMetaAdsResponse {
   monthToDate: { spend: number; leads: number };
 }
 
+/** Criativo normalizado servido pelo ContIA (content_items.raw.creative) */
+export interface AdCreative {
+  creative_id: string | null;
+  media_type: 'video' | 'image' | 'carousel' | 'unknown';
+  video_url: string | null;
+  image_url: string | null;
+  thumbnail_url: string | null;
+  body: string | null;
+  title: string | null;
+  description: string | null;
+  link_url: string | null;
+  cta_type: string | null;
+  instagram_permalink_url: string | null;
+  cards: Array<{
+    image_url: string | null;
+    title: string | null;
+    description: string | null;
+    link_url: string | null;
+  }>;
+}
+
+export interface AdCreativeInfo {
+  id: string;
+  name: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  url: string | null;
+  creative: AdCreative | null;
+}
+
+interface ContiaCreativeResponse {
+  found: boolean;
+  ad?: AdCreativeInfo;
+}
+
 // ── Helper: resposta vazia ────────────────────────────────────────────────────
 
 function emptyResponse(date: Date, status: ConnectionStatus = 'ERROR'): DailyAdsSpend {
@@ -164,6 +199,68 @@ export async function getMetaAdsDaily(date: Date): Promise<DailyAdsSpend> {
   const fallback = snapshotResult ?? liveResult;
   if (fallback) return toDailyAdsSpend(fallback, 'STALE');
   return emptyResponse(date, 'STALE');
+}
+
+// ── Criativo do anúncio (por utm_term) ────────────────────────────────────────
+
+const creativeCache = new Map<string, { at: number; info: AdCreativeInfo | null }>();
+const CREATIVE_CACHE_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Busca no ContIA o criativo do anúncio que originou o lead.
+ * `term` = utm_term (nome do anúncio na Meta); `campaign` = utm_campaign
+ * (desambigua quando o mesmo nome de ad existe em mais de uma campanha).
+ * Retorna null se não configurado, não encontrado ou erro (falha graciosa).
+ */
+export async function getAdCreative(
+  term: string,
+  campaign?: string | null
+): Promise<AdCreativeInfo | null> {
+  const apiUrl = process.env.META_ADS_INTERNAL_API_URL;
+  const secret = process.env.META_ADS_INTERNAL_SECRET;
+  const empresaId = process.env.META_ADS_EMPRESA_ID;
+
+  if (!apiUrl || !secret || !empresaId) {
+    console.warn('[metaAds] env vars não configuradas — criativo indisponível');
+    return null;
+  }
+
+  const cacheKey = `${term.toLowerCase()}|${campaign?.toLowerCase() ?? ''}`;
+  const cached = creativeCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CREATIVE_CACHE_TTL_MS) {
+    return cached.info;
+  }
+
+  const params = new URLSearchParams({ empresa_id: empresaId, term });
+  if (campaign) params.set('campaign', campaign);
+  const url = `${apiUrl}/api/internal/meta-ads/creatives?${params.toString()}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-internal-secret': secret,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn(`[metaAds] HTTP ${res.status} ao buscar criativo no ContIA: ${body}`);
+      return null;
+    }
+
+    const data = (await res.json()) as ContiaCreativeResponse;
+    const info = data.found && data.ad ? data.ad : null;
+    creativeCache.set(cacheKey, { at: Date.now(), info });
+    return info;
+  } catch (err) {
+    console.warn(
+      '[metaAds] Erro ao buscar criativo no ContIA:',
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
 }
 
 /**

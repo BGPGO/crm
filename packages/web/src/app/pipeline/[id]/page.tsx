@@ -28,6 +28,7 @@ import DealTimeline, { TimelineEvent } from "@/components/deal/DealTimeline";
 import DealProducts, { DealProduct } from "@/components/deal/DealProducts";
 import DealTasks, { DealTask } from "@/components/deal/DealTasks";
 import CollapsibleSection from "@/components/deal/CollapsibleSection";
+import AdCreativeCard from "@/components/deal/AdCreativeCard";
 import InlineField from "@/components/deal/InlineField";
 import StageProgressBar from "@/components/deal/StageProgressBar";
 import ContractHub from "@/components/pipeline/ContractHub";
@@ -1646,6 +1647,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
               )}
+              {deal.leadTracking?.utmTerm && <AdCreativeCard dealId={dealId} />}
               {deal.contaAzulCode && (
                 <InlineField
                   label="Código Conta Azul"

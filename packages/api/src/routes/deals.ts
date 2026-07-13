@@ -13,6 +13,7 @@ import { interruptCadenceOnStageChange } from '../services/cadenceInterruptServi
 import { buildDueDatePersist } from '../utils/taskDateTime';
 import { exportRows, batchIterate, ExportColumn } from '../services/export/exporter';
 import { sendDealWonEvent, sendLeadQualifiedEvent, isMeetingScheduledStage } from '../services/meta/metaCapi';
+import { getAdCreative } from '../services/metaAds/client';
 
 const router = Router();
 
@@ -626,6 +627,38 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (!deal) return next(createError('Deal not found', 404));
 
     res.json({ data: deal });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/deals/:id/ad-creative — criativo do anúncio Meta que originou o lead
+// (last-touch utm_term = nome do ad; resolvido via ContIA, falha graciosa → null)
+router.get('/:id/ad-creative', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        contact: {
+          select: {
+            leadTrackings: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { utmTerm: true, utmCampaign: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!deal) return next(createError('Deal not found', 404));
+
+    const tracking = deal.contact?.leadTrackings?.[0];
+    if (!tracking?.utmTerm) return res.json({ data: null });
+
+    const ad = await getAdCreative(tracking.utmTerm, tracking.utmCampaign);
+    res.json({ data: ad });
   } catch (err) {
     next(err);
   }
