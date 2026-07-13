@@ -110,6 +110,14 @@ router.post('/', async (req: Request, res: Response) => {
         try {
           const field = change.field;
           if (field === 'messages') {
+            // O WABA é compartilhado com outros serviços (ex.: bot LLM em outro número).
+            // Só processar eventos do nosso número — senão conversas alheias entram no CRM
+            // e a BIA responde em cima do bot do outro número.
+            const eventPhoneId = change.value?.metadata?.phone_number_id;
+            if (config?.phoneNumberId && eventPhoneId && eventPhoneId !== config.phoneNumberId) {
+              console.log(`[cloud-webhook] Evento de outro número do WABA (phone_number_id=${eventPhoneId}) — ignorado`);
+              continue;
+            }
             await handleMessagesChange(change.value);
           } else if (field === 'message_template_status_update') {
             await handleTemplateStatusUpdate(change.value);
