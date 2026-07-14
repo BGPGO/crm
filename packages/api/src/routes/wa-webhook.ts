@@ -110,6 +110,15 @@ router.post('/', async (req: Request, res: Response) => {
 
         // ── Messages field: inbound messages + status updates ──
         if (change.field === 'messages') {
+          // O WABA é compartilhado com outros serviços (ex.: bot LLM em outro número)
+          // e a Meta só entrega num callback por app — o nosso. Eventos que não são
+          // do nosso número são repassados ao serviço dono do outro número; processar
+          // aqui faria conversas alheias entrarem no CRM e a BIA responder em dobro.
+          const eventPhoneId = value.metadata?.phone_number_id;
+          if (config?.phoneNumberId && eventPhoneId && eventPhoneId !== config.phoneNumberId) {
+            forwardToLlmBot(entry.id, change, config.appSecret || '');
+            continue;
+          }
           try {
             // ── Mensagens inbound ──
             const messages = value.messages || [];
@@ -158,5 +167,40 @@ router.post('/', async (req: Request, res: Response) => {
     }
   }
 });
+
+// ─── Proxy: eventos de outros números do WABA ────────────────────────────────
+// Repassa o change intacto, no formato original da Meta, re-assinado com o mesmo
+// app secret — pro serviço de destino a requisição é indistinguível da Meta.
+const LLM_BOT_FORWARD_URL =
+  process.env.LLM_BOT_FORWARD_URL || 'https://bi-whatsapp.187.77.238.125.sslip.io/api/wa/webhook';
+
+function forwardToLlmBot(entryId: string, change: any, appSecret: string) {
+  const payload = JSON.stringify({
+    object: 'whatsapp_business_account',
+    entry: [{ id: entryId, changes: [change] }],
+  });
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (appSecret) {
+    headers['X-Hub-Signature-256'] =
+      'sha256=' + crypto.createHmac('sha256', appSecret).update(payload).digest('hex');
+  }
+
+  // Fire-and-forget: o 200 pra Meta já foi respondido; falha aqui não pode travar o CRM
+  fetch(LLM_BOT_FORWARD_URL, {
+    method: 'POST',
+    headers,
+    body: payload,
+    signal: AbortSignal.timeout(8000),
+  })
+    .then((r) => {
+      if (!r.ok) {
+        console.error(`[wa-webhook] Forward pro bot LLM falhou: HTTP ${r.status}`);
+      }
+    })
+    .catch((err) => {
+      console.error('[wa-webhook] Forward pro bot LLM falhou:', err?.message || err);
+    });
+}
 
 export default router;
