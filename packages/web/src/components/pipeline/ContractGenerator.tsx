@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, getAuthHeaders } from "@/lib/api";
 import SignerOrderEditor from "@/components/pipeline/SignerOrderEditor";
 import {
   FileText,
@@ -16,6 +16,7 @@ import {
   Users,
   RefreshCw,
   Info,
+  Upload,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -58,6 +59,8 @@ interface ContractFormData {
   testemunha2Nome: string;
   testemunha2Cpf: string;
   testemunha2Email: string;
+  // Contrato personalizado (PROVISÓRIO): PDF próprio no lugar do template gerado.
+  isCustom: boolean;
 }
 
 interface ContractGeneratorProps {
@@ -84,6 +87,8 @@ interface ContractRecord {
   status: string;
   formData: ContractFormData;
   htmlContent?: string;
+  isCustom?: boolean;
+  customPdf?: { id: string; fileName: string; uploadedAt: string } | null;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -147,6 +152,7 @@ const INITIAL_FORM: ContractFormData = {
   testemunha2Nome: "Maria Vitória Dias Neves",
   testemunha2Cpf: "86449168072",
   testemunha2Email: "mariavitoria@bertuzzipatrimonial.com.br",
+  isCustom: false,
 };
 
 const DEFAULT_WITNESSES = [
@@ -1055,6 +1061,10 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   const [toast, setToast] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
   const [orderedSigners, setOrderedSigners] = useState<Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}>>([]);
   const [sortable, setSortable] = useState(true);
+  // Contrato personalizado (PROVISÓRIO): metadados do PDF subido + estados de upload/preview
+  const [customPdfMeta, setCustomPdfMeta] = useState<{ fileName: string; uploadedAt?: string } | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [customPdfUrl, setCustomPdfUrl] = useState<string | null>(null);
   // CEP: validador (trava o envio) + autocomplete + pesquisador reverso (endereço → CEP). Reativado 03/07/26.
 
   const contractRef = useRef<HTMLDivElement>(null);
@@ -1063,18 +1073,32 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
   // ── Build signers list from form state ──
   const buildSignersList = useCallback(() => {
     const signers: Array<{email: string; name: string; action: "SIGN" | "SIGN_AS_A_WITNESS"; role?: string}> = [];
-    if (form.testemunha1Email?.trim()) {
-      signers.push({ email: form.testemunha1Email.trim(), name: form.testemunha1Nome || "Testemunha 1", action: "SIGN_AS_A_WITNESS", role: "testemunha1" });
+    const contratada = { email: RESPONSAVEL_LEGAL.email, name: RESPONSAVEL_LEGAL.nome, action: "SIGN" as const, role: "contratada" };
+    const contratante = form.emailRepresentante?.trim()
+      ? { email: form.emailRepresentante.trim(), name: form.representante || "Contratante", action: "SIGN" as const, role: "contratante" }
+      : null;
+    const t1 = form.testemunha1Email?.trim()
+      ? { email: form.testemunha1Email.trim(), name: form.testemunha1Nome || "Testemunha 1", action: "SIGN_AS_A_WITNESS" as const, role: "testemunha1" }
+      : null;
+    const t2 = form.testemunha2Email?.trim()
+      ? { email: form.testemunha2Email.trim(), name: form.testemunha2Nome || "Testemunha 2", action: "SIGN_AS_A_WITNESS" as const, role: "testemunha2" }
+      : null;
+
+    if (form.isCustom) {
+      // Contrato personalizado: a Josi (contratada) recebe e assina PRIMEIRO,
+      // antes inclusive das testemunhas — ela revisa o PDF subido pelo operador.
+      signers.push(contratada);
+      if (contratante) signers.push(contratante);
+      if (t1) signers.push(t1);
+      if (t2) signers.push(t2);
+    } else {
+      if (t1) signers.push(t1);
+      if (t2) signers.push(t2);
+      if (contratante) signers.push(contratante);
+      signers.push(contratada);
     }
-    if (form.testemunha2Email?.trim()) {
-      signers.push({ email: form.testemunha2Email.trim(), name: form.testemunha2Nome || "Testemunha 2", action: "SIGN_AS_A_WITNESS", role: "testemunha2" });
-    }
-    if (form.emailRepresentante?.trim()) {
-      signers.push({ email: form.emailRepresentante.trim(), name: form.representante || "Contratante", action: "SIGN", role: "contratante" });
-    }
-    signers.push({ email: RESPONSAVEL_LEGAL.email, name: RESPONSAVEL_LEGAL.nome, action: "SIGN", role: "contratada" });
     setOrderedSigners(signers);
-  }, [form.testemunha1Email, form.testemunha1Nome, form.testemunha2Email, form.testemunha2Nome, form.emailRepresentante, form.representante]);
+  }, [form.testemunha1Email, form.testemunha1Nome, form.testemunha2Email, form.testemunha2Nome, form.emailRepresentante, form.representante, form.isCustom]);
 
   useEffect(() => {
     buildSignersList();
@@ -1269,6 +1293,8 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           if ((existing as any).strategyModules) {
             restored.strategyModules = (existing as any).strategyModules as any;
           }
+          restored.isCustom = existing.isCustom === true;
+          setCustomPdfMeta(existing.customPdf ? { fileName: existing.customPdf.fileName, uploadedAt: existing.customPdf.uploadedAt } : null);
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
             setForm({ ...INITIAL_FORM, ...restored });
@@ -1337,6 +1363,78 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
     };
   }, [form, contractId, dealId, loading, contractStatus]);
 
+  // ── Contrato personalizado: upload do PDF (PROVISÓRIO) ──
+  const handleCustomPdfUpload = async (file: File) => {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      showToast("error", "O arquivo precisa ser um PDF.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("error", "PDF muito grande (máx. 10MB). Comprima o arquivo e tente de novo.");
+      return;
+    }
+    setUploadingPdf(true);
+    try {
+      // Garante que o contrato existe antes do upload
+      let cId = contractId;
+      if (!cId) {
+        const res = await api.post<{ data: { id: string } }>("/contracts", { dealId, ...form });
+        cId = res.data.id;
+        setContractId(cId);
+      }
+      // Upload binário direto (o client `api` é JSON-only)
+      const authHeaders = await getAuthHeaders();
+      const resp = await fetch(`/api/contracts/${cId}/custom-pdf?fileName=${encodeURIComponent(file.name)}`, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/pdf" },
+        body: file,
+      });
+      if (!resp.ok) {
+        let message = `HTTP ${resp.status}`;
+        try { message = (await resp.json())?.message || message; } catch { /* ignore */ }
+        throw new Error(message);
+      }
+      setCustomPdfMeta({ fileName: file.name });
+      showToast("success", `PDF "${file.name}" anexado ao contrato.`);
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      showToast("error", `Erro ao subir o PDF: ${e?.message ?? "tente novamente."}`);
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
+  // Carrega o PDF personalizado como blob p/ preview inline (iframe) e download.
+  useEffect(() => {
+    const wantPdf = form.isCustom && !!contractId && !!customPdfMeta &&
+      (mode === "preview" || contractStatus === "sent" || contractStatus === "signed");
+    if (!wantPdf) {
+      setCustomPdfUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      return;
+    }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    (async () => {
+      try {
+        const authHeaders = await getAuthHeaders();
+        const r = await fetch(`/api/contracts/${contractId}/custom-pdf`, { headers: authHeaders });
+        if (!r.ok || cancelled) return;
+        const blob = await r.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setCustomPdfUrl(objectUrl);
+      } catch { /* preview é best-effort */ }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [form.isCustom, contractId, customPdfMeta, mode, contractStatus]);
+
   // ── Generate full HTML for contract ──
   const generateContractHTML = (): string => {
     const el = contractRef.current;
@@ -1380,6 +1478,18 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
 
   // ── Download PDF ──
   const handleDownloadPDF = () => {
+    // Contrato personalizado: baixa o PDF subido (não há HTML gerado válido)
+    if (form.isCustom) {
+      if (!customPdfUrl) {
+        showToast("warning", "PDF ainda carregando. Tente novamente em instantes.");
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = customPdfUrl;
+      a.download = customPdfMeta?.fileName || "contrato-personalizado.pdf";
+      a.click();
+      return;
+    }
     const html = generateContractHTML();
     if (!html) return;
     const printWindow = window.open("", "_blank");
@@ -1427,6 +1537,11 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       return;
     }
 
+    if (form.isCustom && !customPdfMeta) {
+      showToast("error", "Contrato personalizado sem PDF anexado. Suba o PDF antes de enviar.");
+      return;
+    }
+
     setSendingAutentique(true);
     try {
       const formToSave = form;
@@ -1438,9 +1553,14 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         setContractId(cId);
       }
 
-      // Save HTML content first
-      const html = generateContractHTML();
-      await api.put(`/contracts/${cId}`, { ...formToSave, htmlContent: html });
+      if (form.isCustom) {
+        // Personalizado: o Autentique recebe o PDF subido — só salva o cadastro.
+        await api.put(`/contracts/${cId}`, { ...formToSave });
+      } else {
+        // Save HTML content first
+        const html = generateContractHTML();
+        await api.put(`/contracts/${cId}`, { ...formToSave, htmlContent: html });
+      }
 
       // Build signers from orderedSigners state.
       // Quando sortable=true, a Autentique respeita a ordem do array.
@@ -1582,9 +1702,25 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         </div>
 
         {/* Contract preview inline */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-8 overflow-auto max-h-[600px]" style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontSize: "12pt", lineHeight: "1.6" }}>
-          <ContractContent form={form} />
-        </div>
+        {form.isCustom ? (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-amber-50 text-xs text-amber-700">
+              <Info size={14} />
+              Contrato personalizado (PDF próprio — fluxo provisório): {customPdfMeta?.fileName || "PDF anexado"}
+            </div>
+            {customPdfUrl ? (
+              <iframe src={customPdfUrl} title="Contrato personalizado" className="w-full" style={{ height: 600 }} />
+            ) : (
+              <div className="flex items-center justify-center py-16 text-sm text-gray-500">
+                <Loader2 size={16} className="animate-spin mr-2" /> Carregando PDF...
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-8 overflow-auto max-h-[600px]" style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontSize: "12pt", lineHeight: "1.6" }}>
+            <ContractContent form={form} />
+          </div>
+        )}
       </div>
     );
   }
@@ -1641,14 +1777,31 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         />
 
         {/* Contract preview */}
-        <div
-          className="bg-white dark:bg-gray-100 rounded-lg shadow-lg max-w-4xl mx-auto text-black"
-          style={{ fontFamily: "Arial, 'Times New Roman', serif", fontSize: "12pt", lineHeight: "1.5", padding: "30mm 20mm 20mm 30mm" }}
-        >
-          <div ref={contractRef}>
-            <ContractContent form={form} />
+        {form.isCustom ? (
+          <div className="bg-white rounded-lg shadow-lg max-w-4xl mx-auto overflow-hidden border border-gray-200">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-amber-50 text-xs text-amber-700">
+              <Info size={14} />
+              Contrato personalizado (PDF próprio — fluxo provisório): é este PDF que vai pro Autentique.
+              A Josi assina primeiro, antes das testemunhas.
+            </div>
+            {customPdfUrl ? (
+              <iframe src={customPdfUrl} title="Contrato personalizado" className="w-full" style={{ height: 700 }} />
+            ) : (
+              <div className="flex items-center justify-center py-16 text-sm text-gray-500">
+                <Loader2 size={16} className="animate-spin mr-2" /> Carregando PDF...
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div
+            className="bg-white dark:bg-gray-100 rounded-lg shadow-lg max-w-4xl mx-auto text-black"
+            style={{ fontFamily: "Arial, 'Times New Roman', serif", fontSize: "12pt", lineHeight: "1.5", padding: "30mm 20mm 20mm 30mm" }}
+          >
+            <div ref={contractRef}>
+              <ContractContent form={form} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1692,6 +1845,63 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
             </p>
           </div>
         </div>
+      </div>
+
+      {/* 0. Contrato Personalizado (PROVISÓRIO — upload de PDF próprio) */}
+      <div className={`rounded-xl border p-4 ${form.isCustom ? "border-amber-300 bg-amber-50" : "border-gray-200 bg-white"}`}>
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={form.isCustom}
+            onChange={(e) => updateField("isCustom", e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Contrato personalizado (PDF próprio)</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Solução <strong>provisória</strong>: em vez do contrato gerado pelo sistema, você sobe um PDF pronto.
+            </p>
+          </div>
+        </label>
+
+        {form.isCustom && (
+          <div className="mt-3 space-y-3">
+            <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-100/60 rounded-md px-3 py-2">
+              <Info size={14} className="mt-0.5 shrink-0" />
+              <p>
+                Preencha <strong>todo o cadastro abaixo normalmente</strong> — essas informações seguem
+                pro restante do pipeline (FinHub e Conta Azul). O PDF subido é o documento que vai pro
+                Autentique, e a <strong>Josi recebe pra revisar e assinar primeiro</strong>, antes das testemunhas.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className={`flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2 border cursor-pointer transition-colors ${uploadingPdf ? "opacity-60 pointer-events-none" : ""} bg-white border-amber-300 text-amber-700 hover:bg-amber-100`}>
+                {uploadingPdf ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {customPdfMeta ? "Substituir PDF" : "Subir PDF do contrato"}
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                  disabled={uploadingPdf}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCustomPdfUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {customPdfMeta ? (
+                <span className="flex items-center gap-1.5 text-sm text-green-700">
+                  <Check size={16} />
+                  <span className="font-medium">{customPdfMeta.fileName}</span> anexado
+                </span>
+              ) : (
+                <span className="text-sm text-gray-500">Nenhum PDF anexado ainda (obrigatório pra enviar).</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 1. Dados do Contratante */}
@@ -2236,11 +2446,17 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
       {/* Action button */}
       <div className="flex justify-end pt-2 pb-4">
         <button
-          onClick={() => setMode("preview")}
+          onClick={() => {
+            if (form.isCustom && !customPdfMeta) {
+              showToast("error", "Suba o PDF do contrato personalizado antes de continuar.");
+              return;
+            }
+            setMode("preview");
+          }}
           className="flex items-center gap-2 text-sm font-medium text-white bg-petrol-600 rounded-lg px-6 py-2.5 hover:bg-petrol-700 transition-colors shadow-sm"
         >
           <Eye size={16} />
-          Visualizar Contrato
+          {form.isCustom ? "Revisar PDF e Enviar" : "Visualizar Contrato"}
         </button>
       </div>
 

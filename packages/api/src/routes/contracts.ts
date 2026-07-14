@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import express, { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 
@@ -17,6 +17,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       include: {
         deal: { select: { id: true, title: true } },
         signatures: true,
+        // Só metadados — o binário do PDF fica fora das listagens
+        customPdf: { select: { id: true, fileName: true, uploadedAt: true } },
       },
     });
 
@@ -31,7 +33,11 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const contract = await prisma.contract.findUnique({
       where: { id: req.params.id },
-      include: { signatures: true, deal: { select: { id: true, title: true } } },
+      include: {
+        signatures: true,
+        deal: { select: { id: true, title: true } },
+        customPdf: { select: { id: true, fileName: true, uploadedAt: true } },
+      },
     });
     if (!contract) return next(createError('Contract not found', 404));
     res.json({ data: contract });
@@ -98,6 +104,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       testemunha2Nome: overrides.testemunha2Nome || null,
       testemunha2Cpf: overrides.testemunha2Cpf || null,
       testemunha2Email: overrides.testemunha2Email || null,
+      isCustom: overrides.isCustom === true,
     };
 
     const contract = await prisma.contract.create({
@@ -174,6 +181,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         }
       }
     }
+    if (req.body.isCustom !== undefined) data.isCustom = req.body.isCustom === true;
 
     // Sempre re-sincroniza valorMensal a partir do card do deal —
     // garante que o contrato bate com o que sobe pra Conta Azul.
@@ -209,12 +217,79 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// ─── Contrato personalizado (PROVISÓRIO) ────────────────────────────────────
+// O operador sobe um PDF próprio que substitui o HTML gerado no envio pro
+// Autentique. O cadastro do contrato segue obrigatório (pipeline FinHub/CA).
+
+// POST /api/contracts/:id/custom-pdf?fileName=... — body binário (application/pdf)
+router.post(
+  '/:id/custom-pdf',
+  express.raw({ type: ['application/pdf', 'application/octet-stream'], limit: '10mb' }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const contract = await prisma.contract.findUnique({ where: { id: req.params.id } });
+      if (!contract) return next(createError('Contract not found', 404));
+      if (contract.status !== 'DRAFT') {
+        return next(createError('Só é possível anexar PDF em contratos em rascunho.', 400));
+      }
+
+      const buf = req.body as Buffer;
+      if (!Buffer.isBuffer(buf) || buf.length === 0) {
+        return next(createError('Arquivo vazio ou Content-Type inválido (use application/pdf).', 400));
+      }
+      // Magic bytes de PDF — evita subir docx/imagem renomeado
+      if (buf.subarray(0, 5).toString('utf-8') !== '%PDF-') {
+        return next(createError('O arquivo não é um PDF válido.', 400));
+      }
+
+      const rawName = typeof req.query.fileName === 'string' ? req.query.fileName : '';
+      const fileName = (rawName.replace(/[\\/:*?"<>|]/g, '_').trim() || 'contrato-personalizado.pdf').slice(0, 200);
+      const uploadedBy = (req as any).user?.id || null;
+
+      await prisma.$transaction([
+        prisma.contractCustomPdf.upsert({
+          where: { contractId: contract.id },
+          create: { contractId: contract.id, fileName, data: buf, uploadedBy },
+          update: { fileName, data: buf, uploadedBy, uploadedAt: new Date() },
+        }),
+        prisma.contract.update({ where: { id: contract.id }, data: { isCustom: true } }),
+      ]);
+
+      res.json({ data: { fileName, size: buf.length } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /api/contracts/:id/custom-pdf — devolve o PDF (inline, p/ preview/download)
+router.get('/:id/custom-pdf', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const pdf = await prisma.contractCustomPdf.findUnique({ where: { contractId: req.params.id } });
+    if (!pdf) return next(createError('Este contrato não tem PDF personalizado.', 404));
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(pdf.fileName)}"`);
+    res.send(Buffer.from(pdf.data));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/contracts/:id/send-autentique — Send to Autentique for signing
 router.post('/:id/send-autentique', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const contract = await prisma.contract.findUnique({ where: { id: req.params.id } });
+    const contract = await prisma.contract.findUnique({
+      where: { id: req.params.id },
+      include: { customPdf: true },
+    });
     if (!contract) return next(createError('Contract not found', 404));
-    if (!contract.htmlContent) return next(createError('Contract has no HTML content. Generate preview first.', 400));
+    // Contrato personalizado (PROVISÓRIO): envia o PDF subido pelo operador; senão, o HTML gerado.
+    if (contract.isCustom) {
+      if (!contract.customPdf) return next(createError('Contrato personalizado sem PDF anexado. Suba o PDF antes de enviar.', 400));
+    } else if (!contract.htmlContent) {
+      return next(createError('Contract has no HTML content. Generate preview first.', 400));
+    }
     if (contract.status !== 'DRAFT') return next(createError('Contract already sent', 400));
 
     const AUTENTIQUE_TOKEN = process.env.AUTENTIQUE_API_TOKEN;
@@ -279,7 +354,7 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       }
     }
 
-    const fileName = `Contrato_${contract.razaoSocial.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
+    const fileName = `Contrato_${contract.razaoSocial.replace(/[^a-zA-Z0-9]/g, '_')}.${contract.isCustom ? 'pdf' : 'html'}`;
 
     // GraphQL mutation for Autentique — use regular string to avoid $ interpolation
     // Ordem dos signatários segue a ordem do array quando sortable=true.
@@ -301,10 +376,17 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
     const form = new FormData();
     form.append('operations', JSON.stringify({ query, variables }));
     form.append('map', JSON.stringify({ '0': ['variables.file'] }));
-    form.append('0', Buffer.from(contract.htmlContent, 'utf-8'), {
-      filename: fileName,
-      contentType: 'text/html',
-    });
+    if (contract.isCustom && contract.customPdf) {
+      form.append('0', Buffer.from(contract.customPdf.data), {
+        filename: fileName,
+        contentType: 'application/pdf',
+      });
+    } else {
+      form.append('0', Buffer.from(contract.htmlContent as string, 'utf-8'), {
+        filename: fileName,
+        contentType: 'text/html',
+      });
+    }
 
     const axios = (await import('axios')).default;
     const response = await axios.post('https://api.autentique.com.br/v2/graphql', form, {
@@ -378,7 +460,9 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
       await prisma.activity.create({
         data: {
           type: 'NOTE',
-          content: `Contrato enviado para assinatura via Autentique (${signers.length} assinantes).`,
+          content: contract.isCustom
+            ? `Contrato PERSONALIZADO (PDF próprio, fluxo provisório) enviado para assinatura via Autentique (${signers.length} assinantes).`
+            : `Contrato enviado para assinatura via Autentique (${signers.length} assinantes).`,
           dealId: contract.dealId,
           userId: currentUserId,
           metadata: {

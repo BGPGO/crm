@@ -1092,6 +1092,12 @@ model Contract {
   erpCliente String? // omie | contaazul | nuvem_gestor | sap | tiny | totvs | fluig | outro:<texto>
   isTest     Boolean @default(false)
 
+  // Contrato personalizado (PROVISÓRIO): o operador sobe um PDF próprio em vez do
+  // template gerado. O cadastro completo segue obrigatório (alimenta FinHub/Conta Azul)
+  // e a ordem de assinatura muda — Josi assina primeiro, antes das testemunhas.
+  isCustom  Boolean            @default(false)
+  customPdf ContractCustomPdf?
+
   signatures ContractSignatureRecord[]
 
   createdAt DateTime @default(now())
@@ -1099,6 +1105,19 @@ model Contract {
 
   @@index([dealId])
   @@index([status])
+}
+
+// PDF do contrato personalizado (upload manual — solução PROVISÓRIA enquanto o
+// contrato não sai do template). Tabela separada do Contract pra não inflar as
+// listagens: o binário só é lido no envio pro Autentique e no preview/download.
+model ContractCustomPdf {
+  id         String   @id @default(cuid())
+  contractId String   @unique
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fileName   String
+  data       Bytes
+  uploadedAt DateTime @default(now())
+  uploadedBy String? // id do usuário que subiu (auditoria)
 }
 
 model ContractSignatureRecord {
