@@ -13,8 +13,9 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LOGO_URL = 'https://messenger.bertuzzipatrimonial.com.br/brand/bgp-logo.png';
 const SYMBOL_URL = 'https://messenger.bertuzzipatrimonial.com.br/brand/bgp-symbol.png';
 const BLOG_URL = 'https://www.bertuzzipatrimonial.com.br/blog';
-const SITE_URL = 'https://www.bertuzzipatrimonial.com.br';
-const INSTAGRAM_URL = 'https://www.instagram.com/bertuzzipatrimonial';
+const INSTAGRAM_URL = 'https://www.instagram.com/bertuzzigp';
+const WHATSAPP_CTA_URL =
+  'https://wa.me/5551992091726?text=Ol%C3%A1%2C%20vim%20da%20Newsletter%20e%20quero%20falar%20com%20a%20BGP';
 
 const RSS_FEEDS: { source: string; url: string }[] = [
   { source: 'InfoMoney', url: 'https://www.infomoney.com.br/feed/' },
@@ -407,6 +408,11 @@ export async function resolveNewsImage(news: CuratedNews): Promise<string | null
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/** Título de seção estilo barra lateral editorial — cor própria por seção. */
+function sectionChip(label: string, color: string, bg: string): string {
+  return `<span style="display:inline-block; background:${bg}; color:${color}; font-size:17.5px; letter-spacing:1.5px; text-transform:uppercase; font-weight:800; padding:11px 20px 11px 16px; border-left:6px solid ${color}; border-radius:0 6px 6px 0;">${label}</span>`;
+}
+
 function newsThumb(news: CuratedNews, slot: string): string {
   if (news.image) {
     return `<a href="${esc(news.url)}" style="text-decoration:none;" data-slot="${slot}">
@@ -470,16 +476,11 @@ function postCard(post: BlogPost, slot: string): string {
 
 function mediaSection(mention: MediaMention | null): string {
   if (!mention) return '';
-  const dataLabel = mention.issued
-    ? mention.issued
-        .toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' })
-        .replace(/\./g, '')
-    : '';
   return `
     <!-- BGP NA MÍDIA -->
     <tr><td class="px" style="background-color:#ffffff; padding:28px 40px 8px;">
-      <div style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:#244C5A; font-weight:700;">
-        ▪&nbsp; BGP na mídia
+      <div>
+        ${sectionChip('BGP na mídia', '#43607D', '#E9EDF2')}
       </div>
       <div style="height:1px; background-color:#dfe8ea; margin:12px 0 22px;"></div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f8f9; border-radius:10px;">
@@ -494,16 +495,13 @@ function mediaSection(mention: MediaMention | null): string {
               <td align="right" valign="top" style="font-size:40px; line-height:0.6; font-family:Georgia, 'Times New Roman', serif; color:#ABC7C9;">&ldquo;</td>
             </tr>
           </table>
-          <div style="font-size:16px; line-height:1.6; color:#244C5A; font-style:italic; margin-top:14px;">
-            ${esc(mention.quote)}
-          </div>
-          <div style="font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#8aa0a8; font-weight:700; margin-top:16px;">
-            ${esc(mention.veiculo)}${dataLabel ? ` · ${esc(dataLabel)}` : ''}
-          </div>
           <a href="${esc(mention.url)}" data-slot="midia-1"
-             style="display:block; font-size:15px; line-height:1.4; color:#244C5A; font-weight:700; text-decoration:none; margin-top:8px;">
+             style="display:block; font-size:17px; line-height:1.35; color:#244C5A; font-weight:700; text-decoration:none; margin-top:14px;">
             ${esc(mention.title)}
           </a>
+          <div style="font-size:16px; line-height:1.6; color:#5a7079; font-style:italic; margin-top:10px;">
+            ${esc(mention.quote)}
+          </div>
           <a href="${esc(mention.url)}" data-slot="midia-1"
              style="display:inline-block; margin-top:12px; font-size:13.5px; font-weight:600; color:#244C5A; text-decoration:none; border-bottom:2px solid #ABC7C9; padding-bottom:2px;">
             Ler no ${esc(mention.veiculo)} →
@@ -581,8 +579,8 @@ export function renderNewsletterHtml(
 
     <!-- RADAR DO SETOR -->
     <tr><td class="px" style="background-color:#ffffff; padding:36px 40px 12px;">
-      <div style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:#244C5A; font-weight:700;">
-        ▪&nbsp; Radar do setor
+      <div>
+        ${sectionChip('Radar do setor', '#244C5A', '#EAF0F1')}
       </div>
       <div style="height:1px; background-color:#dfe8ea; margin:12px 0 4px;"></div>
 ${news.map((n, i) => newsItem(n, i, i === news.length - 1)).join('\n')}
@@ -592,8 +590,8 @@ ${news.map((n, i) => newsItem(n, i, i === news.length - 1)).join('\n')}
     <tr><td class="px" style="background-color:#ffffff; padding:36px 40px 8px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="font-size:13px; letter-spacing:2.5px; text-transform:uppercase; color:#244C5A; font-weight:700; padding-bottom:4px;">
-            ▪&nbsp; BGP Academy
+          <td valign="middle" style="padding-bottom:4px;">
+            ${sectionChip('BGP Academy', '#2F6E7B', '#E4F0F1')}
           </td>
           <td align="right" style="font-size:13px;">
             <a href="${BLOG_URL}" data-slot="academy-ver-todos" style="color:#4d7d8f; text-decoration:none;">ver todos →</a>
@@ -645,7 +643,7 @@ ${mediaSection(midia)}
                 <div style="font-size:13.5px; color:#3d5a64; margin-top:4px;">Converse com um especialista da BGP — sem compromisso.</div>
               </td>
               <td align="right" valign="middle" width="160" class="cta-btn">
-                <a href="${SITE_URL}" data-slot="cta-falar"
+                <a href="${WHATSAPP_CTA_URL}" data-slot="cta-falar"
                    style="display:inline-block; background-color:#244C5A; color:#ffffff; font-size:14px; font-weight:600; text-decoration:none; padding:12px 24px; border-radius:6px;">
                   Falar com a BGP
                 </a>
