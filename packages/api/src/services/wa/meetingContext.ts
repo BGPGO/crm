@@ -4,8 +4,8 @@ import prisma from '../../lib/prisma';
  * Contexto de reunião do lead pra BIA (bloco "REUNIÃO DO LEAD").
  *
  * Máquina de estados:
- * - Evento futuro ativo  → reunião marcada + links de reagendar/cancelar (e de
- *   entrar, quando o Calendly passar a mandar location/join_url).
+ * - Evento ativo com endTime futuro (marcado OU em andamento) → reunião atual +
+ *   links de reagendar/cancelar (e de entrar, quando houver location/join_url).
  * - Sem futuro + noShow  → teve reunião e não compareceu; remarcar = NOVO
  *   agendamento (reschedule_url de evento passado não funciona).
  * - Sem futuro + passado → já fez reunião; não oferecer diagnóstico como novidade.
@@ -43,8 +43,11 @@ export async function buildMeetingContext(
   try {
     const now = new Date();
     const [upcoming, lastPast] = await Promise.all([
+      // endTime (não startTime): reunião EM ANDAMENTO ainda é a reunião atual —
+      // o lead que pede o link às 9h02 de uma reunião das 9h00 quer ENTRAR nela,
+      // não cair no fluxo de "não existe reunião futura" (caso Ezequiel 15/07).
       prisma.calendlyEvent.findFirst({
-        where: { contactId, status: 'active', startTime: { gt: now } },
+        where: { contactId, status: 'active', endTime: { gt: now } },
         orderBy: { startTime: 'asc' },
       }),
       prisma.calendlyEvent.findFirst({
@@ -74,10 +77,16 @@ export async function buildMeetingContext(
           ? location.join_url
           : null;
 
+      const emAndamento = upcoming.startTime <= now;
       let ctx = `\n\n=== REUNIÃO DO LEAD (única fonte da verdade — NUNCA invente horário ou link) ===`;
-      ctx += `\nReunião MARCADA: ${fmtDataHora(upcoming.startTime)} (horário de Brasília)${
-        upcoming.hostName ? `, com ${upcoming.hostName}` : ''
+      ctx += `\nReunião ${emAndamento ? 'EM ANDAMENTO (já começou' : 'MARCADA'}: ${fmtDataHora(
+        upcoming.startTime
+      )} (horário de Brasília)${upcoming.hostName ? `, com ${upcoming.hostName}` : ''}${
+        emAndamento ? ' — estão te esperando na sala AGORA)' : ''
       }.`;
+      if (emAndamento) {
+        ctx += `\nPrioridade absoluta: fazer o lead ENTRAR na reunião o mais rápido possível. Nada de conversa longa.`;
+      }
       ctx += `\nSe o lead perguntar o horário: responda com a data/hora acima, direto.`;
       ctx += `\nNÃO tente marcar outra reunião — já existe uma.`;
       if (joinUrl) {
