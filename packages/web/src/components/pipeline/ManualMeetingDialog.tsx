@@ -61,6 +61,8 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
                 min={new Date().toISOString().split("T")[0]}
+                max={new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0]}
+                autoComplete="off"
                 required
               />
             </div>
@@ -73,6 +75,7 @@ export default function ManualMeetingDialog({ dealTitle, contactName, onConfirm,
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
+                autoComplete="off"
                 required
               />
             </div>
