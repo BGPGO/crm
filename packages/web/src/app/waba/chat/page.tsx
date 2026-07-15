@@ -2294,7 +2294,7 @@ export default function WabaChatPage() {
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <XCircle size={14} className="text-gray-400" />
-                Fechar conversa
+                Resolver conversa
               </button>
             )}
 
