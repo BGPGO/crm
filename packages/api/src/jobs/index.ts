@@ -16,6 +16,7 @@ import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
 import { runReleaseHeldBroadcastContacts } from './releaseHeldBroadcastContacts';
 import { startFinhubActiveClientsSync } from './finhubActiveClientsSync';
 import { startBiaMonthlyReportCron } from './biaMonthlyReportCron';
+import { startMetaLeadsSheetCron } from './metaLeadsSheetCron';
 import cron from 'node-cron';
 
 export function startAllJobs() {
@@ -53,6 +54,9 @@ export function startAllJobs() {
 
   // Relatório mensal da BIA por email (dia 7, 8h BRT)
   startBiaMonthlyReportCron();
+
+  // Leads de Instant Forms do Meta via planilha Google (a cada 5min)
+  startMetaLeadsSheetCron();
 
   // Health check de templates WABA (a cada 1h)
   cron.schedule('0 * * * *', async () => {

@@ -626,6 +626,19 @@ model LeadTracking {
   @@index([contactId])
 }
 
+// Controle de leads dos Instant Forms do Meta importados da planilha Google
+// ("BGP - Leads - meta") pelo job metaLeadsSheetCron. leadgenId = coluna "id"
+// da planilha (id do lead no Meta) — garante que cada lead entra uma vez só.
+model MetaFormLead {
+  id        String  @id @default(cuid())
+  leadgenId String  @unique
+  contactId String?
+  dealId    String?
+  raw       Json?
+
+  createdAt DateTime @default(now())
+}
+
 // ─── Meta Conversions API (CAPI) ────────────────────────────────────────────
 // Configuração por brand para envio server-side de eventos ao Meta Pixel.
 
