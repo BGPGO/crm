@@ -154,10 +154,17 @@ const ERP_ALIASES: Record<string, string> = {
   granatum: 'Granatum', nibo: 'Nibo', bling: 'Bling', tiny: 'Tiny',
   sankhya: 'Sankhya', totvs: 'TOTVS', protheus: 'TOTVS/Protheus', sap: 'SAP',
   excel: 'Excel/Planilhas', planilha: 'Excel/Planilhas', planilhas: 'Excel/Planilhas',
+  'go by aimo': 'GO by AiMO', gobi: 'GO by AiMO', 'go bi': 'GO by AiMO',
+  'gestão click': 'Gestão Click', 'gestao click': 'Gestão Click',
 };
 
-function normalizeErp(raw: string): string {
-  return ERP_ALIASES[raw.trim().toLowerCase()] ?? raw.trim();
+// O modelo às vezes devolve "null"/"não mencionado" como string em vez de null
+const ERP_NON_VALUES = new Set(['null', 'none', 'n/a', 'na', 'não mencionado', 'nao mencionado', 'nenhum', 'não usa', 'nao usa', '-']);
+
+function normalizeErp(raw: string): string | null {
+  const key = raw.trim().toLowerCase();
+  if (!key || ERP_NON_VALUES.has(key)) return null;
+  return ERP_ALIASES[key] ?? raw.trim();
 }
 
 export async function extractAttributesFromText(
@@ -189,9 +196,11 @@ ${text.slice(0, 80000)}`;
     : parseFloat(parsed.revenue_monthly_brl);
   const revenueRange = bucketRevenue(revenueNumber);
 
+  const erpSystem = typeof parsed.erp_system === 'string' ? normalizeErp(parsed.erp_system) : null;
+
   return {
-    erp_system: typeof parsed.erp_system === 'string' && parsed.erp_system ? normalizeErp(parsed.erp_system) : null,
-    erp_evidence: parsed.erp_evidence ?? null,
+    erp_system: erpSystem,
+    erp_evidence: erpSystem ? (parsed.erp_evidence ?? null) : null,
     revenue_range: revenueRange,
     revenue_evidence: revenueRange ? (parsed.revenue_evidence ?? null) : null,
     gender: GENDER_VALUES.includes(parsed.gender) ? parsed.gender : null,
