@@ -99,8 +99,8 @@ export function extractFirstName(fullName: string): string | null {
 
 // ─── 2. Sistema + faturamento a partir de conversas/reuniões ─────────────────
 
-const CONVERSATION_PROMPT = `Você analisa conversas de WhatsApp e transcrições de reuniões entre a BGPGO (empresa de gestão financeira estratégica) e um lead (dono ou gestor de empresa).
-Extraia APENAS informações ditas explicitamente pelo LEAD sobre a empresa dele. Não deduza, não estime, não use conhecimento externo.
+const CONVERSATION_PROMPT = `Você analisa o material de um lead (dono ou gestor de empresa) no CRM da BGPGO (empresa de gestão financeira estratégica): conversas de WhatsApp, transcrições de reuniões e anotações escritas pelo vendedor.
+Extraia APENAS informações explícitas no material — ditas pelo lead OU registradas nas anotações do vendedor sobre o lead. Não deduza, não estime, não use conhecimento externo.
 
 Responda SOMENTE com JSON válido:
 {
@@ -211,12 +211,13 @@ ${text.slice(0, 80000)}`;
 // ─── Coleta do texto-fonte de um contato ─────────────────────────────────────
 
 /**
- * Junta tudo que o lead disse: mensagens inbound dos dois sistemas de
- * WhatsApp (legado Z-API + Cloud API v2) e transcrições/resumos de reunião.
- * Retorna null se não houver material suficiente.
+ * Junta tudo que se sabe do lead: mensagens inbound dos dois sistemas de
+ * WhatsApp (legado Z-API + Cloud API v2), transcrições/resumos de reunião
+ * e anotações do vendedor na timeline (Activity NOTE/MEETING, direto no
+ * contato ou nas negociações dele). Retorna null se não houver material.
  */
 export async function gatherContactText(contactId: string): Promise<string | null> {
-  const [legacyMsgs, waMsgs, meetings] = await Promise.all([
+  const [legacyMsgs, waMsgs, meetings, notes] = await Promise.all([
     prisma.whatsAppMessage.findMany({
       where: { conversation: { contactId }, sender: 'CLIENT', text: { not: '' } },
       select: { text: true, createdAt: true },
@@ -234,6 +235,15 @@ export async function gatherContactText(contactId: string): Promise<string | nul
       select: { title: true, transcript: true, summary: true, meetingDate: true },
       orderBy: { meetingDate: 'asc' },
     }),
+    prisma.activity.findMany({
+      where: {
+        type: { in: ['NOTE', 'MEETING'] },
+        OR: [{ contactId }, { deal: { contactId } }],
+      },
+      select: { content: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    }),
   ]);
 
   const parts: string[] = [];
@@ -247,6 +257,13 @@ export async function gatherContactText(contactId: string): Promise<string | nul
 
   if (whatsappLines.length > 0) {
     parts.push(`## Mensagens de WhatsApp enviadas pelo lead\n${whatsappLines.join('\n')}`);
+  }
+
+  const noteLines = notes
+    .filter(n => n.content && n.content.trim().length > 30)
+    .map(n => `[${n.createdAt.toISOString().slice(0, 10)}] ${n.content.trim()}`);
+  if (noteLines.length > 0) {
+    parts.push(`## Anotações do vendedor sobre o lead (fonte confiável)\n${noteLines.join('\n---\n')}`);
   }
 
   for (const meeting of meetings) {
