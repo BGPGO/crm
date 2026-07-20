@@ -176,19 +176,36 @@ export async function extractAttributesFromText(
 CONVERSAS E TRANSCRIÇÕES:
 ${text.slice(0, 80000)}`;
 
-  const completion = await openai.chat.completions.create({
-    model: MODEL,
-    max_tokens: 1024,
-    temperature: 0,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: CONVERSATION_PROMPT },
-      { role: 'user', content: userContent },
-    ],
-  });
-
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error('OpenAI returned empty response');
+  let raw: string | null | undefined;
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model: MODEL,
+        max_tokens: 1024,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: CONVERSATION_PROMPT },
+          { role: 'user', content: userContent },
+        ],
+      });
+      raw = completion.choices[0]?.message?.content;
+      if (!raw) throw new Error('OpenAI returned empty response');
+      break;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const retriable = lastError.message.includes('429')
+        || lastError.message.toLowerCase().includes('rate limit')
+        || lastError.message.toLowerCase().includes('timeout');
+      if (retriable && attempt < 3) {
+        await new Promise(r => setTimeout(r, attempt * 5000));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  if (!raw) throw lastError ?? new Error('OpenAI returned empty response');
   const parsed = JSON.parse(raw);
 
   const revenueNumber = typeof parsed.revenue_monthly_brl === 'number'
