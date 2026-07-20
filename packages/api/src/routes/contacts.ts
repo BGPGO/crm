@@ -252,7 +252,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       return next(createError('Email inválido', 400));
     }
 
-    const { name, email, phone, position, birthday, instagram, notes, organizationId, sector } = req.body;
+    const { name, email, phone, position, birthday, instagram, notes, organizationId, sector, gender, erpSystem, revenueRange } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (email !== undefined) data.email = email;
@@ -263,6 +263,21 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (notes !== undefined) data.notes = notes;
     if (organizationId !== undefined) data.organizationId = organizationId;
     if (sector !== undefined) data.sector = sector;
+
+    // Atributos de segmentação: edição manual marca source='manual' na
+    // proveniência — a IA nunca sobrescreve valor manual.
+    const attributeEdits: Record<string, unknown> = {};
+    if (gender !== undefined) attributeEdits.gender = gender || null;
+    if (erpSystem !== undefined) attributeEdits.erpSystem = erpSystem || null;
+    if (revenueRange !== undefined) attributeEdits.revenueRange = revenueRange || null;
+    if (Object.keys(attributeEdits).length > 0) {
+      const meta = (existing.attributesMeta as Record<string, unknown>) ?? {};
+      for (const field of Object.keys(attributeEdits)) {
+        meta[field] = { source: 'manual', at: new Date().toISOString() };
+      }
+      Object.assign(data, attributeEdits);
+      data.attributesMeta = meta;
+    }
 
     const contact = await prisma.contact.update({
       where: { id: req.params.id },

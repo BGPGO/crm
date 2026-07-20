@@ -19,6 +19,7 @@ export interface FilterGroup {
 const VALID_SEGMENT_FIELDS = new Set([
   // Contact direct fields
   'name', 'email', 'phone', 'position', 'sector', 'notes', 'birthday', 'instagram',
+  'gender', 'erpSystem', 'revenueRange',
   'createdAt', 'updatedAt',
   // Organization (via relation)
   'organizationId', 'organizationName', 'organizationSegment', 'organizationCnpj',

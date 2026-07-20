@@ -8,6 +8,7 @@
 
 import OpenAI from 'openai';
 import prisma from '../lib/prisma';
+import { triggerContactEnrichment } from './contactAttributeExtractor';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -127,7 +128,7 @@ export function triggerMeetingAnalysis(meetingId: string): void {
     try {
       const meeting = await prisma.readAiMeeting.findUnique({
         where: { id: meetingId },
-        select: { id: true, transcript: true, title: true },
+        select: { id: true, transcript: true, title: true, contactId: true },
       });
 
       if (!meeting?.transcript) {
@@ -147,6 +148,9 @@ export function triggerMeetingAnalysis(meetingId: string): void {
       });
 
       console.log(`[MeetingAnalyzer] Analysis complete for meeting ${meetingId}`);
+
+      // Atributos de segmentação do contato (gênero, sistema, faturamento)
+      triggerContactEnrichment(meeting.contactId);
     } catch (err) {
       console.error(`[MeetingAnalyzer] Background analysis failed for ${meetingId}:`, err);
     }

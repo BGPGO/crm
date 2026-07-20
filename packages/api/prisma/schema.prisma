@@ -252,6 +252,15 @@ model Contact {
   sector    String?
   brand     Brand     @default(BGP)
 
+  // Atributos de segmentação (preenchidos por IA ou manualmente)
+  gender       String? // MASCULINO | FEMININO
+  erpSystem    String? // sistema/ERP financeiro que o lead usa (Conta Azul, Omie, Excel...)
+  revenueRange String? // faixa de faturamento mensal: ATE_50K | 50K_100K | 100K_300K | 300K_1M | ACIMA_1M
+
+  // Proveniência por atributo: { gender: { source: 'ia-nome'|'ia-conversa'|'manual', confidence, evidence, at } }
+  attributesMeta        Json?
+  attributesExtractedAt DateTime?
+
   phoneInvalid   Boolean   @default(false)
   phoneInvalidAt DateTime?
 

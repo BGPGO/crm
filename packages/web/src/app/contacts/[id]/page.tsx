@@ -17,6 +17,9 @@ import {
   CheckSquare,
   Clock,
   Layers,
+  User,
+  Monitor,
+  Banknote,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import InlineField from "@/components/deal/InlineField";
@@ -30,6 +33,27 @@ import {
   formatRelativeTime,
 } from "@/lib/formatters";
 import { formatTaskDate } from "@/lib/taskDateTime";
+
+// ─── Atributos de segmentação — valores canônicos ─────────────────────────────
+
+const GENDER_OPTIONS = [
+  { value: "MASCULINO", label: "Masculino" },
+  { value: "FEMININO", label: "Feminino" },
+];
+const GENDER_LABELS: Record<string, string> = Object.fromEntries(
+  GENDER_OPTIONS.map((o) => [o.value, o.label])
+);
+
+const REVENUE_RANGE_OPTIONS = [
+  { value: "ATE_50K", label: "Até R$ 50 mil/mês" },
+  { value: "50K_100K", label: "R$ 50–100 mil/mês" },
+  { value: "100K_300K", label: "R$ 100–300 mil/mês" },
+  { value: "300K_1M", label: "R$ 300 mil–1 mi/mês" },
+  { value: "ACIMA_1M", label: "Acima de R$ 1 mi/mês" },
+];
+const REVENUE_RANGE_LABELS: Record<string, string> = Object.fromEntries(
+  REVENUE_RANGE_OPTIONS.map((o) => [o.value, o.label])
+);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,6 +115,9 @@ interface ContactDetail {
   phone: string | null;
   position: string | null;
   sector: string | null;
+  gender: string | null;
+  erpSystem: string | null;
+  revenueRange: string | null;
   birthday: string | null;
   instagram: string | null;
   notes: string | null;
@@ -357,6 +384,57 @@ export default function ContactDetailPage() {
                       label="Setor"
                       value={contact.sector ?? ""}
                       onChange={(v) => handleFieldSave("sector", v)}
+                    />
+                  </div>
+                </div>
+
+                {/* Gênero */}
+                <div className="flex items-start gap-2 py-0.5">
+                  <User
+                    size={13}
+                    className="mt-3 text-gray-400 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <InlineField
+                      label="Gênero"
+                      value={contact.gender ?? ""}
+                      type="select"
+                      options={GENDER_OPTIONS}
+                      onChange={(v) => handleFieldSave("gender", v)}
+                      formatValue={(v) => GENDER_LABELS[v] ?? v}
+                    />
+                  </div>
+                </div>
+
+                {/* Sistema usado (ERP) */}
+                <div className="flex items-start gap-2 py-0.5">
+                  <Monitor
+                    size={13}
+                    className="mt-3 text-gray-400 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <InlineField
+                      label="Sistema usado (ERP)"
+                      value={contact.erpSystem ?? ""}
+                      onChange={(v) => handleFieldSave("erpSystem", v)}
+                    />
+                  </div>
+                </div>
+
+                {/* Faixa de faturamento */}
+                <div className="flex items-start gap-2 py-0.5">
+                  <Banknote
+                    size={13}
+                    className="mt-3 text-gray-400 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <InlineField
+                      label="Faturamento mensal"
+                      value={contact.revenueRange ?? ""}
+                      type="select"
+                      options={REVENUE_RANGE_OPTIONS}
+                      onChange={(v) => handleFieldSave("revenueRange", v)}
+                      formatValue={(v) => REVENUE_RANGE_LABELS[v] ?? v}
                     />
                   </div>
                 </div>
