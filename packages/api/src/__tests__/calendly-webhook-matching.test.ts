@@ -24,10 +24,12 @@ const mockPrisma = {
   },
   contact: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     findMany: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   },
+  $queryRaw: vi.fn(),
   deal: {
     findFirst: vi.fn(),
     create: vi.fn(),
@@ -60,6 +62,7 @@ function buildCalendlyPayload(overrides: {
   name: string;
   uri?: string;
   startTime?: string;
+  phone?: string;
 }) {
   return {
     event: 'invitee.created',
@@ -68,7 +71,9 @@ function buildCalendlyPayload(overrides: {
       name: overrides.name,
       uri: overrides.uri || `https://calendly.com/invitees/${Math.random().toString(36).slice(2)}`,
       timezone: 'America/Sao_Paulo',
-      questions_and_answers: [],
+      questions_and_answers: overrides.phone
+        ? [{ question: 'Telefone / WhatsApp', answer: overrides.phone }]
+        : [],
       scheduled_event: {
         uri: `https://calendly.com/events/${Math.random().toString(36).slice(2)}`,
         name: 'Diagnostico Financeiro',
@@ -227,6 +232,71 @@ describe('Calendly webhook — contact matching', () => {
     );
     expect(contactLinkCall).toBeDefined();
     expect(contactLinkCall![0].data.contactId).toBe('contact-flavio-mattos');
+  });
+
+  it('matches contact by phone digits even when the stored phone is formatted (Sardis 21/07)', async () => {
+    // Lead entered via GreatPages with phone "92 98100-8000" (formatted) and
+    // email jr@... — then booked on Calendly with a DIFFERENT email and phone
+    // "(92) 98100-8000". Email match fails; phone match must normalize both
+    // sides, otherwise a duplicate contact is created and the meeting lands on
+    // it, leaving BIA blind to the meeting on the conversation's contact.
+    const contactSardis = {
+      id: 'contact-sardis',
+      name: 'Sardis',
+      email: 'jr@mrjumar.com.br',
+      phone: '92 98100-8000',
+      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+    };
+
+    const body = buildCalendlyPayload({
+      email: 'sardis@superguindaste.com.br',
+      name: 'Sardis Jr',
+      phone: '(92) 98100-8000',
+    });
+
+    // Email lookup: no contact with the Calendly email
+    mockPrisma.contact.findFirst.mockResolvedValue(null);
+    // Normalized phone lookup (raw SQL) finds the existing contact
+    mockPrisma.$queryRaw.mockResolvedValue([{ id: 'contact-sardis' }]);
+    mockPrisma.contact.findUnique.mockResolvedValue(contactSardis);
+
+    const dealSardis = {
+      id: 'deal-sardis',
+      contactId: 'contact-sardis',
+      status: 'OPEN',
+      pipelineId: 'pipeline-1',
+      userId: 'user-1',
+      stage: { id: 'stage-2', name: 'Contato Feito', order: 2 },
+    };
+    mockPrisma.deal.findFirst.mockResolvedValue(dealSardis);
+    mockPrisma.deal.update.mockResolvedValue({});
+    mockPrisma.pipelineStage.findMany.mockResolvedValue([
+      { id: 'stage-1', name: 'Lead', order: 1 },
+      { id: 'stage-2', name: 'Contato Feito', order: 2 },
+      { id: 'stage-4', name: 'Reunião agendada', order: 4 },
+    ]);
+    mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-closer', name: 'Closer' });
+
+    const { req, res, resData } = createMockReqRes(body);
+    await handler(req, res);
+
+    expect(resData.statusCode).toBe(200);
+
+    // Must NOT create a duplicate contact
+    expect(mockPrisma.contact.create).not.toHaveBeenCalled();
+
+    // The raw phone lookup received the digits-only suffix
+    const rawCall = mockPrisma.$queryRaw.mock.calls[0];
+    expect(rawCall).toBeDefined();
+    expect(rawCall.some((arg: unknown) => arg === '%981008000')).toBe(true);
+
+    // CalendlyEvent must link to the EXISTING contact
+    const eventUpdateCalls = mockPrisma.calendlyEvent.update.mock.calls;
+    const contactLinkCall = eventUpdateCalls.find(
+      (c: Array<{ data?: { contactId?: string } }>) => c[0]?.data?.contactId
+    );
+    expect(contactLinkCall).toBeDefined();
+    expect(contactLinkCall![0].data.contactId).toBe('contact-sardis');
   });
 
   it('refuses to match by name when multiple contacts share the same name', async () => {

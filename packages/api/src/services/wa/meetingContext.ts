@@ -36,22 +36,48 @@ interface DealNoShowInfo {
   noShowAt: Date | null;
 }
 
+/**
+ * Contatos-irmãos com o MESMO telefone (comparação só por dígitos, sufixo de
+ * 9 — o número local BR, imune a DDI/DDD e formatação). Caso Sardis 21/07:
+ * o Calendly criou contato duplicado (email diferente + fone formatado) e a
+ * reunião ficou pendurada no irmão — a conversa do WhatsApp apontava pro
+ * contato sem reunião e a BIA mandou CTA de agendamento com reunião marcada
+ * pra dali a 1h. A reunião vale pro TELEFONE, não pro registro de contato.
+ */
+async function contactIdsSharingPhone(contactId: string): Promise<string[]> {
+  const self = await prisma.contact.findUnique({
+    where: { id: contactId },
+    select: { phone: true },
+  });
+  const digits = (self?.phone ?? '').replace(/\D/g, '');
+  if (digits.length < 8) return [contactId];
+  const suffix = digits.slice(-9);
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Contact"
+    WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') LIKE ${'%' + suffix}
+  `;
+  const ids = new Set(rows.map((r) => r.id));
+  ids.add(contactId);
+  return [...ids];
+}
+
 export async function buildMeetingContext(
   contactId: string,
   deal?: DealNoShowInfo | null
 ): Promise<string> {
   try {
     const now = new Date();
+    const contactIds = await contactIdsSharingPhone(contactId);
     const [upcoming, lastPast] = await Promise.all([
       // endTime (não startTime): reunião EM ANDAMENTO ainda é a reunião atual —
       // o lead que pede o link às 9h02 de uma reunião das 9h00 quer ENTRAR nela,
       // não cair no fluxo de "não existe reunião futura" (caso Ezequiel 15/07).
       prisma.calendlyEvent.findFirst({
-        where: { contactId, status: 'active', endTime: { gt: now } },
+        where: { contactId: { in: contactIds }, status: 'active', endTime: { gt: now } },
         orderBy: { startTime: 'asc' },
       }),
       prisma.calendlyEvent.findFirst({
-        where: { contactId, startTime: { lte: now } },
+        where: { contactId: { in: contactIds }, startTime: { lte: now } },
         orderBy: { startTime: 'desc' },
       }),
     ]);
@@ -62,7 +88,7 @@ export async function buildMeetingContext(
       const act = await prisma.activity.findFirst({
         where: {
           type: 'MEETING',
-          contactId,
+          contactId: { in: contactIds },
           metadata: { path: ['calendlyEventId'], equals: upcoming.calendlyEventId },
         },
         orderBy: { createdAt: 'desc' },

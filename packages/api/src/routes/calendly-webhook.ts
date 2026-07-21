@@ -230,15 +230,26 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
-      // 2b. Fallback: match by phone (last 9 digits) — only if email didn't match
+      // 2b. Fallback: match by phone (last 9 digits) — only if email didn't match.
+      // Compare DIGITS ONLY on both sides: `contains` on the raw column missed
+      // stored phones with formatting ("92 98100-8000" does not contain
+      // "981008000"), which created the duplicate-contact/BIA-blind case
+      // (Sardis, 21/07 — meeting landed on a new contact, conversation kept
+      // pointing at the old one).
       if (!contact && inviteePhone) {
         const phoneSuffix = inviteePhone.replace(/\D/g, '').slice(-9);
         console.log(`[calendly-webhook] Trying phone match: raw="${inviteePhone}", suffix="${phoneSuffix}"`);
-        contact = await prisma.contact.findFirst({
-          where: {
-            phone: { contains: phoneSuffix },
-          },
-        });
+        if (phoneSuffix.length >= 8) {
+          const phoneRows = await prisma.$queryRaw<{ id: string }[]>`
+            SELECT id FROM "Contact"
+            WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') LIKE ${'%' + phoneSuffix}
+            ORDER BY "createdAt" DESC
+            LIMIT 1
+          `;
+          if (phoneRows.length > 0) {
+            contact = await prisma.contact.findUnique({ where: { id: phoneRows[0].id } });
+          }
+        }
         if (contact) {
           matchMethod = 'phone';
           console.log(`[calendly-webhook] MATCH by phone: contact=${contact.id} (${contact.name}), phone=${contact.phone}`);
