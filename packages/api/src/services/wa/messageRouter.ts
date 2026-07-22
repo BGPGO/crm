@@ -106,6 +106,37 @@ async function findContactIdByPhoneDigits(phoneVariations: string[]): Promise<st
   return rows[0]?.id ?? null;
 }
 
+/**
+ * Mensagem inicial de anúncio CTWA com Instant Form traz os dados do formulário
+ * no corpo ("Full name: ...\nEmail: ...\nWhatsApp number: ..."). O email é a
+ * chave mais confiável pro vínculo: o telefone preenchido no form pode diferir
+ * do WhatsApp de onde a pessoa manda a mensagem.
+ */
+function extractInstantFormEmail(text: string | null): string | null {
+  if (!text) return null;
+  const looksLikeInstantForm =
+    /preenchi seu formul/i.test(text) || (/^\s*(full name|nome completo)\s*:/im.test(text) && /^\s*e-?mail\s*:/im.test(text));
+  if (!looksLikeInstantForm) return null;
+  const match = text.match(/^\s*e-?mail\s*:\s*(\S+@\S+?)\s*$/im);
+  return match ? match[1] : null;
+}
+
+/** Email do Instant Form primeiro (determinístico), telefone como fallback. */
+async function resolveContactIdForInbound(phoneVariations: string[], text: string | null): Promise<string | null> {
+  const formEmail = extractInstantFormEmail(text);
+  if (formEmail) {
+    const byEmail = await prisma.contact.findFirst({
+      where: { email: { equals: formEmail, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (byEmail) {
+      console.log(`[WaMessageRouter] Contato linkado pelo email do Instant Form (${formEmail}) → ${byEmail.id}`);
+      return byEmail.id;
+    }
+  }
+  return findContactIdByPhoneDigits(phoneVariations);
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export class WaMessageRouter {
@@ -151,8 +182,8 @@ export class WaMessageRouter {
           });
 
           if (!conversation) {
-            // 3. Try to link to existing Contact by phone (digits-only match)
-            const contactId = await findContactIdByPhoneDigits(phoneVariations);
+            // 3. Try to link to existing Contact (email do Instant Form > telefone)
+            const contactId = await resolveContactIdForInbound(phoneVariations, text);
 
             conversation = await prisma.waConversation.create({
               data: {
@@ -170,7 +201,7 @@ export class WaMessageRouter {
             }
             if (!conversation.contactId) {
               // phoneVariations já foi calculado acima (inclui com/sem 9)
-              const contactId = await findContactIdByPhoneDigits(phoneVariations);
+              const contactId = await resolveContactIdForInbound(phoneVariations, text);
               if (contactId) updates.contactId = contactId;
             }
             if (Object.keys(updates).length > 0) {
