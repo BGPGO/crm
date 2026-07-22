@@ -52,6 +52,7 @@ interface FormState {
   contactId: string;
   organizationId: string;
   userId: string;
+  closerId: string;
   sourceId: string;
   campaignId: string;
   stageId: string;
@@ -63,6 +64,7 @@ const emptyForm = (defaultStageId: string): FormState => ({
   contactId: "",
   organizationId: "",
   userId: "",
+  closerId: "",
   sourceId: "",
   campaignId: "",
   stageId: defaultStageId,
@@ -202,6 +204,7 @@ export default function NewDealModal({
       if (form.contactId) body.contactId = form.contactId;
       if (form.organizationId) body.organizationId = form.organizationId;
       if (form.userId) body.userId = form.userId;
+      if (form.closerId) body.closerId = form.closerId;
       if (form.sourceId) body.sourceId = form.sourceId;
       if (form.campaignId) body.campaignId = form.campaignId;
 
@@ -299,6 +302,16 @@ export default function NewDealModal({
           placeholder={loadingOptions ? "Carregando…" : "Selecionar responsável"}
           value={form.userId}
           onChange={(e) => setField("userId", e.target.value)}
+          disabled={loadingOptions || users.length === 0}
+        />
+
+        {/* Closer */}
+        <Select
+          label="Closer"
+          options={toOptions(users)}
+          placeholder={loadingOptions ? "Carregando…" : "Selecionar closer"}
+          value={form.closerId}
+          onChange={(e) => setField("closerId", e.target.value)}
           disabled={loadingOptions || users.length === 0}
         />
 

@@ -198,9 +198,10 @@ model User {
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id])
 
-  deals      Deal[]
-  tasks      Task[]
-  activities Activity[]
+  deals       Deal[]
+  closedDeals Deal[]     @relation("DealCloser")
+  tasks       Task[]
+  activities  Activity[]
 
   assignedConversations WhatsAppConversation[] @relation("WhatsAppConversationAssignee")
   sentWhatsAppMessages  WhatsAppMessage[]      @relation("WhatsAppMessageSender")
@@ -409,6 +410,10 @@ model Deal {
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
+  // Closer — quem fecha a venda (pode diferir do responsável/SDR)
+  closerId String?
+  closer   User?   @relation("DealCloser", fields: [closerId], references: [id])
+
   sourceId String?
   source   Source? @relation(fields: [sourceId], references: [id])
 
@@ -432,6 +437,7 @@ model Deal {
   @@index([pipelineId])
   @@index([stageId])
   @@index([userId])
+  @@index([closerId])
   @@index([contactId])
   @@index([organizationId])
   @@index([status])

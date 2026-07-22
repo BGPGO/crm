@@ -25,7 +25,7 @@ import {
   Braces,
   ChevronDown,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getAuthHeaders } from "@/lib/api";
 
 interface MergeTag {
   key: string;
@@ -202,6 +202,8 @@ export default function EmailContentPanel({
 }: EmailContentPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [btnText, setBtnText] = useState("Agendar Reunião");
   const [btnUrl, setBtnUrl] = useState("https://calendly.com/d/cybr-crz-ttw/diagnostico-financeiro-bgp?utm_source=email_cadencia&utm_medium=crm");
   const [btnColor, setBtnColor] = useState("#2563eb");
@@ -235,20 +237,37 @@ export default function EmailContentPanel({
     setTagDropdownOpen(false);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Sobe pro bucket e insere a URL pública — base64 inline é bloqueado
+  // pelo Gmail/Outlook e não pode entrar no corpo do email.
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        onInsertImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-
     // Reset so the same file can be selected again
     e.target.value = "";
+    if (!file || uploading) return;
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/email/upload-image", {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data?.url) {
+        throw new Error(json?.message || "Upload falhou");
+      }
+      onInsertImage(json.data.url);
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Erro ao enviar a imagem"
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleAddImageUrl = () => {
@@ -354,11 +373,15 @@ export default function EmailContentPanel({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors"
+              disabled={uploading}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded border border-dashed border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-wait transition-colors"
             >
               <Upload className="h-4 w-4" />
-              Enviar imagem do computador
+              {uploading ? "Enviando imagem..." : "Enviar imagem do computador"}
             </button>
+            {uploadError && (
+              <p className="mt-1.5 text-xs text-red-500">{uploadError}</p>
+            )}
           </div>
 
           {/* URL input */}

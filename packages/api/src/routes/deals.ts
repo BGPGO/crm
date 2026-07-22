@@ -215,6 +215,7 @@ const dealInclude = {
   pipeline: { select: { id: true, name: true } },
   stage: { select: { id: true, name: true, order: true, color: true } },
   user: { select: { id: true, name: true, email: true } },
+  closer: { select: { id: true, name: true, email: true } },
   contact: { select: { id: true, name: true, email: true } },
   organization: { select: { id: true, name: true } },
   source: { select: { id: true, name: true } },
@@ -670,9 +671,9 @@ router.post(
   validate({ title: 'required', pipelineId: 'required', stageId: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+      const { title, value, pipelineId, stageId, userId, closerId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
       const deal = await prisma.deal.create({
-        data: { title, value, pipelineId, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId },
+        data: { title, value, pipelineId, stageId, userId, closerId: closerId || null, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId },
         include: dealInclude,
       });
       res.status(201).json({ data: deal });
@@ -688,12 +689,14 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const existing = await prisma.deal.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Deal not found', 404));
 
-    const { title, value, stageId, userId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+    const { title, value, stageId, userId, closerId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (value !== undefined) data.value = value;
     if (stageId !== undefined) data.stageId = stageId;
     if (userId !== undefined) data.userId = userId;
+    // closerId: "" ou null limpa o campo
+    if (closerId !== undefined) data.closerId = closerId || null;
     if (contactId !== undefined) data.contactId = contactId;
     if (organizationId !== undefined) data.organizationId = organizationId;
     if (sourceId !== undefined) data.sourceId = sourceId;

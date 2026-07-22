@@ -13,6 +13,7 @@ import {
   Copy,
   MessageCircle,
   UserPlus,
+  UserCheck,
   ExternalLink,
   RotateCcw,
   Pencil,
@@ -89,6 +90,7 @@ interface DealDetail {
   contact?: { id: string; name: string; phone?: string; email?: string };
   organization?: { id: string; name: string; cnpj?: string; website?: string; instagram?: string };
   user?: { id: string; name: string };
+  closer?: { id: string; name: string } | null;
   source?: { id: string; name: string };
   campaign?: { id: string; name: string };
   lostReason?: { id: string; name: string };
@@ -1784,6 +1786,39 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                 {/* Preserva o dono atual como opção mesmo se ele estiver inativo (senão o select fica em branco) */}
                 {(deal?.user && !allUsers.some((u) => u.id === deal.user!.id)
                   ? [{ id: deal.user.id, name: `${deal.user.name} (inativo)` }, ...allUsers]
+                  : allUsers
+                ).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          </CollapsibleSection>
+
+          {/* Seção: Closer */}
+          <CollapsibleSection title="Closer" defaultOpen>
+            <div className="flex items-center gap-2 py-2">
+              <div className="w-7 h-7 rounded-full bg-petrol-100 text-petrol-600 flex items-center justify-center flex-shrink-0">
+                <UserCheck size={14} />
+              </div>
+              <select
+                value={deal?.closer?.id || ""}
+                onChange={async (e) => {
+                  const newCloserId = e.target.value;
+                  if (!deal) return;
+                  try {
+                    await api.put(`/deals/${dealId}`, { closerId: newCloserId || null });
+                    const selectedUser = allUsers.find(u => u.id === newCloserId);
+                    setDeal({ ...deal, closer: selectedUser ? { id: selectedUser.id, name: selectedUser.name } : null });
+                  } catch {
+                    alert("Erro ao alterar closer");
+                  }
+                }}
+                className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
+              >
+                <option value="">Sem closer</option>
+                {/* Preserva o closer atual como opção mesmo se ele estiver inativo (senão o select fica em branco) */}
+                {(deal?.closer && !allUsers.some((u) => u.id === deal.closer!.id)
+                  ? [{ id: deal.closer.id, name: `${deal.closer.name} (inativo)` }, ...allUsers]
                   : allUsers
                 ).map((u) => (
                   <option key={u.id} value={u.id}>{u.name}</option>

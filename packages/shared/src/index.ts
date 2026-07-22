@@ -127,6 +127,7 @@ export interface IDeal {
   contactId?: string | null;
   organizationId?: string | null;
   userId: string;
+  closerId?: string | null;
   sourceId?: string | null;
   lostReasonId?: string | null;
   campaignId?: string | null;

@@ -35,6 +35,8 @@ import {
   Paperclip,
   AlertOctagon,
   Zap,
+  Forward,
+  Check,
 } from "lucide-react";
 import clsx from "clsx";
 import { api, getAuthHeaders } from "@/lib/api";
@@ -563,6 +565,15 @@ export default function WabaChatPage() {
   const [newConvContacts, setNewConvContacts] = useState<Array<{ id: string; name: string; phone: string | null; organization?: { name: string } | null }>>([]);
   const [newConvLoading, setNewConvLoading] = useState(false);
 
+  // ── Encaminhar mensagem ──
+  const [forwardMsg, setForwardMsg] = useState<WaMessage | null>(null);
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [forwardTargets, setForwardTargets] = useState<WaConversation[]>([]);
+  const [forwardLoading, setForwardLoading] = useState(false);
+  const [forwardSendingTo, setForwardSendingTo] = useState<string | null>(null);
+  const [forwardSentTo, setForwardSentTo] = useState<Set<string>>(new Set());
+  const forwardSearchTimer = useRef<NodeJS.Timeout | null>(null);
+
   // ── Quality config + contact risk (WABA cap / marketing guard) ──
   const [cloudConfig, setCloudConfig] = useState<{ qualityRating: string } | null>(null);
   const [contactRisk, setContactRisk] = useState<{
@@ -1000,6 +1011,78 @@ export default function WabaChatPage() {
     } finally {
       setSending(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── Encaminhar mensagem pra outra conversa ──
+  // Envio reusa POST /wa/conversations/:id/messages (mesmos gates de qualidade/volume
+  // do WaMessageService); mídia vai pelo mediaId/mediaUrl original da mensagem.
+  const isForwardable = (msg: WaMessage) =>
+    ((msg.type === "TEXT" || msg.type === "TEMPLATE") && !!msg.body) ||
+    (["IMAGE", "VIDEO", "AUDIO", "DOCUMENT"].includes(msg.type) &&
+      !!(msg.mediaId || msg.mediaUrl));
+
+  const forwardPreview = (msg: WaMessage) => {
+    switch (msg.type) {
+      case "IMAGE": return "📷 Imagem" + (msg.body ? ` — ${msg.body}` : "");
+      case "VIDEO": return "🎬 Vídeo" + (msg.body ? ` — ${msg.body}` : "");
+      case "AUDIO": return "🎧 Áudio";
+      case "DOCUMENT": return "📄 Documento" + (msg.body ? ` — ${msg.body}` : "");
+      default: return msg.body || "";
+    }
+  };
+
+  const fetchForwardTargets = useCallback(async (query: string) => {
+    setForwardLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", "50");
+      params.set("dealStatus", "all");
+      if (query) params.set("search", query);
+      const res = await api.get<{ data: WaConversation[] }>(
+        `/wa/conversations?${params.toString()}`
+      );
+      setForwardTargets(res.data || []);
+    } catch {
+      setForwardTargets([]);
+    } finally {
+      setForwardLoading(false);
+    }
+  }, []);
+
+  const openForward = (msg: WaMessage) => {
+    setForwardMsg(msg);
+    setForwardSearch("");
+    setForwardSentTo(new Set());
+    fetchForwardTargets("");
+  };
+
+  const handleForwardSearch = (value: string) => {
+    setForwardSearch(value);
+    if (forwardSearchTimer.current) clearTimeout(forwardSearchTimer.current);
+    forwardSearchTimer.current = setTimeout(() => fetchForwardTargets(value), 300);
+  };
+
+  const handleForwardTo = async (target: WaConversation) => {
+    if (!forwardMsg || forwardSendingTo || forwardSentTo.has(target.id)) return;
+    setForwardSendingTo(target.id);
+    try {
+      const msg = forwardMsg;
+      const body =
+        msg.type === "TEXT" || msg.type === "TEMPLATE"
+          ? { type: "text", content: msg.body }
+          : {
+              type: msg.type.toLowerCase(),
+              mediaUrl: msg.mediaId || msg.mediaUrl,
+              caption: msg.body || undefined,
+            };
+      await api.post(`/wa/conversations/${target.id}/messages`, body);
+      setForwardSentTo((prev) => new Set(prev).add(target.id));
+      if (target.id === selectedId) await fetchMessages(target.id);
+    } catch (err: any) {
+      setError(`Erro ao encaminhar: ${err?.message || "tente novamente"}`);
+    } finally {
+      setForwardSendingTo(null);
     }
   };
 
@@ -1595,10 +1678,25 @@ export default function WabaChatPage() {
                         >
                           <div
                             className={clsx(
-                              "max-w-[75%] md:max-w-[65%]",
+                              "relative group max-w-[75%] md:max-w-[65%]",
                               isInbound ? "mr-12" : "ml-12"
                             )}
                           >
+                            {/* Encaminhar (hover) */}
+                            {isForwardable(msg) && !selectedId?.startsWith("zapi_") && (
+                              <button
+                                type="button"
+                                title="Encaminhar pro WhatsApp"
+                                onClick={() => openForward(msg)}
+                                className={clsx(
+                                  "absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-center text-gray-400 hover:text-petrol-600 dark:hover:text-petrol-400 opacity-0 group-hover:opacity-100 transition-opacity",
+                                  isInbound ? "-right-9" : "-left-9"
+                                )}
+                              >
+                                <Forward size={13} />
+                              </button>
+                            )}
+
                             {/* Sender label */}
                             {label && (
                               <p
@@ -2405,6 +2503,92 @@ export default function WabaChatPage() {
                     </div>
                   </button>
                 ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ MODAL — ENCAMINHAR MENSAGEM ═══════════════════ */}
+      {forwardMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setForwardMsg(null)}>
+          <div
+            className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[70vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Forward size={15} className="text-petrol-600" />
+                Encaminhar pro WhatsApp
+              </h3>
+              <button onClick={() => setForwardMsg(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-4 pt-3">
+              <div className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={forwardPreview(forwardMsg)}>
+                  {truncate(forwardPreview(forwardMsg), 80)}
+                </p>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={forwardSearch}
+                  onChange={(e) => handleForwardSearch(e.target.value)}
+                  placeholder="Buscar conversa por nome, telefone..."
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-petrol-500 placeholder-gray-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1">
+              {forwardLoading ? (
+                <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-gray-400" /></div>
+              ) : forwardTargets.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-6">Nenhuma conversa encontrada</p>
+              ) : (
+                forwardTargets.map((c) => {
+                  const name = c.contact?.name || c.pushName || c.phone;
+                  const sent = forwardSentTo.has(c.id);
+                  const blocked = !c.windowOpen || c.optedOut;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => handleForwardTo(c)}
+                      disabled={blocked || sent || !!forwardSendingTo}
+                      className={clsx(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors",
+                        blocked ? "opacity-45 cursor-not-allowed" : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                      )}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${getAvatarColor(name)}`}>
+                        {(name || "?")[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{name}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Phone size={10} />{c.phone}</span>
+                          {c.optedOut ? (
+                            <span className="text-red-400">opt-out</span>
+                          ) : !c.windowOpen ? (
+                            <span className="flex items-center gap-1 text-amber-500"><Clock size={10} />janela fechada</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      {forwardSendingTo === c.id ? (
+                        <Loader2 size={16} className="animate-spin text-petrol-500 flex-shrink-0" />
+                      ) : sent ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 flex-shrink-0">
+                          <Check size={14} /> Enviada
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
