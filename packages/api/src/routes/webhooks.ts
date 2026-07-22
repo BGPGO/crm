@@ -274,6 +274,23 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       });
     });
 
+    // 10b. Link orphan WhatsApp conversation — no fluxo CTWA a 1ª mensagem chega
+    // antes do contato existir (o cron da planilha roda a cada 5min) e o
+    // messageRouter só re-tenta o vínculo quando chega OUTRA mensagem inbound.
+    if (phoneSearchVariants.length > 0) {
+      try {
+        const { count } = await prisma.waConversation.updateMany({
+          where: { phone: { in: phoneSearchVariants }, contactId: null },
+          data: { contactId: contact.id },
+        });
+        if (count > 0) {
+          console.log(`[webhook] ${count} conversa(s) WhatsApp órfã(s) vinculada(s) ao contato ${contact.id}`);
+        }
+      } catch (linkErr) {
+        console.error('[webhook] Erro ao vincular conversa WhatsApp órfã:', linkErr);
+      }
+    }
+
     // 11. Create LeadTracking
     await prisma.leadTracking.create({
       data: {

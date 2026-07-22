@@ -1,4 +1,5 @@
 import prisma from '../../lib/prisma';
+import { Prisma } from '@prisma/client';
 import { WindowService } from './windowService';
 import { WaBotService } from './botService';
 import { StageOrchestrator } from './stageOrchestrator';
@@ -84,6 +85,27 @@ function mapMessageType(type: string): string {
   return typeMap[type] || 'UNKNOWN';
 }
 
+// ─── Contact lookup by phone (digits-only) ───────────────────────────────────
+
+/**
+ * Busca um Contact comparando só os dígitos do telefone — contatos antigos
+ * (imports do RD etc.) têm phone formatado ("+55 (17) 99638-3005", "11 94586-8338")
+ * que nunca casa com o wa_id cru por igualdade exata. Também cobre contato salvo
+ * sem o DDI 55 (formato local de 10/11 dígitos).
+ */
+async function findContactIdByPhoneDigits(phoneVariations: string[]): Promise<string | null> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Contact"
+    WHERE phone IS NOT NULL AND (
+      regexp_replace(phone, '\\D', '', 'g') IN (${Prisma.join(phoneVariations)})
+      OR '55' || regexp_replace(phone, '\\D', '', 'g') IN (${Prisma.join(phoneVariations)})
+    )
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export class WaMessageRouter {
@@ -129,18 +151,15 @@ export class WaMessageRouter {
           });
 
           if (!conversation) {
-            // 3. Try to link to existing Contact by phone (with normalization)
-            const contact = await prisma.contact.findFirst({
-              where: { phone: { in: phoneVariations } },
-              select: { id: true },
-            });
+            // 3. Try to link to existing Contact by phone (digits-only match)
+            const contactId = await findContactIdByPhoneDigits(phoneVariations);
 
             conversation = await prisma.waConversation.create({
               data: {
                 phone: from,
                 pushName,
                 status: 'WA_OPEN',
-                contactId: contact?.id || null,
+                contactId,
               },
             });
           } else {
@@ -151,11 +170,8 @@ export class WaMessageRouter {
             }
             if (!conversation.contactId) {
               // phoneVariations já foi calculado acima (inclui com/sem 9)
-              const contact = await prisma.contact.findFirst({
-                where: { phone: { in: phoneVariations } },
-                select: { id: true },
-              });
-              if (contact) updates.contactId = contact.id;
+              const contactId = await findContactIdByPhoneDigits(phoneVariations);
+              if (contactId) updates.contactId = contactId;
             }
             if (Object.keys(updates).length > 0) {
               await prisma.waConversation.update({
