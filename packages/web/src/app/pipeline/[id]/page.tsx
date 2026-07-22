@@ -9,6 +9,7 @@ import {
   Building2,
   User,
   Phone,
+  PhoneCall,
   Mail,
   Copy,
   MessageCircle,
@@ -43,6 +44,7 @@ import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { brtInputToUtcIso, toDatetimeLocalInputBRT } from "@/lib/taskDateTime";
+import { openWhatsAppChat, waPhoneDigits } from "@/lib/whatsapp";
 import clsx from "clsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -497,8 +499,15 @@ function SidebarContact({
           >
             <Phone size={11} />
           </a>
+          <button
+            onClick={() => openWhatsAppChat(contact.phone!)}
+            className="p-0.5 text-gray-300 hover:text-green-500 transition-colors"
+            title="Ligar pelo WhatsApp — abre o app no número do lead"
+          >
+            <PhoneCall size={11} />
+          </button>
           <a
-            href={`https://wa.me/55${contact.phone.replace(/\D/g, "")}`}
+            href={`https://wa.me/${waPhoneDigits(contact.phone)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-0.5 text-gray-300 hover:text-green-500 transition-colors"

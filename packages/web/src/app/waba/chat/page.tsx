@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Mail,
   Phone,
+  PhoneCall,
   DollarSign,
   PanelRightClose,
   PanelRightOpen,
@@ -40,6 +41,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { api, getAuthHeaders } from "@/lib/api";
+import { openWhatsAppChat } from "@/lib/whatsapp";
 import { useAuth } from "@/contexts/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1520,6 +1522,18 @@ export default function WabaChatPage() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Ligar pelo WhatsApp — abre o app no número do lead */}
+                  {selectedConv?.phone && (
+                    <button
+                      onClick={() => openWhatsAppChat(selectedConv.phone)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 transition-colors"
+                      title="Ligar pelo WhatsApp — abre o app no número do lead"
+                    >
+                      <PhoneCall size={14} />
+                      <span className="hidden sm:inline">Ligar</span>
+                    </button>
+                  )}
+
                   {/* Window status badge */}
                   {selectedConv?.windowOpen ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
