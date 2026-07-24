@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { buildDueDatePersist } from '../utils/taskDateTime';
+import { parseFilterFrom, parseFilterTo } from '../utils/dateFilters';
 
 const router = Router();
 
@@ -142,15 +143,9 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string,
     where[dateField] = { gte: from };
   }
 
-  // Helper: parse a date string that may be date-only (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:mm)
-  // For "to" dates without time, append end-of-day; with time, use as-is
-  const parseFrom = (val: string): Date => new Date(val);
-  const parseTo = (val: string): Date => {
-    // If it contains 'T' it has a time component — use as-is
-    if (val.includes('T')) return new Date(val);
-    // Otherwise it's date-only — use end of day
-    return new Date(val + 'T23:59:59.999Z');
-  };
+  // Datas dos filtros ancoradas em BRT — ver utils/dateFilters.ts
+  const parseFrom = parseFilterFrom;
+  const parseTo = parseFilterTo;
 
   // Created date range
   const createdFrom = str('createdAtFrom');
