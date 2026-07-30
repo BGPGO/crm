@@ -50,13 +50,22 @@ function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string,
   const str = (key: string) => query[key] as string | undefined;
 
   if (str('status')) where.status = str('status');
-  // userId: supports single value (back-compat) OR comma-separated list via userIds
+  // Filtro de pessoa: casa o responsável OU o closer.
+  //
+  // Um deal em "Reunião agendada" tem o SDR no `userId` e quem conduz a reunião
+  // no `closerId`. Filtrar só por `userId` faria o closer não achar as próprias
+  // reuniões — que é exatamente o caso do topo do funil de BI, onde o
+  // responsável é sempre o Gustavo.
+  // userIds aceita lista separada por vírgula; userId é o formato antigo.
   const userIds = str('userIds');
-  if (userIds) {
-    const ids = userIds.split(',').filter(Boolean);
-    where.userId = ids.length === 1 ? ids[0] : { in: ids };
-  } else if (str('userId')) {
-    where.userId = str('userId');
+  const personIds = userIds
+    ? userIds.split(',').filter(Boolean)
+    : str('userId')
+      ? [str('userId') as string]
+      : [];
+  if (personIds.length > 0) {
+    const match = personIds.length === 1 ? personIds[0] : { in: personIds };
+    where.OR = [{ userId: match }, { closerId: match }];
   }
   if (str('stageId')) where.stageId = str('stageId');
   // sourceId: supports single value OR comma-separated list via sourceIds
@@ -248,10 +257,15 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
+    // Funis inativos ficam fora do seletor do board. Passe ?includeInactive=true
+    // para listar todos (telas de configuração).
+    const includeInactive = req.query.includeInactive === 'true';
+    const pipelineWhere = { brand: req.brand, ...(includeInactive ? {} : { isActive: true }) };
+
     const [total, data] = await Promise.all([
-      prisma.pipeline.count({ where: { brand: req.brand } }),
+      prisma.pipeline.count({ where: pipelineWhere }),
       prisma.pipeline.findMany({
-        where: { brand: req.brand },
+        where: pipelineWhere,
         skip,
         take: limit,
         orderBy: { createdAt: 'asc' },
@@ -468,6 +482,7 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
           contact: { select: { id: true, name: true, phoneInvalid: true } },
           organization: { select: { id: true, name: true } },
           user: { select: { id: true, name: true } },
+          closer: { select: { id: true, name: true } },
           products: { select: { setupPrice: true } },
           tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
         },
@@ -532,6 +547,7 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
       contact: { select: { id: true, name: true, phoneInvalid: true } },
       organization: { select: { id: true, name: true } },
       user: { select: { id: true, name: true } },
+      closer: { select: { id: true, name: true } },
       dealContacts: { include: { contact: { select: { id: true, name: true } } } },
       products: { select: { setupPrice: true } },
       tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },

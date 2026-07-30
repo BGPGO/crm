@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { resolveSdrOwner } from '../lib/pipelines';
 import { createError } from '../middleware/errorHandler';
 import { validate } from '../middleware/validate';
 import { logActivity } from '../services/activityLogger';
@@ -777,9 +778,16 @@ router.patch(
       const fromStage = existing.stage.name;
       const toStage = newStage.name;
 
+      // Topo do funil de BI é do SDR — ver resolveSdrOwner
+      const sdrOwner = resolveSdrOwner({
+        pipelineId: existing.pipelineId,
+        stageId,
+        currentUserId: existing.userId,
+      });
+
       const deal = await prisma.deal.update({
         where: { id: req.params.id },
-        data: { stageId },
+        data: { stageId, ...(sdrOwner ? { userId: sdrOwner } : {}) },
         include: dealInclude,
       });
 

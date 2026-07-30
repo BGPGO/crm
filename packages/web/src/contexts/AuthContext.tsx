@@ -16,6 +16,8 @@ export interface AuthUser {
   email: string;
   role?: string;
   avatarUrl?: string;
+  /** Funil que o board abre por padrão para esta pessoa (BI ou Controladoria) */
+  defaultPipelineId?: string | null;
 }
 
 interface AuthContextType {

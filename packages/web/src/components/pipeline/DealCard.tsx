@@ -20,6 +20,7 @@ export interface Deal {
   contact?: { id: string; name: string } | null;
   organization?: { id: string; name: string } | null;
   user?: { id: string; name: string } | null;
+  closer?: { id: string; name: string } | null;
   stage: { id: string; name: string };
   dealContacts?: Array<{ contact: { id: string; name: string } }>;
   classification?: number;
@@ -93,14 +94,21 @@ function ownerInitials(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-function OwnerChip({ id, name }: { id: string; name: string }) {
+/**
+ * Chip de pessoa no card. `role` distingue os dois papéis: o responsável cuida do
+ * lead (no topo do funil de BI é sempre o SDR) e o closer é quem conduz a
+ * reunião. O closer sai com contorno para dar pra diferenciar de relance sem
+ * precisar de legenda.
+ */
+function PersonChip({ id, name, role }: { id: string; name: string; role: "owner" | "closer" }) {
   return (
     <span
       className={clsx(
         "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none",
         ownerColor(id),
+        role === "closer" && "ring-1 ring-inset ring-gray-400/60",
       )}
-      title={`Responsável: ${name}`}
+      title={role === "owner" ? `Responsável: ${name}` : `Closer da reunião: ${name}`}
     >
       {ownerInitials(name)}
     </span>
@@ -274,7 +282,12 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
                 <Star size={11} className={(deal.classification ?? 0) > 0 ? "text-yellow-400" : "text-gray-400"} />
                 {deal.classification ?? 0}
               </span>
-              {deal.user && <OwnerChip id={deal.user.id} name={deal.user.name} />}
+              {deal.user && <PersonChip id={deal.user.id} name={deal.user.name} role="owner" />}
+              {/* Closer só aparece quando é outra pessoa — repetir o mesmo nome
+                  duas vezes no card não diz nada */}
+              {deal.closer && deal.closer.id !== deal.user?.id && (
+                <PersonChip id={deal.closer.id} name={deal.closer.name} role="closer" />
+              )}
               <span className="ml-auto flex items-baseline gap-1">
                 <span className="font-semibold text-gray-700">
                   {formatCurrency(deal.value ?? 0)}

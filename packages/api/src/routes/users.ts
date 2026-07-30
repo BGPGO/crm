@@ -13,6 +13,7 @@ const userSelect = {
   email: true,
   role: true,
   teamId: true,
+  defaultPipelineId: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,

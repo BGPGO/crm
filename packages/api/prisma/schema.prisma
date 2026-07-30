@@ -195,8 +195,17 @@ model User {
   phone     String?
   isActive  Boolean  @default(true)
 
+  /// Emails alternativos da mesma pessoa em sistemas externos (Calendly, read.ai).
+  /// O Calendly manda henrique.kovalezyk@ e o CRM tem henrique@ — sem isso a
+  /// busca por email falha calada e o deal fica com o responsável errado.
+  emailAliases String[] @default([])
+
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id])
+
+  /// Funil que o board abre por padrão para esta pessoa
+  defaultPipelineId String?
+  defaultPipeline   Pipeline? @relation("UserDefaultPipeline", fields: [defaultPipelineId], references: [id], onDelete: SetNull)
 
   deals       Deal[]
   closedDeals Deal[]     @relation("DealCloser")
@@ -217,6 +226,7 @@ model User {
 
   @@index([email])
   @@index([teamId])
+  @@index([defaultPipelineId])
 }
 
 model Organization {
@@ -297,11 +307,18 @@ model Pipeline {
   isDefault Boolean @default(false)
   brand     Brand   @default(BGP)
 
-  stages PipelineStage[]
-  deals  Deal[]
+  /// Funil inativo some do seletor do board sem precisar apagar nada.
+  /// GET /pipelines só devolve inativos com ?includeInactive=true.
+  isActive Boolean @default(true)
+
+  stages       PipelineStage[]
+  deals        Deal[]
+  defaultForUsers User[]       @relation("UserDefaultPipeline")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([isActive])
 }
 
 model PipelineStage {

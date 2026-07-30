@@ -36,6 +36,7 @@ router.post('/login', async (req: Request, res: Response) => {
         phone: true,
         isActive: true,
         teamId: true,
+        defaultPipelineId: true,
       },
     });
 
@@ -79,6 +80,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
         phone: true,
         isActive: true,
         teamId: true,
+        defaultPipelineId: true,
         team: { select: { id: true, name: true } },
       },
     });

@@ -16,6 +16,14 @@ const PIPELINE_CONTROLADORIA = "64fb7516ea4eb400219457de";
 const STAGE_LEAD_CONTROLADORIA = "64fb7516ea4eb400219457df";
 const PIPELINE_BI = "bi-pipeline-bgp";
 const STAGE_LEAD_BI = "bi-stage-1";
+
+// Responsável do lead que entra. O de BI nasce com o Gustavo, que é quem cuida do
+// topo do funil (Contato feito e Marcar reunião); o de Controladoria segue com o
+// Oliver. Antes TODO lead entrava como do Oliver, e era por isso que reunião do
+// Henrique aparecia como sendo dele.
+const OWNER_BI = "usr-gustavo-sdr-bi";
+const OWNER_CONTROLADORIA = "6983561663b1a700264854ef";
+// Autor dos registros de atividade/histórico gerados pelo próprio webhook
 const DEFAULT_USER_ID = "6983561663b1a700264854ef";
 
 /**
@@ -33,12 +41,18 @@ const DEFAULT_USER_ID = "6983561663b1a700264854ef";
 function resolvePipeline(
   landingPage: string | null,
   campaign: string | null,
-): { pipelineId: string; stageId: string; pipelineName: string } {
-  const bi = { pipelineId: PIPELINE_BI, stageId: STAGE_LEAD_BI, pipelineName: "BI" };
+): { pipelineId: string; stageId: string; pipelineName: string; ownerId: string } {
+  const bi = {
+    pipelineId: PIPELINE_BI,
+    stageId: STAGE_LEAD_BI,
+    pipelineName: "BI",
+    ownerId: OWNER_BI,
+  };
   const controladoria = {
     pipelineId: PIPELINE_CONTROLADORIA,
     stageId: STAGE_LEAD_CONTROLADORIA,
     pipelineName: "Controladoria",
+    ownerId: OWNER_CONTROLADORIA,
   };
 
   // 1) Landing page — só o path, sem query string
@@ -332,7 +346,7 @@ async function processLead(
       stageId: destino.stageId,
       contactId,
       organizationId,
-      userId: DEFAULT_USER_ID,
+      userId: destino.ownerId,
       sourceId,
       campaignId,
       createdAt: now,

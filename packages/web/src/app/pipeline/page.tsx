@@ -37,6 +37,7 @@ import {
 import type { Deal } from "@/components/pipeline/DealCard";
 import DuplicateAlerts from "@/components/pipeline/DuplicateAlerts";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import ExportButton from "@/components/ExportButton";
 
@@ -267,6 +268,7 @@ const LIST_PAGE_SIZE = 50;
 
 export default function PipelinePage() {
   const router = useRouter();
+  const { user } = useAuth();
 
   // Pipeline state
   const [pipelineId, setPipelineId] = useState<string | null>(null);
@@ -549,17 +551,21 @@ export default function PipelinePage() {
       }
 
       setPipelines(list);
-      const first = list[0];
-      setPipelineId(first.id);
+      // Abre no funil padrão da pessoa (BI para o time de BI, Controladoria para
+      // o resto). Se ela não tiver um, ou se o funil dela estiver inativo e fora
+      // da lista, cai no primeiro.
+      const preferido = list.find((p) => p.id === user?.defaultPipelineId);
+      const escolhido = preferido ?? list[0];
+      setPipelineId(escolhido.id);
 
-      await Promise.all([fetchPipelineDetail(first.id), fetchUsers(first.id)]);
+      await Promise.all([fetchPipelineDetail(escolhido.id), fetchUsers(escolhido.id)]);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Erro ao carregar pipeline";
       setError(message);
       setLoading(false);
     }
-  }, [fetchPipelineDetail, fetchUsers]);
+  }, [fetchPipelineDetail, fetchUsers, user?.defaultPipelineId]);
 
   useEffect(() => {
     fetchPipeline();

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
+import { resolveTeamUserByEmail } from '../lib/resolveTeamUser';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
@@ -395,14 +396,11 @@ router.post('/', async (req: Request, res: Response) => {
               .sort((a, b) => b.order - a.order)[0]
             || defaultPipeline.stages[0];
 
-            // Find closer user or use first active user
-            let dealUserId: string | null = null;
-            if (hostEmail) {
-              const closerUser = await prisma.user.findFirst({
-                where: { email: { equals: hostEmail, mode: 'insensitive' }, isActive: true },
-              });
-              if (closerUser) dealUserId = closerUser.id;
-            }
+            // Host da reunião = closer. O responsável fica com o host também,
+            // porque aqui o deal está nascendo da própria reunião: não houve
+            // etapa de topo de funil e não existe SDR anterior a quem atribuir.
+            const closerUser = await resolveTeamUserByEmail(hostEmail);
+            let dealUserId: string | null = closerUser?.id ?? null;
             if (!dealUserId) {
               const fallbackUser = await prisma.user.findFirst({
                 where: { isActive: true },
@@ -429,6 +427,7 @@ router.post('/', async (req: Request, res: Response) => {
                   stageId: reuniaoStageForNew.id,
                   contactId: contact.id,
                   userId: dealUserId,
+                  closerId: closerUser?.id ?? null,
                   sourceId: source.id,
                   status: 'OPEN',
                 },
@@ -471,15 +470,16 @@ router.post('/', async (req: Request, res: Response) => {
             console.warn(`[calendly-webhook] Stage "Reunião Marcada" not found in pipeline ${deal.pipelineId}`);
           }
 
-          // 5. Map host email to CRM user (closer)
-          if (hostEmail) {
-            const closerUser = await prisma.user.findFirst({
-              where: { email: { equals: hostEmail, mode: 'insensitive' }, isActive: true },
-            });
-            if (closerUser) {
-              updateData.userId = closerUser.id;
-              console.log(`[calendly-webhook] Assigning deal to closer: ${closerUser.name} (${closerUser.id})`);
-            }
+          // 5. Host da reunião vira o CLOSER do deal.
+          //
+          // Antes isso ia para `userId` e sobrescrevia o responsável, o que
+          // misturava dois papéis diferentes: quem cuida do lead no topo do funil
+          // (SDR) e quem conduz a reunião. Agora o responsável fica onde está e o
+          // host entra em `closerId`, que é o campo que existe pra isso.
+          const closerUser = await resolveTeamUserByEmail(hostEmail);
+          if (closerUser) {
+            updateData.closerId = closerUser.id;
+            console.log(`[calendly-webhook] Closer da reunião: ${closerUser.name} (${closerUser.id})`);
           }
 
           if (Object.keys(updateData).length > 0) {

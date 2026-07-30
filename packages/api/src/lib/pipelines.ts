@@ -18,6 +18,48 @@ export const PIPELINE_BI = 'bi-pipeline-bgp';
 /** Os dois funis comerciais somados — equivale ao antigo funil "Vendas". */
 export const COMMERCIAL_PIPELINE_IDS = [PIPELINE_CONTROLADORIA, PIPELINE_BI];
 
+/**
+ * SDR do topo do funil de BI. Todo lead de BI em "Contato feito" e
+ * "Marcar reunião" fica com ele; a partir de "Reunião agendada" ele continua
+ * como responsável e quem conduz a reunião entra no `closerId`.
+ */
+export const SDR_BI_USER_ID = 'usr-gustavo-sdr-bi';
+
+/**
+ * Responsável que o webhook usava para TODO lead que entrava (o Oliver).
+ * Serve para distinguir "dono por omissão" de "dono escolhido por alguém": a
+ * regra do SDR só sobrescreve o primeiro, para não desfazer atribuição manual.
+ */
+export const LEGACY_DEFAULT_OWNER_ID = '6983561663b1a700264854ef';
+
+/**
+ * Etapas do funil de BI em que o responsável é o SDR: Contato feito, Marcar
+ * reunião e Reunião agendada. Nesta última ele continua como responsável e quem
+ * conduz a reunião entra em `closerId` — os dois nomes aparecem no card.
+ */
+export const BI_SDR_STAGE_IDS = ['bi-stage-2', 'bi-stage-3', 'bi-stage-4'];
+
+/**
+ * Devolve o novo responsável quando um deal entra no topo do funil de BI, ou
+ * null quando não há nada a mudar.
+ *
+ * Só sobrescreve quem está sem dono ou com o dono por omissão do webhook. Se
+ * alguém atribuiu o deal a uma pessoa específica, essa escolha vence — do
+ * contrário toda passada por essa etapa desfaria a atribuição manual.
+ */
+export function resolveSdrOwner(params: {
+  pipelineId: string;
+  stageId: string;
+  currentUserId: string | null;
+}): string | null {
+  const { pipelineId, stageId, currentUserId } = params;
+  if (pipelineId !== PIPELINE_BI) return null;
+  if (!BI_SDR_STAGE_IDS.includes(stageId)) return null;
+  if (currentUserId === SDR_BI_USER_ID) return null;
+  if (currentUserId && currentUserId !== LEGACY_DEFAULT_OWNER_ID) return null;
+  return SDR_BI_USER_ID;
+}
+
 /** IDs de cada etapa nos dois funis, na ordem [Controladoria, BI]. */
 export const STAGE_IDS = {
   LEAD: ['64fb7516ea4eb400219457df', 'bi-stage-1'],
