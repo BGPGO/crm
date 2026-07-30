@@ -8,69 +8,13 @@ const WEBHOOK_SECRET = Deno.env.get("WEBHOOK_SECRET") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const API_URL = Deno.env.get("API_URL") ?? "";
 
-// Funis comerciais e a etapa LEAD de cada um.
-// Em 30/07/2026 o funil "Vendas" foi separado: o ID original virou "Controladoria"
-// e os deals de BI foram para um funil novo. O lead entra num ou no outro conforme
-// o nome da campanha — mesma regra usada na migração do histórico.
-const PIPELINE_CONTROLADORIA = "64fb7516ea4eb400219457de";
-const STAGE_LEAD_CONTROLADORIA = "64fb7516ea4eb400219457df";
-const PIPELINE_BI = "bi-pipeline-bgp";
-const STAGE_LEAD_BI = "bi-stage-1";
+// A classificação do funil (BI ou Controladoria) mora em `_shared/leadPipeline.ts`
+// — o MESMO arquivo que espelha a régua da API. Antes cada porta de entrada de
+// lead tinha a sua cópia da regra, e a LP nova do GO BI caía em Controladoria.
+import { resolveLeadPipeline } from "../_shared/leadPipeline.ts";
 
-// Responsável do lead que entra: quem cuida do topo do funil em cada funil —
-// Gustavo no BI, Vicenza na Controladoria. Antes TODO lead entrava como do
-// Oliver, e era por isso que reunião do Henrique aparecia como sendo dele.
-const OWNER_BI = "usr-gustavo-sdr-bi";
-const OWNER_CONTROLADORIA = "68482c2582aa2e001bc07fd3"; // Vicenza Porto
 // Autor dos registros de atividade/histórico gerados pelo próprio webhook
 const DEFAULT_USER_ID = "6983561663b1a700264854ef";
-
-/**
- * Decide o funil do lead novo. Lead ainda não tem produto vendido, então a ordem
- * de confiança é: landing page de conversão > nome da campanha.
- *
- * A LP vem primeiro porque é onde a pessoa efetivamente preencheu o formulário —
- * a URL diz o produto ("/gobi", "/gocontroladoria"). O nome da campanha é mais
- * fraco: "Fluxo BI" e "Fluxo Controladoria" são fluxos de automação do RD, não
- * anúncios, e às vezes chega como template não resolvido ("{{campaign.name}}").
- *
- * Sem nenhum sinal, vai para BI — decisão do Oliver em 30/07 para o resíduo
- * ambíguo. Para inverter, troque só o retorno final.
- */
-function resolvePipeline(
-  landingPage: string | null,
-  campaign: string | null,
-): { pipelineId: string; stageId: string; pipelineName: string; ownerId: string } {
-  const bi = {
-    pipelineId: PIPELINE_BI,
-    stageId: STAGE_LEAD_BI,
-    pipelineName: "BI",
-    ownerId: OWNER_BI,
-  };
-  const controladoria = {
-    pipelineId: PIPELINE_CONTROLADORIA,
-    stageId: STAGE_LEAD_CONTROLADORIA,
-    pipelineName: "Controladoria",
-    ownerId: OWNER_CONTROLADORIA,
-  };
-
-  // 1) Landing page — só o path, sem query string
-  if (landingPage) {
-    const path = landingPage.split("?")[0].toLowerCase();
-    if (path.includes("controladoria") || path.includes("valuation")) return controladoria;
-    if (path.includes("gobi") || /\/bi\/?$/.test(path)) return bi;
-  }
-
-  // 2) Nome da campanha — "BI"/"FIN" como token, sem depender dos pipes
-  if (campaign) {
-    const c = campaign.toLowerCase();
-    if (/(^|[^a-z])bi([^a-z]|$)/.test(c) || c.startsWith("fluxo bi") || c.includes("aimo-bi")) return bi;
-    if (/(^|[^a-z])(fin|controladoria)([^a-z]|$)/.test(c)) return controladoria;
-    if (c.startsWith("fluxo valuation")) return controladoria;
-  }
-
-  return bi;
-}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -311,7 +255,7 @@ async function processLead(
   // ── Deal (reutiliza deal OPEN existente; não cria duplicado nem reseta stage) ──
 
   // Funil de destino: BI ou Controladoria, pela LP e depois pela campanha
-  const destino = resolvePipeline(landingPage, campaignRef);
+  const destino = resolveLeadPipeline(landingPage, campaignRef);
 
   let dealId: string;
   let reusedDeal = false;

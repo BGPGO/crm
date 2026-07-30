@@ -8,6 +8,7 @@ import { onStageChanged, onContactCreated } from '../services/automationTriggerL
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 import { sendLeadNotifications } from '../services/leadNotificationService';
+import { resolveLeadPipeline } from '../lib/pipelines';
 
 const router = Router();
 
@@ -136,27 +137,40 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     const rawFbc = resolveField(['fbc', '_fbc', 'fb_click_id', 'fbclid']);
     const fbc = buildFbc(rawFbc, landingPage, Date.now());
 
-    // 5. Find default admin user for deal assignment
-    const defaultUser = await prisma.user.findFirst({
-      where: { role: 'ADMIN', isActive: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    // 5. Funil de destino: quem classifica o lead é o CRM, pelo link da LP e
+    // depois pela campanha — a mesma régua do edge do GreatPages, para que toda
+    // LP (GreatPages, GO Studio, o que vier) caia no funil certo sem precisar
+    // ser cadastrada uma por uma. O responsável é o SDR daquele funil.
+    const destino = resolveLeadPipeline({ landingPage, campaign: campaignName });
 
-    if (!defaultUser) {
-      return next(createError('No active admin user found to assign deal', 500));
+    const [destinoPipeline, destinoStage, destinoOwner] = await Promise.all([
+      prisma.pipeline.findUnique({ where: { id: destino.pipelineId } }),
+      prisma.pipelineStage.findUnique({ where: { id: destino.stageId } }),
+      prisma.user.findUnique({ where: { id: destino.ownerId } }),
+    ]);
+
+    if (!destinoPipeline || !destinoStage) {
+      return next(createError(`Funil de destino não encontrado: ${destino.pipelineId}`, 500));
     }
 
-    // 6. Find default pipeline and its first stage (Lead)
-    const defaultPipeline = await prisma.pipeline.findFirst({
-      where: { isDefault: true },
-      include: { stages: { orderBy: { order: 'asc' } } },
-    });
+    // Se o SDR do funil estiver inativo/removido, cai no dono por omissão de
+    // antes (Oliver) em vez de recusar o lead — perder lead é pior.
+    const fallbackOwner = destinoOwner?.isActive
+      ? null
+      : await prisma.user.findFirst({
+          where: { role: 'ADMIN', isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
 
-    if (!defaultPipeline || defaultPipeline.stages.length === 0) {
-      return next(createError('No default pipeline with stages found', 500));
+    const ownerId = destinoOwner?.isActive ? destinoOwner.id : fallbackOwner?.id;
+
+    if (!ownerId) {
+      return next(createError('No active user found to assign deal', 500));
     }
 
-    const firstStage = defaultPipeline.stages[0];
+    console.log(
+      `[webhook] Lead → funil ${destinoPipeline.name} (${destino.motivo}), responsável ${ownerId}`
+    );
 
     // 7. Match Source by name (create if not found)
     let sourceId: string | null = null;
@@ -333,30 +347,37 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       },
     });
 
-    // 12. Create Deal (with dedup: skip if an open deal for this contact was created in the last 5 minutes)
+    // 12. Deal — reaproveita deal OPEN existente em vez de criar outro.
+    //
+    // Quem compra anúncio preenche a LP várias vezes (2 minutos, 2 meses). Com
+    // dedup só por janela de tempo, a re-entrada criava um deal novo e o lead
+    // reaparecia na coluna "Lead" mesmo estando em "Proposta enviada" — a equipe
+    // perdia o histórico. Mesma regra do edge do GreatPages (fix de 17/04).
     const recentDeal = await prisma.deal.findFirst({
-      where: {
-        contactId: contact.id,
-        status: 'OPEN',
-        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
-      },
+      where: { contactId: contact.id, status: 'OPEN' },
+      orderBy: { createdAt: 'desc' },
     });
 
     let deal;
     if (recentDeal) {
-      console.log(`[webhook] Duplicate deal prevented for contact ${contact.id} — recent deal ${recentDeal.id} exists`);
-      deal = recentDeal;
+      console.log(
+        `[webhook] Deal OPEN reaproveitado para contato ${contact.id} — deal ${recentDeal.id} (etapa preservada)`
+      );
+      deal = await prisma.deal.update({
+        where: { id: recentDeal.id },
+        data: { updatedAt: new Date() },
+      });
     } else {
       deal = await prisma.deal.create({
         data: {
           title: dealTitle ?? `Lead - ${contactName}`,
           value: dealValue ? parseFloat(dealValue) : null,
           status: 'OPEN',
-          pipelineId: defaultPipeline.id,
-          stageId: firstStage.id,
+          pipelineId: destinoPipeline.id,
+          stageId: destinoStage.id,
           contactId: contact.id,
           organizationId,
-          userId: defaultUser.id,
+          userId: ownerId,
           sourceId,
           campaignId,
         },
@@ -367,29 +388,38 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     await Promise.all([
       logActivity({
         type: 'WEBHOOK_RECEIVED',
-        content: `Lead recebido via webhook: ${webhookConfig.name}`,
-        userId: defaultUser.id,
+        content: recentDeal
+          ? `Lead reentrou via webhook: ${webhookConfig.name} (deal OPEN existente reutilizado)`
+          : `Lead recebido via webhook: ${webhookConfig.name}`,
+        userId: ownerId,
         contactId: contact.id,
         dealId: deal.id,
         metadata: {
           webhookConfigId: webhookConfig.id,
           webhookName: webhookConfig.name,
+          reused: !!recentDeal,
+          reusedStageId: recentDeal?.stageId ?? null,
           payload: raw,
         },
       }),
-      logActivity({
-        type: 'DEAL_CREATED',
-        content: `Negociação criada automaticamente via webhook`,
-        userId: defaultUser.id,
-        contactId: contact.id,
-        dealId: deal.id,
-        metadata: {
-          pipelineName: defaultPipeline.name,
-          stageName: firstStage.name,
-          source: sourceName ?? null,
-          campaign: campaignRef ?? null,
-        },
-      }),
+      ...(recentDeal
+        ? []
+        : [
+            logActivity({
+              type: 'DEAL_CREATED',
+              content: `Negociação criada automaticamente via webhook`,
+              userId: ownerId,
+              contactId: contact.id,
+              dealId: deal.id,
+              metadata: {
+                pipelineName: destinoPipeline.name,
+                stageName: destinoStage.name,
+                classificacao: destino.motivo,
+                source: sourceName ?? null,
+                campaign: campaignRef ?? null,
+              },
+            }),
+          ]),
     ]);
 
     // 14. Dispatch outgoing webhooks (fire-and-forget)
@@ -405,7 +435,7 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     // Trigger automations para o novo lead
     if (!recentDeal) {
       onContactCreated(contact.id);
-      onStageChanged(contact.id, firstStage.id, deal.id);
+      onStageChanged(contact.id, destinoStage.id, deal.id);
 
       // Email notification to team (fire-and-forget)
       const utmUrl = resolveField(['URL', 'url', 'page_url', 'landing_page']);
