@@ -311,11 +311,11 @@ export default function PipelinePage() {
     if (typeof window !== "undefined") sessionStorage.setItem(`pipeline_${key}`, value);
   };
 
-  // Abre sempre em "em andamento", sem restaurar a última escolha da sessão:
-  // entrar no board e cair em "todas" mostra os milhares de deals perdidos e
-  // esconde o que importa. Trocar o filtro na tela continua valendo enquanto
-  // a pessoa está nela.
-  const [filter, setFilterRaw] = useState<FilterType>("active");
+  // Restaura da sessão (como os outros filtros) para que abrir um lead e voltar
+  // devolva a tela do jeito que estava. Sem valor salvo, entra em "em andamento":
+  // cair em "todas" mostra os milhares de deals perdidos e esconde o que importa.
+  // Trocar de funil também volta para "em andamento" (ver handlePipelineChange).
+  const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "active") as FilterType);
   const setFilter = (v: FilterType) => { setFilterRaw(v); writeSession("filter", v); };
   // userFilter: comma-separated user IDs, "" means "all"
   const [userFilter, setUserFilterRaw] = useState<string>(() => {
@@ -555,12 +555,17 @@ export default function PipelinePage() {
       }
 
       setPipelines(list);
-      // Abre no funil padrão da pessoa (BI para o time de BI, Controladoria para
-      // o resto). Se ela não tiver um, ou se o funil dela estiver inativo e fora
-      // da lista, cai no primeiro.
+      // Ordem de escolha do funil:
+      //   1. o que estava aberto nesta aba — abrir um lead e voltar tem que
+      //      devolver a tela igual, funil incluído;
+      //   2. o funil padrão da pessoa (BI para o time de BI, Controladoria para
+      //      o resto);
+      //   3. o primeiro da lista, se o funil dela estiver inativo e fora dela.
+      const daSessao = list.find((p) => p.id === readSession("pipelineId", ""));
       const preferido = list.find((p) => p.id === user?.defaultPipelineId);
-      const escolhido = preferido ?? list[0];
+      const escolhido = daSessao ?? preferido ?? list[0];
       setPipelineId(escolhido.id);
+      writeSession("pipelineId", escolhido.id);
 
       await Promise.all([fetchPipelineDetail(escolhido.id), fetchUsers(escolhido.id)]);
     } catch (err) {
@@ -581,6 +586,7 @@ export default function PipelinePage() {
     async (e: React.ChangeEvent<HTMLSelectElement>) => {
       const id = e.target.value;
       setPipelineId(id);
+      writeSession("pipelineId", id);
       setFilter("active");
       setUserFilter("");
       setPeriodFilter("all");

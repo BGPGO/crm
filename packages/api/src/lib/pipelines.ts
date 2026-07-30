@@ -36,6 +36,27 @@ export const SDR_BY_PIPELINE: Record<string, string> = {
  */
 export const LEGACY_DEFAULT_OWNER_ID = '6983561663b1a700264854ef';
 
+/**
+ * Quem pode ser closer, ou seja, quem conduz reunião. Definição do Oliver em
+ * 30/07: a Vicenza e o Gustavo NÃO são closers — eles são SDR.
+ *
+ * Serve de guarda para o que vem de fora: o `hostEmail` do Calendly é o dono do
+ * link de agendamento, não necessariamente quem atende, e sem essa lista a
+ * Vicenza acabou gravada como closer de deals em que ela só cedeu o link.
+ */
+export const CLOSER_USER_IDS = [
+  '6983561663b1a700264854ef', // Oliver
+  '68152373e0aa160014645094', // Pedro Arenhaldt
+  'cw1lckqn017mm3ylakwwy',    // Caio Bertuzzi
+  'cw1lckqbwvz1am1s53f3x',    // Henrique Kovalesky
+  '69a9b51dfdabd0001556cd7e', // João Rosa
+  '67fe4a5c18dd5f001be93121', // Joao Lopes
+];
+
+export function isCloser(userId: string | null | undefined): boolean {
+  return !!userId && CLOSER_USER_IDS.includes(userId);
+}
+
 /** IDs de cada etapa nos dois funis, na ordem [Controladoria, BI]. */
 export const STAGE_IDS = {
   LEAD: ['64fb7516ea4eb400219457df', 'bi-stage-1'],

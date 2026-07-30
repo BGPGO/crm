@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { resolveTeamUserByEmail } from '../lib/resolveTeamUser';
+import { isCloser } from '../lib/pipelines';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
@@ -399,8 +400,9 @@ router.post('/', async (req: Request, res: Response) => {
             // Host da reunião = closer. O responsável fica com o host também,
             // porque aqui o deal está nascendo da própria reunião: não houve
             // etapa de topo de funil e não existe SDR anterior a quem atribuir.
-            const closerUser = await resolveTeamUserByEmail(hostEmail);
-            let dealUserId: string | null = closerUser?.id ?? null;
+            const hostUser = await resolveTeamUserByEmail(hostEmail);
+            const closerUser = isCloser(hostUser?.id) ? hostUser : null;
+            let dealUserId: string | null = hostUser?.id ?? null;
             if (!dealUserId) {
               const fallbackUser = await prisma.user.findFirst({
                 where: { isActive: true },
@@ -476,10 +478,17 @@ router.post('/', async (req: Request, res: Response) => {
           // misturava dois papéis diferentes: quem cuida do lead no topo do funil
           // (SDR) e quem conduz a reunião. Agora o responsável fica onde está e o
           // host entra em `closerId`, que é o campo que existe pra isso.
-          const closerUser = await resolveTeamUserByEmail(hostEmail);
-          if (closerUser) {
-            updateData.closerId = closerUser.id;
-            console.log(`[calendly-webhook] Closer da reunião: ${closerUser.name} (${closerUser.id})`);
+          // O host é só um palpite inicial: `hostEmail` é o dono do link de
+          // agendamento, e quem atende pode ser outro (link do Oliver, call do
+          // Caio). Por isso (a) só vale se a pessoa for closer — senão a Vicenza,
+          // que cede o link, entrava como closer — e (b) não sobrescreve um
+          // closer já gravado, que vem da presença real na reunião (read.ai).
+          const hostUser = await resolveTeamUserByEmail(hostEmail);
+          if (hostUser && isCloser(hostUser.id) && !deal.closerId) {
+            updateData.closerId = hostUser.id;
+            console.log(`[calendly-webhook] Closer provável pelo host: ${hostUser.name} (${hostUser.id})`);
+          } else if (hostUser && !isCloser(hostUser.id)) {
+            console.log(`[calendly-webhook] Host ${hostUser.name} não é closer — closerId preservado`);
           }
 
           if (Object.keys(updateData).length > 0) {
