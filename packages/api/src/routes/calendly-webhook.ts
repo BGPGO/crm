@@ -154,7 +154,7 @@ router.post('/', async (req: Request, res: Response) => {
       const cancelUrl = payload.cancel_url || null;
       const rescheduleUrl = payload.reschedule_url || null;
       const questionsAndAnswers = payload.questions_and_answers;
-      const inviteePhone = extractPhoneFromQA(questionsAndAnswers);
+      let inviteePhone = extractPhoneFromQA(questionsAndAnswers);
 
       // The invitee URI uniquely identifies this invitee record
       const inviteeUri = payload.uri || '';
@@ -167,8 +167,26 @@ router.post('/', async (req: Request, res: Response) => {
       const tracking = payload.tracking || {};
       const utmSource: string = (tracking.utm_source || '').toLowerCase();
       const utmMedium: string = (tracking.utm_medium || '').toLowerCase();
-      // ID da negociação embutido no link pelo CRM — ver utils/calendlyLinks.ts
-      const dealIdFromLink: string | null = tracking[DEAL_ID_PARAM]?.trim() || null;
+      // Identidade embutida no link (salesforce_uuid) — o único canal custom que
+      // o Calendly repassa ao webhook. Duas formas:
+      //   • com letras  → dealId, posto pelo CRM (BIA, cadência, botão copiar);
+      //   • só dígitos  → telefone digitado NA LP, repassado pelo redirect da
+      //     GreatPages. É a identidade que criou o deal — não depende de NADA
+      //     que a pessoa digite no Calendly.
+      const sfRaw: string | null = tracking[DEAL_ID_PARAM]?.trim() || null;
+      let dealIdFromLink: string | null = null;
+      let linkPhone: string | null = null;
+      if (sfRaw) {
+        if (/[a-z]/i.test(sfRaw)) {
+          dealIdFromLink = sfRaw;
+        } else {
+          const digits = sfRaw.replace(/\D/g, '');
+          if (digits.length >= 10) linkPhone = digits;
+        }
+      }
+      // O telefone da LP também serve de telefone do contato quando o Calendly
+      // não perguntou nenhum (os event types hoje não perguntam)
+      if (!inviteePhone && linkPhone) inviteePhone = linkPhone;
 
       // Use invitee URI as the unique key (each invitee is unique per event)
       const calendlyEventId = inviteeUri || scheduledEventUri;
@@ -214,14 +232,37 @@ router.post('/', async (req: Request, res: Response) => {
 
       console.log(`[calendly-webhook] Saved CalendlyEvent: ${calendlyEvent.id}`);
 
-      // 2. Find Contact — PRIORITY: email > phone > exact unique name
+      // 2. Find Contact — PRIORITY: telefone do link > email > phone > exact unique name
       // NEVER use fuzzy/partial name matching — leads with similar names get mixed up.
       // See: bug where two "Flávio" leads 15min apart had their deals swapped.
       let contact = null;
       let matchMethod = 'none';
 
+      // 2-zero. Telefone que veio NO LINK (salesforce_uuid, posto pelo redirect
+      // da LP). Vence o email do convidado: é a identidade do formulário que
+      // criou o deal, enquanto o email do Calendly é o que a pessoa resolveu
+      // digitar na hora — a causa clássica do lead duplicado.
+      if (linkPhone) {
+        const rows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "Contact"
+          WHERE "phoneNormalized" IS NOT NULL
+            AND "phoneNormalized" = bgp_phone_normalize(${linkPhone})
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+        `;
+        if (rows.length > 0) {
+          contact = await prisma.contact.findUnique({ where: { id: rows[0].id } });
+        }
+        if (contact) {
+          matchMethod = 'link_phone';
+          console.log(`[calendly-webhook] MATCH pelo telefone do link (LP): contact=${contact.id} (${contact.name})`);
+        } else {
+          console.log(`[calendly-webhook] Telefone do link (${linkPhone}) não achou contato — seguindo a cadeia`);
+        }
+      }
+
       // 2a. Primary: match by email (case-insensitive) — most reliable
-      if (inviteeEmail) {
+      if (!contact && inviteeEmail) {
         contact = await prisma.contact.findFirst({
           where: {
             email: { equals: inviteeEmail, mode: 'insensitive' },
