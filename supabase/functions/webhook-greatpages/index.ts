@@ -17,12 +17,11 @@ const STAGE_LEAD_CONTROLADORIA = "64fb7516ea4eb400219457df";
 const PIPELINE_BI = "bi-pipeline-bgp";
 const STAGE_LEAD_BI = "bi-stage-1";
 
-// Responsável do lead que entra. O de BI nasce com o Gustavo, que é quem cuida do
-// topo do funil (Contato feito e Marcar reunião); o de Controladoria segue com o
-// Oliver. Antes TODO lead entrava como do Oliver, e era por isso que reunião do
-// Henrique aparecia como sendo dele.
+// Responsável do lead que entra: quem cuida do topo do funil em cada funil —
+// Gustavo no BI, Vicenza na Controladoria. Antes TODO lead entrava como do
+// Oliver, e era por isso que reunião do Henrique aparecia como sendo dele.
 const OWNER_BI = "usr-gustavo-sdr-bi";
-const OWNER_CONTROLADORIA = "6983561663b1a700264854ef";
+const OWNER_CONTROLADORIA = "68482c2582aa2e001bc07fd3"; // Vicenza Porto
 // Autor dos registros de atividade/histórico gerados pelo próprio webhook
 const DEFAULT_USER_ID = "6983561663b1a700264854ef";
 
