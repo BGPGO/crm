@@ -8,6 +8,7 @@ import { sendLeadNotifications } from '../services/leadNotificationService';
 import { onLeadCreated } from '../services/leadQualificationEngine';
 import { sendDailyReport } from '../services/dailyReportService';
 import prisma from '../lib/prisma';
+import { COMMERCIAL_PIPELINE_IDS, STAGE_IDS } from '../lib/pipelines';
 import { getMetaAdsDaily, getMetaAdsMTD } from '../services/metaAds';
 import { getGoogleAdsDaily, getGoogleAdsMTD } from '../services/googleAds';
 import { getBgpMessengerDailyStats } from '../services/bgpmassa';
@@ -15,10 +16,8 @@ import { getCampaignMetrics } from '../services/emailMetrics';
 
 const router = Router();
 
-// Default stage ID for "Lead" (first stage)
-const DEFAULT_STAGE_ID = '64fb7516ea4eb400219457df';
-
-const PIPELINE_ID = '64fb7516ea4eb400219457de';
+// Soma Controladoria + BI — antes da separação de 30/07 os dois eram o funil "Vendas"
+const PIPELINE_FILTER = { in: COMMERCIAL_PIPELINE_IDS };
 const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 /**
@@ -158,16 +157,8 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       Date.UTC(monthStartBrt.getUTCFullYear(), monthStartBrt.getUTCMonth(), 1) - BRT_OFFSET_MS,
     );
 
-    const STAGES = {
-      LEAD: '64fb7516ea4eb400219457df',
-      CONTATO_FEITO: '65bd0418294535000d1f57cd',
-      MARCAR_REUNIAO: '64fb7516ea4eb400219457e0',
-      REUNIAO_AGENDADA: '64fb7517ea4eb400219457e1',
-      PROPOSTA_ENVIADA: '64fb7517ea4eb400219457e2',
-      AGUARDANDO_DADOS: '661d5a409a6525001ed04124',
-      AGUARDANDO_ASSINATURA: '64fb7517ea4eb400219457e3',
-      GANHO_FECHADO: '65084ece058c5700170506d4',
-    };
+    // Cada etapa existe nos dois funis (Controladoria e BI) — contamos os dois
+    const STAGES = STAGE_IDS;
 
     // ── Funnel ──────────────────────────────────────────────────────────────
     const [
@@ -186,12 +177,12 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       wonYesterday,
       wonMonth,
     ] = await Promise.all([
-      prisma.deal.count({ where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } } }),
+      prisma.deal.count({ where: { pipelineId: PIPELINE_FILTER, createdAt: { gte: dayStart, lt: dayEnd } } }),
       prisma.activity.count({
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          deal: { pipelineId: PIPELINE_FILTER },
           metadata: { path: ['toStage'], string_contains: 'Reunião agendada' },
         },
       }),
@@ -199,7 +190,7 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          deal: { pipelineId: PIPELINE_FILTER },
           metadata: { path: ['toStage'], string_contains: 'Proposta enviada' },
         },
       }),
@@ -207,7 +198,7 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          deal: { pipelineId: PIPELINE_FILTER },
           metadata: { path: ['toStage'], string_contains: 'Aguardando dados' },
         },
       }),
@@ -215,7 +206,7 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          deal: { pipelineId: PIPELINE_FILTER },
           metadata: { path: ['toStage'], string_contains: 'Aguardando assinatura' },
         },
       }),
@@ -223,46 +214,46 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
         where: {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
-          deal: { pipelineId: PIPELINE_ID },
+          deal: { pipelineId: PIPELINE_FILTER },
           metadata: { path: ['fromStage'], string_contains: 'Contato feito' },
         },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.CONTATO_FEITO },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.CONTATO_FEITO } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.MARCAR_REUNIAO },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.MARCAR_REUNIAO } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.REUNIAO_AGENDADA },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.REUNIAO_AGENDADA } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.PROPOSTA_ENVIADA },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.PROPOSTA_ENVIADA } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.AGUARDANDO_DADOS },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.AGUARDANDO_DADOS } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.aggregate({
-        where: { pipelineId: PIPELINE_ID, status: 'OPEN', stageId: STAGES.AGUARDANDO_ASSINATURA },
+        where: { pipelineId: PIPELINE_FILTER, status: 'OPEN', stageId: { in: STAGES.AGUARDANDO_ASSINATURA } },
         _count: true,
         _sum: { value: true },
       }),
       prisma.deal.findMany({
-        where: { pipelineId: PIPELINE_ID, status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
+        where: { pipelineId: PIPELINE_FILTER, status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
         select: { id: true, title: true, value: true, meetingSource: true },
       }),
       prisma.deal.findMany({
-        where: { pipelineId: PIPELINE_ID, status: 'WON', closedAt: { gte: monthStart, lt: dayEnd } },
+        where: { pipelineId: PIPELINE_FILTER, status: 'WON', closedAt: { gte: monthStart, lt: dayEnd } },
         select: { id: true, value: true },
       }),
     ]);
@@ -296,7 +287,7 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
       }),
       prisma.deal.groupBy({
         by: ['meetingSource'],
-        where: { pipelineId: PIPELINE_ID, updatedAt: { gte: dayStart, lt: dayEnd }, meetingSource: { not: null } },
+        where: { pipelineId: PIPELINE_FILTER, updatedAt: { gte: dayStart, lt: dayEnd }, meetingSource: { not: null } },
         _count: true,
       }),
     ]);
@@ -401,7 +392,7 @@ router.get('/validate-daily-report', async (req: Request, res: Response) => {
 
     // ── UTM dos leads criados ontem ─────────────────────────────────────────
     const yesterdayDeals = await prisma.deal.findMany({
-      where: { pipelineId: PIPELINE_ID, createdAt: { gte: dayStart, lt: dayEnd } },
+      where: { pipelineId: PIPELINE_FILTER, createdAt: { gte: dayStart, lt: dayEnd } },
       select: { id: true, title: true, contactId: true },
     });
     const yesterdayContactIds = yesterdayDeals.map((d) => d.contactId).filter((id): id is string => !!id);

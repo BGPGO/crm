@@ -1,8 +1,10 @@
 import { Resend } from 'resend';
 import prisma from '../lib/prisma';
 import { buildDailyReportHtml } from './dailyReport';
+import { COMMERCIAL_PIPELINE_IDS } from '../lib/pipelines';
 
-const PIPELINE_ID = '64fb7516ea4eb400219457de';
+// Soma Controladoria + BI: antes da separação de 30/07 os dois eram o funil "Vendas"
+const PIPELINE_FILTER = { in: COMMERCIAL_PIPELINE_IDS };
 const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 export interface SendDailyReportOptions {
@@ -42,14 +44,14 @@ async function buildSubjectSummary(window: { dayStart: Date; dayEnd: Date }): Pr
   const [leads, meetings, wonDeals] = await Promise.all([
     prisma.deal.count({
       // Daily report é BGP-only (multi-brand pending)
-      where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
+      where: { pipelineId: PIPELINE_FILTER, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
     }),
     prisma.calendlyEvent.count({
       where: { createdAt: { gte: dayStart, lt: dayEnd }, status: 'active' },
     }),
     prisma.deal.findMany({
       // Daily report é BGP-only (multi-brand pending)
-      where: { pipelineId: PIPELINE_ID, brand: 'BGP', status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
+      where: { pipelineId: PIPELINE_FILTER, brand: 'BGP', status: 'WON', closedAt: { gte: dayStart, lt: dayEnd } },
       select: { value: true },
     }),
   ]);

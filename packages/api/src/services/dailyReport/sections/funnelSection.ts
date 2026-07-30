@@ -1,30 +1,13 @@
 import type { ReportSection } from '../types';
 import prisma from '../../../lib/prisma';
+// Etapas e funis vivem em lib/pipelines: cada etapa existe nos dois funis
+// (Controladoria e BI) desde a separação de 30/07, com o mesmo nome e ordem.
+import { COMMERCIAL_PIPELINE_IDS, STAGE_IDS as STAGES, STAGE_NAMES } from '../../../lib/pipelines';
 
 // ─── Constantes do pipeline ──────────────────────────────────────────────────
 
-const STAGES = {
-  LEAD:                  '64fb7516ea4eb400219457df',
-  CONTATO_FEITO:         '65bd0418294535000d1f57cd',
-  MARCAR_REUNIAO:        '64fb7516ea4eb400219457e0',
-  REUNIAO_AGENDADA:      '64fb7517ea4eb400219457e1',
-  PROPOSTA_ENVIADA:      '64fb7517ea4eb400219457e2',
-  AGUARDANDO_DADOS:      '661d5a409a6525001ed04124',
-  AGUARDANDO_ASSINATURA: '64fb7517ea4eb400219457e3',
-  GANHO_FECHADO:         '65084ece058c5700170506d4',
-};
-
-const STAGE_NAMES = {
-  CONTATO_FEITO:         'Contato feito',
-  MARCAR_REUNIAO:        'Marcar reunião',
-  REUNIAO_AGENDADA:      'Reunião agendada',
-  PROPOSTA_ENVIADA:      'Proposta enviada',
-  AGUARDANDO_DADOS:      'Aguardando dados',
-  AGUARDANDO_ASSINATURA: 'Aguardando assinatura',
-  GANHO_FECHADO:         'Ganho fechado',
-};
-
-const PIPELINE_ID = '64fb7516ea4eb400219457de';
+// Soma os dois funis — equivale ao antigo funil único "Vendas"
+const PIPELINE_FILTER = { in: COMMERCIAL_PIPELINE_IDS };
 
 // BRT = UTC-3 (offset em milissegundos)
 const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
@@ -113,12 +96,13 @@ export class FunnelSection implements ReportSection {
     );
 
     // Daily report é BGP-only (multi-brand pending)
-    const openFilter = { pipelineId: PIPELINE_ID, brand: 'BGP' as const, status: 'OPEN' as const };
+    const openFilter = { pipelineId: PIPELINE_FILTER, brand: 'BGP' as const, status: 'OPEN' as const };
 
-    // Conta + soma valor de uma etapa (deals em aberto)
-    const stageMetrics = async (stageId: string): Promise<StageMetrics> => {
+    // Conta + soma valor de uma etapa (deals em aberto).
+    // stageIds traz a mesma etapa nos dois funis — Controladoria e BI.
+    const stageMetrics = async (stageIds: string[]): Promise<StageMetrics> => {
       const deals = await prisma.deal.findMany({
-        where: { ...openFilter, stageId },
+        where: { ...openFilter, stageId: { in: stageIds } },
         select: { value: true },
       });
       const value = deals.reduce((sum, d) => sum + (d.value ? Number(d.value) : 0), 0);
@@ -132,7 +116,7 @@ export class FunnelSection implements ReportSection {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
           // Daily report é BGP-only (multi-brand pending)
-          deal: { pipelineId: PIPELINE_ID, brand: 'BGP' },
+          deal: { pipelineId: PIPELINE_FILTER, brand: 'BGP' },
           metadata: { path: ['toStage'], string_contains: toStageName },
         },
       });
@@ -145,7 +129,7 @@ export class FunnelSection implements ReportSection {
           type: 'STAGE_CHANGE',
           createdAt: { gte: dayStart, lt: dayEnd },
           // Daily report é BGP-only (multi-brand pending)
-          deal: { pipelineId: PIPELINE_ID, brand: 'BGP' },
+          deal: { pipelineId: PIPELINE_FILTER, brand: 'BGP' },
           metadata: { path: ['fromStage'], string_contains: fromStageName },
         },
       });
@@ -154,7 +138,7 @@ export class FunnelSection implements ReportSection {
     // Leads criados no dia de referência
     const leadsYesterday = await prisma.deal.count({
       where: {
-        pipelineId: PIPELINE_ID,
+        pipelineId: PIPELINE_FILTER,
         // Daily report é BGP-only (multi-brand pending)
         brand: 'BGP',
         createdAt: { gte: dayStart, lt: dayEnd },
@@ -196,7 +180,7 @@ export class FunnelSection implements ReportSection {
     // Ganho fechado no dia de referência
     const ganhosOntem = await prisma.deal.findMany({
       where: {
-        pipelineId: PIPELINE_ID,
+        pipelineId: PIPELINE_FILTER,
         // Daily report é BGP-only (multi-brand pending)
         brand: 'BGP',
         status: 'WON',
@@ -212,7 +196,7 @@ export class FunnelSection implements ReportSection {
     // Ganho fechado no mês (monthStart até dayEnd cobre o dia de referência)
     const ganhosMes = await prisma.deal.findMany({
       where: {
-        pipelineId: PIPELINE_ID,
+        pipelineId: PIPELINE_FILTER,
         // Daily report é BGP-only (multi-brand pending)
         brand: 'BGP',
         status: 'WON',

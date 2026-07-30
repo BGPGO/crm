@@ -688,6 +688,17 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (!existing) return next(createError('Deal not found', 404));
 
     const { title, value, stageId, userId, closerId, contactId, organizationId, sourceId, expectedCloseDate, expectedReturnDate, classification, contaAzulCode, recurrence, campaignId } = req.body;
+
+    // Uma stage de outro funil deixaria o deal órfão: fora do board do funil
+    // antigo e do novo. Troca de funil é no PATCH /deals/:id/pipeline.
+    if (stageId !== undefined && stageId !== existing.stageId) {
+      const target = await prisma.pipelineStage.findUnique({ where: { id: stageId }, select: { pipelineId: true } });
+      if (!target) return next(createError('Stage not found', 404));
+      if (target.pipelineId !== existing.pipelineId) {
+        return next(createError('Stage does not belong to the deal pipeline — use PATCH /deals/:id/pipeline', 400));
+      }
+    }
+
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (value !== undefined) data.value = value;
@@ -797,6 +808,99 @@ router.patch(
       if (isMeetingScheduledStage(toStage)) {
         sendLeadQualifiedEvent(deal).catch(err => console.error('[deals] Meta CAPI Lead_Qualificado error:', err));
       }
+
+      res.json({ data: deal });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PATCH /api/deals/:id/pipeline — move deal to another pipeline
+//
+// Existe porque produto vence campanha: um lead que entrou por campanha de BI
+// pode se revelar Controladoria na reunião, e aí muda o produto e muda de funil.
+// PATCH /:id/stage recusa stage de outro funil de propósito — a troca de funil
+// precisa mexer em pipelineId e stageId juntos, senão o deal fica órfão.
+router.patch(
+  '/:id/pipeline',
+  validate({ pipelineId: 'required' }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { pipelineId, stageId } = req.body as { pipelineId: string; stageId?: string };
+
+      const existing = await prisma.deal.findUnique({
+        where: { id: req.params.id },
+        include: { stage: true, pipeline: { select: { name: true } } },
+      });
+      if (!existing) return next(createError('Deal not found', 404));
+
+      if (existing.pipelineId === pipelineId) {
+        return next(createError('Deal already belongs to this pipeline', 400));
+      }
+
+      const target = await prisma.pipeline.findUnique({
+        where: { id: pipelineId },
+        select: { id: true, name: true, brand: true },
+      });
+      if (!target) return next(createError('Pipeline not found', 404));
+      if (target.brand !== existing.brand) {
+        return next(createError('Cannot move a deal between brands', 400));
+      }
+
+      // Sem stageId, mantém a posição no funil: a etapa de mesma ordem no destino.
+      let newStage;
+      if (stageId) {
+        newStage = await prisma.pipelineStage.findUnique({ where: { id: stageId } });
+        if (!newStage) return next(createError('Stage not found', 404));
+        if (newStage.pipelineId !== pipelineId) {
+          return next(createError('Stage does not belong to the target pipeline', 400));
+        }
+      } else {
+        newStage = await prisma.pipelineStage.findFirst({
+          where: { pipelineId, order: existing.stage.order },
+        });
+        // Funil destino sem etapa equivalente: cai na primeira
+        if (!newStage) {
+          newStage = await prisma.pipelineStage.findFirst({
+            where: { pipelineId },
+            orderBy: { order: 'asc' },
+          });
+        }
+        if (!newStage) return next(createError('Target pipeline has no stages', 400));
+      }
+
+      const fromPipeline = existing.pipeline.name;
+      const fromStage = existing.stage.name;
+
+      const deal = await prisma.deal.update({
+        where: { id: req.params.id },
+        data: { pipelineId, stageId: newStage.id },
+        include: dealInclude,
+      });
+
+      const actingUserId = (req as any).user?.id ?? existing.userId;
+      await logActivity({
+        type: 'STAGE_CHANGE',
+        content: `Funil alterado de "${fromPipeline}" para "${target.name}" (etapa "${fromStage}" → "${newStage.name}")`,
+        userId: actingUserId,
+        dealId: existing.id,
+        contactId: existing.contactId ?? undefined,
+        metadata: {
+          fromPipeline,
+          toPipeline: target.name,
+          fromStage,
+          toStage: newStage.name,
+          pipelineChanged: true,
+        },
+      });
+
+      dispatchWebhook('deal.stage_changed', {
+        dealId: deal.id,
+        dealTitle: deal.title,
+        fromStage,
+        toStage: newStage.name,
+      });
 
       res.json({ data: deal });
     } catch (err) {

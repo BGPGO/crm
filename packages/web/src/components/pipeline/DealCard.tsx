@@ -62,6 +62,51 @@ function StatusBadge({ status }: { status: Deal["status"] }) {
   );
 }
 
+/**
+ * Paleta do chip de responsável. Cores escolhidas para dar contraste entre si e
+ * legibilidade do texto sobre o fundo claro — a mesma pessoa recebe sempre a
+ * mesma cor porque o índice vem de um hash do id, não da ordem na tela.
+ */
+const OWNER_COLORS = [
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-800",
+  "bg-violet-100 text-violet-700",
+  "bg-rose-100 text-rose-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-lime-100 text-lime-800",
+  "bg-fuchsia-100 text-fuchsia-700",
+];
+
+function ownerColor(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return OWNER_COLORS[Math.abs(hash) % OWNER_COLORS.length];
+}
+
+/** Primeiro nome + inicial do último, tipo "Henrique K." — cabe no card. */
+function ownerInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+function OwnerChip({ id, name }: { id: string; name: string }) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+        ownerColor(id),
+      )}
+      title={`Responsável: ${name}`}
+    >
+      {ownerInitials(name)}
+    </span>
+  );
+}
+
 const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
   const router = useRouter();
 
@@ -71,7 +116,6 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
     deal.dealContacts?.[0]?.contact?.name ??
     null;
 
-  const contactCount = deal.dealContacts?.length ?? (deal.contact ? 1 : 0);
   const companyName = deal.organization?.name ?? null;
 
   return (
@@ -224,16 +268,13 @@ const DealCard = React.memo(function DealCard({ deal, index }: DealCardProps) {
               );
             })()}
 
-            {/* Metrics row: contact count + value */}
-            <div className="flex items-center gap-3 text-xs text-gray-500">
+            {/* Metrics row: classificação + responsável + valor */}
+            <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="flex items-center gap-0.5">
                 <Star size={11} className={(deal.classification ?? 0) > 0 ? "text-yellow-400" : "text-gray-400"} />
                 {deal.classification ?? 0}
               </span>
-              <span className="flex items-center gap-0.5">
-                <User size={11} className="text-gray-400" />
-                {contactCount}
-              </span>
+              {deal.user && <OwnerChip id={deal.user.id} name={deal.user.name} />}
               <span className="ml-auto flex items-baseline gap-1">
                 <span className="font-semibold text-gray-700">
                   {formatCurrency(deal.value ?? 0)}

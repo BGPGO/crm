@@ -13,10 +13,12 @@ import type { ReportSection, DailyAdsSpend, AdsCampaignSpend, ConnectionStatus }
 import { getMetaAdsDaily, getMetaAdsMTD } from '../../metaAds';
 import { getGoogleAdsDaily, getGoogleAdsMTD } from '../../googleAds';
 import prisma from '../../../lib/prisma';
+import { COMMERCIAL_PIPELINE_IDS } from '../../../lib/pipelines';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const PIPELINE_ID = '64fb7516ea4eb400219457de';
+// Soma Controladoria + BI — antes da separação de 30/07 os dois eram o funil "Vendas"
+const PIPELINE_FILTER = { in: COMMERCIAL_PIPELINE_IDS };
 const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 // ─── Helpers de data ──────────────────────────────────────────────────────────
@@ -83,7 +85,7 @@ async function countLeadsCreatedOn(date: Date): Promise<number> {
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   return prisma.deal.count({
     where: {
-      pipelineId: PIPELINE_ID,
+      pipelineId: PIPELINE_FILTER,
       // Daily report é BGP-only (multi-brand pending)
       brand: 'BGP',
       createdAt: { gte: dayStart, lt: dayEnd },
@@ -106,7 +108,7 @@ async function countPaidLeadsMTD(referenceDate: Date): Promise<number> {
 
   const monthDeals = await prisma.deal.findMany({
     // Daily report é BGP-only (multi-brand pending)
-    where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: monthStart, lt: dayEnd } },
+    where: { pipelineId: PIPELINE_FILTER, brand: 'BGP', createdAt: { gte: monthStart, lt: dayEnd } },
     select: { contactId: true },
   });
   const contactIds = monthDeals
@@ -184,7 +186,7 @@ async function getCrmCampaignBreakdown(date: Date): Promise<CrmCampaignRow[]> {
   // Deals criados ontem
   const yesterdayDeals = await prisma.deal.findMany({
     // Daily report é BGP-only (multi-brand pending)
-    where: { pipelineId: PIPELINE_ID, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
+    where: { pipelineId: PIPELINE_FILTER, brand: 'BGP', createdAt: { gte: dayStart, lt: dayEnd } },
     select: { contactId: true },
   });
   const yesterdayContactIds = yesterdayDeals

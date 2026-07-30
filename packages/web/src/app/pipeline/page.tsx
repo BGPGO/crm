@@ -40,6 +40,14 @@ import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/formatters";
 import ExportButton from "@/components/ExportButton";
 
+// ─── Funil de BI ──────────────────────────────────────────────────────────────
+
+// O funil de BI restringe o filtro de responsável ao time comercial de BI.
+// Os IDs são fixos porque foram criados na separação de 30/07 (ver
+// packages/api/src/lib/pipelines.ts, que é a fonte no backend).
+const PIPELINE_BI = "bi-pipeline-bgp";
+const TEAM_COMERCIAL_BI = "team-comercial-bi";
+
 // ─── API response types ───────────────────────────────────────────────────────
 
 interface ApiPipelineStub {
@@ -467,9 +475,15 @@ export default function PipelinePage() {
 
   // ── Fetch users ──────────────────────────────────────────────────────────
 
-  const fetchUsers = useCallback(async () => {
+  // Recebe o funil por parâmetro em vez de ler do state: na carga inicial o
+  // setPipelineId ainda não refletiu, e depender do state faria o fetchPipeline
+  // se recriar e disparar fetch duplicado.
+  const fetchUsers = useCallback(async (forPipelineId: string | null) => {
     try {
-      const res = await api.get<ApiUsersResponse>("/users?limit=100&isActive=true");
+      // No funil de BI o filtro mostra só o time comercial de BI (Oliver, Caio,
+      // Henrique e Gustavo). Nos outros funis segue mostrando todo mundo.
+      const teamParam = forPipelineId === PIPELINE_BI ? `&teamId=${TEAM_COMERCIAL_BI}` : "";
+      const res = await api.get<ApiUsersResponse>(`/users?limit=100&isActive=true${teamParam}`);
       setUsers(res.data);
     } catch {
       // If /users endpoint doesn't exist, fail silently
@@ -538,7 +552,7 @@ export default function PipelinePage() {
       const first = list[0];
       setPipelineId(first.id);
 
-      await Promise.all([fetchPipelineDetail(first.id), fetchUsers()]);
+      await Promise.all([fetchPipelineDetail(first.id), fetchUsers(first.id)]);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Erro ao carregar pipeline";
@@ -565,9 +579,10 @@ export default function PipelinePage() {
       setAdvancedFilters({});
       setInjectedDeals({});
       stageDealsRef.current = {};
-      await fetchPipelineDetail(id);
+      // A lista de responsáveis muda com o funil: BI mostra só o time de BI
+      await Promise.all([fetchPipelineDetail(id), fetchUsers(id)]);
     },
-    [fetchPipelineDetail]
+    [fetchPipelineDetail, fetchUsers]
   );
 
   // ── List view: fetch deals ──────────────────────────────────────────────
@@ -859,7 +874,7 @@ export default function PipelinePage() {
                 {p.name}
               </option>
             ))}
-            {pipelines.length === 0 && <option value="">Vendas</option>}
+            {pipelines.length === 0 && <option value="">Carregando…</option>}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
             ▾

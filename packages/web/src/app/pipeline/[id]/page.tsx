@@ -21,6 +21,7 @@ import {
   Loader2,
   Trash2,
   UserX,
+  Filter,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -707,6 +708,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   // ── Users list (for responsible dropdown) ──────────────────────────────────
   const [allUsers, setAllUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [allPipelines, setAllPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [allCampaigns, setAllCampaigns] = useState<Array<{ id: string; name: string }>>([]);
 
   // ── WhatsApp sidebar state ────────────────────────────────────────────────
@@ -823,6 +825,9 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
       .catch(() => {});
     api.get<{ data: Array<{ id: string; name: string }> }>("/campaigns?limit=200")
       .then((res) => setAllCampaigns((res as { data: Array<{ id: string; name: string }> }).data || []))
+      .catch(() => {});
+    api.get<{ data: Array<{ id: string; name: string }> }>("/pipelines")
+      .then((res) => setAllPipelines((res as { data: Array<{ id: string; name: string }> }).data || []))
       .catch(() => {});
   }, [loadDeal, loadTimeline, loadWhatsAppConversation]);
 
@@ -1769,6 +1774,39 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
               </div>
             </CollapsibleSection>
           )}
+
+          {/* Seção: Funil — troca entre BI e Controladoria quando o produto muda */}
+          <CollapsibleSection title="Funil" defaultOpen>
+            <div className="flex items-center gap-2 py-2">
+              <div className="w-7 h-7 rounded-full bg-petrol-100 text-petrol-600 flex items-center justify-center flex-shrink-0">
+                <Filter size={14} />
+              </div>
+              <select
+                value={deal?.pipeline?.id || ""}
+                onChange={async (e) => {
+                  const newPipelineId = e.target.value;
+                  if (!newPipelineId || !deal || newPipelineId === deal.pipeline?.id) return;
+                  const destino = allPipelines.find((p) => p.id === newPipelineId);
+                  if (!confirm(`Mover esta negociação para o funil "${destino?.name ?? newPipelineId}"?`)) return;
+                  try {
+                    // Sem stageId: a API mantém a etapa de mesma ordem no funil destino
+                    await api.patch(`/deals/${dealId}/pipeline`, { pipelineId: newPipelineId });
+                    // Recarrega: mudou o funil, a etapa e as etapas disponíveis
+                    await loadDeal();
+                    await loadTimeline();
+                  } catch {
+                    alert("Erro ao mover a negociação de funil");
+                  }
+                }}
+                className="flex-1 text-sm text-gray-700 bg-white border border-gray-200 rounded-md px-2 py-1.5 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-petrol-500 cursor-pointer"
+              >
+                {!deal?.pipeline && <option value="">Sem funil</option>}
+                {allPipelines.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          </CollapsibleSection>
 
           {/* Seção: Responsável */}
           <CollapsibleSection title="Responsável" defaultOpen>
