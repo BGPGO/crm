@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { resolveTeamUserByEmail } from '../lib/resolveTeamUser';
 import { isCloser } from '../lib/pipelines';
+import { DEAL_ID_PARAM } from '../utils/calendlyLinks';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { onStageChanged } from '../services/automationTriggerListener';
@@ -166,6 +167,8 @@ router.post('/', async (req: Request, res: Response) => {
       const tracking = payload.tracking || {};
       const utmSource: string = (tracking.utm_source || '').toLowerCase();
       const utmMedium: string = (tracking.utm_medium || '').toLowerCase();
+      // ID da negociação embutido no link pelo CRM — ver utils/calendlyLinks.ts
+      const dealIdFromLink: string | null = tracking[DEAL_ID_PARAM]?.trim() || null;
 
       // Use invitee URI as the unique key (each invitee is unique per event)
       const calendlyEventId = inviteeUri || scheduledEventUri;
@@ -366,15 +369,36 @@ router.post('/', async (req: Request, res: Response) => {
         scheduleMeetingReminders(calendlyEvent.id).catch(console.error);
         scheduleWabaMeetingReminders(calendlyEvent.id).catch(console.error);
 
-        // 3. Find OPEN deal associated to this contact
-        let deal = await prisma.deal.findFirst({
-          where: {
-            contactId: contact.id,
-            status: 'OPEN',
-          },
-          include: { stage: true },
-          orderBy: { createdAt: 'desc' },
-        });
+        // 3. Achar a negociação da reunião.
+        //
+        // Primeiro pelo ID que veio no próprio link (salesforce_uuid): quando o
+        // CRM manda o link — cadência, BIA, WhatsApp — ele carrega o dealId, e
+        // aí o vínculo é exato. Casar por contato é o caminho de trás, usado
+        // pelo link público da LP, e falha quando a pessoa agenda com um email
+        // diferente do cadastrado.
+        let deal = null;
+        if (dealIdFromLink) {
+          deal = await prisma.deal.findUnique({
+            where: { id: dealIdFromLink },
+            include: { stage: true },
+          });
+          if (deal) {
+            console.log(`[calendly-webhook] Deal ${deal.id} veio do link (${DEAL_ID_PARAM})`);
+          } else {
+            console.warn(`[calendly-webhook] ${DEAL_ID_PARAM}=${dealIdFromLink} não achou negociação — caindo no match por contato`);
+          }
+        }
+
+        if (!deal) {
+          deal = await prisma.deal.findFirst({
+            where: {
+              contactId: contact.id,
+              status: 'OPEN',
+            },
+            include: { stage: true },
+            orderBy: { createdAt: 'desc' },
+          });
+        }
 
         // 3b. Auto-create deal if none exists
         if (!deal) {

@@ -11,6 +11,7 @@ import AdvancedFiltersModal, {
   countAdvancedFilters,
 } from "@/components/pipeline/AdvancedFiltersModal";
 import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
+import DealProductDialog from "@/components/pipeline/DealProductDialog";
 import {
   Table,
   TableHead,
@@ -349,6 +350,17 @@ export default function PipelinePage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedCount = countAdvancedFilters(advancedFilters);
   const [pendingMeeting, setPendingMeeting] = useState<{
+    dealId: string;
+    dealTitle: string;
+    contactName: string;
+    sourceStageId: string;
+    destStageId: string;
+  } | null>(null);
+
+  // Mesmo padrão do dialog de reunião, para a etapa "Proposta enviada":
+  // pede o produto antes de mover, porque proposta sem produto deixa o funil
+  // sem saber o que foi ofertado.
+  const [pendingProduct, setPendingProduct] = useState<{
     dealId: string;
     dealTitle: string;
     contactName: string;
@@ -716,6 +728,26 @@ export default function PipelinePage() {
       return;
     }
 
+    // Movendo para "Proposta enviada" sem produto: pede o produto antes.
+    // Se o deal já tem produto, não interrompe — a informação já está lá.
+    if (
+      source.droppableId !== destination.droppableId &&
+      destStageName?.toLowerCase().includes("proposta enviada")
+    ) {
+      const movedDeal = stageDealsRef.current[source.droppableId]?.find((d) => d.id === draggableId) || moved;
+      const jaTemProduto = (movedDeal?.products?.length ?? 0) > 0;
+      if (!jaTemProduto) {
+        setPendingProduct({
+          dealId: draggableId,
+          dealTitle: movedDeal?.title || moved?.title || "",
+          contactName: movedDeal?.contact?.name || moved?.contact?.name || "",
+          sourceStageId: source.droppableId,
+          destStageId: destination.droppableId,
+        });
+        return;
+      }
+    }
+
     // Persist to API — only refresh summary (counters), not all deals
     try {
       await api.patch(`/deals/${draggableId}/stage`, {
@@ -766,6 +798,46 @@ export default function PipelinePage() {
       fetchBatchDeals(pipelineId, allFilterOpts);
     }
     setPendingMeeting(null);
+    setInjectedDeals({});
+  };
+
+  // ── Product dialog handlers ──────────────────────────────────────────────
+
+  const handleProductConfirm = async (data: {
+    productId: string;
+    unitPrice: number;
+    setupPrice: number;
+    recurrence: string;
+  }) => {
+    if (!pendingProduct || !pipelineId) return;
+    // O produto vem primeiro: se ele falhar, a negociação não se move, e a
+    // mensagem de erro do dialog explica. Mover antes deixaria proposta sem
+    // produto justamente no caso de erro.
+    await api.post("/deal-products", {
+      dealId: pendingProduct.dealId,
+      productId: data.productId,
+      quantity: 1,
+      unitPrice: data.unitPrice,
+      setupPrice: data.setupPrice || null,
+      recurrenceValue: data.unitPrice,
+    });
+    // A recorrência mora no deal, não no DealProduct
+    await api.put(`/deals/${pendingProduct.dealId}`, { recurrence: data.recurrence });
+    await api.patch(`/deals/${pendingProduct.dealId}/stage`, {
+      stageId: pendingProduct.destStageId,
+    });
+    fetchSummary(pipelineId, allFilterOpts);
+    fetchBatchDeals(pipelineId, allFilterOpts);
+    setPendingProduct(null);
+    setInjectedDeals({});
+  };
+
+  const handleProductCancel = () => {
+    if (pipelineId) {
+      fetchSummary(pipelineId, allFilterOpts);
+      fetchBatchDeals(pipelineId, allFilterOpts);
+    }
+    setPendingProduct(null);
     setInjectedDeals({});
   };
 
@@ -1254,6 +1326,16 @@ export default function PipelinePage() {
           contactName={pendingMeeting.contactName}
           onConfirm={handleMeetingConfirm}
           onCancel={handleMeetingCancel}
+        />
+      )}
+
+      {/* Produto da proposta — ao mover para "Proposta enviada" sem produto */}
+      {pendingProduct && (
+        <DealProductDialog
+          dealTitle={pendingProduct.dealTitle}
+          contactName={pendingProduct.contactName}
+          onConfirm={handleProductConfirm}
+          onCancel={handleProductCancel}
         />
       )}
 

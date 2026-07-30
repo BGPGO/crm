@@ -659,6 +659,10 @@ export class WaBotService {
         where: { id: conversationId },
         select: { contactId: true },
       });
+      // Negociação a embutir no link do Calendly, para o webhook casar a reunião
+      // com ela sem depender do email que a pessoa usa pra agendar.
+      let dealIdParaLink: string | null = null;
+
       if (conv?.contactId) {
         // Quem JÁ TEM reunião futura marcada nunca recebe CTA de agendamento —
         // checagem por dado (CalendlyEvent), independente do nome da etapa.
@@ -675,6 +679,7 @@ export class WaBotService {
           where: { contactId: conv.contactId, status: 'OPEN' },
           include: { stage: { select: { name: true } } },
         });
+        dealIdParaLink = deal?.id ?? null;
         if (deal?.stage) {
           const stageLC = deal.stage.name.toLowerCase();
           const LATE_STAGES = ['reunião agendada', 'reuniao agendada', 'reunião marcada', 'reuniao marcada', 'proposta', 'aguardando', 'ganho', 'fechado'];
@@ -708,8 +713,13 @@ export class WaBotService {
 
       if (shouldSendLink) {
         await delay(2000);
-        // Tag with SDR IA UTMs so the Calendly webhook can identify the source
-        const taggedMeetingLink = appendUtmsToLink(meetingLink, { utm_source: 'sdr_ia', utm_medium: 'waba' });
+        // UTMs identificam a origem; salesforce_uuid leva o ID da negociação, e é
+        // ele que faz o webhook do Calendly amarrar a reunião no deal certo.
+        const taggedMeetingLink = appendUtmsToLink(meetingLink, {
+          utm_source: 'sdr_ia',
+          utm_medium: 'waba',
+          ...(dealIdParaLink ? { salesforce_uuid: dealIdParaLink } : {}),
+        });
         try {
           const client = await WhatsAppCloudClient.fromDB();
           await client.sendCtaUrl(

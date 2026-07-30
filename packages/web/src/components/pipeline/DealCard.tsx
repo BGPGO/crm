@@ -24,6 +24,9 @@ export interface Deal {
   stage: { id: string; name: string };
   dealContacts?: Array<{ contact: { id: string; name: string } }>;
   classification?: number;
+  /** Produtos vinculados. A API já mandava; o board usa para saber se a
+   *  negociação já tem produto antes de pedir na mudança de etapa. */
+  products?: Array<{ setupPrice?: number | string | null }> | null;
   createdAt?: string;
   hasWhatsAppConversation?: boolean;
   hasWabaConversation?: boolean;

@@ -51,3 +51,39 @@ export const EMAIL_CAMPAIGN_UTMS = {
   utm_source: 'email_cadencia',
   utm_medium: 'crm',
 } as const;
+
+/**
+ * Parâmetro que leva o ID da negociação dentro do link do Calendly.
+ *
+ * `salesforce_uuid` é o campo que o Calendly reserva para ID de registro
+ * externo: ele chega de volta em `payload.tracking.salesforce_uuid` no webhook.
+ * Usamos ele em vez de um `utm_*` porque os UTMs aqui já têm dono — utm_content
+ * é público e utm_term é anúncio na atribuição de mídia — e sobrepor significado
+ * quebraria os relatórios de campanha.
+ */
+export const DEAL_ID_PARAM = 'salesforce_uuid';
+
+/**
+ * Tagueia o link do Calendly com o ID da negociação.
+ *
+ * É isso que torna o vínculo reunião↔negociação determinístico. Sem ele, o
+ * webhook só consegue casar por email do convidado, e quem agenda com um email
+ * diferente do cadastrado fica sem vínculo — hoje 15% das reuniões do read.ai
+ * estão órfãs por esse motivo.
+ */
+export function tagCalendlyLinkWithDeal(
+  url: string,
+  dealId: string,
+  utms: Record<string, string> = {},
+): string {
+  return appendUtmsToLink(url, { ...utms, [DEAL_ID_PARAM]: dealId });
+}
+
+/** Mesma coisa, para todos os links do Calendly dentro de um HTML. */
+export function rewriteCalendlyLinksWithDeal(
+  html: string,
+  dealId: string,
+  utms: Record<string, string> = {},
+): string {
+  return rewriteCalendlyLinksInHtml(html, { ...utms, [DEAL_ID_PARAM]: dealId });
+}
