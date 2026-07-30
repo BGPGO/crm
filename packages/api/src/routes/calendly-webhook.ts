@@ -235,31 +235,31 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
-      // 2b. Fallback: match by phone (last 9 digits) — only if email didn't match.
-      // Compare DIGITS ONLY on both sides: `contains` on the raw column missed
-      // stored phones with formatting ("92 98100-8000" does not contain
-      // "981008000"), which created the duplicate-contact/BIA-blind case
-      // (Sardis, 21/07 — meeting landed on a new contact, conversation kept
-      // pointing at the old one).
+      // 2b. Fallback: match por telefone na forma canônica (55+DDD+9+8).
+      //
+      // Era sufixo de 9 dígitos com LIKE; sufixo casa pessoas DIFERENTES quando
+      // DDDs distintos terminam igual (aconteceu no levantamento de 30/07). A
+      // forma canônica ainda cobre os casos que motivaram o sufixo — "sem o 9",
+      // "sem o 55", formatação — porque bgp_phone_normalize (que espelha
+      // utils/phoneNormalize.ts e alimenta a coluna gerada Contact.phoneNormalized)
+      // normaliza os dois lados.
       if (!contact && inviteePhone) {
-        const phoneSuffix = inviteePhone.replace(/\D/g, '').slice(-9);
-        console.log(`[calendly-webhook] Trying phone match: raw="${inviteePhone}", suffix="${phoneSuffix}"`);
-        if (phoneSuffix.length >= 8) {
-          const phoneRows = await prisma.$queryRaw<{ id: string }[]>`
-            SELECT id FROM "Contact"
-            WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') LIKE ${'%' + phoneSuffix}
-            ORDER BY "createdAt" DESC
-            LIMIT 1
-          `;
-          if (phoneRows.length > 0) {
-            contact = await prisma.contact.findUnique({ where: { id: phoneRows[0].id } });
-          }
+        console.log(`[calendly-webhook] Trying phone match: raw="${inviteePhone}"`);
+        const phoneRows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "Contact"
+          WHERE "phoneNormalized" IS NOT NULL
+            AND "phoneNormalized" = bgp_phone_normalize(${inviteePhone})
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+        `;
+        if (phoneRows.length > 0) {
+          contact = await prisma.contact.findUnique({ where: { id: phoneRows[0].id } });
         }
         if (contact) {
           matchMethod = 'phone';
           console.log(`[calendly-webhook] MATCH by phone: contact=${contact.id} (${contact.name}), phone=${contact.phone}`);
         } else {
-          console.log(`[calendly-webhook] No contact found with phone containing "${phoneSuffix}"`);
+          console.log(`[calendly-webhook] No contact found matching normalized phone of "${inviteePhone}"`);
         }
       }
 
@@ -308,11 +308,14 @@ router.post('/', async (req: Request, res: Response) => {
           const contactName = (inviteeName || '').trim().toLowerCase();
           const firstName = contactName.split(/\s+/)[0];
           if (firstName && firstName.length >= 3) {
-            const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+            // 7 dias: o intervalo LP → agendamento passa fácil de 48h (o lead
+            // fala com a BIA, marca dias depois) e a janela curta deixava a
+            // maioria das duplicatas sem alerta.
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             const candidates = await prisma.contact.findMany({
               where: {
                 id: { not: contact.id },
-                createdAt: { gte: twoDaysAgo },
+                createdAt: { gte: sevenDaysAgo },
                 name: { contains: firstName, mode: 'insensitive' },
                 phone: { not: null }, // GreatPages leads always have phone
                 deals: { some: { status: 'OPEN' } },

@@ -20,6 +20,8 @@ interface DealProductDialogProps {
     setupPrice: number;
     recurrence: string;
   }) => Promise<void>;
+  /** Move a negociação sem produto — para quem não tem a informação na mão agora. */
+  onSkip: () => Promise<void>;
   onCancel: () => void;
 }
 
@@ -37,6 +39,7 @@ export default function DealProductDialog({
   dealTitle,
   contactName,
   onConfirm,
+  onSkip,
   onCancel,
 }: DealProductDialogProps) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -190,11 +193,29 @@ export default function DealProductDialog({
 
             {erro && <p className="text-xs text-red-600">{erro}</p>}
 
-            <div className="flex items-center justify-end gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-2">
+              {/* Pular move a negociação sem produto: quem não tem a informação
+                  agora não fica travado, mas o caminho fácil é preencher. */}
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    await onSkip();
+                  } catch {
+                    setErro("Erro ao mover a negociação.");
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className="text-sm text-gray-500 hover:text-gray-700 underline decoration-dotted px-1 py-1.5 disabled:opacity-50"
+              >
+                Preencher depois
+              </button>
               <button
                 onClick={onCancel}
                 disabled={saving}
-                className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5 disabled:opacity-50"
+                className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1.5 disabled:opacity-50 ml-auto"
               >
                 Cancelar
               </button>

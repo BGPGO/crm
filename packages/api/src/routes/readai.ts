@@ -16,42 +16,90 @@ function isInternalEmail(email: string): boolean {
 }
 
 /**
- * Dado uma lista de emails dos participantes, encontra o lead correspondente.
- * - Ignora emails internos (consultores BGP)
- * - Tenta cada email externo um a um, até achar um com deal OPEN
- * - Se nenhum tem deal OPEN, retorna o contact achado (ainda útil) sem deal
- * - Se nenhum email externo bate com contact, retorna null
+ * Dado os emails dos participantes (e a data da reunião, quando houver),
+ * encontra o lead correspondente. Cadeia de fallback, do sinal mais forte
+ * ao mais fraco:
+ *
+ * 1. Email externo → Contact → deal (OPEN de preferência; senão o mais
+ *    recente — reunião depois do ganho é evidência válida, e a versão
+ *    antiga que só aceitava OPEN deixava essas reuniões órfãs).
+ * 2. Email externo → agendamento do Calendly (inviteeEmail) que já tem deal.
+ *    Cobre quem agendou com um email e entrou na call com outro… desde que
+ *    um deles seja o do agendamento.
+ * 3. Data da reunião → agendamento do Calendly ÚNICO em ±45min com deal.
+ *    Só com candidato único: com dois na mesma janela, adivinhar é pior
+ *    do que deixar órfã.
+ *
+ * 15% das reuniões estavam órfãs com o nível 1 sozinho.
  */
-async function matchParticipantsToLead(participantEmails: string[]): Promise<{ contactId: string | null; dealId: string | null }> {
+async function matchParticipantsToLead(
+  participantEmails: string[],
+  meetingDate?: Date | null,
+): Promise<{ contactId: string | null; dealId: string | null; via: string | null }> {
   const externalEmails = participantEmails.filter(e => !isInternalEmail(e));
-  if (externalEmails.length === 0) return { contactId: null, dealId: null };
 
   let fallbackContactId: string | null = null;
 
+  // ── Nível 1: email → Contact ─────────────────────────────────────────
   for (const email of externalEmails) {
     const contact = await prisma.contact.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
       select: {
         id: true,
         deals: {
-          where: { status: 'OPEN' },
           orderBy: { createdAt: 'desc' },
-          select: { id: true, userId: true },
-          take: 1,
+          select: { id: true, status: true },
+          take: 5,
         },
       },
     });
     if (!contact) continue;
 
-    if (contact.deals.length > 0) {
-      // Match ideal: contact com deal OPEN
-      return { contactId: contact.id, dealId: contact.deals[0].id };
+    const openDeal = contact.deals.find(d => d.status === 'OPEN');
+    const anyDeal = openDeal ?? contact.deals[0];
+    if (anyDeal) {
+      return { contactId: contact.id, dealId: anyDeal.id, via: openDeal ? 'email' : 'email_closed_deal' };
     }
-    // Guarda o primeiro contact encontrado mesmo sem deal (fallback)
     if (!fallbackContactId) fallbackContactId = contact.id;
   }
 
-  return { contactId: fallbackContactId, dealId: null };
+  // ── Nível 2: email → agendamento do Calendly com deal ────────────────
+  if (externalEmails.length > 0) {
+    const viaCalendly = await prisma.calendlyEvent.findFirst({
+      where: {
+        dealId: { not: null },
+        inviteeEmail: { in: externalEmails, mode: 'insensitive' },
+      },
+      orderBy: { startTime: 'desc' },
+      select: { dealId: true, contactId: true },
+    });
+    if (viaCalendly?.dealId) {
+      return { contactId: viaCalendly.contactId, dealId: viaCalendly.dealId, via: 'calendly_email' };
+    }
+  }
+
+  // ── Nível 3: agendamento único na janela de horário ──────────────────
+  if (meetingDate && !Number.isNaN(meetingDate.getTime())) {
+    const JANELA_MS = 45 * 60 * 1000;
+    const candidatos = await prisma.calendlyEvent.findMany({
+      where: {
+        dealId: { not: null },
+        status: 'active',
+        startTime: {
+          gte: new Date(meetingDate.getTime() - JANELA_MS),
+          lte: new Date(meetingDate.getTime() + JANELA_MS),
+        },
+      },
+      select: { dealId: true, contactId: true },
+      distinct: ['dealId'],
+      take: 2,
+    });
+    if (candidatos.length === 1 && candidatos[0].dealId) {
+      return { contactId: candidatos[0].contactId, dealId: candidatos[0].dealId, via: 'calendly_window' };
+    }
+  }
+
+  return { contactId: fallbackContactId, dealId: null, via: fallbackContactId ? 'contact_only' : null };
 }
 
 /**
@@ -96,7 +144,10 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
       .map((e: string) => e.toLowerCase());
 
     // Try to match to a deal via participant emails (ignora consultores BGP)
-    let { contactId, dealId } = await matchParticipantsToLead(participantEmails);
+    const parsedMeetingDate = meetingDate ? new Date(meetingDate) : null;
+    const matched = await matchParticipantsToLead(participantEmails, parsedMeetingDate);
+    const { contactId, dealId } = matched;
+    if (matched.via) console.log(`[Read.ai] Match via ${matched.via}`);
 
     // Store the meeting data
     const storedMeeting = await prisma.readAiMeeting.upsert({

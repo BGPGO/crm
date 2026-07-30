@@ -832,6 +832,19 @@ export default function PipelinePage() {
     setInjectedDeals({});
   };
 
+  // "Preencher depois": move sem produto. O deal fica sem o que foi ofertado, e é
+  // por isso que o dialog volta a aparecer se alguém arrastar de novo.
+  const handleProductSkip = async () => {
+    if (!pendingProduct || !pipelineId) return;
+    await api.patch(`/deals/${pendingProduct.dealId}/stage`, {
+      stageId: pendingProduct.destStageId,
+    });
+    fetchSummary(pipelineId, allFilterOpts);
+    fetchBatchDeals(pipelineId, allFilterOpts);
+    setPendingProduct(null);
+    setInjectedDeals({});
+  };
+
   const handleProductCancel = () => {
     if (pipelineId) {
       fetchSummary(pipelineId, allFilterOpts);
@@ -1335,6 +1348,7 @@ export default function PipelinePage() {
           dealTitle={pendingProduct.dealTitle}
           contactName={pendingProduct.contactName}
           onConfirm={handleProductConfirm}
+          onSkip={handleProductSkip}
           onCancel={handleProductCancel}
         />
       )}

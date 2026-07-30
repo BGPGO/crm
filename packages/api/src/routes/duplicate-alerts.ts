@@ -139,7 +139,7 @@ router.post('/:id/merge', async (req: Request, res: Response, next: NextFunction
 
     // Move all relations
     const tables = ['deal', 'dealContact', 'whatsAppConversation', 'waConversation',
-      'automationEnrollment', 'activity', 'calendlyEvent', 'leadTracking', 'emailSend'] as const;
+      'automationEnrollment', 'activity', 'calendlyEvent', 'readAiMeeting', 'leadTracking', 'emailSend'] as const;
 
     for (const table of tables) {
       try {
@@ -172,6 +172,60 @@ router.post('/:id/merge', async (req: Request, res: Response, next: NextFunction
       await prisma.contact.delete({ where: { id: removeId } });
     } catch { /* last resort — leave orphan */ }
 
+    // ── Consolidar as negociações ────────────────────────────────────────
+    //
+    // Mover as relações junta os CONTATOS, mas deixava dois deals abertos no
+    // contato mantido: o da LP (com campanha, sem reunião) e o criado pelo
+    // Calendly (com reunião, sem campanha) — exatamente o par que motivou o
+    // merge. Aqui eles viram um só: fica o deal com campanha (é ele que carrega
+    // a atribuição de mídia; desempate, o mais antigo), a etapa mais avançada
+    // entre os dois é adotada, e reunião/atividades/produtos migram.
+    let consolidated: { kept: string; removed: string[] } | null = null;
+    const openDeals = await prisma.deal.findMany({
+      where: { contactId: keepId, status: 'OPEN' },
+      include: { stage: { select: { order: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (openDeals.length > 1) {
+      const principal = openDeals.find((d) => d.campaignId) ?? openDeals[0];
+      const duplicados = openDeals.filter((d) => d.id !== principal.id);
+      const ordemAlvo = Math.max(...openDeals.map((d) => d.stage?.order ?? 0));
+
+      for (const dup of duplicados) {
+        const dealTables = ['calendlyEvent', 'readAiMeeting', 'activity', 'task', 'dealProduct'] as const;
+        for (const table of dealTables) {
+          try {
+            await (prisma[table] as any).updateMany({
+              where: { dealId: dup.id },
+              data: { dealId: principal.id },
+            });
+          } catch { /* conflitos de unicidade — segue */ }
+        }
+        // O deal do Calendly costuma ser o que sabe quem atende e de onde veio a reunião
+        const herda: Record<string, unknown> = {};
+        if (!principal.closerId && dup.closerId) herda.closerId = dup.closerId;
+        if (!principal.meetingSource && dup.meetingSource) herda.meetingSource = dup.meetingSource;
+        if (Object.keys(herda).length > 0) {
+          await prisma.deal.update({ where: { id: principal.id }, data: herda });
+        }
+        await prisma.deal.delete({ where: { id: dup.id } });
+      }
+
+      // Etapa mais avançada, resolvida DENTRO do funil do principal (os funis
+      // têm etapas espelhadas por ordem — nunca aponte stage de outro funil)
+      if ((principal.stage?.order ?? 0) < ordemAlvo) {
+        const alvo = await prisma.pipelineStage.findFirst({
+          where: { pipelineId: principal.pipelineId, order: ordemAlvo },
+        });
+        if (alvo) {
+          await prisma.deal.update({ where: { id: principal.id }, data: { stageId: alvo.id } });
+        }
+      }
+
+      consolidated = { kept: principal.id, removed: duplicados.map((d) => d.id) };
+      console.log(`[duplicate-alerts] Deals consolidados no merge: mantido=${principal.id}, removidos=${consolidated.removed.join(',')}`);
+    }
+
     // Mark alert as merged
     await prisma.duplicateAlert.update({
       where: { id: alert.id },
@@ -184,6 +238,7 @@ router.post('/:id/merge', async (req: Request, res: Response, next: NextFunction
         kept: { id: keepId, name: keep.name },
         removed: { id: removeId, name: remove.name },
         complemented: updates,
+        dealsConsolidated: consolidated,
       },
     });
   } catch (err) {

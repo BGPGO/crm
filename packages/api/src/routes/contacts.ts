@@ -286,6 +286,51 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         organization: { select: { id: true, name: true } },
       },
     });
+
+    // Telefone preenchido/alterado na mão: é AGORA que uma duplicata criada pelo
+    // Calendly se torna detectável. O agendamento costuma chegar sem telefone
+    // (os event types não perguntam), então o contato duplicado nasce invisível
+    // ao match — quando alguém completa o telefone depois, a colisão aparece e
+    // vira alerta na fila de merge do board, em vez de esperar alguém notar.
+    if (phone !== undefined && phone && phone !== existing.phone) {
+      try {
+        const colisoes = await prisma.$queryRaw<{ id: string; name: string; phone: string | null }[]>`
+          SELECT c2.id, c2.name, c2.phone
+          FROM "Contact" c1
+          JOIN "Contact" c2
+            ON c2."phoneNormalized" = c1."phoneNormalized"
+           AND c2.id <> c1.id
+          WHERE c1.id = ${contact.id}
+            AND c1."phoneNormalized" IS NOT NULL
+          LIMIT 3
+        `;
+        for (const outro of colisoes) {
+          const jaExiste = await prisma.duplicateAlert.findFirst({
+            where: {
+              OR: [
+                { contactAId: contact.id, contactBId: outro.id },
+                { contactAId: outro.id, contactBId: contact.id },
+              ],
+              status: { in: ['PENDING', 'MERGED'] },
+            },
+            select: { id: true },
+          });
+          if (!jaExiste) {
+            await prisma.duplicateAlert.create({
+              data: {
+                contactAId: contact.id,
+                contactBId: outro.id,
+                reason: `Telefone preenchido em "${contact.name}" coincide com "${outro.name}" (${outro.phone})`,
+              },
+            });
+            console.log(`[contacts] DuplicateAlert por colisão de telefone: ${contact.id} ↔ ${outro.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('[contacts] Erro no check de colisão de telefone (non-critical):', err);
+      }
+    }
+
     res.json({ data: contact });
   } catch (err) {
     next(err);
