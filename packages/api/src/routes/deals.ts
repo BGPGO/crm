@@ -26,7 +26,12 @@ async function buildDealsWhere(req: Request): Promise<Record<string, unknown>> {
 
   const where: Record<string, unknown> = { brand: req.brand };
 
-  if (str('pipelineId')) where.pipelineId = str('pipelineId');
+  {
+    // Aceita um funil ou vários separados por vírgula (dashboard consolidado)
+    const pids = str('pipelineId')?.split(',').filter(Boolean) ?? [];
+    if (pids.length === 1) where.pipelineId = pids[0];
+    else if (pids.length > 1) where.pipelineId = { in: pids };
+  }
   if (str('stageId')) where.stageId = str('stageId');
 
   const userIds = str('userIds');
@@ -274,7 +279,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const where: Record<string, unknown> = { brand: req.brand };
 
-    if (str('pipelineId')) where.pipelineId = str('pipelineId');
+    {
+    // Aceita um funil ou vários separados por vírgula (dashboard consolidado)
+    const pids = str('pipelineId')?.split(',').filter(Boolean) ?? [];
+    if (pids.length === 1) where.pipelineId = pids[0];
+    else if (pids.length > 1) where.pipelineId = { in: pids };
+  }
     if (str('stageId')) where.stageId = str('stageId');
     // userId: supports single value (back-compat) OR comma-separated list via userIds
     const userIds = str('userIds');

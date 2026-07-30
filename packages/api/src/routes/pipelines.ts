@@ -42,10 +42,18 @@ async function applySearch(where: Record<string, unknown>): Promise<void> {
 
 // ── Shared helper: build Deal where clause from query params ────────────────
 
+/**
+ * `basePipelineId` aceita um id só ou vários separados por vírgula — o dashboard
+ * abre consolidando Controladoria + BI, que antes da separação de 30/07 eram o
+ * mesmo funil.
+ */
 function buildDealWhere(query: Record<string, unknown>, basePipelineId?: string, brand?: 'BGP' | 'AIMO'): Record<string, unknown> {
   const where: Record<string, unknown> = {};
   if (brand) where.brand = brand;
-  if (basePipelineId) where.pipelineId = basePipelineId;
+  if (basePipelineId) {
+    const ids = basePipelineId.split(',').filter(Boolean);
+    where.pipelineId = ids.length === 1 ? ids[0] : { in: ids };
+  }
 
   const str = (key: string) => query[key] as string | undefined;
 
@@ -312,12 +320,17 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // Efficient per-stage counts and totals using groupBy/aggregate
 router.get('/:id/summary', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const pipeline = await prisma.pipeline.findUnique({
-      where: { id: req.params.id },
+    // :id aceita vários funis separados por vírgula (dashboard consolidado).
+    // Como Controladoria e BI têm as etapas espelhadas — mesmo nome e ordem — as
+    // etapas dos funis pedidos são somadas por `order`.
+    const pipelineIds = req.params.id.split(',').filter(Boolean);
+
+    const pipelinesFound = await prisma.pipeline.findMany({
+      where: { id: { in: pipelineIds } },
       include: { stages: { orderBy: { order: 'asc' } } },
     });
 
-    if (!pipeline) return next(createError('Pipeline not found', 404));
+    if (pipelinesFound.length === 0) return next(createError('Pipeline not found', 404));
 
     const where = buildDealWhere(req.query as Record<string, unknown>, req.params.id, req.brand);
     await applySearch(where);
@@ -345,7 +358,7 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
     let enrichedWhere = where;
     if (needsSeparateWonCount && wonWhere && !status) {
       enrichedWhere = {
-        pipelineId: req.params.id,
+        pipelineId: pipelineIds.length === 1 ? pipelineIds[0] : { in: pipelineIds },
         OR: [
           where,
           wonWhere,
@@ -415,17 +428,36 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
       grouped.map((g) => [g.stageId, { dealCount: g._count.id, totalValue: g._sum.value }])
     );
 
-    const stages = pipeline.stages.map((stage) => {
-      const stats = groupedMap.get(stage.id);
-      return {
-        id: stage.id,
-        name: stage.name,
-        order: stage.order,
-        color: stage.color,
-        dealCount: stats?.dealCount ?? 0,
-        totalValue: stats?.totalValue ?? 0,
-      };
-    });
+    // Soma as etapas de mesma ordem entre os funis pedidos. Com um funil só o
+    // resultado é idêntico ao de antes.
+    const porOrdem = new Map<number, {
+      id: string; name: string; order: number; color: string | null;
+      dealCount: number; totalValue: number;
+    }>();
+
+    for (const p of pipelinesFound) {
+      for (const stage of p.stages) {
+        const stats = groupedMap.get(stage.id);
+        const acc = porOrdem.get(stage.order);
+        if (acc) {
+          acc.dealCount += stats?.dealCount ?? 0;
+          acc.totalValue += Number(stats?.totalValue ?? 0);
+        } else {
+          porOrdem.set(stage.order, {
+            // Com vários funis o id da etapa é o do primeiro: serve de chave de
+            // render, não de filtro. Filtrar por etapa é por funil único.
+            id: stage.id,
+            name: stage.name,
+            order: stage.order,
+            color: stage.color,
+            dealCount: stats?.dealCount ?? 0,
+            totalValue: Number(stats?.totalValue ?? 0),
+          });
+        }
+      }
+    }
+
+    const stages = [...porOrdem.values()].sort((a, b) => a.order - b.order);
 
     res.json({
       data: {

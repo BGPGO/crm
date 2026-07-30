@@ -311,7 +311,11 @@ export default function PipelinePage() {
     if (typeof window !== "undefined") sessionStorage.setItem(`pipeline_${key}`, value);
   };
 
-  const [filter, setFilterRaw] = useState<FilterType>(() => readSession("filter", "active") as FilterType);
+  // Abre sempre em "em andamento", sem restaurar a última escolha da sessão:
+  // entrar no board e cair em "todas" mostra os milhares de deals perdidos e
+  // esconde o que importa. Trocar o filtro na tela continua valendo enquanto
+  // a pessoa está nela.
+  const [filter, setFilterRaw] = useState<FilterType>("active");
   const setFilter = (v: FilterType) => { setFilterRaw(v); writeSession("filter", v); };
   // userFilter: comma-separated user IDs, "" means "all"
   const [userFilter, setUserFilterRaw] = useState<string>(() => {
@@ -577,7 +581,7 @@ export default function PipelinePage() {
     async (e: React.ChangeEvent<HTMLSelectElement>) => {
       const id = e.target.value;
       setPipelineId(id);
-      setFilter("all");
+      setFilter("active");
       setUserFilter("");
       setPeriodFilter("all");
       setSearchInput("");

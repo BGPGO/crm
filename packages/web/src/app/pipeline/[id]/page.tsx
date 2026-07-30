@@ -190,6 +190,9 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
     contact: data.contact as DealDetail["contact"],
     organization: data.organization as DealDetail["organization"],
     user: data.user as DealDetail["user"],
+    // A API sempre devolveu o closer no dealInclude, mas ele não era copiado aqui:
+    // o select mostrava "Sem closer" mesmo com closerId gravado no banco.
+    closer: data.closer as DealDetail["closer"],
     source: data.source as DealDetail["source"],
     campaign: data.campaign as DealDetail["campaign"],
     lostReason: data.lostReason as DealDetail["lostReason"],

@@ -229,7 +229,10 @@ export default function DashboardPage() {
         ]);
         const list = pRes.data ?? [];
         setPipelines(list);
-        if (list.length > 0) setPipelineId(list[0].id);
+        // Abre consolidado quando há mais de um funil ativo
+        if (list.length > 0) {
+          setPipelineId(list.length > 1 ? list.map((p) => p.id).join(",") : list[0].id);
+        }
         setUsers(uRes.data ?? []);
       } catch {
         // non-fatal
@@ -419,6 +422,11 @@ export default function DashboardPage() {
               onChange={(e) => setPipelineId(e.target.value)}
               className={`${SELECT_CLASS} text-gray-700 font-medium`}
             >
+              {/* Consolidado é o padrão: o dashboard responde "como está o
+                  comercial", e ver só metade do funil de saída dá número errado */}
+              {pipelines.length > 1 && (
+                <option value={pipelines.map((p) => p.id).join(",")}>Todos os funis</option>
+              )}
               {pipelines.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
