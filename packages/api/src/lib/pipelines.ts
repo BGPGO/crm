@@ -174,6 +174,16 @@ export const STAGE_IDS = {
   PERDA_FECHADA: ['65084ed69b4e68571c053200', 'bi-stage-9'],
 };
 
+/**
+ * ID da etapa dentro de um funil específico. As listas de `STAGE_IDS` estão na
+ * ordem [Controladoria, BI]; usar índice na mão é como um deal acaba com stageId
+ * de outro funil (e fora do board dos dois).
+ */
+export function stageIdFor(pipelineId: string, etapa: keyof typeof STAGE_IDS): string {
+  const [ctrl, bi] = STAGE_IDS[etapa];
+  return pipelineId === PIPELINE_BI ? bi : ctrl;
+}
+
 /** Nomes das etapas — iguais nos dois funis. */
 export const STAGE_NAMES = {
   LEAD: 'LEAD',

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { resolveTeamUserByEmail } from '../lib/resolveTeamUser';
-import { isCloser } from '../lib/pipelines';
+import { isCloser, resolveLeadPipeline, stageIdFor } from '../lib/pipelines';
 import { DEAL_ID_PARAM } from '../utils/calendlyLinks';
 import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
 import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
@@ -407,15 +407,31 @@ router.post('/', async (req: Request, res: Response) => {
         if (!deal) {
           console.log(`[calendly-webhook] No OPEN deal found, auto-creating for contact=${contact.id}`);
 
-          // Find default pipeline
-          const defaultPipeline = await prisma.pipeline.findFirst({
-            where: { isDefault: true },
+          // Funil do deal que nasce da reunião: a MESMA régua de todo lead que
+          // entra, não o `isDefault`. Com o isDefault (que desde 30/07 é
+          // Controladoria) uma reunião de GO BI nascia no funil de Controladoria.
+          // Sinais disponíveis aqui: as UTMs que o Calendly repassa. Quando a
+          // pessoa agenda com email diferente do da LP e o link não trouxe o
+          // dealId, é só isso que existe — e sem sinal a régua devolve BI, que é
+          // a decisão do Oliver de 30/07 para o resíduo ambíguo.
+          const destinoReuniao = resolveLeadPipeline({
+            landingPage: null,
+            campaign: tracking.utm_campaign || null,
+          });
+          const defaultPipeline = await prisma.pipeline.findUnique({
+            where: { id: destinoReuniao.pipelineId },
             include: { stages: { orderBy: { order: 'asc' } } },
           });
+          console.log(
+            `[calendly-webhook] Deal novo da reunião → funil ${destinoReuniao.pipelineId} (${destinoReuniao.motivo})`
+          );
 
           if (defaultPipeline && defaultPipeline.stages.length > 0) {
-            // Find "Reunião agendada" stage — prefer exact match, then "agendada", then highest-order "reuni" stage
-            const reuniaoStageForNew = defaultPipeline.stages.find(
+            const stageIdReuniao = stageIdFor(defaultPipeline.id, 'REUNIAO_AGENDADA');
+            // O ID vem do módulo; a busca por nome fica como rede se o funil for
+            // outro (funis de indicação/recuperação não estão no STAGE_IDS).
+            const reuniaoStageForNew = defaultPipeline.stages.find((s) => s.id === stageIdReuniao)
+              || defaultPipeline.stages.find(
               (s) => s.name.toLowerCase() === 'reunião agendada'
             ) || defaultPipeline.stages.find(
               (s) => s.name.toLowerCase().includes('agendada')
