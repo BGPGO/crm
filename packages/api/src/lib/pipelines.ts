@@ -44,14 +44,32 @@ export const LEGACY_DEFAULT_OWNER_ID = '6983561663b1a700264854ef';
  * link de agendamento, não necessariamente quem atende, e sem essa lista a
  * Vicenza acabou gravada como closer de deals em que ela só cedeu o link.
  */
-export const CLOSER_USER_IDS = [
+/**
+ * Ordem de prioridade quando mais de um closer esteve na mesma reunião.
+ *
+ * Reproduz exatamente as regras que o Oliver deu em 30/07 — "tem Oliver, é
+ * Oliver"; "Caio + Henrique ou Caio + João, é Caio"; "Henrique + João, é
+ * Henrique"; "dupla com o Pedro, é Pedro" — só que como uma ordem única em vez
+ * de uma lista de casos, o que evita combinação nova cair sem regra.
+ */
+export const CLOSER_PRIORITY = [
   '6983561663b1a700264854ef', // Oliver
-  '68152373e0aa160014645094', // Pedro Arenhaldt
   'cw1lckqn017mm3ylakwwy',    // Caio Bertuzzi
   'cw1lckqbwvz1am1s53f3x',    // Henrique Kovalesky
+  '68152373e0aa160014645094', // Pedro Arenhaldt
   '69a9b51dfdabd0001556cd7e', // João Rosa
   '67fe4a5c18dd5f001be93121', // Joao Lopes
 ];
+
+export const CLOSER_USER_IDS = CLOSER_PRIORITY;
+
+/** Dos closers presentes numa reunião, qual conta como o closer do deal. */
+export function pickCloser(userIds: string[]): string | null {
+  const presentes = userIds.filter(isCloser);
+  if (presentes.length === 0) return null;
+  if (presentes.length === 1) return presentes[0];
+  return CLOSER_PRIORITY.find((id) => presentes.includes(id)) ?? presentes[0];
+}
 
 export function isCloser(userId: string | null | undefined): boolean {
   return !!userId && CLOSER_USER_IDS.includes(userId);

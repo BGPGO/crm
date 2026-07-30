@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { pickCloser } from '../lib/pipelines';
 import { requireAuth } from '../middleware/auth';
 import { triggerMeetingAnalysis, analyzeMeeting } from '../services/meetingAnalyzer';
 
@@ -134,6 +135,39 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
     // Trigger AI analysis in background if transcript is available (non-blocking)
     if (transcript) {
       triggerMeetingAnalysis(storedMeeting.id);
+    }
+
+    // Quem esteve na reunião define o closer do deal.
+    //
+    // Isso é o que mantém o dado honesto ao longo do tempo. O closer é gravado no
+    // agendamento a partir do host do Calendly, que é o dono do LINK e não
+    // necessariamente quem atende — medido em 19% de erro. Aqui chega a presença
+    // real, então ela corrige o palpite. Sempre sobrescreve: reunião que
+    // aconteceu vale mais que qualquer suposição anterior.
+    if (dealId && participantEmails.length > 0) {
+      try {
+        const presentes = await prisma.user.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { email: { in: participantEmails, mode: 'insensitive' } },
+              { emailAliases: { hasSome: participantEmails } },
+            ],
+          },
+          select: { id: true, name: true },
+        });
+        const closerId = pickCloser(presentes.map((u) => u.id));
+        if (closerId) {
+          const atual = await prisma.deal.findUnique({ where: { id: dealId }, select: { closerId: true } });
+          if (atual && atual.closerId !== closerId) {
+            await prisma.deal.update({ where: { id: dealId }, data: { closerId } });
+            const nome = presentes.find((u) => u.id === closerId)?.name ?? closerId;
+            console.log(`[Read.ai] Closer do deal ${dealId} definido pela presença: ${nome}`);
+          }
+        }
+      } catch (err) {
+        console.error('[Read.ai] Erro ao definir closer pela presença:', err);
+      }
     }
 
     // If we found a deal, log an activity
