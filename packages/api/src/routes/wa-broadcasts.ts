@@ -57,13 +57,19 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          template: { select: { id: true, name: true, status: true, body: true } },
+          template: { select: { id: true, name: true, status: true, body: true, buttons: true } },
           segment: { select: { id: true, name: true } },
           stage: { select: { id: true, name: true } },
           _count: { select: { contacts: true } },
         },
       }),
     ]);
+
+    // Cliques só fazem sentido quando o template tem botão de LINK — quick-reply
+    // já aparece em Respostas, e template sem botão não tem o que clicar
+    // (decisão Oliver 03/08). O front esconde a métrica quando hasUrlButton=false.
+    const hasUrlButton = (buttons: unknown): boolean =>
+      Array.isArray(buttons) && buttons.some((b: any) => b?.type === 'URL' && b?.url);
 
     // Cliques reais são contados AO VIVO a partir de `clickedAt` (o campo
     // denormalizado `clickedCount` pode estar defasado — antes só era escrito
@@ -88,6 +94,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       for (const b of data) {
         (b as typeof b & { clickedCount: number }).clickedCount = clickMap.get(b.id) ?? 0;
         (b as typeof b & { respondedCount: number }).respondedCount = respondedMap.get(b.id) ?? 0;
+        (b as typeof b & { hasUrlButton: boolean }).hasUrlButton = hasUrlButton(b.template?.buttons);
       }
     }
 
@@ -210,7 +217,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const broadcast = await prisma.waBroadcast.findUnique({
       where: { id: req.params.id },
       include: {
-        template: { select: { id: true, name: true, status: true, body: true, language: true } },
+        template: { select: { id: true, name: true, status: true, body: true, language: true, buttons: true } },
         segment: { select: { id: true, name: true } },
         stage: { select: { id: true, name: true } },
         _count: { select: { contacts: true } },
@@ -239,11 +246,14 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       stats[row.status] = row._count;
     }
 
+    const tplButtons = broadcast.template?.buttons;
     res.json({
       data: {
         ...broadcast,
         clickedCount,
         respondedCount,
+        hasUrlButton:
+          Array.isArray(tplButtons) && tplButtons.some((b: any) => b?.type === 'URL' && b?.url),
         stats,
       },
     });

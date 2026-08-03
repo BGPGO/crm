@@ -1728,6 +1728,7 @@ model CloudWaTemplate {
   body          String  @db.Text // Corpo do template com {{1}}, {{2}}...
   footer        String? // Texto do footer (estático)
   buttons       Json? // Array de botões [{type, text, url?, payload?}]
+  clickDestinationUrl String? // destino real do botão URL quando ele aponta pro tracker /api/t/{{1}}
 
   // Payload completo de components enviado à Meta (para templates complexos: carousel, LTO, etc.)
   components Json?

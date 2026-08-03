@@ -22,7 +22,7 @@ router.get('/:token', async (req: Request, res: Response) => {
         broadcast: {
           select: {
             template: {
-              select: { buttons: true },
+              select: { buttons: true, clickDestinationUrl: true },
             },
           },
         },
@@ -46,12 +46,18 @@ router.get('/:token', async (req: Request, res: Response) => {
       });
     }
 
-    // Find the URL to redirect to from the template buttons
-    const buttons = bc.broadcast?.template?.buttons as Array<{ type: string; url?: string }> | null;
-    const urlButton = buttons?.find(b => b.type === 'URL' && b.url);
+    // Destino do redirect: 1º clickDestinationUrl (gravado quando o botão do
+    // template é trocado pro tracker); senão, um botão URL que NÃO seja o
+    // próprio tracker (evita loop de redirect quando a URL do botão é /api/t/).
+    const template = bc.broadcast?.template;
+    const buttons = template?.buttons as Array<{ type: string; url?: string }> | null;
+    const urlButton = buttons?.find(
+      b => b.type === 'URL' && b.url && !b.url.includes('/api/t/')
+    );
+    const destination = template?.clickDestinationUrl || urlButton?.url;
 
-    if (urlButton?.url) {
-      return res.redirect(302, urlButton.url);
+    if (destination) {
+      return res.redirect(302, destination);
     }
 
     // Fallback if no URL found

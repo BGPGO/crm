@@ -236,11 +236,11 @@ export class WaMessageRouter {
             },
           });
 
-          // 4b. Tracking de broadcast: qualquer inbound = resposta; toque em
-          //     botão (quick-reply de template chega como `button`, interativo
-          //     como `interactive`) = clique. Marca só no broadcast MAIS RECENTE
-          //     enviado ao número nos últimos 7 dias — mesmo critério do
-          //     cloud-wa-webhook (db1afb0) pra não creditar campanhas antigas.
+          // 4b. Tracking de broadcast: qualquer inbound (texto, áudio ou toque
+          //     em botão) = RESPOSTA no broadcast MAIS RECENTE (≤7 dias) do
+          //     número. Clique NÃO é marcado aqui — clique é métrica exclusiva
+          //     de botão de LINK, gravada pelo tracker GET /api/t/:token
+          //     (toque em quick-reply já conta como resposta; decisão Oliver 03/08).
           try {
             const recentBc = await prisma.waBroadcastContact.findFirst({
               where: {
@@ -252,24 +252,11 @@ export class WaMessageRouter {
               },
               orderBy: { sentAt: 'desc' },
             });
-            if (recentBc) {
-              const patch: Record<string, Date> = {};
-              if (!recentBc.respondedAt) patch.respondedAt = inboundAt;
-              if (!recentBc.clickedAt && (type === 'button' || type === 'interactive')) {
-                patch.clickedAt = inboundAt;
-              }
-              if (Object.keys(patch).length > 0) {
-                await prisma.waBroadcastContact.update({
-                  where: { id: recentBc.id },
-                  data: patch,
-                });
-                if (patch.clickedAt) {
-                  await prisma.waBroadcast.update({
-                    where: { id: recentBc.broadcastId },
-                    data: { clickedCount: { increment: 1 } },
-                  });
-                }
-              }
+            if (recentBc && !recentBc.respondedAt) {
+              await prisma.waBroadcastContact.update({
+                where: { id: recentBc.id },
+                data: { respondedAt: inboundAt },
+              });
             }
           } catch (err) {
             console.error('[WaMessageRouter] Erro no tracking de broadcast (não-fatal):', err);

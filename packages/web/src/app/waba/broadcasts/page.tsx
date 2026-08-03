@@ -75,6 +75,8 @@ interface Broadcast {
   readCount: number;
   clickedCount: number;
   respondedCount?: number;
+  /** true quando o template tem botão de LINK — só aí a métrica de cliques aparece */
+  hasUrlButton?: boolean;
   failedCount: number;
   createdAt: string;
 }
@@ -494,7 +496,10 @@ function BroadcastDetail({
     { label: "Enviados", value: sentCount, icon: Send, color: "bg-yellow-50 text-yellow-600" },
     { label: "Entregues", value: deliveredCount, pct: pct(deliveredCount, sentCount), icon: CheckCircle2, color: "bg-green-50 text-green-600" },
     { label: "Lidos", value: readCount, pct: pct(readCount, sentCount), icon: BookOpen, color: "bg-purple-50 text-purple-600" },
-    { label: "Cliques", value: clickedCount || 0, pct: pct(clickedCount || 0, sentCount), icon: MousePointerClick, color: "bg-orange-50 text-orange-600" },
+    // Cliques só quando o template tem botão de LINK (quick-reply já conta em Respostas)
+    ...(broadcast.hasUrlButton
+      ? [{ label: "Cliques", value: clickedCount || 0, pct: pct(clickedCount || 0, sentCount), icon: MousePointerClick, color: "bg-orange-50 text-orange-600" }]
+      : []),
     { label: "Respostas", value: respondedCount || 0, pct: pct(respondedCount || 0, sentCount), icon: MessageCircle, color: "bg-blue-50 text-blue-600" },
     { label: "Falhas", value: failedCount, pct: pct(failedCount, totalContacts), icon: XCircle, color: "bg-red-50 text-red-600" },
   ];
@@ -854,10 +859,12 @@ export default function BroadcastsPage() {
                         <p className="font-semibold text-purple-600">{readRate}</p>
                         <p>Leitura</p>
                       </div>
-                      <div className="text-center">
-                        <p className="font-semibold text-orange-600">{clickRate}</p>
-                        <p>Cliques</p>
-                      </div>
+                      {b.hasUrlButton && (
+                        <div className="text-center">
+                          <p className="font-semibold text-orange-600">{clickRate}</p>
+                          <p>Cliques</p>
+                        </div>
+                      )}
                       <div className="text-center">
                         <p className="font-semibold text-blue-600">{responseRate}</p>
                         <p>Respostas</p>
