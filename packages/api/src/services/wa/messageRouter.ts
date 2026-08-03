@@ -236,6 +236,45 @@ export class WaMessageRouter {
             },
           });
 
+          // 4b. Tracking de broadcast: qualquer inbound = resposta; toque em
+          //     botão (quick-reply de template chega como `button`, interativo
+          //     como `interactive`) = clique. Marca só no broadcast MAIS RECENTE
+          //     enviado ao número nos últimos 7 dias — mesmo critério do
+          //     cloud-wa-webhook (db1afb0) pra não creditar campanhas antigas.
+          try {
+            const recentBc = await prisma.waBroadcastContact.findFirst({
+              where: {
+                phone: { in: phoneVariations },
+                sentAt: {
+                  gte: new Date(inboundAt.getTime() - 7 * 24 * 60 * 60 * 1000),
+                  lte: inboundAt,
+                },
+              },
+              orderBy: { sentAt: 'desc' },
+            });
+            if (recentBc) {
+              const patch: Record<string, Date> = {};
+              if (!recentBc.respondedAt) patch.respondedAt = inboundAt;
+              if (!recentBc.clickedAt && (type === 'button' || type === 'interactive')) {
+                patch.clickedAt = inboundAt;
+              }
+              if (Object.keys(patch).length > 0) {
+                await prisma.waBroadcastContact.update({
+                  where: { id: recentBc.id },
+                  data: patch,
+                });
+                if (patch.clickedAt) {
+                  await prisma.waBroadcast.update({
+                    where: { id: recentBc.broadcastId },
+                    data: { clickedCount: { increment: 1 } },
+                  });
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[WaMessageRouter] Erro no tracking de broadcast (não-fatal):', err);
+          }
+
           // 5. Open 24h window via WindowService
           await WindowService.openWindow(conversation.id, inboundAt);
 

@@ -2083,6 +2083,7 @@ model WaBroadcastContact {
   deliveredAt DateTime?
   readAt      DateTime?
   clickedAt   DateTime? // Rastreia clique no botão CTA URL
+  respondedAt DateTime? // 1ª mensagem inbound do contato após o envio (resposta ao broadcast)
   failedAt    DateTime?
   error       String?
 

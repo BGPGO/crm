@@ -71,14 +71,23 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // pra a lista bater com a tela de detalhe.
     const ids = data.map((b) => b.id);
     if (ids.length > 0) {
-      const grouped = await prisma.waBroadcastContact.groupBy({
-        by: ['broadcastId'],
-        where: { broadcastId: { in: ids }, clickedAt: { not: null } },
-        _count: { _all: true },
-      });
+      const [grouped, groupedResponded] = await Promise.all([
+        prisma.waBroadcastContact.groupBy({
+          by: ['broadcastId'],
+          where: { broadcastId: { in: ids }, clickedAt: { not: null } },
+          _count: { _all: true },
+        }),
+        prisma.waBroadcastContact.groupBy({
+          by: ['broadcastId'],
+          where: { broadcastId: { in: ids }, respondedAt: { not: null } },
+          _count: { _all: true },
+        }),
+      ]);
       const clickMap = new Map(grouped.map((g) => [g.broadcastId, g._count._all]));
+      const respondedMap = new Map(groupedResponded.map((g) => [g.broadcastId, g._count._all]));
       for (const b of data) {
         (b as typeof b & { clickedCount: number }).clickedCount = clickMap.get(b.id) ?? 0;
+        (b as typeof b & { respondedCount: number }).respondedCount = respondedMap.get(b.id) ?? 0;
       }
     }
 
@@ -211,7 +220,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     if (!broadcast) return next(createError('Broadcast not found', 404));
 
     // Aggregate contact statuses for live stats
-    const [statusCounts, clickedCount] = await Promise.all([
+    const [statusCounts, clickedCount, respondedCount] = await Promise.all([
       prisma.waBroadcastContact.groupBy({
         by: ['status'],
         where: { broadcastId: broadcast.id },
@@ -219,6 +228,9 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       }),
       prisma.waBroadcastContact.count({
         where: { broadcastId: broadcast.id, clickedAt: { not: null } },
+      }),
+      prisma.waBroadcastContact.count({
+        where: { broadcastId: broadcast.id, respondedAt: { not: null } },
       }),
     ]);
 
@@ -231,6 +243,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       data: {
         ...broadcast,
         clickedCount,
+        respondedCount,
         stats,
       },
     });

@@ -32,6 +32,7 @@ import {
   Users,
   Radio,
   MousePointerClick,
+  MessageCircle,
   AlertTriangle,
   Smartphone,
 } from "lucide-react";
@@ -73,6 +74,7 @@ interface Broadcast {
   deliveredCount: number;
   readCount: number;
   clickedCount: number;
+  respondedCount?: number;
   failedCount: number;
   createdAt: string;
 }
@@ -485,7 +487,7 @@ function BroadcastDetail({
     );
   }
 
-  const { totalContacts, sentCount, deliveredCount, readCount, clickedCount, failedCount } = broadcast;
+  const { totalContacts, sentCount, deliveredCount, readCount, clickedCount, respondedCount, failedCount } = broadcast;
 
   const statCards = [
     { label: "Total", value: totalContacts, icon: Users, color: "bg-petrol-50 text-petrol-600" },
@@ -493,6 +495,7 @@ function BroadcastDetail({
     { label: "Entregues", value: deliveredCount, pct: pct(deliveredCount, sentCount), icon: CheckCircle2, color: "bg-green-50 text-green-600" },
     { label: "Lidos", value: readCount, pct: pct(readCount, sentCount), icon: BookOpen, color: "bg-purple-50 text-purple-600" },
     { label: "Cliques", value: clickedCount || 0, pct: pct(clickedCount || 0, sentCount), icon: MousePointerClick, color: "bg-orange-50 text-orange-600" },
+    { label: "Respostas", value: respondedCount || 0, pct: pct(respondedCount || 0, sentCount), icon: MessageCircle, color: "bg-blue-50 text-blue-600" },
     { label: "Falhas", value: failedCount, pct: pct(failedCount, totalContacts), icon: XCircle, color: "bg-red-50 text-red-600" },
   ];
 
@@ -815,6 +818,7 @@ export default function BroadcastsPage() {
             const deliveryRate = pct(b.deliveredCount, b.sentCount);
             const readRate = pct(b.readCount, b.sentCount);
             const clickRate = pct(b.clickedCount || 0, b.sentCount);
+            const responseRate = pct(b.respondedCount || 0, b.sentCount);
             return (
               <Card key={b.id} padding="none">
                 <div className="p-4 sm:p-5">
@@ -853,6 +857,10 @@ export default function BroadcastsPage() {
                       <div className="text-center">
                         <p className="font-semibold text-orange-600">{clickRate}</p>
                         <p>Cliques</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-semibold text-blue-600">{responseRate}</p>
+                        <p>Respostas</p>
                       </div>
                       {b.failedCount > 0 && (
                         <div className="text-center">
