@@ -959,6 +959,43 @@ model NewsletterEvent {
   @@index([editionId, slot])
 }
 
+// Jornada da newsletter (fluxograma 08/2026): inscrito pela LP vira contato +
+// assinante (SEM deal — não é lead de venda ainda). Welcome 5min após o
+// cadastro, tier pelo cargo, régua de pontos nas 3 primeiras edições
+// (abriu +1, clicou +1, máx 2/edição) e handoff pro funil de venda quando
+// qualifica. Sem FK para Contact de propósito — segue o padrão das tabelas de
+// newsletter (criadas via SQL idempotente, prod tem drift de schema).
+model NewsletterSubscriber {
+  id              String  @id @default(cuid())
+  contactId       String  @unique
+  email           String
+  tier            Int? // 1 diretoria · 2 gestor · 3 analista · null = sem cargo claro
+  cargo           String?
+  setor           String?
+  segmentoDetalhe String?
+  faturamento     String?
+
+  // inscrito | nutricao | radar_cs | qualificado_direto |
+  // qualificado_exploratorio | convertido | frio | descadastrado
+  estado          String @default("inscrito")
+  pontos          Int    @default(0)
+  edicoesContadas Int    @default(0)
+
+  welcomeStatus String    @default("pending") // pending | sent | skipped | failed
+  welcomeDueAt  DateTime?
+
+  qualifiedAt   DateTime?
+  convertedAt   DateTime?
+  handoffDealId String?
+
+  subscribedAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([estado])
+  @@index([email])
+  @@index([welcomeStatus, welcomeDueAt])
+}
+
 // ─── Automações de Marketing ────────────────────────────────────────────────
 
 model Automation {

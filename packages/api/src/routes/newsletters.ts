@@ -12,6 +12,7 @@ import {
   runNewsletterTest,
 } from '../services/newsletterAutomation';
 import { isValidEmail } from './email-tracking';
+import { handoffSubscriber } from '../services/newsletterJourney';
 
 const router = Router();
 
@@ -114,6 +115,63 @@ router.post('/run-now', async (req: Request, res: Response, next: NextFunction) 
     );
     return res.json({ data: { started: true, audienceCount: audience.length } });
   } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── GET /newsletters/journey — jornada dos assinantes (LP → nutrição) ──────
+// Registrada ANTES de /:id — senão o Express casa "journey" como id de edição.
+
+router.get('/journey', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const subscribers = await prisma.newsletterSubscriber.findMany({
+      orderBy: { subscribedAt: 'desc' },
+    });
+
+    const contactIds = subscribers.map((s) => s.contactId);
+    const contacts = contactIds.length
+      ? await prisma.contact.findMany({
+          where: { id: { in: contactIds } },
+          select: { id: true, name: true, email: true, phone: true },
+        })
+      : [];
+    const contactById = new Map(contacts.map((c) => [c.id, c]));
+
+    const stats: Record<string, number> = {};
+    for (const s of subscribers) {
+      stats[s.estado] = (stats[s.estado] ?? 0) + 1;
+    }
+
+    return res.json({
+      data: {
+        stats,
+        subscribers: subscribers.map((s) => ({
+          ...s,
+          contact: contactById.get(s.contactId) ?? null,
+        })),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ─── POST /newsletters/journey/:id/handoff — cria o lead no funil escolhido ─
+
+router.post('/journey/:id/handoff', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { pipelineId } = req.body as { pipelineId?: string };
+    if (!pipelineId) {
+      return res.status(400).json({ error: 'pipelineId é obrigatório' });
+    }
+    const userId = (req as Request & { user?: { id?: string } }).user?.id;
+    const result = await handoffSubscriber(req.params.id, pipelineId, { byUserId: userId });
+    return res.json({ data: result });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('Funil inválido') || msg.includes('não encontrado') || msg.includes('não existe')) {
+      return res.status(400).json({ error: msg });
+    }
     return next(error);
   }
 });

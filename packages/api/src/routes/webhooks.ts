@@ -8,7 +8,8 @@ import { onStageChanged, onContactCreated } from '../services/automationTriggerL
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 import { sendLeadNotifications } from '../services/leadNotificationService';
-import { resolveLeadPipeline } from '../lib/pipelines';
+import { resolveLeadPipeline, isNewsletterLead } from '../lib/pipelines';
+import { subscribeFromWebhook } from '../services/newsletterJourney';
 
 const router = Router();
 
@@ -346,6 +347,38 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
         fbc: fbc ?? null,
       },
     });
+
+    // 11b. INSCRIÇÃO NA NEWSLETTER — não é lead de venda: vira contato +
+    // NewsletterSubscriber e para por aqui. Sem deal, sem notificar SDR, sem
+    // cadência. O deal só nasce quando a jornada qualifica (newsletterJourney).
+    if (contactEmail && isNewsletterLead({ landingPage })) {
+      const subscriber = await subscribeFromWebhook({
+        contactId: contact.id,
+        email: contactEmail,
+        cargo: contactPosition ?? null,
+        setor: orgSegment ?? null,
+        segmentoDetalhe: resolveField(['segmento_detalhe', 'segmento_detalhado']) ?? null,
+        faturamento: resolveField(['faturamento', 'porte', 'revenue_range']) ?? null,
+      });
+
+      await logActivity({
+        type: 'WEBHOOK_RECEIVED',
+        content: `Inscrição na newsletter via ${webhookConfig.name} (tier ${subscriber.tier ?? '—'})`,
+        userId: ownerId,
+        contactId: contact.id,
+        metadata: {
+          webhookConfigId: webhookConfig.id,
+          webhookName: webhookConfig.name,
+          newsletterSubscriberId: subscriber.id,
+          payload: raw,
+        },
+      });
+
+      console.log(
+        `[webhook] Inscrição newsletter — contato ${contact.id}, tier ${subscriber.tier ?? 'null'}, estado ${subscriber.estado}`
+      );
+      return res.status(200).json({ success: true, contactId: contact.id, subscriber: true });
+    }
 
     // 12. Deal — reaproveita deal OPEN existente em vez de criar outro.
     //

@@ -53,6 +53,29 @@ export const SDR_BY_PIPELINE: Record<string, string> = {
 const BI_PATH_TOKENS = ['bi', 'gobi', 'bi2b'];
 const CTRL_PATH_TRECHOS = ['controladoria', 'valuation'];
 
+/**
+ * LPs de INSCRIÇÃO NA NEWSLETTER — o lead não é lead de venda: vira contato +
+ * assinante (NewsletterSubscriber), sem deal e sem notificar SDR. O deal só
+ * nasce lá na frente, quando a jornada qualifica (ver newsletterJourney.ts).
+ * `newslatter` está aqui de propósito: é o slug real publicado (com typo).
+ */
+const NEWSLETTER_PATH_TOKENS = ['news', 'newsletter', 'newslatter'];
+
+export function isNewsletterLead(params: {
+  landingPage?: string | null;
+}): boolean {
+  const { landingPage } = params;
+  if (!landingPage) return false;
+  const path = landingPage
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, '')
+    .split(/[?#]/)[0]
+    .replace(/^[^/]*\//, '');
+  const tokens = path.split(/[^a-z0-9]+/).filter(Boolean);
+  return tokens.some((t) => NEWSLETTER_PATH_TOKENS.includes(t));
+}
+
 export function resolveLeadPipeline(params: {
   landingPage?: string | null;
   campaign?: string | null;

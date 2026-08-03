@@ -10,6 +10,7 @@ import { recoverStuckCampaigns } from '../routes/whatsapp-campaigns';
 import { startMeetingReminderWabaCron } from './meetingReminderWabaCron';
 import { startDailyReportCron } from './dailyReportCron';
 import { startNewsletterCron } from './newsletterCron';
+import { startNewsletterJourneyCron } from './newsletterJourneyCron';
 import { startScheduledEmailCron } from './scheduledEmailCron';
 import { startScheduledBroadcastCron } from './scheduledBroadcastCron';
 import { runWabaTemplateHealthCheck } from './wabaTemplateHealthCheck';
@@ -43,6 +44,9 @@ export function startAllJobs() {
 
   // Newsletter semanal BGP Insights (segunda 5h BRT)
   startNewsletterCron();
+
+  // Jornada da newsletter: welcome de assinante + checkpoint de pontos
+  startNewsletterJourneyCron();
 
   // Email campaigns agendadas (status=SCHEDULED com scheduledAt passado)
   startScheduledEmailCron();

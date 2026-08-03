@@ -68,6 +68,241 @@ const statusConfig: Record<
   SENT: { variant: "green", label: "Enviada" },
 };
 
+// ─── Jornada dos assinantes (LP → welcome → nutrição → checkpoint → funil) ──
+
+interface JourneySubscriber {
+  id: string;
+  contactId: string;
+  email: string;
+  tier: number | null;
+  cargo: string | null;
+  setor: string | null;
+  segmentoDetalhe: string | null;
+  faturamento: string | null;
+  estado: string;
+  pontos: number;
+  edicoesContadas: number;
+  welcomeStatus: string;
+  handoffDealId: string | null;
+  subscribedAt: string;
+  contact: { id: string; name: string; email: string | null; phone: string | null } | null;
+}
+
+interface JourneyResponse {
+  data: {
+    stats: Record<string, number>;
+    subscribers: JourneySubscriber[];
+  };
+}
+
+const ESTADO_ORDEM = [
+  "inscrito",
+  "nutricao",
+  "radar_cs",
+  "qualificado_direto",
+  "qualificado_exploratorio",
+  "convertido",
+  "frio",
+  "descadastrado",
+] as const;
+
+const estadoConfig: Record<string, { label: string; variant: "gray" | "green" | "blue" | "yellow" | "red" | "purple" }> = {
+  inscrito: { label: "Inscrito", variant: "gray" },
+  nutricao: { label: "Em nutrição", variant: "blue" },
+  radar_cs: { label: "Radar CS", variant: "purple" },
+  qualificado_direto: { label: "Qualificado · direto", variant: "green" },
+  qualificado_exploratorio: { label: "Qualificado · exploratório", variant: "yellow" },
+  convertido: { label: "Convertido", variant: "green" },
+  frio: { label: "Frio", variant: "gray" },
+  descadastrado: { label: "Descadastrado", variant: "red" },
+};
+
+// IDs dos funis de venda (lib/pipelines.ts da API) — só pro botão de handoff.
+const HANDOFF_PIPELINES = [
+  { id: "bi-pipeline-bgp", label: "BI" },
+  { id: "64fb7516ea4eb400219457de", label: "Controladoria" },
+];
+
+function JourneyPanel() {
+  const [data, setData] = useState<JourneyResponse["data"] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [handing, setHanding] = useState<string | null>(null);
+
+  const fetchJourney = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const r = await api.get<JourneyResponse>("/newsletters/journey");
+      setData(r.data);
+    } catch {
+      setError("Erro ao carregar a jornada.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchJourney();
+  }, [fetchJourney]);
+
+  const handoff = async (sub: JourneySubscriber, pipelineId: string, label: string) => {
+    if (
+      !window.confirm(
+        `Criar lead no funil ${label} pra ${sub.contact?.name ?? sub.email}? O SDR do funil recebe uma tarefa.`
+      )
+    ) {
+      return;
+    }
+    setHanding(sub.id);
+    try {
+      await api.post(`/newsletters/journey/${sub.id}/handoff`, { pipelineId });
+      await fetchJourney();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro no handoff.");
+    } finally {
+      setHanding(null);
+    }
+  };
+
+  if (loading) return <div className="h-40 bg-gray-100 rounded-lg animate-pulse" />;
+  if (error || !data) {
+    return (
+      <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+        <span className="text-sm text-red-700">{error ?? "Erro ao carregar."}</span>
+        <button onClick={fetchJourney} className="text-sm text-red-600 font-medium hover:underline">
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  const total = data.subscribers.length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {ESTADO_ORDEM.map((estado) => {
+          const cfg = estadoConfig[estado];
+          const n = data.stats[estado] ?? 0;
+          if (n === 0 && (estado === "descadastrado" || estado === "frio")) return null;
+          return (
+            <div
+              key={estado}
+              className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2"
+            >
+              <Badge variant={cfg.variant}>{cfg.label}</Badge>
+              <span className="text-sm font-semibold text-gray-900">{n}</span>
+            </div>
+          );
+        })}
+        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 flex items-center gap-2">
+          <span className="text-xs text-gray-500">Total</span>
+          <span className="text-sm font-semibold text-gray-900">{total}</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Assinante</TableHeader>
+              <TableHeader className="hidden md:table-cell">Cargo / Tier</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Setor</TableHeader>
+              <TableHeader>Estado</TableHeader>
+              <TableHeader className="hidden md:table-cell">Pontos</TableHeader>
+              <TableHeader className="hidden lg:table-cell">Inscrito em</TableHeader>
+              <TableHeader>Ações</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {total === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <div className="py-8 text-center text-sm text-gray-500">
+                    Nenhum assinante ainda — quem se cadastrar pela LP da News aparece aqui.
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.subscribers.map((sub) => {
+                const cfg = estadoConfig[sub.estado] ?? { label: sub.estado, variant: "gray" as const };
+                const qualificado =
+                  sub.estado === "qualificado_direto" || sub.estado === "qualificado_exploratorio";
+                return (
+                  <TableRow key={sub.id}>
+                    <TableCell>
+                      <div className="font-medium text-gray-900">
+                        {sub.contact?.name ?? "—"}
+                      </div>
+                      <div className="text-xs text-gray-400">{sub.email}</div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="text-sm text-gray-700">{sub.cargo ?? "—"}</div>
+                      {sub.tier && (
+                        <div className="text-xs text-gray-400">Tier {sub.tier}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <div className="text-sm text-gray-700">{sub.setor ?? "—"}</div>
+                      {sub.segmentoDetalhe && (
+                        <div className="text-xs text-gray-400">{sub.segmentoDetalhe}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                      {sub.welcomeStatus === "pending" && (
+                        <div className="text-xs text-gray-400 mt-0.5">welcome a caminho</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="font-medium text-gray-900">{sub.pontos}</span>
+                      <span className="text-xs text-gray-400"> /6 · {sub.edicoesContadas} ed.</span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {formatDate(sub.subscribedAt)}
+                    </TableCell>
+                    <TableCell>
+                      {qualificado ? (
+                        <div className="flex gap-1.5">
+                          {HANDOFF_PIPELINES.map((p) => (
+                            <Button
+                              key={p.id}
+                              variant="secondary"
+                              size="sm"
+                              disabled={handing === sub.id}
+                              onClick={() => handoff(sub, p.id, p.label)}
+                            >
+                              {handing === sub.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                `→ ${p.label}`
+                              )}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : sub.handoffDealId ? (
+                        <Link
+                          href={`/deals/${sub.handoffDealId}`}
+                          className="text-sm text-petrol-600 hover:underline"
+                        >
+                          Ver negociação
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void }) {
   const [config, setConfig] = useState<NewsletterConfig | null>(null);
   const [segments, setSegments] = useState<SegmentOption[]>([]);
@@ -316,6 +551,7 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
 }
 
 export default function NewsletterPage() {
+  const [tab, setTab] = useState<"edicoes" | "jornada">("edicoes");
   const [editions, setEditions] = useState<Edition[]>([]);
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -369,6 +605,31 @@ export default function NewsletterPage() {
       )}
 
       <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <div className="flex gap-1 border-b border-gray-200">
+          {(
+            [
+              { key: "edicoes", label: "Edições" },
+              { key: "jornada", label: "Jornada" },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t.key
+                  ? "border-petrol-600 text-petrol-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "jornada" && <JourneyPanel />}
+
+        {tab === "edicoes" && (
+          <>
         <AutomationPanel onEditionCreated={() => fetchEditions(1)} />
 
         <div className="overflow-x-auto">
@@ -482,6 +743,8 @@ export default function NewsletterPage() {
               </button>
             </div>
           </div>
+        )}
+          </>
         )}
       </main>
     </div>
