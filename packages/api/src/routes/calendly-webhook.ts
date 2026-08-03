@@ -766,7 +766,8 @@ router.post('/', async (req: Request, res: Response) => {
       if (calendlyEventId) {
         const updated = await prisma.calendlyEvent.updateMany({
           where: { calendlyEventId },
-          data: { status: 'canceled' },
+          // Cancelou → confirmação anterior deixa de valer
+          data: { status: 'canceled', confirmationStatus: 'PENDING', confirmedAt: null, confirmedByName: null },
         });
         console.log(`[calendly-webhook] Canceled event: ${calendlyEventId} (${updated.count} records updated)`);
 

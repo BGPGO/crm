@@ -253,6 +253,129 @@ router.get('/meetings/stats', async (req: Request, res: Response, next: NextFunc
   }
 });
 
+// PATCH /api/calendly/config/meetings/:id/confirmation — confirmação MANUAL da reunião
+// body: { status: 'CONFIRMED' | 'PENDING' | 'DECLINED' }
+router.patch('/meetings/:id/confirmation', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status } = req.body as { status?: string };
+    if (!status || !['CONFIRMED', 'PENDING', 'DECLINED'].includes(status)) {
+      return next(createError('status must be CONFIRMED, PENDING or DECLINED', 400));
+    }
+
+    const meeting = await prisma.calendlyEvent.findUnique({ where: { id: req.params.id } });
+    if (!meeting) return next(createError('Meeting not found', 404));
+
+    const actingUser = (req as any).user as { id: string; name: string } | undefined;
+    const updated = await prisma.calendlyEvent.update({
+      where: { id: meeting.id },
+      data: {
+        confirmationStatus: status,
+        confirmedAt: status === 'CONFIRMED' ? new Date() : null,
+        confirmedByName: status === 'PENDING' ? null : actingUser?.name ?? null,
+      },
+    });
+
+    // Registra no histórico da negociação
+    if (meeting.dealId && actingUser?.id) {
+      const label =
+        status === 'CONFIRMED'
+          ? `Reunião de ${meeting.startTime.toLocaleDateString('pt-BR')} confirmada`
+          : status === 'DECLINED'
+            ? `Lead avisou que NÃO vem na reunião de ${meeting.startTime.toLocaleDateString('pt-BR')}`
+            : `Confirmação da reunião de ${meeting.startTime.toLocaleDateString('pt-BR')} desfeita`;
+      await prisma.activity.create({
+        data: {
+          type: 'MEETING',
+          content: label,
+          userId: actingUser.id,
+          dealId: meeting.dealId,
+          contactId: meeting.contactId,
+          metadata: { meetingId: meeting.id, confirmationStatus: status },
+        },
+      });
+    }
+
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/calendly/config/meetings/confirmation-summary — reuniões por funil
+// (total ativas, confirmadas, pendentes, recusadas, canceladas) + lista.
+// ?range=today (padrão) | week (hoje até domingo)
+router.get('/meetings/confirmation-summary', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Dia em BRT (UTC-3 fixo desde 2019)
+    const todayBRT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const dayStart = new Date(`${todayBRT}T00:00:00-03:00`);
+    let rangeEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    if (req.query.range === 'week') {
+      // até o fim do próximo domingo (BRT)
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(dayStart.getTime() + i * 24 * 60 * 60 * 1000);
+        if (d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Sao_Paulo' }) === 'Sun') {
+          rangeEnd = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+          break;
+        }
+      }
+    }
+
+    const meetings = await prisma.calendlyEvent.findMany({
+      where: { startTime: { gte: dayStart, lt: rangeEnd } },
+      orderBy: { startTime: 'asc' },
+      include: { contact: { select: { id: true, name: true, phone: true } } },
+    });
+
+    // Resolve o funil via deal vinculada
+    const dealIds = meetings.map(m => m.dealId).filter((id): id is string => !!id);
+    const dealMap = new Map<string, { pipelineId: string; pipelineName: string; ownerName: string | null }>();
+    if (dealIds.length > 0) {
+      const deals = await prisma.deal.findMany({
+        where: { id: { in: dealIds } },
+        select: { id: true, pipelineId: true, pipeline: { select: { name: true } }, user: { select: { name: true } } },
+      });
+      deals.forEach(d => dealMap.set(d.id, { pipelineId: d.pipelineId, pipelineName: d.pipeline?.name ?? 'Sem funil', ownerName: d.user?.name ?? null }));
+    }
+
+    type Bucket = { pipelineId: string; pipelineName: string; total: number; confirmed: number; pending: number; declined: number; canceled: number };
+    const buckets = new Map<string, Bucket>();
+    const enriched = meetings.map(m => {
+      const deal = m.dealId ? dealMap.get(m.dealId) : undefined;
+      const pipelineId = deal?.pipelineId ?? 'none';
+      const pipelineName = deal?.pipelineName ?? 'Sem funil';
+      const b = buckets.get(pipelineId) ?? { pipelineId, pipelineName, total: 0, confirmed: 0, pending: 0, declined: 0, canceled: 0 };
+      if (m.status === 'canceled') {
+        b.canceled++;
+      } else {
+        b.total++;
+        if (m.confirmationStatus === 'CONFIRMED') b.confirmed++;
+        else if (m.confirmationStatus === 'DECLINED') b.declined++;
+        else b.pending++;
+      }
+      buckets.set(pipelineId, b);
+      return {
+        id: m.id,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        status: m.status,
+        confirmationStatus: m.confirmationStatus,
+        confirmedByName: m.confirmedByName,
+        name: m.contact?.name || m.inviteeName || m.inviteeEmail,
+        phone: m.contact?.phone ?? null,
+        dealId: m.dealId,
+        pipelineId,
+        pipelineName,
+        ownerName: deal?.ownerName ?? m.hostName ?? null,
+      };
+    });
+
+    res.json({ data: { funis: [...buckets.values()].sort((a, b) => a.pipelineName.localeCompare(b.pipelineName)), meetings: enriched } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/calendly/config/events — List CalendlyEvents with pagination
 router.get('/events', async (req: Request, res: Response, next: NextFunction) => {
   try {

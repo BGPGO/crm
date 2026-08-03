@@ -1590,6 +1590,12 @@ model CalendlyEvent {
   endTime         DateTime
   status          String   @default("active")
 
+  // Confirmação manual da reunião (PENDING | CONFIRMED | DECLINED).
+  // Reagendou/cancelou no Calendly → volta pra PENDING.
+  confirmationStatus String    @default("PENDING")
+  confirmedAt        DateTime?
+  confirmedByName    String?
+
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
   dealId    String?

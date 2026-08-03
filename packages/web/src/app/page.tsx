@@ -7,6 +7,7 @@ import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import FunnelChart, { FunnelStage } from "@/components/dashboard/FunnelChart";
 import RecentActivities, { Activity } from "@/components/dashboard/RecentActivities";
+import MeetingsConfirmationCard from "@/components/dashboard/MeetingsConfirmationCard";
 import {
   TrendingUp,
   DollarSign,
@@ -518,6 +519,9 @@ export default function DashboardPage() {
                 );
               })}
         </div>
+
+        {/* Reuniões de hoje — confirmação por funil */}
+        <MeetingsConfirmationCard />
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Funil de Vendas */}

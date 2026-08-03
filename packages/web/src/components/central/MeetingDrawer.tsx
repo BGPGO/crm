@@ -28,6 +28,9 @@ export interface CentralMeeting {
   startTime: string;
   endTime: string;
   status: string;
+  confirmationStatus?: "PENDING" | "CONFIRMED" | "DECLINED";
+  confirmedAt?: string | null;
+  confirmedByName?: string | null;
   dealId: string | null;
   contact: {
     id: string;
@@ -52,6 +55,8 @@ interface MeetingDrawerProps {
   onClose: () => void;
   onOpenDeal: (dealId: string) => void;
   onOpenConversation: (args: { dealId: string; contactName: string; contactPhone: string }) => void;
+  /** Chamado após mudar a confirmação, pra lista atualizar */
+  onChanged?: () => void;
 }
 
 export default function MeetingDrawer({
@@ -59,8 +64,34 @@ export default function MeetingDrawer({
   onClose,
   onOpenDeal,
   onOpenConversation,
+  onChanged,
 }: MeetingDrawerProps) {
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [confirmation, setConfirmation] = useState({
+    status: meeting.confirmationStatus ?? "PENDING",
+    byName: meeting.confirmedByName ?? null,
+  });
+  const [savingConfirmation, setSavingConfirmation] = useState(false);
+
+  const setConfirmationStatus = async (status: "CONFIRMED" | "PENDING" | "DECLINED") => {
+    if (savingConfirmation) return;
+    setSavingConfirmation(true);
+    try {
+      const res = await api.patch<{ data: { confirmationStatus: string; confirmedByName: string | null } }>(
+        `/calendly/config/meetings/${meeting.id}/confirmation`,
+        { status }
+      );
+      setConfirmation({
+        status: (res.data?.confirmationStatus as typeof confirmation.status) ?? status,
+        byName: res.data?.confirmedByName ?? null,
+      });
+      onChanged?.();
+    } catch (err) {
+      console.error("Erro ao atualizar confirmação:", err);
+    } finally {
+      setSavingConfirmation(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -144,6 +175,50 @@ export default function MeetingDrawer({
             </p>
           )}
         </div>
+
+        {/* Confirmação (manual) */}
+        {meeting.status !== "canceled" && (
+          <div className="px-5 py-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              Confirmação
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() =>
+                  setConfirmationStatus(confirmation.status === "CONFIRMED" ? "PENDING" : "CONFIRMED")
+                }
+                disabled={savingConfirmation}
+                className={clsx(
+                  "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50",
+                  confirmation.status === "CONFIRMED"
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-green-50 text-green-700 hover:bg-green-100"
+                )}
+              >
+                ✓ {confirmation.status === "CONFIRMED" ? "Confirmada" : "Marcar confirmada"}
+              </button>
+              <button
+                onClick={() =>
+                  setConfirmationStatus(confirmation.status === "DECLINED" ? "PENDING" : "DECLINED")
+                }
+                disabled={savingConfirmation}
+                className={clsx(
+                  "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50",
+                  confirmation.status === "DECLINED"
+                    ? "bg-red-600 text-white hover:bg-red-700"
+                    : "bg-red-50 text-red-600 hover:bg-red-100"
+                )}
+              >
+                ✗ {confirmation.status === "DECLINED" ? "Lead não vem" : "Não vem"}
+              </button>
+            </div>
+            {confirmation.status !== "PENDING" && confirmation.byName && (
+              <p className="text-[11px] text-gray-400 mt-2">
+                Marcada por {confirmation.byName} — clique de novo pra desfazer
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Contato + ações */}
         <div className="px-5 py-4">

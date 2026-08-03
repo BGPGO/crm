@@ -480,6 +480,21 @@ export default function CentralPage() {
     setConvDrawer(args);
   };
 
+  const [confirmingMeetingId, setConfirmingMeetingId] = useState<string | null>(null);
+  const toggleMeetingConfirmation = async (m: CentralMeeting) => {
+    if (confirmingMeetingId) return;
+    setConfirmingMeetingId(m.id);
+    try {
+      const next = m.confirmationStatus === "CONFIRMED" ? "PENDING" : "CONFIRMED";
+      await api.patch(`/calendly/config/meetings/${m.id}/confirmation`, { status: next });
+      await fetchMeetings();
+    } catch (err) {
+      console.error("Erro ao confirmar reunião:", err);
+    } finally {
+      setConfirmingMeetingId(null);
+    }
+  };
+
   // ── Derived data ──
 
   const visibleMeetings = useMemo(
@@ -545,8 +560,12 @@ export default function CentralPage() {
   // Stats sempre do dia, independente do período selecionado
   const stats = useMemo(() => {
     let meetingsToday = 0;
+    let confirmedToday = 0;
     meetings.forEach((m) => {
-      if (dayKeyBRT(new Date(m.startTime)) === todayKey) meetingsToday++;
+      if (dayKeyBRT(new Date(m.startTime)) === todayKey) {
+        meetingsToday++;
+        if (m.confirmationStatus === "CONFIRMED") confirmedToday++;
+      }
     });
     let tasksToday = 0;
     let overdue = 0;
@@ -557,6 +576,7 @@ export default function CentralPage() {
     });
     return {
       meetingsToday,
+      confirmedToday,
       tasksToday,
       overdue,
       funnelValue: funnel ? Number(funnel.totalValue) : null,
@@ -637,8 +657,12 @@ export default function CentralPage() {
                 <Calendar size={18} className="text-petrol-600" />
               </div>
               <div>
-                <p className="text-xl font-bold text-gray-900 leading-tight">{stats.meetingsToday}</p>
-                <p className="text-[11px] text-gray-500">Reuniões hoje</p>
+                <p className="text-xl font-bold text-gray-900 leading-tight">
+                  {stats.meetingsToday > 0 ? `${stats.confirmedToday}/${stats.meetingsToday}` : 0}
+                </p>
+                <p className="text-[11px] text-gray-500">
+                  {stats.meetingsToday > 0 ? "Reuniões confirmadas hoje" : "Reuniões hoje"}
+                </p>
               </div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
@@ -908,6 +932,27 @@ export default function CentralPage() {
                                 className="flex items-center gap-1 flex-shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                <button
+                                  onClick={() => toggleMeetingConfirmation(m)}
+                                  disabled={confirmingMeetingId === m.id}
+                                  title={
+                                    m.confirmationStatus === "CONFIRMED"
+                                      ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
+                                      : m.confirmationStatus === "DECLINED"
+                                        ? "Lead avisou que não vem"
+                                        : "Marcar como confirmada"
+                                  }
+                                  className={clsx(
+                                    "p-1.5 rounded-lg transition-colors disabled:opacity-50",
+                                    m.confirmationStatus === "CONFIRMED"
+                                      ? "text-white bg-green-500 hover:bg-green-600"
+                                      : m.confirmationStatus === "DECLINED"
+                                        ? "text-red-600 bg-red-50 hover:bg-red-100"
+                                        : "text-gray-300 hover:text-green-600 hover:bg-green-50"
+                                  )}
+                                >
+                                  <CheckCircle size={16} />
+                                </button>
                                 {m.contact?.phone && (
                                   <button
                                     onClick={() => openWhatsAppChat(m.contact!.phone!)}
@@ -1355,6 +1400,7 @@ export default function CentralPage() {
       {meetingDrawer && (
         <MeetingDrawer
           meeting={meetingDrawer}
+          onChanged={fetchMeetings}
           onClose={() => setMeetingDrawer(null)}
           onOpenDeal={(dealId) => {
             setMeetingDrawer(null);
