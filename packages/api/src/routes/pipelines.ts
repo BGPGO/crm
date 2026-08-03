@@ -293,10 +293,62 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+/**
+ * Carrega os funis de um :id que pode ser composto ("id1,id2" = visão "Todos"),
+ * na ordem em que os ids vieram — é dessa ordem que sai o id da etapa mesclada,
+ * e summary/deals-by-stage precisam concordar entre si para o board casar.
+ */
+async function loadPipelinesParam(idParam: string) {
+  const ids = idParam.split(',').filter(Boolean);
+  const found = await prisma.pipeline.findMany({
+    where: { id: { in: ids } },
+    include: { stages: { orderBy: { order: 'asc' } } },
+  });
+  found.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  return { ids, pipelines: found };
+}
+
+/**
+ * Etapas dos funis agrupadas por `order` (Controladoria e BI são espelhados —
+ * ver lib/pipelines.ts). O grupo carrega os ids de todos os funis; o primeiro
+ * faz de id de render da coluna mesclada, igual ao summary.
+ */
+function stageGroupsByOrder(pipelines: Array<{ stages: Array<{ id: string; name: string; order: number; color: string | null }> }>) {
+  const porOrdem = new Map<number, { id: string; name: string; order: number; color: string | null; stageIds: string[] }>();
+  for (const p of pipelines) {
+    for (const stage of p.stages) {
+      const acc = porOrdem.get(stage.order);
+      if (acc) {
+        acc.stageIds.push(stage.id);
+      } else {
+        porOrdem.set(stage.order, {
+          id: stage.id,
+          name: stage.name,
+          order: stage.order,
+          color: stage.color,
+          stageIds: [stage.id],
+        });
+      }
+    }
+  }
+  return [...porOrdem.values()].sort((a, b) => a.order - b.order);
+}
+
 // GET /api/pipelines/:id
-// Returns pipeline with stages and deal count per stage (no deals inline)
+// Returns pipeline with stages and deal count per stage (no deals inline).
+// :id aceita vários funis separados por vírgula — a resposta vira um funil
+// virtual "Todos os funis" com as etapas mescladas por `order`.
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.params.id.includes(',')) {
+      const { pipelines } = await loadPipelinesParam(req.params.id);
+      if (pipelines.length === 0) return next(createError('Pipeline not found', 404));
+      const stages = stageGroupsByOrder(pipelines).map(({ stageIds: _s, ...stage }) => stage);
+      return res.json({
+        data: { id: req.params.id, name: 'Todos os funis', stages },
+      });
+    }
+
     const pipeline = await prisma.pipeline.findUnique({
       where: { id: req.params.id },
       include: {
@@ -320,15 +372,12 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // Efficient per-stage counts and totals using groupBy/aggregate
 router.get('/:id/summary', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // :id aceita vários funis separados por vírgula (dashboard consolidado).
-    // Como Controladoria e BI têm as etapas espelhadas — mesmo nome e ordem — as
-    // etapas dos funis pedidos são somadas por `order`.
-    const pipelineIds = req.params.id.split(',').filter(Boolean);
-
-    const pipelinesFound = await prisma.pipeline.findMany({
-      where: { id: { in: pipelineIds } },
-      include: { stages: { orderBy: { order: 'asc' } } },
-    });
+    // :id aceita vários funis separados por vírgula (dashboard consolidado e
+    // visão "Todos os funis" do board). Como Controladoria e BI têm as etapas
+    // espelhadas — mesmo nome e ordem — as etapas dos funis pedidos são somadas
+    // por `order`. A ordem dos ids no parâmetro define o id da etapa mesclada
+    // (o do primeiro funil), igual em deals-by-stage.
+    const { ids: pipelineIds, pipelines: pipelinesFound } = await loadPipelinesParam(req.params.id);
 
     if (pipelinesFound.length === 0) return next(createError('Pipeline not found', 404));
 
@@ -478,14 +527,16 @@ router.get('/:id/summary', async (req: Request, res: Response, next: NextFunctio
 });
 
 // GET /api/pipelines/:id/deals
-// Paginated deals for a pipeline with filters
+// Paginated deals for a pipeline with filters.
+// :id aceita vários funis separados por vírgula (visão "Todos os funis"); nesse
+// caso um stageId vira o par de etapas de mesma ordem nos funis pedidos.
 router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const pipelineId = req.params.id;
 
-    // Validate pipeline exists
-    const pipeline = await prisma.pipeline.findUnique({ where: { id: pipelineId } });
-    if (!pipeline) return next(createError('Pipeline not found', 404));
+    // Validate pipeline(s) exist
+    const { ids: pipelineIds, pipelines: pipelinesFound } = await loadPipelinesParam(pipelineId);
+    if (pipelinesFound.length === 0) return next(createError('Pipeline not found', 404));
 
     // Pagination
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -495,6 +546,13 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
     const where = buildDealWhere(req.query as Record<string, unknown>, pipelineId, req.brand);
     await applySearch(where);
     await applyUtmFilter(where, req.query as Record<string, unknown>);
+
+    // Visão combinada: o stageId pedido é o de UM funil (o id de render da
+    // coluna mesclada); expande para as etapas de mesma ordem nos outros.
+    if (pipelineIds.length > 1 && typeof where.stageId === 'string') {
+      const grupo = stageGroupsByOrder(pipelinesFound).find((g) => g.stageIds.includes(where.stageId as string));
+      if (grupo) where.stageId = { in: grupo.stageIds };
+    }
 
     const sortBy = req.query.sortBy as string | undefined;
     let orderBy: Record<string, unknown> = { createdAt: 'desc' };
@@ -551,16 +609,17 @@ router.get('/:id/deals', async (req: Request, res: Response, next: NextFunction)
 });
 
 // GET /api/pipelines/:id/deals-by-stage
-// Returns all deals grouped by stage in a single request
+// Returns all deals grouped by stage in a single request.
+// :id aceita vários funis separados por vírgula (visão "Todos os funis"): cada
+// coluna soma as etapas de mesma ordem e é chaveada pelo id da etapa do
+// primeiro funil — a mesma chave que o summary devolve.
 router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const pipelineId = req.params.id;
 
-    const pipeline = await prisma.pipeline.findUnique({
-      where: { id: pipelineId },
-      include: { stages: { orderBy: { order: 'asc' } } },
-    });
-    if (!pipeline) return next(createError('Pipeline not found', 404));
+    const { pipelines: pipelinesFound } = await loadPipelinesParam(pipelineId);
+    if (pipelinesFound.length === 0) return next(createError('Pipeline not found', 404));
+    const stageGroups = stageGroupsByOrder(pipelinesFound);
 
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit as string) || 50));
 
@@ -585,10 +644,13 @@ router.get('/:id/deals-by-stage', async (req: Request, res: Response, next: Next
       tasks: { where: { status: 'PENDING' as any }, orderBy: { dueDate: 'asc' as const }, take: 1, select: { id: true, title: true, dueDate: true, type: true } },
     };
 
-    // Query each stage in parallel — guarantees `limit` deals per stage
+    // Query each stage (group) in parallel — guarantees `limit` deals per stage
     const stageResults = await Promise.all(
-      pipeline.stages.map(async (stage) => {
-        const where = { ...baseWhere, stageId: stage.id };
+      stageGroups.map(async (stage) => {
+        const where = {
+          ...baseWhere,
+          stageId: stage.stageIds.length === 1 ? stage.stageIds[0] : { in: stage.stageIds },
+        };
         const [deals, count] = await Promise.all([
           prisma.deal.findMany({
             where,

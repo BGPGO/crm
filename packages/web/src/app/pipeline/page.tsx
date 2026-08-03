@@ -276,6 +276,12 @@ export default function PipelinePage() {
   const [pipelines, setPipelines] = useState<ApiPipelineStub[]>([]);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
+  // "Todos os funis": o valor do seletor vira os ids separados por vírgula e a
+  // API mescla as etapas espelhadas por ordem (BI + Controladoria juntos).
+  // Nesse modo o board é somente leitura para drag (mover cross-funil é
+  // bloqueado pela API) e criar negociação exige escolher um funil concreto.
+  const isAllPipelines = !!pipelineId && pipelineId.includes(",");
+
   // Summary state (stage counts/values)
   const [stageSummaries, setStageSummaries] = useState<StageSummary[]>([]);
   const [totalDeals, setTotalDeals] = useState(0);
@@ -573,7 +579,14 @@ export default function PipelinePage() {
       //   2. o funil padrão da pessoa (BI para o time de BI, Controladoria para
       //      o resto);
       //   3. o primeiro da lista, se o funil dela estiver inativo e fora dela.
-      const daSessao = list.find((p) => p.id === readSession("pipelineId", ""));
+      const salvo = readSession("pipelineId", "");
+      const todosId = list.map((p) => p.id).join(",");
+      // "Todos os funis" salvo na sessão só vale se ainda bater com a lista
+      // atual de funis — funil ativado/desativado invalida o id composto.
+      const daSessao =
+        salvo === todosId && list.length > 1
+          ? { id: todosId }
+          : list.find((p) => p.id === salvo);
       const preferido = list.find((p) => p.id === user?.defaultPipelineId);
       const escolhido = daSessao ?? preferido ?? list[0];
       setPipelineId(escolhido.id);
@@ -651,6 +664,10 @@ export default function PipelinePage() {
   // ── Drag and drop ───────────────────────────────────────────────────────
 
   const onDragEnd = async (result: DropResult) => {
+    // Na visão "Todos os funis" a coluna mescla etapas de funis diferentes —
+    // soltar o card usaria o stageId do outro funil e a API rejeita. O card
+    // volta sozinho para o lugar porque nada é mutado aqui.
+    if (isAllPipelines) return;
     const { source, destination, draggableId } = result;
     if (!destination) return;
     if (
@@ -975,6 +992,11 @@ export default function PipelinePage() {
                 {p.name}
               </option>
             ))}
+            {pipelines.length > 1 && (
+              <option value={pipelines.map((p) => p.id).join(",")}>
+                Todos os funis
+              </option>
+            )}
             {pipelines.length === 0 && <option value="">Carregando…</option>}
           </select>
           <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
@@ -1111,7 +1133,9 @@ export default function PipelinePage() {
           />
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-1.5 text-sm font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-md px-3 py-1.5 transition-colors shadow-sm"
+            disabled={isAllPipelines}
+            title={isAllPipelines ? "Escolha um funil específico para criar uma negociação" : undefined}
+            className="flex items-center gap-1.5 text-sm font-medium text-white bg-petrol-600 hover:bg-petrol-700 rounded-md px-3 py-1.5 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-petrol-600"
           >
             <Plus size={14} />
             Criar
@@ -1314,8 +1338,8 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {/* Nova Negociação modal */}
-      {pipelineId && (
+      {/* Nova Negociação modal — não abre na visão combinada (funil ambíguo) */}
+      {pipelineId && !isAllPipelines && (
         <NewDealModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
