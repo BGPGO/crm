@@ -735,6 +735,27 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       include: dealInclude,
     });
 
+    // Tarefas seguem o closer: ao trocar o closer, as tarefas PENDENTES que
+    // estavam com o closer antigo migram pro novo.
+    const newCloserId = data.closerId as string | null | undefined;
+    if (newCloserId !== undefined && newCloserId !== existing.closerId && newCloserId && existing.closerId) {
+      const movedCloser = await prisma.task.updateMany({
+        where: { dealId: deal.id, status: 'PENDING', userId: existing.closerId },
+        data: { userId: newCloserId },
+      });
+      if (movedCloser.count > 0) {
+        const actingUserId = (req as any).user?.id ?? existing.userId;
+        await logActivity({
+          type: 'TASK_REASSIGNED',
+          content: `${movedCloser.count} tarefa${movedCloser.count > 1 ? 's' : ''} pendente${movedCloser.count > 1 ? 's' : ''} reatribuída${movedCloser.count > 1 ? 's' : ''} para ${deal.closer?.name ?? 'novo closer'} (closer alterado)`,
+          userId: actingUserId,
+          dealId: deal.id,
+          contactId: deal.contactId ?? undefined,
+          metadata: { fromUserId: existing.closerId, toUserId: newCloserId, movedTasks: movedCloser.count },
+        });
+      }
+    }
+
     // Tarefas seguem o responsável da negociação: ao reatribuir a deal,
     // as tarefas PENDENTES dela migram pro novo responsável.
     if (data.userId !== undefined && data.userId !== existing.userId) {

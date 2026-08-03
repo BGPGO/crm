@@ -292,10 +292,12 @@ export default function CentralPage() {
   const fetchMeetings = useCallback(async () => {
     if (!personId) return;
     try {
-      // userId filtra por dono OU closer da deal, além do host do Calendly
+      // userId filtra por dono OU closer da deal, além do host do Calendly;
+      // pipelineId filtra pelo funil da deal vinculada à reunião
       const userParam = personId !== "all" ? `&userId=${personId}` : "";
+      const pipelineParam = pipelineFilter !== "all" ? `&pipelineId=${pipelineFilter}` : "";
       const res = await api.get<{ data: CentralMeeting[] }>(
-        `/calendly/config/meetings?period=upcoming&limit=100${userParam}`
+        `/calendly/config/meetings?period=upcoming&limit=100${userParam}${pipelineParam}`
       );
       setMeetings((res.data || []).filter((m) => m.status !== "canceled"));
     } catch {
@@ -303,7 +305,7 @@ export default function CentralPage() {
     } finally {
       setLoadingMeetings(false);
     }
-  }, [personId]);
+  }, [personId, pipelineFilter]);
 
   const fetchTasks = useCallback(async () => {
     if (!personId) return;

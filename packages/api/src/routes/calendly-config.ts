@@ -106,14 +106,18 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
         ? { startTime: 'desc' as const }
         : { startTime: 'asc' as const };
 
-    // Filter by CRM user id: reuniões onde a pessoa é dona OU closer da deal,
-    // ou onde o host do Calendly bate com o primeiro nome (nomes do Calendly
-    // diferem dos nomes do CRM, ex. "Oliver Wittmann Wilsmann" vs "Oliver").
+    // Filter by CRM user id e/ou funil: reuniões onde a pessoa é dona OU closer
+    // da deal, ou onde o host do Calendly bate com o primeiro nome (nomes do
+    // Calendly diferem dos nomes do CRM, ex. "Oliver Wittmann Wilsmann" vs
+    // "Oliver"). pipelineId filtra pelo funil da deal vinculada.
     // Pós-filtro é seguro aqui: o conjunto upcoming/past consultado é pequeno.
     const filterUserId = req.query.userId as string | undefined;
-    if (filterUserId) {
+    const filterPipelineId = req.query.pipelineId as string | undefined;
+    if (filterUserId || filterPipelineId) {
       const [filterUser, all] = await Promise.all([
-        prisma.user.findUnique({ where: { id: filterUserId }, select: { name: true } }),
+        filterUserId
+          ? prisma.user.findUnique({ where: { id: filterUserId }, select: { name: true } })
+          : Promise.resolve(null),
         prisma.calendlyEvent.findMany({
           where,
           take: 500,
@@ -125,18 +129,21 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
       ]);
 
       const dealIds = all.map(m => m.dealId).filter((id): id is string => !!id);
-      const dealMap = new Map<string, { userId: string; closerId: string | null; ownerName: string | null }>();
+      const dealMap = new Map<string, { userId: string; closerId: string | null; pipelineId: string; ownerName: string | null }>();
       if (dealIds.length > 0) {
         const deals = await prisma.deal.findMany({
           where: { id: { in: dealIds } },
-          select: { id: true, userId: true, closerId: true, user: { select: { name: true } } },
+          select: { id: true, userId: true, closerId: true, pipelineId: true, user: { select: { name: true } } },
         });
-        deals.forEach(d => dealMap.set(d.id, { userId: d.userId, closerId: d.closerId, ownerName: d.user?.name ?? null }));
+        deals.forEach(d => dealMap.set(d.id, { userId: d.userId, closerId: d.closerId, pipelineId: d.pipelineId, ownerName: d.user?.name ?? null }));
       }
 
       const firstName = (filterUser?.name || '').trim().split(/\s+/)[0]?.toLowerCase();
       const filtered = all.filter(m => {
         const d = m.dealId ? dealMap.get(m.dealId) : undefined;
+        // Filtro de funil: reunião precisa ter deal no funil pedido
+        if (filterPipelineId && (!d || d.pipelineId !== filterPipelineId)) return false;
+        if (!filterUserId) return true;
         if (d && (d.userId === filterUserId || d.closerId === filterUserId)) return true;
         if (firstName && (m.hostName || '').toLowerCase().includes(firstName)) return true;
         return false;
