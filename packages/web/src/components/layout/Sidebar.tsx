@@ -30,6 +30,7 @@ import {
   X,
   Moon,
   Sun,
+  CalendarCheck,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +42,7 @@ import { useWabaUnreadCount } from "@/hooks/useWabaUnreadCount";
 
 const baseNavItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
+  { href: "/central", label: "Central", icon: CalendarCheck },
   { href: "/pipeline", label: "Negociações", icon: Kanban },
   { href: "/organizations", label: "Empresas", icon: Building2 },
   { href: "/contacts", label: "Contatos", icon: Users },

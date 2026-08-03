@@ -66,8 +66,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         orderBy: { dueDate: 'asc' },
         include: {
           user: { select: { id: true, name: true } },
-          deal: { select: { id: true, title: true } },
-          contact: { select: { id: true, name: true } },
+          deal: {
+            select: {
+              id: true,
+              title: true,
+              value: true,
+              status: true,
+              pipelineId: true,
+              stage: { select: { id: true, name: true, color: true, order: true } },
+            },
+          },
+          contact: { select: { id: true, name: true, phone: true, email: true } },
         },
       }),
     ]);
@@ -203,10 +212,20 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // POST /api/tasks
 router.post(
   '/',
-  validate({ title: 'required', userId: 'required' }),
+  validate({ title: 'required' }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { title, type, dueDate, userId, dealId, contactId, description, meetingSource } = req.body;
+      const { title, type, dueDate, dealId, contactId, description, meetingSource } = req.body;
+      // Tarefa de negociação sem responsável explícito → responsável da deal
+      let userId = req.body.userId as string | undefined;
+      if (!userId && dealId) {
+        const parentDeal = await prisma.deal.findUnique({
+          where: { id: dealId },
+          select: { userId: true },
+        });
+        userId = parentDeal?.userId;
+      }
+      if (!userId) return next(createError('userId is required', 400));
       const duePayload = buildDueDatePersist(dueDate);
       // When creating a MEETING task manually, default to HUMANO unless caller specifies otherwise
       const resolvedMeetingSource = meetingSource ?? (type === 'MEETING' ? 'HUMANO' : undefined);

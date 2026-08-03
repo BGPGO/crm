@@ -735,6 +735,26 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       include: dealInclude,
     });
 
+    // Tarefas seguem o responsável da negociação: ao reatribuir a deal,
+    // as tarefas PENDENTES dela migram pro novo responsável.
+    if (data.userId !== undefined && data.userId !== existing.userId) {
+      const moved = await prisma.task.updateMany({
+        where: { dealId: deal.id, status: 'PENDING' },
+        data: { userId: data.userId as string },
+      });
+      if (moved.count > 0) {
+        const actingUserId = (req as any).user?.id ?? existing.userId;
+        await logActivity({
+          type: 'TASK_REASSIGNED',
+          content: `${moved.count} tarefa${moved.count > 1 ? 's' : ''} pendente${moved.count > 1 ? 's' : ''} reatribuída${moved.count > 1 ? 's' : ''} para ${deal.user?.name ?? 'novo responsável'} (negociação reatribuída)`,
+          userId: actingUserId,
+          dealId: deal.id,
+          contactId: deal.contactId ?? undefined,
+          metadata: { fromUserId: existing.userId, toUserId: data.userId, movedTasks: moved.count },
+        });
+      }
+    }
+
     if (req.body.stageId && req.body.stageId !== existing.stageId) {
       const { onStageChanged } = await import('../services/automationTriggerListener');
       onStageChanged(deal.contactId, deal.stageId, deal.id);

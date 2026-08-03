@@ -77,6 +77,26 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       };
     }
 
+    // Filter by deal owner/closer e/ou funil — no where, antes da paginação.
+    // Combina com dealStatus quando informado (ex.: só deals abertas).
+    const dealOwnerFilterId = req.query.dealOwnerId as string | undefined;
+    const dealPipelineId = req.query.pipelineId as string | undefined;
+    const dealStatusParam = req.query.dealStatus as string | undefined;
+    if (dealOwnerFilterId || dealPipelineId) {
+      where.contact = {
+        ...((where.contact as object) || {}),
+        deals: {
+          some: {
+            ...(dealOwnerFilterId
+              ? { OR: [{ userId: dealOwnerFilterId }, { closerId: dealOwnerFilterId }] }
+              : {}),
+            ...(dealPipelineId ? { pipelineId: dealPipelineId } : {}),
+            ...(dealStatusParam ? { status: dealStatusParam } : {}),
+          },
+        },
+      };
+    }
+
     const [total, data] = await Promise.all([
       prisma.waConversation.count({ where }),
       prisma.waConversation.findMany({
@@ -117,7 +137,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Batch-fetch deals for each conversation phone (handles duplicate contacts)
     // We look up by phone via Contact to catch cases where same phone = multiple contacts
     const allPhones = data.map(c => c.phone).filter(Boolean);
-    type DealInfo = { id: string; stageId: string; status: string; stage: { name: string; color: string | null } | null };
+    type DealInfo = { id: string; stageId: string; status: string; stage: { name: string; color: string | null; order: number } | null; user: { id: string; name: string } | null };
     const dealsByPhone: Record<string, DealInfo> = {};
     if (allPhones.length > 0) {
       // Build all phone variants for matching
@@ -134,7 +154,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         const deals = await prisma.deal.findMany({
           where: { contactId: { in: allContactIds } },
           orderBy: { createdAt: 'desc' },
-          select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true } } },
+          select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true, order: true } }, user: { select: { id: true, name: true } } },
         });
         // Group by phone, prioritize OPEN > WON > LOST
         const statusPriority: Record<string, number> = { OPEN: 0, WON: 1, LOST: 2 };
@@ -158,7 +178,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     // Apply deal status filter if provided
-    const dealStatusFilter = req.query.dealStatus as string | undefined;
+    // (quando dealOwnerId/pipelineId veio junto, o status já entrou no where acima —
+    //  este pós-filtro fica pro caso de dealStatus sozinho, comportamento antigo)
+    const dealStatusFilter = dealOwnerFilterId || dealPipelineId ? undefined : dealStatusParam;
 
     const enriched = data
       .map((c) => ({
@@ -167,6 +189,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
         dealStage: dealsByPhone[c.phone]?.stage ?? null,
         dealStatus: dealsByPhone[c.phone]?.status ?? null,
+        dealId: dealsByPhone[c.phone]?.id ?? null,
+        dealOwnerId: dealsByPhone[c.phone]?.user?.id ?? null,
+        dealOwnerName: dealsByPhone[c.phone]?.user?.name ?? null,
       }))
       .filter((c) => {
         if (!dealStatusFilter) return true;
