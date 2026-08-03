@@ -197,6 +197,29 @@ html, body {
 .dark .bg-yellow-100 { background-color: rgba(234, 179, 8, 0.2) !important; }
 .dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }
 .dark .bg-purple-100 { background-color: rgba(168, 85, 247, 0.2) !important; }
+.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.2) !important; }
+
+/* Variantes com modificador de opacidade (bg-*\/N vira classe própria —
+   os overrides acima não pegam) */
+.dark .bg-gray-50\/60 { background-color: #0f172a !important; }
+.dark .bg-red-50\/40 { background-color: rgba(239, 68, 68, 0.10) !important; }
+.dark .bg-red-50\/30 { background-color: rgba(239, 68, 68, 0.08) !important; }
+.dark .bg-petrol-50\/50 { background-color: rgba(36, 76, 90, 0.12) !important; }
+.dark .bg-petrol-50\/30 { background-color: rgba(36, 76, 90, 0.10) !important; }
+
+/* Texto de acento escuro fica ilegível sobre fundo escuro — clarear */
+.dark .text-amber-700 { color: #fbbf24 !important; }
+.dark .text-yellow-700 { color: #facc15 !important; }
+
+/* Hover de botões de ação com acento (WhatsApp, drawer, adiar) */
+.dark .hover\:bg-petrol-50:hover { background-color: rgba(36, 76, 90, 0.30) !important; }
+.dark .hover\:bg-petrol-100:hover { background-color: rgba(36, 76, 90, 0.40) !important; }
+.dark .hover\:bg-green-50:hover { background-color: rgba(34, 197, 94, 0.18) !important; }
+.dark .hover\:bg-green-100:hover { background-color: rgba(34, 197, 94, 0.25) !important; }
+.dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.18) !important; }
+.dark .hover\:bg-red-100:hover { background-color: rgba(239, 68, 68, 0.25) !important; }
+.dark .hover\:bg-petrol-700:hover { background-color: #2d5a66 !important; }
 
 /* Shadows in dark mode */
 .dark .shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important; }
