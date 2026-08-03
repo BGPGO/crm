@@ -31,6 +31,7 @@ import {
   Moon,
   Sun,
   CalendarCheck,
+  Database,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +54,9 @@ const baseNavItems = [
   { href: "/waba", label: "WhatsApp", icon: MessageCircle },
   { href: "/reunioes", label: "Reuniões", icon: Calendar },
 ];
+
+// Itens agrupados no dropdown "Base" (desktop); no mobile seguem soltos
+const BASE_GROUP_HREFS = ["/organizations", "/contacts", "/tasks"];
 
 interface NotifTask {
   id: string;
@@ -96,8 +100,10 @@ export default function TopNavbar() {
   const [notifTasks, setNotifTasks] = useState<NotifTask[]>([]);
   const [notifCount, setNotifCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
+  const [baseOpen, setBaseOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const baseRef = useRef<HTMLDivElement>(null);
   const wabaCount = useWabaUnreadCount();
 
   // Filter nav items based on user permissions
@@ -160,6 +166,9 @@ export default function TopNavbar() {
       ) {
         setNotifOpen(false);
       }
+      if (baseRef.current && !baseRef.current.contains(event.target as Node)) {
+        setBaseOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -219,6 +228,58 @@ export default function TopNavbar() {
       {/* Navigation links - hidden on mobile */}
       <nav className="hidden md:flex items-center gap-0.5 flex-1">
         {navItems.map(({ href, label, icon: Icon }) => {
+          // Empresas/Contatos/Tarefas moram no dropdown "Base" — renderiza o
+          // dropdown no lugar do primeiro item do grupo e pula os demais
+          if (BASE_GROUP_HREFS.includes(href)) {
+            if (href !== BASE_GROUP_HREFS[0]) return null;
+            const groupItems = navItems.filter((i) => BASE_GROUP_HREFS.includes(i.href));
+            const groupActive = groupItems.some((i) => pathname.startsWith(i.href));
+            return (
+              <div key="base-group" className="relative" ref={baseRef}>
+                <button
+                  onClick={() => setBaseOpen((prev) => !prev)}
+                  className={clsx(
+                    "relative flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap",
+                    groupActive
+                      ? "bg-petrol-50 text-petrol-700"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  )}
+                >
+                  <Database size={15} className="flex-shrink-0" />
+                  <span>Base</span>
+                  <ChevronDown
+                    size={13}
+                    className={clsx("text-gray-400 transition-transform", baseOpen && "rotate-180")}
+                  />
+                </button>
+                {baseOpen && (
+                  <div className="absolute left-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    {groupItems.map((item) => {
+                      const ItemIcon = item.icon;
+                      const itemActive = pathname.startsWith(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setBaseOpen(false)}
+                          className={clsx(
+                            "flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
+                            itemActive
+                              ? "bg-petrol-50 text-petrol-700 font-medium"
+                              : "text-gray-700 hover:bg-gray-50"
+                          )}
+                        >
+                          <ItemIcon size={15} className={itemActive ? "text-petrol-600" : "text-gray-400"} />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           const isActive =
             href === "/"
               ? pathname === "/"
