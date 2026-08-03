@@ -225,7 +225,6 @@ export default function CentralPage() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [quickTitle, setQuickTitle] = useState("");
-  const [quickDue, setQuickDue] = useState<"today" | "tomorrow">("today");
   const [savingQuick, setSavingQuick] = useState(false);
 
   // Drawers
@@ -459,7 +458,8 @@ export default function CentralPage() {
     if (!title || !ownerId || savingQuick) return;
     setSavingQuick(true);
     try {
-      const dueKey = quickDue === "today" ? todayKey : tomorrowKey;
+      // Segue o filtro de período da página: "Amanhã" cria pra amanhã, o resto pra hoje
+      const dueKey = period === "tomorrow" ? tomorrowKey : todayKey;
       await api.post("/tasks", {
         title,
         type: "OTHER",
@@ -967,28 +967,9 @@ export default function CentralPage() {
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && createQuickTask()}
-                placeholder="Nova tarefa rápida..."
+                placeholder={period === "tomorrow" ? "Nova tarefa pra amanhã..." : "Nova tarefa pra hoje..."}
                 className="flex-1 text-sm bg-white border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-petrol-500"
               />
-              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
-                {(
-                  [
-                    { key: "today", label: "Hoje" },
-                    { key: "tomorrow", label: "Amanhã" },
-                  ] as const
-                ).map((d) => (
-                  <button
-                    key={d.key}
-                    onClick={() => setQuickDue(d.key)}
-                    className={clsx(
-                      "px-2 py-1 rounded-md text-xs font-medium transition-colors",
-                      quickDue === d.key ? "bg-petrol-100 text-petrol-700" : "text-gray-500 hover:text-gray-700"
-                    )}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
               <button
                 onClick={createQuickTask}
                 disabled={!quickTitle.trim() || savingQuick}
