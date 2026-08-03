@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageCircle, LayoutTemplate, Send, Settings, Workflow, Bot, BarChart3 } from "lucide-react";
+import { MessageCircle, LayoutTemplate, Send, Settings, Workflow, Bot, BarChart3, Megaphone } from "lucide-react";
 import clsx from "clsx";
 
 const tabs = [
@@ -10,6 +10,7 @@ const tabs = [
   { label: "Chat", href: "/waba/chat", icon: MessageCircle },
   { label: "Templates", href: "/waba/templates", icon: LayoutTemplate },
   { label: "Broadcasts", href: "/waba/broadcasts", icon: Send },
+  { label: "Anúncios", href: "/waba/anuncios", icon: Megaphone },
   { label: "Automacoes", href: "/waba/automacoes", icon: Workflow },
   { label: "BIA", href: "/waba/bia", icon: Bot },
   { label: "Configuracao", href: "/waba/config", icon: Settings },

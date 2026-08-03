@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { getCtwaInsights } from '../services/metaAds/client';
 
 const router = Router();
 
@@ -256,6 +257,130 @@ router.get('/sales', async (req: Request, res: Response, next: NextFunction) => 
         monthlyTrend,
         salesByClient,
         salesByCategory,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── CTWA: clicks nas campanhas de WhatsApp × conversas iniciadas ──────────────
+//
+// Junta duas fontes:
+//  • Meta Insights (via ContIA): clicks/spend/conversas por anúncio e campanha
+//  • Banco do CRM: conversas cuja 1ª mensagem inbound trouxe `referral` da Meta
+//    (CTWA) — ground truth de quem chegou de anúncio, com contato vinculado.
+// O referral fica em WaMessage.metadata.referral (gravado cru pelo webhook
+// desde sempre), então o retroativo funciona até onde o histórico alcança.
+
+interface CtwaConversationRow {
+  conversation_id: string;
+  started_at: Date;
+  source_id: string | null;
+  ctwa_clid: string | null;
+  source_url: string | null;
+  headline: string | null;
+  body: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+}
+
+// GET /api/reports/ctwa-campaigns?from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/ctwa-campaigns', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    const fromStr = dateRe.test(String(req.query.from)) ? String(req.query.from) : '2026-01-01';
+    const toStr = dateRe.test(String(req.query.to))
+      ? String(req.query.to)
+      : new Date().toISOString().slice(0, 10);
+
+    const fromDate = new Date(`${fromStr}T00:00:00-03:00`);
+    const toDate = new Date(`${toStr}T23:59:59.999-03:00`);
+
+    // 1. Conversas iniciadas via anúncio (referral CTWA) no período — 1 linha
+    //    por conversa (a 1ª mensagem com referral).
+    const convRows = await prisma.$queryRaw<CtwaConversationRow[]>`
+      SELECT DISTINCT ON (m."conversationId")
+        m."conversationId"                        AS conversation_id,
+        m."createdAt"                             AS started_at,
+        m.metadata -> 'referral' ->> 'source_id'  AS source_id,
+        m.metadata -> 'referral' ->> 'ctwa_clid'  AS ctwa_clid,
+        m.metadata -> 'referral' ->> 'source_url' AS source_url,
+        m.metadata -> 'referral' ->> 'headline'   AS headline,
+        m.metadata -> 'referral' ->> 'body'       AS body,
+        ct.id                                     AS contact_id,
+        ct.name                                   AS contact_name,
+        ct.phone                                  AS contact_phone
+      FROM "WaMessage" m
+      JOIN "WaConversation" c ON c.id = m."conversationId"
+      LEFT JOIN "Contact" ct ON ct.id = c."contactId"
+      WHERE m.direction = 'INBOUND'
+        AND m.metadata -> 'referral' IS NOT NULL
+        AND m."createdAt" >= ${fromDate}
+        AND m."createdAt" <= ${toDate}
+      ORDER BY m."conversationId", m."createdAt" ASC
+    `;
+
+    // 2. Insights da Meta (clicks etc.) — falha graciosa: sem ContIA, o
+    //    relatório sai só com o lado do CRM.
+    const insights = await getCtwaInsights(fromStr, toStr);
+
+    // 3. Merge: conversa → anúncio (referral.source_id === ad_id) → campanha
+    const adToCampaign = new Map<string, { campaignId: string; campaignName: string }>();
+    for (const camp of insights?.campaigns ?? []) {
+      for (const ad of camp.ads) {
+        adToCampaign.set(ad.adId, { campaignId: camp.campaignId, campaignName: camp.campaignName });
+      }
+    }
+
+    const crmConversations = convRows.map((r) => ({
+      conversationId: r.conversation_id,
+      startedAt: r.started_at,
+      adId: r.source_id,
+      sourceUrl: r.source_url,
+      headline: r.headline,
+      adBody: r.body,
+      contactId: r.contact_id,
+      contactName: r.contact_name,
+      contactPhone: r.contact_phone,
+      campaign: r.source_id ? adToCampaign.get(r.source_id) ?? null : null,
+    }));
+
+    const crmByCampaign = new Map<string, typeof crmConversations>();
+    const semMatch: typeof crmConversations = [];
+    for (const conv of crmConversations) {
+      if (conv.campaign) {
+        const list = crmByCampaign.get(conv.campaign.campaignId) ?? [];
+        list.push(conv);
+        crmByCampaign.set(conv.campaign.campaignId, list);
+      } else {
+        semMatch.push(conv);
+      }
+    }
+
+    const campaigns = (insights?.campaigns ?? []).map((camp) => ({
+      ...camp,
+      crmConversations: crmByCampaign.get(camp.campaignId) ?? [],
+    }));
+
+    const totals = {
+      spend: campaigns.reduce((s, c) => s + c.spend, 0),
+      clicks: campaigns.reduce((s, c) => s + c.clicks, 0),
+      linkClicks: campaigns.reduce((s, c) => s + c.linkClicks, 0),
+      conversationsStartedMeta: campaigns.reduce((s, c) => s + c.conversationsStarted, 0),
+      conversationsInCrm: crmConversations.length,
+    };
+
+    res.json({
+      data: {
+        from: fromStr,
+        to: toStr,
+        metaAvailable: !!insights,
+        currency: insights?.currency ?? 'BRL',
+        totals,
+        campaigns,
+        conversationsWithoutMatch: semMatch,
       },
     });
   } catch (err) {

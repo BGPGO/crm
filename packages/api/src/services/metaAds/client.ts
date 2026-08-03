@@ -67,6 +67,39 @@ interface ContiaCreativeResponse {
   ad?: AdCreativeInfo;
 }
 
+/** Insights CTWA (click-to-WhatsApp) por anúncio/campanha — rota /api/internal/meta-ads/ctwa */
+export interface CtwaAdInsight {
+  adId: string;
+  adName: string;
+  campaignId: string;
+  campaignName: string;
+  objective: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  linkClicks: number;
+  conversationsStarted: number;
+}
+
+export interface CtwaCampaignInsight {
+  campaignId: string;
+  campaignName: string;
+  objective: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  linkClicks: number;
+  conversationsStarted: number;
+  ads: CtwaAdInsight[];
+}
+
+export interface CtwaInsights {
+  since: string;
+  until: string;
+  currency: string;
+  campaigns: CtwaCampaignInsight[];
+}
+
 // ── Helper: resposta vazia ────────────────────────────────────────────────────
 
 function emptyResponse(date: Date, status: ConnectionStatus = 'ERROR'): DailyAdsSpend {
@@ -257,6 +290,64 @@ export async function getAdCreative(
   } catch (err) {
     console.warn(
       '[metaAds] Erro ao buscar criativo no ContIA:',
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
+// ── Insights CTWA (clicks × conversas iniciadas) ──────────────────────────────
+
+const ctwaCache = new Map<string, { at: number; data: CtwaInsights | null }>();
+const CTWA_CACHE_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Insights de campanhas CTWA por anúncio/campanha no período (YYYY-MM-DD).
+ * Retorna null se não configurado ou erro (o relatório degrada pra só dados do CRM).
+ */
+export async function getCtwaInsights(
+  since: string,
+  until: string
+): Promise<CtwaInsights | null> {
+  const apiUrl = process.env.META_ADS_INTERNAL_API_URL;
+  const secret = process.env.META_ADS_INTERNAL_SECRET;
+  const empresaId = process.env.META_ADS_EMPRESA_ID;
+
+  if (!apiUrl || !secret || !empresaId) {
+    console.warn('[metaAds] env vars não configuradas — insights CTWA indisponíveis');
+    return null;
+  }
+
+  const cacheKey = `${since}|${until}`;
+  const cached = ctwaCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < CTWA_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const params = new URLSearchParams({ empresa_id: empresaId, since, until });
+  const url = `${apiUrl}/api/internal/meta-ads/ctwa?${params.toString()}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'x-internal-secret': secret,
+        Accept: 'application/json',
+      },
+      signal: AbortSignal.timeout(60000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.warn(`[metaAds] HTTP ${res.status} ao buscar insights CTWA no ContIA: ${body}`);
+      return null;
+    }
+
+    const data = (await res.json()) as CtwaInsights;
+    ctwaCache.set(cacheKey, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    console.warn(
+      '[metaAds] Erro ao buscar insights CTWA no ContIA:',
       err instanceof Error ? err.message : err
     );
     return null;
