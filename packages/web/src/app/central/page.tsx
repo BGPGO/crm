@@ -173,6 +173,23 @@ const STAGE_PALETTE = [
   "#ef4444", // 9 Perda fechada
 ];
 
+// R$ 1.234.567 → "R$ 1,2 mi" (o card não comporta o valor cheio)
+function formatCurrencyCompact(value: number): string {
+  if (Math.abs(value) < 100_000) {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 function stageColor(stage: { color?: string | null; order?: number | null } | null | undefined): string {
   if (!stage) return "#64748b";
   if (stage.color) return stage.color;
@@ -664,8 +681,11 @@ export default function CentralPage() {
                 <TrendingUp size={18} className="text-amber-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-base font-bold text-gray-900 leading-tight truncate">
-                  {stats.funnelValue != null ? formatCurrency(stats.funnelValue) : "—"}
+                <p
+                  className="text-xl font-bold text-gray-900 leading-tight"
+                  title={stats.funnelValue != null ? formatCurrency(stats.funnelValue) : undefined}
+                >
+                  {stats.funnelValue != null ? formatCurrencyCompact(stats.funnelValue) : "—"}
                 </p>
                 <p className="text-[11px] text-gray-500">
                   No funil · {stats.funnelDeals} aberta{stats.funnelDeals !== 1 ? "s" : ""}
