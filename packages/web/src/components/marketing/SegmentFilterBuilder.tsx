@@ -1,6 +1,8 @@
 ﻿"use client";
 
+import { useEffect, useState } from "react";
 import { Plus, X, Filter } from "lucide-react";
+import { api } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +61,8 @@ const FIELDS: Record<string, FieldMeta> = {
   organizationCnpj:     { label: "CNPJ", type: "text", category: "Empresa" },
 
   // ── Funil de Vendas ──────────────────────────────────────────────
+  // dealPipelineId: opções carregadas da API (/pipelines) em runtime — nunca hardcodar IDs de funil
+  dealPipelineId:       { label: "Funil (BI / Controladoria)", type: "enum", category: "Funil" },
   hasDeal:              { label: "Tem negociação", type: "boolean", category: "Funil" },
   hasOpenDeal:          { label: "Tem negociação aberta", type: "boolean", category: "Funil" },
   hasWonDeal:           { label: "É cliente (ganhou)", type: "boolean", category: "Funil" },
@@ -182,11 +186,13 @@ function defaultValue(field: string, operator: string): any {
 // ---------------------------------------------------------------------------
 
 function ValueInput({
-  field, operator, value, onValueChange,
+  field, operator, value, onValueChange, enumOptionsOverride,
 }: {
   field: string; operator: string; value: any; onValueChange: (v: any) => void;
+  enumOptionsOverride?: { value: string; label: string }[];
 }) {
   const meta = getFieldMeta(field);
+  const enumOptions = enumOptionsOverride ?? meta.enumOptions;
   const INPUT = "w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-petrol-500 focus:outline-none focus:ring-1 focus:ring-petrol-500";
 
   // Boolean — simple toggle
@@ -226,11 +232,11 @@ function ValueInput({
   }
 
   // Enum — select with field-specific options
-  if (meta.type === "enum" && meta.enumOptions) {
+  if (meta.type === "enum" && enumOptions) {
     return (
       <select value={value ?? ""} onChange={(e) => onValueChange(e.target.value)} className={INPUT}>
         <option value="">Selecione...</option>
-        {meta.enumOptions.map((opt) => (
+        {enumOptions.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
@@ -262,6 +268,20 @@ function ValueInput({
 // ---------------------------------------------------------------------------
 
 export default function SegmentFilterBuilder({ filters, onChange }: SegmentFilterBuilderProps) {
+  // Funis carregados da API — os IDs de pipeline nunca ficam hardcoded no front
+  const [pipelineOptions, setPipelineOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    api
+      .get<{ data: Array<{ id: string; name: string }> }>("/pipelines?limit=50")
+      .then((res) => {
+        setPipelineOptions((res.data ?? []).map((p) => ({ value: p.id, label: p.name })));
+      })
+      .catch(() => {
+        // sem funis carregados o campo só fica com "Selecione..." — não quebra o builder
+      });
+  }, []);
+
   const addFilter = () => {
     const field = "name";
     const operator = defaultOperator(field);
@@ -344,7 +364,8 @@ export default function SegmentFilterBuilder({ filters, onChange }: SegmentFilte
             {/* Value input */}
             <div className="min-w-0 flex-1">
               <ValueInput field={filter.field} operator={filter.operator}
-                value={filter.value} onValueChange={(v) => updateFilter(index, { value: v })} />
+                value={filter.value} onValueChange={(v) => updateFilter(index, { value: v })}
+                enumOptionsOverride={filter.field === "dealPipelineId" ? pipelineOptions : undefined} />
             </div>
 
             {/* Remove */}

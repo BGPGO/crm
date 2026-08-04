@@ -28,7 +28,7 @@ const VALID_SEGMENT_FIELDS = new Set([
   // Lead Score / Engagement
   'engagementLevel', 'score', 'lastEmailOpenedAt', 'lastEmailClickedAt',
   // Deal-related (via contact → deals)
-  'dealStatus', 'dealStageId', 'dealStageName', 'dealValue', 'dealSourceId',
+  'dealStatus', 'dealPipelineId', 'dealStageId', 'dealStageName', 'dealValue', 'dealSourceId',
   'dealLostReasonId', 'dealProductId', 'dealProductName', 'dealUserId',
   'dealCreatedAt', 'dealClosedAt', 'dealCampaignId',
   // Has/doesn't have deal
@@ -132,6 +132,10 @@ function buildConditions(filters: SegmentFilter[]): Record<string, any>[] {
     // Pra "lost na etapa X", combine dealStageName com dealStatus=LOST.
     if (field === 'dealStatus') {
       dealFieldConds.push({ status: mapOp(operator, value) });
+      continue;
+    }
+    if (field === 'dealPipelineId') {
+      dealFieldConds.push({ pipelineId: mapOp(operator, value) });
       continue;
     }
     if (field === 'dealStageId') {
