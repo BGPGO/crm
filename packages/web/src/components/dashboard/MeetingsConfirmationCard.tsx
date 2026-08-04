@@ -207,30 +207,39 @@ export default function MeetingsConfirmationCard() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
                     {f.pipelineName}
                   </p>
-                  <span className="flex items-center gap-1.5 flex-shrink-0">
-                    {f.canceled > 0 && (
-                      <span className="text-[10px] font-medium text-gray-400 line-through" title="Canceladas">
-                        {f.canceled}
-                      </span>
-                    )}
-                    {f.total > 0 && (
-                      <span
-                        className={clsx(
-                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                          f.confirmed === f.total
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        )}
-                      >
-                        {f.confirmed}/{f.total}
-                      </span>
-                    )}
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    <span
+                      className={clsx(
+                        "flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                        f.canceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400"
+                      )}
+                      title="Canceladas"
+                    >
+                      <XCircle size={11} /> {f.canceled}
+                    </span>
+                    <span
+                      className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-petrol-50 text-petrol-700"
+                      title="Total de reuniões"
+                    >
+                      <CalendarDays size={11} /> {f.total + f.canceled}
+                    </span>
+                    <span
+                      className={clsx(
+                        "flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                        f.total > 0 && f.confirmed === f.total
+                          ? "bg-green-100 text-green-700"
+                          : "bg-amber-100 text-amber-700"
+                      )}
+                      title="Confirmadas"
+                    >
+                      <CheckCircle size={11} /> {f.confirmed}
+                    </span>
                   </span>
                 </div>
                 {funilMeetings.length === 0 ? (
                   <p className="text-xs text-gray-400 py-4 text-center">Nenhuma reunião</p>
                 ) : (
-                  <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                  <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto overflow-x-hidden">
                     {funilMeetings.map((m) => {
                       const canceled = m.status === "canceled";
                       return (
@@ -244,8 +253,8 @@ export default function MeetingsConfirmationCard() {
                             }
                           }}
                           className={clsx(
-                            "py-2 flex items-center gap-3",
-                            m.dealId && "cursor-pointer hover:bg-gray-50 -mx-1 px-1 rounded transition-colors"
+                            "py-2 px-1 flex items-center gap-3 min-w-0",
+                            m.dealId && "cursor-pointer hover:bg-gray-50 rounded transition-colors"
                           )}
                           title={m.dealId ? "Abrir negociação" : undefined}
                         >
@@ -277,11 +286,11 @@ export default function MeetingsConfirmationCard() {
                               {m.name}
                             </p>
                             {(m.ownerName || m.closerName) && (
-                              <p className="text-[11px] text-gray-400 truncate flex items-center gap-1.5">
-                                {m.ownerName && <span>{m.ownerName}</span>}
+                              <p className="text-[11px] text-gray-400 flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                {m.ownerName && <span className="truncate">{m.ownerName}</span>}
                                 {m.closerName && (
                                   <span
-                                    className="font-semibold text-petrol-700 bg-petrol-50 px-1.5 py-px rounded-full flex-shrink-0"
+                                    className="font-semibold text-petrol-700 bg-petrol-50 px-1.5 py-px rounded-full flex-shrink-0 whitespace-nowrap"
                                     title="Closer — quem vai fazer a reunião"
                                   >
                                     ▸ {m.closerName}
