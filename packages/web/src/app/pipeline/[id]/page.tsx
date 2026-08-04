@@ -38,8 +38,7 @@ import ContractHub from "@/components/pipeline/ContractHub";
 import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import MeetingSourceBadge from "@/components/pipeline/MeetingSourceBadge";
 import type { MeetingSource } from "@/components/pipeline/MeetingSourceBadge";
-import WhatsAppSidebar from "@/components/deal/WhatsAppSidebar";
-import WabaSidebar from "@/components/deal/WabaSidebar";
+import ConversationTabs from "@/components/deal/ConversationTabs";
 import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
@@ -714,20 +713,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
   const [allPipelines, setAllPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [allCampaigns, setAllCampaigns] = useState<Array<{ id: string; name: string }>>([]);
 
-  // ── WhatsApp sidebar state ────────────────────────────────────────────────
-  const [whatsappConv, setWhatsappConv] = useState<{
-    conversationId: string;
-    phone: string;
-    messageCount: number;
-  } | null>(null);
+  // ── Painel de conversa (abas BIA | Comercial) ────────────────────────────
   const [wabaConv, setWabaConv] = useState<{
     conversationId: string;
     phone: string;
     messageCount: number;
   } | null>(null);
-  const [showWhatsappSidebar, setShowWhatsappSidebar] = useState(false);
-  const [showWabaSidebar, setShowWabaSidebar] = useState(false);
-  const [startingConversation, setStartingConversation] = useState(false);
+  const [showConversation, setShowConversation] = useState(false);
 
   // ── Load deal on mount ────────────────────────────────────────────────────
   const loadDeal = useCallback(async () => {
@@ -766,8 +758,7 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
 
   const loadWhatsAppConversation = useCallback(async () => {
     try {
-      const res = await api.get<{ data: typeof whatsappConv; waba: typeof wabaConv }>(`/deals/${dealId}/whatsapp-conversation`);
-      setWhatsappConv((res as any).data);
+      const res = await api.get<{ data: unknown; waba: typeof wabaConv }>(`/deals/${dealId}/whatsapp-conversation`);
       setWabaConv((res as any).waba);
     } catch {
       // Non-critical
@@ -1320,19 +1311,6 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const handleStartConversation = async () => {
-    setStartingConversation(true);
-    try {
-      await api.post(`/deals/${dealId}/start-conversation`, {});
-      await loadWhatsAppConversation();
-      setShowWhatsappSidebar(true);
-    } catch {
-      alert("Erro ao iniciar conversa. Verifique se o contato tem telefone.");
-    } finally {
-      setStartingConversation(false);
-    }
-  };
-
   const handleOpenLossModal = async () => {
     if (lostReasons.length === 0) {
       try {
@@ -1415,42 +1393,17 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
           {/* Action buttons */}
           <div className="flex gap-2 flex-shrink-0 flex-wrap">
             {contactWithPhone?.phone && (
-              <>
-                {/* WABA (API Oficial) — botão principal */}
-                {wabaConv && (
-                  <button
-                    onClick={() => setShowWabaSidebar(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-500 border border-emerald-600 rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.354 0-4.542-.726-6.347-1.965l-.244-.168-3.151 1.056 1.056-3.151-.168-.244A9.956 9.956 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z" />
-                    </svg>
-                    WABA ({wabaConv.messageCount})
-                  </button>
-                )}
-                {/* Z-API (legado) — botão secundário se existir */}
-                {whatsappConv && (
-                  <button
-                    onClick={() => setShowWhatsappSidebar(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors opacity-75"
-                  >
-                    <MessageCircle size={14} />
-                    Z-API ({whatsappConv.messageCount})
-                  </button>
-                )}
-                {/* Nenhuma conversa — botão de iniciar */}
-                {!whatsappConv && !wabaConv && (
-                  <button
-                    onClick={handleStartConversation}
-                    disabled={startingConversation}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
-                  >
-                    <MessageCircle size={14} />
-                    {startingConversation ? "Iniciando..." : "Iniciar Conversa"}
-                  </button>
-                )}
-              </>
+              /* Painel único de conversa — abas BIA (WABA) | Comercial */
+              <button
+                onClick={() => setShowConversation(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-emerald-500 border border-emerald-600 rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.354 0-4.542-.726-6.347-1.965l-.244-.168-3.151 1.056 1.056-3.151-.168-.244A9.956 9.956 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z" />
+                </svg>
+                Conversa{wabaConv ? ` (${wabaConv.messageCount})` : ""}
+              </button>
             )}
             {deal.status === "active" && (
               <>
@@ -2718,23 +2671,13 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
         </div>
       </Modal>
 
-      {showWhatsappSidebar && whatsappConv && (
-        <WhatsAppSidebar
-          conversationId={whatsappConv.conversationId}
+      {showConversation && contactWithPhone?.phone && (
+        <ConversationTabs
+          wabaConversationId={wabaConv?.conversationId ?? null}
           contactName={deal?.contact?.name ?? ""}
-          contactPhone={whatsappConv.phone}
+          contactPhone={wabaConv?.phone || contactWithPhone.phone}
           dealId={dealId}
-          onClose={() => setShowWhatsappSidebar(false)}
-        />
-      )}
-
-      {showWabaSidebar && wabaConv && (
-        <WabaSidebar
-          conversationId={wabaConv.conversationId}
-          contactName={deal?.contact?.name ?? ""}
-          contactPhone={wabaConv.phone}
-          dealId={dealId}
-          onClose={() => setShowWabaSidebar(false)}
+          onClose={() => setShowConversation(false)}
         />
       )}
 

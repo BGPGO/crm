@@ -25,6 +25,7 @@ interface WabaSidebarProps {
   contactName: string;
   contactPhone: string;
   dealId?: string;
+  embedded?: boolean; // dentro do painel de abas (ConversationTabs) — sem overlay/posicionamento próprio
   onClose: () => void;
 }
 
@@ -33,6 +34,7 @@ export default function WabaSidebar({
   contactName,
   contactPhone,
   dealId,
+  embedded,
   onClose,
 }: WabaSidebarProps) {
   const { user: authUser } = useAuth();
@@ -40,8 +42,30 @@ export default function WabaSidebar({
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  // Janela de 24h da Meta: texto livre só chega com ela aberta
+  const [windowOpen, setWindowOpen] = useState<boolean | null>(null);
+  const [windowExpiresAt, setWindowExpiresAt] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchWindowState = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: { windowOpen: boolean; windowExpiresAt: string | null } }>(
+        `/wa/conversations/${conversationId}`
+      );
+      setWindowOpen(res.data?.windowOpen ?? null);
+      setWindowExpiresAt(res.data?.windowExpiresAt ?? null);
+    } catch {
+      // Non-critical — sem estado da janela, composer segue liberado
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    fetchWindowState();
+    const interval = setInterval(fetchWindowState, 30000);
+    return () => clearInterval(interval);
+  }, [fetchWindowState]);
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -97,19 +121,32 @@ export default function WabaSidebar({
   const handleSend = async () => {
     if (!inputText.trim() || sending) return;
     setSending(true);
+    setSendError(null);
     try {
+      // O endpoint espera `content` (não `text`)
       await api.post(`/wa/conversations/${conversationId}/messages`, {
         type: "text",
-        text: inputText.trim(),
+        content: inputText.trim(),
         senderUserId: authUser?.id,
       });
       setInputText("");
       await fetchMessages(false);
-    } catch {
-      // Silent fail
+    } catch (err) {
+      const e = err as { message?: string };
+      setSendError(e?.message || "Falha ao enviar. Tenta de novo.");
+      fetchWindowState(); // janela pode ter fechado — atualiza o aviso
     } finally {
       setSending(false);
     }
+  };
+
+  const windowTimeLeft = () => {
+    if (!windowExpiresAt) return null;
+    const diff = new Date(windowExpiresAt).getTime() - Date.now();
+    if (diff <= 0) return null;
+    const hours = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    return hours > 0 ? `${hours}h${mins > 0 ? ` ${mins}min` : ""}` : `${mins}min`;
   };
 
   const statusIcon = (status: string) => {
@@ -123,11 +160,8 @@ export default function WabaSidebar({
     }
   };
 
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-
-      <div className="fixed right-0 top-0 h-full w-[400px] bg-white shadow-2xl z-50 flex flex-col">
+  const panel = (
+      <div className={embedded ? "flex-1 min-h-0 bg-white flex flex-col" : "fixed right-0 top-0 h-full w-[400px] bg-white shadow-2xl z-50 flex flex-col"}>
         {/* Header — emerald para diferenciar da Z-API */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-emerald-600 text-white flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -219,6 +253,18 @@ export default function WabaSidebar({
 
         {/* Input bar */}
         <div className="bg-white border-t border-gray-200 p-3 flex-shrink-0">
+          {windowOpen === false && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
+              <p className="text-[11px] text-amber-700 font-medium">
+                Janela de 24h fechada — texto livre não chega no lead.
+              </p>
+              <p className="text-[10px] text-amber-700/80 mt-0.5">
+                Peça pra ele mandar uma mensagem (reabre a janela) ou envie um template pela tela{" "}
+                <a href="/waba/chat" className="underline font-medium">Conversas</a>.
+              </p>
+            </div>
+          )}
+          {sendError && <p className="text-[11px] text-red-500 mb-1.5">{sendError}</p>}
           <div className="flex items-end gap-2">
             <textarea
               ref={textareaRef}
@@ -236,24 +282,41 @@ export default function WabaSidebar({
                   handleSend();
                 }
               }}
-              placeholder="Mensagem... (Ctrl+Enter envia)"
-              disabled={sending}
+              placeholder={
+                windowOpen === false
+                  ? "Janela de 24h fechada — só template"
+                  : "Mensagem... (Ctrl+Enter envia)"
+              }
+              disabled={sending || windowOpen === false}
               rows={1}
               style={{ maxHeight: "100px" }}
               className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
             />
             <button
               onClick={handleSend}
-              disabled={!inputText.trim() || sending}
+              disabled={!inputText.trim() || sending || windowOpen === false}
               className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
               title="Enviar (Ctrl+Enter)"
             >
-              <Send size={16} />
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
           </div>
-          <p className="text-[10px] text-gray-400 mt-0.5">Enter = nova linha · Ctrl+Enter = enviar</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            Enter = nova linha · Ctrl+Enter = enviar
+            {windowOpen && windowTimeLeft() && (
+              <span className="text-emerald-600"> · janela aberta, fecha em {windowTimeLeft()}</span>
+            )}
+          </p>
         </div>
       </div>
+  );
+
+  if (embedded) return panel;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      {panel}
     </>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Drawer from "@/components/ui/Drawer";
-import WabaSidebar from "@/components/deal/WabaSidebar";
+import ConversationTabs from "@/components/deal/ConversationTabs";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { openWhatsAppChat } from "@/lib/whatsapp";
@@ -20,8 +20,8 @@ interface ConvResponse {
 }
 
 /**
- * Resolve a conversa WABA da negociação e abre o chat num painel lateral.
- * Sem conversa WABA → fallback com atalho pro WhatsApp direto.
+ * Resolve a conversa WABA da negociação e abre o painel de canais (BIA | Comercial).
+ * Sem telefone → fallback com aviso.
  */
 export default function ConversationDrawer({
   dealId,
@@ -49,12 +49,14 @@ export default function ConversationDrawer({
     };
   }, [dealId]);
 
-  if (!loading && waba) {
+  const phone = contactPhone || waba?.phone || "";
+
+  if (!loading && phone) {
     return (
-      <WabaSidebar
-        conversationId={waba.conversationId}
+      <ConversationTabs
+        wabaConversationId={waba?.conversationId ?? null}
         contactName={contactName}
-        contactPhone={contactPhone || waba.phone}
+        contactPhone={phone}
         dealId={dealId}
         onClose={onClose}
       />
@@ -70,9 +72,9 @@ export default function ConversationDrawer({
       ) : (
         <div className="p-8 text-center">
           <MessageCircle size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-sm text-gray-600 font-medium">Nenhuma conversa WABA encontrada</p>
+          <p className="text-sm text-gray-600 font-medium">Contato sem telefone</p>
           <p className="text-xs text-gray-400 mt-1">
-            Esse contato ainda não tem conversa no WhatsApp oficial do CRM.
+            Sem telefone no contato não dá pra abrir conversa em nenhum canal.
           </p>
           {contactPhone && (
             <button

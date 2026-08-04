@@ -68,6 +68,7 @@ import internalRouter from './internal';
 import analyticsExportRouter from './analytics-export';
 import googleAdsRouter from './googleAds';
 import metaCapiRouter from './metaCapi';
+import comercialChatRouter from './comercial-chat';
 import { requireAuth } from '../middleware/auth';
 
 const router = Router();
@@ -153,5 +154,7 @@ router.use('/duplicate-alerts', duplicateAlertsRouter);
 router.use('/google-ads', googleAdsRouter);
 // ── Meta Conversions API (CAPI) — config + test event ───────────────────────
 router.use('/meta-capi', metaCapiRouter);
+// ── Canal Comercial (número humano) — proxy pro Messenger/bgpmassa ──────────
+router.use('/comercial-chat', comercialChatRouter);
 
 export default router;

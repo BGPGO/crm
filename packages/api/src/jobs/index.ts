@@ -22,6 +22,13 @@ import { startContactAttributesCron } from './contactAttributesCron';
 import cron from 'node-cron';
 
 export function startAllJobs() {
+  // Dev local contra banco de prod: DISABLE_CRONS=true sobe a API sem nenhum
+  // cron/scheduler — nada é enviado (WhatsApp, email, newsletter) a partir da máquina local.
+  if (process.env.DISABLE_CRONS === 'true') {
+    console.log('[jobs] DISABLE_CRONS=true — nenhum cron/scheduler iniciado');
+    return;
+  }
+
   // Recovery: campanhas que ficaram RUNNING após restart
   recoverStuckCampaigns().catch(console.error);
 
