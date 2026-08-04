@@ -1645,6 +1645,12 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
     if (!startTime) return next(createError('startTime is required', 400));
 
     const start = new Date(startTime);
+    if (isNaN(start.getTime())) return next(createError('startTime inválido', 400));
+    // Reunião no passado era o erro silencioso do fluxo: o dialog vinha com hora
+    // default e gravava "hoje 10:00" enquanto a reunião real era outro dia.
+    if (start.getTime() < Date.now() - 60 * 60 * 1000) {
+      return next(createError('startTime no passado — confira a data da reunião', 400));
+    }
     const durationMin = parseInt(duration) || 30;
     const end = new Date(start.getTime() + durationMin * 60 * 1000);
 
@@ -1704,7 +1710,21 @@ router.post('/:id/manual-meeting', async (req: Request, res: Response, next: Nex
       },
     });
 
-    res.status(201).json({ data: meeting });
+    // Tarefa de reunião pendente da negociação passa a apontar pro horário da
+    // reunião — as duas datas nascem alinhadas (a reunião é a fonte da verdade).
+    const meetingTasks = await prisma.task.findMany({
+      where: { dealId: deal.id, status: 'PENDING' },
+      select: { id: true, title: true },
+    });
+    const toSync = meetingTasks.filter((t) => /reuni[ãa]o/i.test(t.title));
+    if (toSync.length > 0) {
+      await prisma.task.updateMany({
+        where: { id: { in: toSync.map((t) => t.id) } },
+        data: { dueDate: start, dueDateFormat: 'UTC' },
+      });
+    }
+
+    res.status(201).json({ data: meeting, meta: { tasksMoved: toSync.length } });
   } catch (err) {
     next(err);
   }

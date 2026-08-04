@@ -382,6 +382,59 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
         }
       }
 
+      // ── Tarefa de reunião: a reunião vai junto ─────────────────────────────
+      // Adiar só a tarefa deixava a reunião (e o lembrete do lead) na data
+      // antiga — a reunião sumia do Início e ninguém era avisado. Vale pra
+      // QUALQUER tela que adie a tarefa (central, /tasks, negociação).
+      if (data.dueDate instanceof Date && task.dealId) {
+        const ehTarefaDeReuniao =
+          task.type === 'MEETING' ||
+          (/reuni[ãa]o/i.test(task.title) && !/^\s*(re)?marcar\b/i.test(task.title));
+        if (ehTarefaDeReuniao) {
+          const meeting = await prisma.calendlyEvent.findFirst({
+            where: { dealId: task.dealId, status: 'active' },
+            orderBy: { startTime: 'desc' },
+          });
+          if (meeting && meeting.startTime.getTime() !== data.dueDate.getTime()) {
+            const novoInicio = data.dueDate;
+            const duracao = meeting.endTime.getTime() - meeting.startTime.getTime();
+            await prisma.calendlyEvent.update({
+              where: { id: meeting.id },
+              data: {
+                startTime: novoInicio,
+                endTime: new Date(novoInicio.getTime() + duracao),
+                rescheduledAt: new Date(),
+                // horário novo → confirmação anterior não vale mais
+                confirmationStatus: 'PENDING',
+                confirmedAt: null,
+                confirmedByName: null,
+              },
+            });
+            const fmt = (d: Date) =>
+              d.toLocaleString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+              });
+            await logActivity({
+              type: 'MEETING',
+              content: `Reunião movida junto com a tarefa: de ${fmt(meeting.startTime)} para ${fmt(novoInicio)}`,
+              userId: actingUserId,
+              dealId: task.dealId,
+              contactId: task.contactId ?? undefined,
+              metadata: { meetingId: meeting.id, taskId: task.id, from: meeting.startTime, to: novoInicio },
+            });
+            // Lembretes acompanham o novo horário
+            const [{ cancelMeetingReminders, scheduleMeetingReminders }, waba] = await Promise.all([
+              import('../services/meetingReminderScheduler'),
+              import('../services/wa/meetingReminderWaba'),
+            ]);
+            await cancelMeetingReminders(meeting.id).catch(() => {});
+            await scheduleMeetingReminders(meeting.id).catch(() => {});
+            await waba.scheduleWabaMeetingReminders(meeting.id).catch(() => {});
+          }
+        }
+      }
+
       // Responsible changed (reassigned)
       if (data.userId !== undefined && data.userId !== existing.userId) {
         const newUser = task.user?.name ?? String(data.userId);

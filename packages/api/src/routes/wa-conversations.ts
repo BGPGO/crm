@@ -134,41 +134,52 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Compute window status and enrich response
     const now = new Date();
 
-    // Batch-fetch deals for each conversation phone (handles duplicate contacts)
-    // We look up by phone via Contact to catch cases where same phone = multiple contacts
+    // Batch-fetch deals: primeiro pelo contato JÁ VINCULADO à conversa (fonte
+    // confiável), com fallback por telefone (pega contato duplicado / conversa
+    // sem vínculo). O match por telefone falhava quando Contact.phone estava
+    // formatado ("+55 (47) 9..."), sumindo com o chip de etapa na central.
     const allPhones = data.map(c => c.phone).filter(Boolean);
-    type DealInfo = { id: string; stageId: string; status: string; stage: { name: string; color: string | null; order: number } | null; user: { id: string; name: string } | null };
+    type DealInfo = { id: string; contactId: string | null; stageId: string; status: string; stage: { name: string; color: string | null; order: number } | null; user: { id: string; name: string } | null };
     const dealsByPhone: Record<string, DealInfo> = {};
-    if (allPhones.length > 0) {
+    const dealsByContact: Record<string, DealInfo> = {};
+    const linkedContactIds = data.map(c => c.contact?.id).filter(Boolean) as string[];
+    if (allPhones.length > 0 || linkedContactIds.length > 0) {
       // Build all phone variants for matching
       const phonesNorm = [...new Set(allPhones)];
       const allVariants = phonesNorm.flatMap(p => phoneVariants(p));
       const uniqueVariants = [...new Set(allVariants)];
       // Find all contacts matching these phones, then their deals
-      const contacts = await prisma.contact.findMany({
-        where: { phone: { in: uniqueVariants } },
-        select: { id: true, phone: true },
-      });
-      const allContactIds = contacts.map(c => c.id);
+      const contacts = uniqueVariants.length > 0
+        ? await prisma.contact.findMany({
+            where: { phone: { in: uniqueVariants } },
+            select: { id: true, phone: true },
+          })
+        : [];
+      const allContactIds = [...new Set([...contacts.map(c => c.id), ...linkedContactIds])];
       if (allContactIds.length > 0) {
         const deals = await prisma.deal.findMany({
           where: { contactId: { in: allContactIds } },
           orderBy: { createdAt: 'desc' },
           select: { id: true, contactId: true, stageId: true, status: true, stage: { select: { name: true, color: true, order: true } }, user: { select: { id: true, name: true } } },
         });
-        // Group by phone, prioritize OPEN > WON > LOST
+        // Group by contact and by phone, prioritize OPEN > WON > LOST
         const statusPriority: Record<string, number> = { OPEN: 0, WON: 1, LOST: 2 };
         // Map contactId → normalized phone (digits only) for matching back to conversation
         const contactPhoneMap = new Map(contacts.map(c => [c.id, c.phone?.replace(/\D/g, '') || '']));
         // Build reverse map: conversation phone (normalized) → conversation phone (original)
         const convPhoneNorm = new Map(phonesNorm.map(p => [p.replace(/\D/g, ''), p]));
         for (const d of deals) {
+          const dPriority = statusPriority[d.status] ?? 3;
+          if (d.contactId) {
+            const byContact = dealsByContact[d.contactId];
+            const bcPriority = byContact ? (statusPriority[byContact.status] ?? 3) : 99;
+            if (dPriority < bcPriority) dealsByContact[d.contactId] = d;
+          }
           const contactPhoneNorm = contactPhoneMap.get(d.contactId!) || '';
           // Match back to conversation phone
           const convPhone = convPhoneNorm.get(contactPhoneNorm) || contactPhoneNorm;
           if (!convPhone) continue;
           const existing = dealsByPhone[convPhone];
-          const dPriority = statusPriority[d.status] ?? 3;
           const ePriority = existing ? (statusPriority[existing.status] ?? 3) : 99;
           if (dPriority < ePriority) {
             dealsByPhone[convPhone] = d;
@@ -183,16 +194,20 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const dealStatusFilter = dealOwnerFilterId || dealPipelineId ? undefined : dealStatusParam;
 
     const enriched = data
-      .map((c) => ({
-        ...c,
-        unreadCount: unreadCounts[c.id] || 0,
-        windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
-        dealStage: dealsByPhone[c.phone]?.stage ?? null,
-        dealStatus: dealsByPhone[c.phone]?.status ?? null,
-        dealId: dealsByPhone[c.phone]?.id ?? null,
-        dealOwnerId: dealsByPhone[c.phone]?.user?.id ?? null,
-        dealOwnerName: dealsByPhone[c.phone]?.user?.name ?? null,
-      }))
+      .map((c) => {
+        const deal =
+          (c.contact?.id ? dealsByContact[c.contact.id] : undefined) ?? dealsByPhone[c.phone];
+        return {
+          ...c,
+          unreadCount: unreadCounts[c.id] || 0,
+          windowOpen: c.windowExpiresAt ? c.windowExpiresAt > now : false,
+          dealStage: deal?.stage ?? null,
+          dealStatus: deal?.status ?? null,
+          dealId: deal?.id ?? null,
+          dealOwnerId: deal?.user?.id ?? null,
+          dealOwnerName: deal?.user?.name ?? null,
+        };
+      })
       .filter((c) => {
         if (!dealStatusFilter) return true;
         // "Em andamento" (OPEN) also shows conversations without any deal

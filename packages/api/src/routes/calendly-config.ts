@@ -9,6 +9,61 @@ import { onStageChanged } from '../services/automationTriggerListener';
 const router = Router();
 
 /**
+ * A reunião (CalendlyEvent) é a FONTE DA VERDADE do horário. A tarefa de
+ * reunião na negociação ("Reunião marcada", "Reunião: ...") é só o lembrete
+ * operacional — quando a reunião muda de horário, a tarefa vai junto.
+ *
+ * Sem isso as duas datas divergem: foi assim que uma reunião "de amanhã 17h"
+ * existia só como tarefa, invisível pro card do Início e sem lembrete pro lead.
+ */
+const MEETING_TASK_TITLE = /reuni[ãa]o/i;
+
+async function syncMeetingTaskDueDate(
+  dealId: string | null,
+  newStart: Date,
+  actingUserId?: string
+): Promise<number> {
+  if (!dealId) return 0;
+  const tasks = await prisma.task.findMany({
+    where: { dealId, status: 'PENDING' },
+    select: { id: true, title: true },
+  });
+  const targets = tasks.filter((t) => MEETING_TASK_TITLE.test(t.title));
+  if (targets.length === 0) return 0;
+
+  await prisma.task.updateMany({
+    where: { id: { in: targets.map((t) => t.id) } },
+    // dueDate passa a ser UTC real — o horário vem da reunião, que é sempre UTC
+    data: { dueDate: newStart, dueDateFormat: 'UTC' },
+  });
+
+  if (actingUserId) {
+    await prisma.activity.create({
+      data: {
+        type: 'TASK_RESCHEDULED',
+        content: `${targets.length} tarefa(s) de reunião movida(s) para o novo horário da reunião`,
+        userId: actingUserId,
+        dealId,
+        metadata: { taskIds: targets.map((t) => t.id), dueDate: newStart.toISOString() },
+      },
+    }).catch(() => {});
+  }
+  return targets.length;
+}
+
+/** Cancela os lembretes do horário antigo e agenda pro novo (Z-API legado + WABA). */
+async function rescheduleMeetingReminders(meetingId: string): Promise<void> {
+  const [{ cancelMeetingReminders, scheduleMeetingReminders }, { scheduleWabaMeetingReminders }] =
+    await Promise.all([
+      import('../services/meetingReminderScheduler'),
+      import('../services/wa/meetingReminderWaba'),
+    ]);
+  await cancelMeetingReminders(meetingId).catch(() => {});
+  await scheduleMeetingReminders(meetingId).catch(() => {});
+  await scheduleWabaMeetingReminders(meetingId).catch(() => {});
+}
+
+/**
  * Reunião cancelada / no-show → negociação volta pra "Marcar reunião" do
  * próprio funil, com os mesmos efeitos do kanban (activity, webhook,
  * automações, dono SDR). Quem já avançou além de "Reunião agendada"
@@ -464,7 +519,15 @@ router.patch('/meetings/:id/reschedule', async (req: Request, res: Response, nex
       });
     }
 
-    res.json({ data: updated });
+    // Tarefa de reunião acompanha o novo horário (evita as duas datas divergirem)
+    const tasksMoved = await syncMeetingTaskDueDate(meeting.dealId, newStart, actingUser?.id);
+
+    // Lembretes do horário antigo são cancelados e reagendados pro novo.
+    // skipReminders=true quando o operador não quer avisar o lead de novo.
+    const skipReminders = (req.body as { skipReminders?: boolean }).skipReminders === true;
+    if (!skipReminders) await rescheduleMeetingReminders(meeting.id);
+
+    res.json({ data: updated, meta: { tasksMoved, remindersRescheduled: !skipReminders } });
   } catch (err) {
     next(err);
   }

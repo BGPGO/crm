@@ -13,10 +13,17 @@ import {
   Video,
   Kanban,
   Bell,
+  CalendarClock,
+  Loader2,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 import { openWhatsAppChat } from "@/lib/whatsapp";
+
+// Date → "YYYY-MM-DDTHH:mm" no fuso local, formato do input datetime-local
+const pad = (n: number) => String(n).padStart(2, "0");
+const toLocalInput = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 export interface CentralMeeting {
   id: string;
@@ -73,6 +80,38 @@ export default function MeetingDrawer({
     byName: meeting.confirmedByName ?? null,
   });
   const [savingConfirmation, setSavingConfirmation] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleValue, setRescheduleValue] = useState(() => toLocalInput(new Date(meeting.startTime)));
+  const [savingReschedule, setSavingReschedule] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+
+  const saveReschedule = async () => {
+    if (!rescheduleValue || savingReschedule) return;
+    const newStart = new Date(rescheduleValue);
+    if (isNaN(newStart.getTime())) {
+      setRescheduleError("Horário inválido.");
+      return;
+    }
+    if (newStart.getTime() < Date.now()) {
+      setRescheduleError("Esse horário já passou.");
+      return;
+    }
+    setSavingReschedule(true);
+    setRescheduleError(null);
+    try {
+      await api.patch(`/calendly/config/meetings/${meeting.id}/reschedule`, {
+        startTime: newStart.toISOString(),
+      });
+      setRescheduling(false);
+      onChanged?.();
+      onClose();
+    } catch (err) {
+      const e = err as { message?: string };
+      setRescheduleError(e?.message || "Não foi possível remarcar.");
+    } finally {
+      setSavingReschedule(false);
+    }
+  };
 
   const setConfirmationStatus = async (status: "CONFIRMED" | "PENDING" | "DECLINED") => {
     if (savingConfirmation) return;
@@ -218,6 +257,55 @@ export default function MeetingDrawer({
                 Marcada por {confirmation.byName} — clique de novo pra desfazer
               </p>
             )}
+
+            {/* Lead pediu pra remarcar: muda o horário aqui mesmo, sem tirar e
+                recolocar a negociação na etapa só pra abrir o fluxo de reunião. */}
+            <div className="mt-3">
+              {!rescheduling ? (
+                <button
+                  onClick={() => setRescheduling(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-petrol-50 text-petrol-700 hover:bg-petrol-100 transition-colors"
+                >
+                  <CalendarClock size={13} /> Remarcar
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                    Novo horário
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={rescheduleValue}
+                    min={toLocalInput(new Date())}
+                    onChange={(e) => setRescheduleValue(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-petrol-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-gray-400">
+                    A tarefa de reunião e os lembretes do lead vão pro novo horário.
+                  </p>
+                  {rescheduleError && <p className="text-[11px] text-red-500">{rescheduleError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveReschedule}
+                      disabled={!rescheduleValue || savingReschedule}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-petrol-600 text-white hover:bg-petrol-700 disabled:opacity-50 transition-colors"
+                    >
+                      {savingReschedule ? <Loader2 size={13} className="animate-spin" /> : null}
+                      Salvar novo horário
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRescheduling(false);
+                        setRescheduleError(null);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

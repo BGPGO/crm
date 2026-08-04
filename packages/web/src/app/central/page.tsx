@@ -7,7 +7,8 @@ import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import DealDrawer from "@/components/central/DealDrawer";
 import MeetingDrawer, { CentralMeeting } from "@/components/central/MeetingDrawer";
 import ConversationDrawer from "@/components/central/ConversationDrawer";
-import WabaSidebar from "@/components/deal/WabaSidebar";
+import ConversationTabs from "@/components/deal/ConversationTabs";
+import ManualMeetingDialog from "@/components/pipeline/ManualMeetingDialog";
 import {
   Calendar,
   CheckCircle,
@@ -26,6 +27,8 @@ import {
   TrendingUp,
   Bot,
   X,
+  ChevronDown,
+  CalendarClock,
 } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
@@ -112,20 +115,88 @@ interface WaConv {
   }>;
 }
 
-type ConvBucket = "responder" | "bia" | "aguardando";
+// Lead esperando resposta na linha Comercial (Messenger) — vem do /comercial-chat/overview
+interface ComercialPending {
+  id: string;
+  phone: string;
+  contactId: string;
+  contactName: string;
+  dealId: string;
+  dealStage: { name: string; color: string | null; order: number } | null;
+  dealOwnerName: string | null;
+  lastMessageAt: string | null;
+  lastBody: string | null;
+}
+
+type ConvBucket = "responder" | "agenda" | "bia" | "aguardando";
+type Period = "today" | "tomorrow" | "week" | "all";
 
 const CONV_BUCKET_META: Record<ConvBucket, { label: string; accent: string }> = {
   responder: { label: "Responder", accent: "text-red-600" },
+  // rótulo do grupo de agenda acompanha o filtro de período (ver convBucketLabel)
+  agenda: { label: "Hoje", accent: "text-petrol-700" },
   bia: { label: "Com a BIA", accent: "text-purple-600" },
   aguardando: { label: "Aguardando lead", accent: "text-gray-500" },
 };
 
-function convBucketOf(c: WaConv): ConvBucket {
+// "Hoje" do grupo de conversas = mesmo período escolhido no topo da central
+const PERIOD_LABEL: Record<Period, string> = {
+  today: "Hoje",
+  tomorrow: "Amanhã",
+  week: "Essa semana",
+  all: "Com compromisso",
+};
+
+function convBucketLabel(bucket: ConvBucket, period: Period): string {
+  return bucket === "agenda" ? PERIOD_LABEL[period] : CONV_BUCKET_META[bucket].label;
+}
+
+// answeredAt = última resposta da equipe pelo número Comercial (fora do WABA)
+function convBucketOf(c: WaConv, answeredAt: string | null): ConvBucket {
   const last = c.messages[0];
   const clientSpokeLast = last?.direction === "INBOUND";
-  if (c.needsHumanAttention || (clientSpokeLast && !c.isActive)) return "responder";
-  if (c.isActive) return "bia";
-  return "aguardando";
+  if (clientSpokeLast) {
+    // já respondida pelo número humano depois da última fala do lead → não cobrar resposta
+    if (answeredAt && last && new Date(answeredAt) > new Date(last.createdAt)) return "aguardando";
+    if (c.isActive && !c.needsHumanAttention) return "bia"; // BIA vai responder
+    return "responder";
+  }
+  // equipe/BIA falou por último — nunca é "Responder", mesmo com needsHumanAttention
+  return c.isActive && !c.needsHumanAttention ? "bia" : "aguardando";
+}
+
+function wabaPreview(c: WaConv): string {
+  const m = c.messages[0];
+  if (!m) return "";
+  const prefix =
+    m.senderType === "WA_BOT"
+      ? "BIA: "
+      : m.senderType === "WA_HUMAN"
+        ? "Você: "
+        : m.senderType === "WA_SYSTEM"
+          ? "Sistema: "
+          : "";
+  const body = m.body || (m.type !== "text" ? `[${m.type}]` : "");
+  return `${prefix}${body}`;
+}
+
+// Linha unificada da coluna Conversas (WABA ou Comercial)
+interface ConvRow {
+  key: string;
+  channel: "waba" | "comercial";
+  name: string;
+  phone: string;
+  wabaConversationId: string | null;
+  dealId: string | null;
+  dealStage: WaConv["dealStage"];
+  dealOwnerName: string | null;
+  isActive: boolean;
+  unreadCount: number;
+  preview: string;
+  waitingSince: string | null;
+  respondedViaComercial: boolean;
+  // lead tem reunião/tarefa no período filtrado — ex.: "reunião 15:45", "tarefa ter 05/08"
+  todayLabel: string | null;
 }
 
 type DayBucket = "overdue" | "today" | "tomorrow" | "later";
@@ -213,6 +284,14 @@ export default function CentralPage() {
   const [pipelines, setPipelines] = useState<Array<{ id: string; name: string }>>([]);
   const [pipelineFilter, setPipelineFilter] = useState<string>("all");
   const [conversations, setConversations] = useState<WaConv[]>([]);
+  // Canal Comercial (Messenger): leads esperando resposta + quem já foi respondido lá
+  const [comercialPending, setComercialPending] = useState<ComercialPending[]>([]);
+  const [answeredByPhone, setAnsweredByPhone] = useState<Record<string, string>>({});
+  // "Com a BIA" e "Aguardando lead" nascem fechados — abre no clique (collapse)
+  const [collapsedConvGroups, setCollapsedConvGroups] = useState<Record<string, boolean>>({
+    bia: true,
+    aguardando: true,
+  });
   const [stageFilter, setStageFilter] = useState<string | null>(null);
   // Período do "à fazer": hoje (= hoje + atrasadas), amanhã, essa semana, tudo
   const [period, setPeriod] = useState<"today" | "tomorrow" | "week" | "all">("today");
@@ -236,11 +315,19 @@ export default function CentralPage() {
     contactPhone: string;
   } | null>(null);
   // Chat aberto direto de uma conversa da coluna (já temos o conversationId)
+  // Acerto de reunião a partir da tarefa: registrar a que falta ou mover a existente
+  const [meetingFix, setMeetingFix] = useState<{
+    task: Task;
+    meeting: CentralMeeting | null;
+    startTime: string | null;
+  } | null>(null);
+
   const [chatConv, setChatConv] = useState<{
-    conversationId: string;
+    wabaConversationId: string | null;
     contactName: string;
     contactPhone: string;
     dealId?: string;
+    initialChannel?: "bia" | "comercial";
   } | null>(null);
 
   const todayKey = dayKeyBRT(new Date());
@@ -349,10 +436,23 @@ export default function CentralPage() {
         pipelineFilter !== "all"
           ? `&pipelineId=${pipelineFilter}${personId === "all" ? "&dealStatus=OPEN" : ""}`
           : "";
-      const res = await api.get<{ data: WaConv[] }>(
-        `/wa/conversations?status=WA_OPEN&limit=100${ownerParam}${pipelineParam}`
-      );
+      const comercialParams = new URLSearchParams();
+      if (personId !== "all") comercialParams.set("dealOwnerId", personId);
+      if (pipelineFilter !== "all") comercialParams.set("pipelineId", pipelineFilter);
+      const [res, overview] = await Promise.all([
+        api.get<{ data: WaConv[] }>(
+          `/wa/conversations?status=WA_OPEN&limit=100${ownerParam}${pipelineParam}`
+        ),
+        // Canal Comercial: tolerante a falha (Messenger fora do ar / rota nova ainda não deployada)
+        api
+          .get<{ data: { pending: ComercialPending[]; answeredByPhone: Record<string, string> } }>(
+            `/comercial-chat/overview${comercialParams.toString() ? `?${comercialParams}` : ""}`
+          )
+          .catch(() => null),
+      ]);
       setConversations(res.data || []);
+      setComercialPending(overview?.data?.pending || []);
+      setAnsweredByPhone(overview?.data?.answeredByPhone || {});
     } catch {
       /* silent */
     } finally {
@@ -410,6 +510,26 @@ export default function CentralPage() {
   }, [fetchTasks, fetchFunnel]);
 
   // ── Actions ──
+
+  /**
+   * Acerta o registro da reunião a partir da tarefa:
+   *  - sem reunião → cria a reunião manual (lembretes ativados, tarefa sincronizada)
+   *  - reunião em outra data → reagenda a existente (não cria duplicata)
+   * Nos dois caminhos a API deixa tarefa e reunião no mesmo horário.
+   */
+  const applyMeetingFix = async (data: { startTime: string; duration: number; eventType: string; notes: string }) => {
+    if (!meetingFix?.task.deal?.id) return;
+    if (meetingFix.meeting) {
+      await api.patch(`/calendly/config/meetings/${meetingFix.meeting.id}/reschedule`, {
+        startTime: data.startTime,
+      });
+    } else {
+      await api.post(`/deals/${meetingFix.task.deal.id}/manual-meeting`, data);
+    }
+    setMeetingFix(null);
+    fetchMeetings();
+    fetchTasks();
+  };
 
   const completeTask = async (task: Task) => {
     setTogglingId(task.id);
@@ -543,16 +663,200 @@ export default function CentralPage() {
   }, [visibleTasks, todayKey, tomorrowKey]);
 
   const convGroups = useMemo(() => {
-    const groups: Record<ConvBucket, WaConv[]> = { responder: [], bia: [], aguardando: [] };
-    conversations.forEach((c) => groups[convBucketOf(c)].push(c));
-    // Responder: quem espera há mais tempo primeiro (SLA)
-    groups.responder.sort((a, b) => {
-      const ta = new Date(a.lastClientMessageAt || a.lastMessageAt || 0).getTime();
-      const tb = new Date(b.lastClientMessageAt || b.lastMessageAt || 0).getTime();
-      return ta - tb;
+    const groups: Record<ConvBucket, ConvRow[]> = { responder: [], agenda: [], bia: [], aguardando: [] };
+
+    const answeredAtOf = (c: WaConv): string | null => {
+      const digits = (c.contact?.phone || c.phone || "").replace(/\D/g, "");
+      return digits.length >= 8 ? answeredByPhone[digits.slice(-8)] || null : null;
+    };
+
+    // Compromissos do lead DENTRO DO PERÍODO FILTRADO (mesma régua das outras
+    // colunas: hoje = hoje + atrasados, amanhã, essa semana, tudo).
+    // Reunião (com horário) vence tarefa; fora de hoje o badge mostra o dia.
+    const todayByDeal = new Map<string, string>();
+    const todayByPhone = new Map<string, string>();
+    const hhmm = (iso: string) =>
+      new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const dayShort = (d: Date) =>
+      d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+    const whenLabel = (d: Date) => {
+      const k = dayKeyBRT(d);
+      if (k === todayKey) return "hoje";
+      if (k === tomorrowKey) return "amanhã";
+      if (k < todayKey) return "atrasada";
+      return dayShort(d);
+    };
+
+    const registrar = (m: CentralMeeting, label: string) => {
+      if (m.dealId && !todayByDeal.has(m.dealId)) todayByDeal.set(m.dealId, label);
+      const digits = (m.contact?.phone || "").replace(/\D/g, "");
+      if (digits.length >= 8 && !todayByPhone.has(digits.slice(-8)))
+        todayByPhone.set(digits.slice(-8), label);
+    };
+    const noPeriodo = meetings
+      .filter((m) => inPeriod(new Date(m.startTime)))
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    // Ativas primeiro: se o lead cancelou uma e remarcou outra, vale a que está de pé
+    noPeriodo
+      .filter((m) => m.status !== "canceled")
+      .forEach((m) => {
+        const start = new Date(m.startTime);
+        registrar(
+          m,
+          dayKeyBRT(start) === todayKey
+            ? `reunião ${hhmm(m.startTime)}`
+            : `reunião ${whenLabel(start)} ${hhmm(m.startTime)}`
+        );
+      });
+    // Cancelada no período conta: é justamente o lead que precisa de contato
+    noPeriodo
+      .filter((m) => m.status === "canceled")
+      .forEach((m) => {
+        const start = new Date(m.startTime);
+        registrar(
+          m,
+          dayKeyBRT(start) === todayKey
+            ? `reunião cancelada ${hhmm(m.startTime)}`
+            : `reunião cancelada ${whenLabel(start)}`
+        );
+      });
+    tasks.forEach((t) => {
+      if (t.status !== "PENDING") return;
+      const due = normalizeDueDate(t);
+      // sem data não é compromisso (entraria no grupo no filtro "Tudo")
+      if (!due || !inPeriod(due)) return;
+      const label = `tarefa ${whenLabel(due)}`;
+      if (t.deal?.id && !todayByDeal.has(t.deal.id)) todayByDeal.set(t.deal.id, label);
+      const digits = (t.contact?.phone || "").replace(/\D/g, "");
+      if (digits.length >= 8 && !todayByPhone.has(digits.slice(-8)))
+        todayByPhone.set(digits.slice(-8), label);
     });
+
+    const todayLabelOf = (dealId: string | null, phone: string): string | null => {
+      if (dealId && todayByDeal.has(dealId)) return todayByDeal.get(dealId)!;
+      const digits = phone.replace(/\D/g, "");
+      return digits.length >= 8 ? todayByPhone.get(digits.slice(-8)) || null : null;
+    };
+
+    const push = (bucket: ConvBucket, row: ConvRow) => {
+      // Responder tem prioridade; o resto com compromisso hoje sobe pro grupo "Hoje"
+      const finalBucket = bucket !== "responder" && row.todayLabel ? "agenda" : bucket;
+      groups[finalBucket].push(row);
+    };
+
+    conversations.forEach((c) => {
+      const answeredAt = answeredAtOf(c);
+      const bucket = convBucketOf(c, answeredAt);
+      const last = c.messages[0];
+      const respondedViaComercial = Boolean(
+        answeredAt && last?.direction === "INBOUND" && new Date(answeredAt) > new Date(last.createdAt)
+      );
+      const phone = c.contact?.phone || c.phone;
+      push(bucket, {
+        key: `waba-${c.id}`,
+        channel: "waba",
+        name: c.contact?.name || c.pushName || c.phone,
+        phone,
+        wabaConversationId: c.id,
+        dealId: c.dealId,
+        dealStage: c.dealStage,
+        dealOwnerName: c.dealOwnerName,
+        isActive: c.isActive,
+        unreadCount: c.unreadCount,
+        preview: wabaPreview(c),
+        waitingSince:
+          bucket === "responder" ? c.lastClientMessageAt || c.lastMessageAt : c.lastMessageAt,
+        respondedViaComercial,
+        todayLabel: todayLabelOf(c.dealId, phone),
+      });
+    });
+
+    // Sem resposta na linha Comercial (Messenger) → entra no "Responder" com badge
+    comercialPending.forEach((p) => {
+      push("responder", {
+        key: `com-${p.id}`,
+        channel: "comercial",
+        name: p.contactName || p.phone,
+        phone: p.phone,
+        wabaConversationId: null,
+        dealId: p.dealId,
+        dealStage: p.dealStage,
+        dealOwnerName: p.dealOwnerName,
+        isActive: false,
+        unreadCount: 0,
+        preview: p.lastBody || "[Mídia]",
+        waitingSince: p.lastMessageAt,
+        respondedViaComercial: false,
+        todayLabel: todayLabelOf(p.dealId, p.phone),
+      });
+    });
+
+    // Responder e Hoje: quem espera há mais tempo primeiro (SLA)
+    groups.responder.sort(
+      (a, b) => new Date(a.waitingSince || 0).getTime() - new Date(b.waitingSince || 0).getTime()
+    );
+    groups.agenda.sort(
+      (a, b) => new Date(a.waitingSince || 0).getTime() - new Date(b.waitingSince || 0).getTime()
+    );
     return groups;
-  }, [conversations]);
+  }, [conversations, comercialPending, answeredByPhone, meetings, tasks, todayKey, tomorrowKey, inPeriod]);
+
+  // ── Reunião × tarefa: detecta a divergência que torna reunião invisível ──
+  // A reunião (CalendlyEvent) é a fonte da verdade: é ela que aparece no Início,
+  // dispara lembrete pro lead e entra na confirmação. Quando o time só mexe na
+  // TAREFA ("Reunião marcada" adiada pra outro dia), a reunião fica pra trás.
+  const activeMeetingByDeal = useMemo(() => {
+    const map = new Map<string, CentralMeeting>();
+    meetings
+      .filter((m) => m.status !== "canceled" && m.dealId)
+      .forEach((m) => {
+        const current = map.get(m.dealId!);
+        // mantém a mais próxima do futuro
+        if (!current || new Date(m.startTime) < new Date(current.startTime)) {
+          map.set(m.dealId!, m);
+        }
+      });
+    return map;
+  }, [meetings]);
+
+  /** É tarefa de reunião marcada E existe reunião ativa? Devolve a reunião. */
+  const meetingForTask = useCallback(
+    (task: Task): CentralMeeting | null => {
+      if (!task.deal?.id) return null;
+      if (/^\s*(re)?marcar\b/i.test(task.title)) return null;
+      const isMeetingTask =
+        /reuni[ãa]o agendada/i.test(task.deal.stage?.name || "") ||
+        /reuni[ãa]o/i.test(task.title);
+      if (!isMeetingTask) return null;
+      return activeMeetingByDeal.get(task.deal.id) ?? null;
+    },
+    [activeMeetingByDeal]
+  );
+
+  /**
+   * Tarefa é de reunião JÁ MARCADA e a agenda não bate? Devolve o alerta.
+   * Só vale pra negociação na etapa "Reunião agendada" (ou tarefa "Reunião
+   * marcada"): tarefa de "Marcar/Remarcar reunião" é justamente o pedido de
+   * agendar — não existe reunião pra cobrar ali, seria ruído.
+   */
+  const meetingMismatch = useCallback(
+    (task: Task): { kind: "missing" | "different"; meeting?: CentralMeeting } | null => {
+      if (!task.deal?.id) return null;
+      if (/^\s*(re)?marcar\b/i.test(task.title)) return null;
+      const stageSaysScheduled = /reuni[ãa]o agendada/i.test(task.deal.stage?.name || "");
+      const titleSaysScheduled = /reuni[ãa]o marcada/i.test(task.title);
+      if (!stageSaysScheduled && !titleSaysScheduled) return null;
+      const due = normalizeDueDate(task);
+      if (!due || dayKeyBRT(due) < todayKey) return null; // atrasada: outro problema
+      const meeting = activeMeetingByDeal.get(task.deal.id);
+      if (!meeting) return { kind: "missing" };
+      // mesma data-calendário = alinhado (minutos de diferença não importam)
+      if (dayKeyBRT(new Date(meeting.startTime)) === dayKeyBRT(due)) return null;
+      return { kind: "different", meeting };
+    },
+    [activeMeetingByDeal, todayKey]
+  );
 
   const funnelStagesWithDeals = useMemo(
     () => (funnel?.stages || []).filter((s) => s.dealCount > 0),
@@ -628,21 +932,6 @@ export default function CentralPage() {
     if (diff > 4 * 60 * 60 * 1000) return "bg-red-100 text-red-700";
     if (diff > 60 * 60 * 1000) return "bg-amber-100 text-amber-700";
     return "bg-green-100 text-green-700";
-  };
-
-  const lastMsgPreview = (c: WaConv) => {
-    const m = c.messages[0];
-    if (!m) return "";
-    const prefix =
-      m.senderType === "WA_BOT"
-        ? "BIA: "
-        : m.senderType === "WA_HUMAN"
-          ? "Você: "
-          : m.senderType === "WA_SYSTEM"
-            ? "Sistema: "
-            : "";
-    const body = m.body || (m.type !== "text" ? `[${m.type}]` : "");
-    return `${prefix}${body}`;
   };
 
   // ── Render ──
@@ -1222,6 +1511,33 @@ export default function CentralPage() {
                                   )}
                                   {!task.deal && task.contact && <span>{task.contact.name}</span>}
                                   {personId === "all" && task.user && <span>· {task.user.name}</span>}
+                                  {(() => {
+                                    const mm = meetingMismatch(task);
+                                    if (!mm) return null;
+                                    const due = normalizeDueDate(task);
+                                    return (
+                                      <button
+                                        onClick={() =>
+                                          setMeetingFix({
+                                            task,
+                                            meeting: mm.meeting ?? null,
+                                            startTime: due ? due.toISOString() : null,
+                                          })
+                                        }
+                                        title={
+                                          mm.kind === "missing"
+                                            ? "Essa tarefa de reunião não tem reunião registrada — o lead não aparece no Início nem recebe lembrete. Clique para registrar."
+                                            : `A reunião está registrada em ${fmtDay(mm.meeting!.startTime)} ${fmtTime(mm.meeting!.startTime)}. Clique para mover pra data da tarefa.`
+                                        }
+                                        className="inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2 py-0.5 bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                                      >
+                                        <AlertTriangle size={10} />
+                                        {mm.kind === "missing"
+                                          ? "sem reunião registrada"
+                                          : `reunião em ${fmtDay(mm.meeting!.startTime)}`}
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
@@ -1251,11 +1567,35 @@ export default function CentralPage() {
                                     <MessageSquare size={15} />
                                   </button>
                                 )}
-                                <PostponeDropdown
-                                  currentDueDate={normalizeDueDate(task)}
-                                  onPostpone={(d) => postponeTask(task.id, d)}
-                                  size="sm"
-                                />
+                                {/* Tarefa de reunião com reunião registrada: adiar = REMARCAR.
+                                    Adiar só a tarefa deixava a reunião (e o lembrete do lead) pra trás. */}
+                                {(() => {
+                                  const linked = meetingForTask(task);
+                                  if (!linked) {
+                                    return (
+                                      <PostponeDropdown
+                                        currentDueDate={normalizeDueDate(task)}
+                                        onPostpone={(d) => postponeTask(task.id, d)}
+                                        size="sm"
+                                      />
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() =>
+                                        setMeetingFix({
+                                          task,
+                                          meeting: linked,
+                                          startTime: linked.startTime,
+                                        })
+                                      }
+                                      title="Remarcar reunião — move a reunião, a tarefa e os lembretes do lead"
+                                      className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-petrol-600 hover:bg-petrol-50 transition-colors"
+                                    >
+                                      <CalendarClock size={13} />
+                                    </button>
+                                  );
+                                })()}
                                 {task.deal && (
                                   <button
                                     onClick={() => setDealDrawerId(task.deal!.id)}
@@ -1309,7 +1649,7 @@ export default function CentralPage() {
                   <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />
                 ))}
               </div>
-            ) : conversations.length === 0 ? (
+            ) : conversations.length === 0 && comercialPending.length === 0 ? (
               <div className="p-10 text-center">
                 <MessageSquare size={40} className="mx-auto text-gray-300 mb-2" />
                 <p className="text-sm text-gray-500">
@@ -1320,15 +1660,25 @@ export default function CentralPage() {
               </div>
             ) : (
               <div className="max-h-[70vh] overflow-y-auto">
-                {(["responder", "bia", "aguardando"] as const).map((bucket) => {
+                {(["responder", "agenda", "bia", "aguardando"] as const).map((bucket) => {
                   const items = convGroups[bucket];
                   if (items.length === 0) return null;
+                  const collapsed = collapsedConvGroups[bucket] ?? false;
                   return (
                     <div key={bucket}>
-                      <div
+                      <button
+                        onClick={() =>
+                          setCollapsedConvGroups((prev) => ({ ...prev, [bucket]: !collapsed }))
+                        }
                         className={clsx(
-                          "px-5 py-1.5 border-y border-gray-100 first:border-t-0 sticky top-0 z-10",
-                          bucket === "responder" ? "bg-red-50" : bucket === "bia" ? "bg-purple-50" : "bg-gray-50"
+                          "w-full text-left px-5 py-1.5 border-y border-gray-100 first:border-t-0 sticky top-0 z-10 flex items-center justify-between cursor-pointer",
+                          bucket === "responder"
+                            ? "bg-red-50"
+                            : bucket === "agenda"
+                              ? "bg-petrol-50"
+                              : bucket === "bia"
+                                ? "bg-purple-50"
+                                : "bg-gray-50"
                         )}
                       >
                         <span
@@ -1337,26 +1687,25 @@ export default function CentralPage() {
                             CONV_BUCKET_META[bucket].accent
                           )}
                         >
-                          {CONV_BUCKET_META[bucket].label}
+                          {convBucketLabel(bucket, period)}
                           <span className="ml-1.5 font-normal text-gray-400">({items.length})</span>
                         </span>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {items.map((c) => {
-                          const name = c.contact?.name || c.pushName || c.phone;
-                          const waitingSince =
-                            bucket === "responder"
-                              ? c.lastClientMessageAt || c.lastMessageAt
-                              : c.lastMessageAt;
-                          return (
+                        <ChevronDown
+                          size={13}
+                          className={clsx("text-gray-400 transition-transform", collapsed && "-rotate-90")}
+                        />
+                      </button>
+                      <div className={clsx("divide-y divide-gray-50", collapsed && "hidden")}>
+                        {items.map((row) => (
                             <div
-                              key={c.id}
+                              key={row.key}
                               onClick={() =>
                                 setChatConv({
-                                  conversationId: c.id,
-                                  contactName: name,
-                                  contactPhone: c.contact?.phone || c.phone,
-                                  dealId: c.dealId || undefined,
+                                  wabaConversationId: row.wabaConversationId,
+                                  contactName: row.name,
+                                  contactPhone: row.phone,
+                                  dealId: row.dealId || undefined,
+                                  initialChannel: row.channel === "comercial" ? "comercial" : undefined,
                                 })
                               }
                               className={clsx(
@@ -1366,8 +1715,16 @@ export default function CentralPage() {
                             >
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
-                                  {c.isActive && (
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{row.name}</p>
+                                  {row.channel === "comercial" && (
+                                    <span
+                                      title="Sem resposta no número Comercial (Messenger)"
+                                      className="flex items-center gap-0.5 text-[10px] font-medium bg-petrol-100 text-petrol-700 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                    >
+                                      <Phone size={10} /> Comercial
+                                    </span>
+                                  )}
+                                  {row.isActive && (
                                     <span
                                       title="BIA conduzindo"
                                       className="flex items-center gap-0.5 text-[10px] font-medium bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full flex-shrink-0"
@@ -1375,31 +1732,56 @@ export default function CentralPage() {
                                       <Bot size={10} /> BIA
                                     </span>
                                   )}
-                                  {c.unreadCount > 0 && (
+                                  {row.respondedViaComercial && (
+                                    <span
+                                      title="Equipe respondeu pelo número Comercial"
+                                      className="flex items-center gap-0.5 text-[10px] font-medium bg-petrol-50 text-petrol-600 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                                    >
+                                      <Phone size={10} /> respondida no Comercial
+                                    </span>
+                                  )}
+                                  {row.todayLabel && (
+                                    <span
+                                      title={
+                                        row.todayLabel.includes("cancelada")
+                                          ? "Reunião cancelada nesse período — lead precisa de contato"
+                                          : "Compromisso do lead no período filtrado"
+                                      }
+                                      className={clsx(
+                                        "flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0",
+                                        row.todayLabel.includes("cancelada")
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-amber-100 text-amber-700"
+                                      )}
+                                    >
+                                      <Calendar size={10} /> {row.todayLabel}
+                                    </span>
+                                  )}
+                                  {row.unreadCount > 0 && (
                                     <span className="text-[10px] font-bold bg-green-500 text-white min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full flex-shrink-0">
-                                      {c.unreadCount}
+                                      {row.unreadCount}
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs text-gray-500 truncate mt-0.5">{lastMsgPreview(c)}</p>
+                                <p className="text-xs text-gray-500 truncate mt-0.5">{row.preview}</p>
                                 <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                  {c.dealStage && (
+                                  {row.dealStage && (
                                     <span
                                       className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5"
                                       style={{
-                                        backgroundColor: `${stageColor(c.dealStage)}1A`,
-                                        color: stageColor(c.dealStage),
+                                        backgroundColor: `${stageColor(row.dealStage)}1A`,
+                                        color: stageColor(row.dealStage),
                                       }}
                                     >
                                       <span
                                         className="w-1.5 h-1.5 rounded-full"
-                                        style={{ backgroundColor: stageColor(c.dealStage) }}
+                                        style={{ backgroundColor: stageColor(row.dealStage) }}
                                       />
-                                      {c.dealStage.name}
+                                      {row.dealStage.name}
                                     </span>
                                   )}
-                                  {personId === "all" && c.dealOwnerName && (
-                                    <span className="text-[10px] text-gray-400">{c.dealOwnerName}</span>
+                                  {personId === "all" && row.dealOwnerName && (
+                                    <span className="text-[10px] text-gray-400">{row.dealOwnerName}</span>
                                   )}
                                 </div>
                               </div>
@@ -1408,17 +1790,17 @@ export default function CentralPage() {
                                   className={clsx(
                                     "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
                                     bucket === "responder"
-                                      ? slaClass(waitingSince)
+                                      ? slaClass(row.waitingSince)
                                       : "bg-gray-100 text-gray-500"
                                   )}
                                 >
-                                  {timeSince(waitingSince)}
+                                  {timeSince(row.waitingSince)}
                                 </span>
-                                {c.dealId && (
+                                {row.dealId && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setDealDrawerId(c.dealId);
+                                      setDealDrawerId(row.dealId);
                                     }}
                                     title="Abrir negociação"
                                     className="p-1 rounded-lg text-petrol-600 hover:bg-petrol-50 transition-colors"
@@ -1428,8 +1810,7 @@ export default function CentralPage() {
                                 )}
                               </div>
                             </div>
-                          );
-                        })}
+                        ))}
                       </div>
                     </div>
                   );
@@ -1475,12 +1856,23 @@ export default function CentralPage() {
           onClose={() => setConvDrawer(null)}
         />
       )}
+      {meetingFix && (
+        <ManualMeetingDialog
+          dealTitle={meetingFix.task.deal?.title || meetingFix.task.title}
+          contactName={meetingFix.task.contact?.name || ""}
+          mode={meetingFix.meeting ? "reschedule" : "create"}
+          initialStartTime={meetingFix.startTime}
+          onConfirm={applyMeetingFix}
+          onCancel={() => setMeetingFix(null)}
+        />
+      )}
       {chatConv && (
-        <WabaSidebar
-          conversationId={chatConv.conversationId}
+        <ConversationTabs
+          wabaConversationId={chatConv.wabaConversationId}
           contactName={chatConv.contactName}
           contactPhone={chatConv.contactPhone}
           dealId={chatConv.dealId}
+          initialChannel={chatConv.initialChannel}
           onClose={() => {
             setChatConv(null);
             fetchConversations();

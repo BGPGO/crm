@@ -79,6 +79,8 @@ export default function PostponeDropdown({
 }: PostponeDropdownProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Posição fixed (viewport) — escapa de containers com overflow que cortavam o menu
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,6 +92,18 @@ export default function PostponeDropdown({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Fixed não acompanha o scroll do container — fecha ao rolar/redimensionar
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
 
   const handleSelect = async (option: PostponeOption) => {
     setLoading(true);
@@ -115,6 +129,14 @@ export default function PostponeDropdown({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          const r = e.currentTarget.getBoundingClientRect();
+          // ~300px de menu: abre pra cima quando não cabe embaixo
+          const fitsBelow = window.innerHeight - r.bottom > 310;
+          setPos(
+            fitsBelow
+              ? { top: r.bottom + 4, right: window.innerWidth - r.right }
+              : { bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right }
+          );
           setOpen((o) => !o);
         }}
         disabled={loading}
@@ -129,8 +151,11 @@ export default function PostponeDropdown({
       >
         <Clock size={iconSize} />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+      {open && pos && (
+        <div
+          className="fixed z-50 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
+          style={{ top: pos.top, bottom: pos.bottom, right: pos.right }}
+        >
           <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
             Adiar para
           </p>
