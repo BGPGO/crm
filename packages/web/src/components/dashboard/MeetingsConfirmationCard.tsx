@@ -298,7 +298,7 @@ export default function MeetingsConfirmationCard() {
                               }
                             }}
                             className={clsx(
-                              "py-2 px-1 flex items-center gap-3 min-w-0",
+                              "group py-2 px-1 flex items-center gap-3 min-w-0",
                               m.dealId && "cursor-pointer hover:bg-gray-50 rounded transition-colors"
                             )}
                             title={m.dealId ? "Abrir negociação" : undefined}
@@ -386,9 +386,13 @@ export default function MeetingsConfirmationCard() {
                               )}
                             </div>
 
-                            {/* Ações — não propagam o clique da linha */}
+                            {/* Ações — só aparecem no hover da linha (sempre visíveis no touch) */}
                             <div
-                              className="flex items-center gap-0.5 flex-shrink-0"
+                              className={clsx(
+                                "flex items-center gap-0.5 flex-shrink-0 transition-opacity",
+                                reschedulingId !== m.id &&
+                                  "md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
+                              )}
                               onClick={(e) => e.stopPropagation()}
                             >
                               {canceled ? (
