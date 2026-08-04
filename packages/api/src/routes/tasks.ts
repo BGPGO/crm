@@ -18,7 +18,6 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const where: Record<string, unknown> = {};
 
-    if (userId) where.userId = userId as string;
     if (dealId) where.dealId = dealId as string;
 
     // Brand-scoped status filter (need to merge with brand OR clause below)
@@ -55,6 +54,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     // Merge brand filter with optional statusOR via AND
     const andClauses: Array<Record<string, unknown>> = [{ OR: brandClauses }];
     if (statusOR) andClauses.push({ OR: statusOR });
+    // Filtro por pessoa: task de deal pertence ao responsável OU closer da deal
+    // (o assignee da task fica obsoleto quando a deal troca de dono — ex. task de
+    // reunião criada pro dono da época); task sem deal segue pelo assignee.
+    if (userId) {
+      andClauses.push({
+        OR: [
+          { deal: { is: { OR: [{ userId: userId as string }, { closerId: userId as string }] } } },
+          { dealId: null, userId: userId as string },
+        ],
+      });
+    }
     where.AND = andClauses;
 
     const [total, data] = await Promise.all([
@@ -94,7 +104,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 router.get('/counts', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const where: Record<string, unknown> = {};
-    if (req.query.userId) where.userId = req.query.userId as string;
+    // Mesmo critério de pessoa do GET /tasks: responsável OU closer da deal;
+    // task sem deal vai pelo assignee.
+    const personId = req.query.userId as string | undefined;
+    const personFilter = personId
+      ? {
+          OR: [
+            { deal: { is: { OR: [{ userId: personId }, { closerId: personId }] } } },
+            { dealId: null, userId: personId },
+          ],
+        }
+      : null;
 
     // Brand filter via JOIN with contact/deal (Task has no brand field).
     // Orphans (no contact AND no deal) only count for BGP.
@@ -109,10 +129,11 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
 
     const now = new Date();
     const nowMinus3h = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+    const personClauses = personFilter ? [personFilter] : [];
     const [pending, completed, overdue] = await Promise.all([
-      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, { OR: [{ dueDate: null }, { dueDateFormat: 'UTC', dueDate: { gte: now } }, { dueDateFormat: 'LEGACY', dueDate: { gte: nowMinus3h } }] }] } }),
-      prisma.task.count({ where: { ...where, status: 'COMPLETED', AND: [brandFilter] } }),
-      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, { OR: [{ dueDateFormat: 'UTC', dueDate: { lt: now } }, { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } }] }] } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, ...personClauses, { OR: [{ dueDate: null }, { dueDateFormat: 'UTC', dueDate: { gte: now } }, { dueDateFormat: 'LEGACY', dueDate: { gte: nowMinus3h } }] }] } }),
+      prisma.task.count({ where: { ...where, status: 'COMPLETED', AND: [brandFilter, ...personClauses] } }),
+      prisma.task.count({ where: { ...where, status: 'PENDING', AND: [brandFilter, ...personClauses, { OR: [{ dueDateFormat: 'UTC', dueDate: { lt: now } }, { dueDateFormat: 'LEGACY', dueDate: { lt: nowMinus3h } }] }] } }),
     ]);
 
     const all = pending + completed + overdue;

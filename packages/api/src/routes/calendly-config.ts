@@ -151,9 +151,11 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
         : { startTime: 'asc' as const };
 
     // Filter by CRM user id e/ou funil: reuniões onde a pessoa é dona OU closer
-    // da deal, ou onde o host do Calendly bate com o primeiro nome (nomes do
-    // Calendly diferem dos nomes do CRM, ex. "Oliver Wittmann Wilsmann" vs
-    // "Oliver"). pipelineId filtra pelo funil da deal vinculada.
+    // da deal. O match pelo host do Calendly (primeiro nome, ex. "Oliver
+    // Wittmann Wilsmann" vs "Oliver") vale SÓ para reunião sem deal vinculada:
+    // quando a deal existe, dono/closer mandam — senão a reunião agendada pelo
+    // link de um usuário aparece pra ele mesmo depois de repassada a outro
+    // responsável. pipelineId filtra pelo funil da deal vinculada.
     // Pós-filtro é seguro aqui: o conjunto upcoming/past consultado é pequeno.
     const filterUserId = req.query.userId as string | undefined;
     const filterPipelineId = req.query.pipelineId as string | undefined;
@@ -188,7 +190,7 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
         // Filtro de funil: reunião precisa ter deal no funil pedido
         if (filterPipelineId && (!d || d.pipelineId !== filterPipelineId)) return false;
         if (!filterUserId) return true;
-        if (d && (d.userId === filterUserId || d.closerId === filterUserId)) return true;
+        if (d) return d.userId === filterUserId || d.closerId === filterUserId;
         if (firstName && (m.hostName || '').toLowerCase().includes(firstName)) return true;
         return false;
       });
