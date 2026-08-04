@@ -121,7 +121,7 @@ export default function MeetingsConfirmationCard() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [rescheduleValue, setRescheduleValue] = useState("");
-  const [range, setRange] = useState<"today" | "week">("today");
+  const [range, setRange] = useState<"today" | "tomorrow" | "week" | "all">("today");
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -209,7 +209,13 @@ export default function MeetingsConfirmationCard() {
         <CardTitle>
           <span className="flex items-center gap-2 flex-wrap">
             <Calendar size={16} className="text-petrol-600" />
-            {range === "today" ? "Reuniões de hoje" : "Reuniões da semana"}
+            {range === "today"
+              ? "Reuniões de hoje"
+              : range === "tomorrow"
+                ? "Reuniões de amanhã"
+                : range === "week"
+                  ? "Reuniões da semana"
+                  : "Todas as reuniões"}
             {totalMeetings > 0 && (
               <span className="flex items-center gap-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -231,7 +237,9 @@ export default function MeetingsConfirmationCard() {
             {(
               [
                 { key: "today", label: "Hoje" },
+                { key: "tomorrow", label: "Amanhã" },
                 { key: "week", label: "Essa semana" },
+                { key: "all", label: "Tudo" },
               ] as const
             ).map((r) => (
               <button
@@ -260,7 +268,13 @@ export default function MeetingsConfirmationCard() {
         </div>
       ) : visibleMeetings.length === 0 ? (
         <p className="text-sm text-gray-400 py-6 text-center">
-          {range === "today" ? "Nenhuma reunião hoje" : "Nenhuma reunião essa semana"}
+          {range === "today"
+            ? "Nenhuma reunião hoje"
+            : range === "tomorrow"
+              ? "Nenhuma reunião amanhã"
+              : range === "week"
+                ? "Nenhuma reunião essa semana"
+                : "Nenhuma reunião daqui em diante"}
         </p>
       ) : (
         <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -305,11 +319,12 @@ export default function MeetingsConfirmationCard() {
                             title={m.dealId ? "Abrir negociação" : undefined}
                           >
                             <div className="w-12 flex-shrink-0 text-left">
-                              {range === "week" && (
+                              {(range === "week" || range === "all") && (
                                 <p className="text-[10px] font-medium text-gray-400 uppercase leading-tight">
                                   {new Date(m.startTime).toLocaleDateString("pt-BR", {
                                     weekday: "short",
                                     day: "2-digit",
+                                    ...(range === "all" ? { month: "2-digit" } : {}),
                                   })}
                                 </p>
                               )}

@@ -464,26 +464,33 @@ router.patch('/meetings/:id/reschedule', async (req: Request, res: Response, nex
 
 // GET /api/calendly/config/meetings/confirmation-summary — reuniões por funil
 // (total ativas, confirmadas, pendentes, recusadas, canceladas) + lista.
-// ?range=today (padrão) | week (hoje até domingo)
+// ?range=today (padrão) | tomorrow | week (hoje até domingo) | all (de hoje em diante)
 router.get('/meetings/confirmation-summary', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Dia em BRT (UTC-3 fixo desde 2019)
     const todayBRT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const dayStart = new Date(`${todayBRT}T00:00:00-03:00`);
-    let rangeEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    if (req.query.range === 'week') {
+    const DAY = 24 * 60 * 60 * 1000;
+    let rangeStart = dayStart;
+    let rangeEnd: Date | null = new Date(dayStart.getTime() + DAY);
+    if (req.query.range === 'tomorrow') {
+      rangeStart = new Date(dayStart.getTime() + DAY);
+      rangeEnd = new Date(dayStart.getTime() + 2 * DAY);
+    } else if (req.query.range === 'week') {
       // até o fim do próximo domingo (BRT)
       for (let i = 0; i < 7; i++) {
-        const d = new Date(dayStart.getTime() + i * 24 * 60 * 60 * 1000);
+        const d = new Date(dayStart.getTime() + i * DAY);
         if (d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Sao_Paulo' }) === 'Sun') {
-          rangeEnd = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+          rangeEnd = new Date(d.getTime() + DAY);
           break;
         }
       }
+    } else if (req.query.range === 'all') {
+      rangeEnd = null; // tudo de hoje em diante
     }
 
     const meetings = await prisma.calendlyEvent.findMany({
-      where: { startTime: { gte: dayStart, lt: rangeEnd } },
+      where: { startTime: { gte: rangeStart, ...(rangeEnd ? { lt: rangeEnd } : {}) } },
       orderBy: { startTime: 'asc' },
       include: { contact: { select: { id: true, name: true, phone: true } } },
     });
