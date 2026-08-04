@@ -68,13 +68,11 @@ function StatusChips({
   canceled,
   total,
   confirmed,
-  allConfirmed,
   size = "md",
 }: {
   canceled: number;
   total: number;
   confirmed: number;
-  allConfirmed: boolean;
   size?: "md" | "sm";
 }) {
   const base = clsx(
@@ -84,19 +82,13 @@ function StatusChips({
   const iconSize = size === "md" ? 12 : 11;
   return (
     <span className="flex items-center gap-1 flex-wrap">
-      <span
-        className={clsx(base, canceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400")}
-        title="Canceladas"
-      >
+      <span className={clsx(base, "bg-red-50 text-red-600")} title="Canceladas">
         <XCircle size={iconSize} /> {canceled} <span className="font-medium">canceladas</span>
       </span>
-      <span className={clsx(base, "bg-petrol-50 text-petrol-700")} title="Total de reuniões">
+      <span className={clsx(base, "bg-blue-50 text-blue-600")} title="Total de reuniões">
         <CalendarDays size={iconSize} /> {total} <span className="font-medium">reuniões</span>
       </span>
-      <span
-        className={clsx(base, allConfirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}
-        title="Confirmadas"
-      >
+      <span className={clsx(base, "bg-green-100 text-green-700")} title="Confirmadas">
         <CheckCircle size={iconSize} /> {confirmed} <span className="font-medium">confirmadas</span>
       </span>
     </span>
@@ -193,7 +185,7 @@ export default function MeetingsConfirmationCard() {
   ];
 
   const actionBtn =
-    "p-1 rounded-full text-gray-300 transition-colors disabled:opacity-40 flex-shrink-0";
+    "p-1 rounded-full transition-colors disabled:opacity-40 flex-shrink-0";
 
   return (
     <Card padding="md">
@@ -207,12 +199,7 @@ export default function MeetingsConfirmationCard() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
                   Total
                 </span>
-                <StatusChips
-                  canceled={totalCanceled}
-                  total={totalMeetings}
-                  confirmed={totalConfirmed}
-                  allConfirmed={totalActive > 0 && totalConfirmed === totalActive}
-                />
+                <StatusChips canceled={totalCanceled} total={totalMeetings} confirmed={totalConfirmed} />
               </span>
             )}
           </span>
@@ -267,7 +254,6 @@ export default function MeetingsConfirmationCard() {
                     canceled={f.canceled}
                     total={f.total + f.canceled}
                     confirmed={f.confirmed}
-                    allConfirmed={f.total > 0 && f.confirmed === f.total}
                     size="sm"
                   />
                 </div>
@@ -350,7 +336,7 @@ export default function MeetingsConfirmationCard() {
                                     onClick={() => setMeetingStatus(m, "active")}
                                     disabled={busy}
                                     title="Reativar reunião"
-                                    className={clsx(actionBtn, "hover:text-petrol-600 hover:bg-petrol-50")}
+                                    className={clsx(actionBtn, "text-blue-600 bg-blue-50 hover:bg-blue-100")}
                                   >
                                     <RotateCcw size={14} />
                                   </button>
@@ -382,7 +368,7 @@ export default function MeetingsConfirmationCard() {
                                           ? "bg-red-100 text-red-600 hover:bg-red-200"
                                           : m.confirmationStatus === "NO_SHOW"
                                             ? "bg-orange-100 text-orange-600 hover:bg-orange-200"
-                                            : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700"
+                                            : "bg-green-100 text-green-700 hover:bg-green-200"
                                     )}
                                   >
                                     {m.confirmationStatus === "CONFIRMED"
@@ -400,7 +386,7 @@ export default function MeetingsConfirmationCard() {
                                     }}
                                     disabled={busy}
                                     title="Reagendar reunião"
-                                    className={clsx(actionBtn, "hover:text-petrol-600 hover:bg-petrol-50")}
+                                    className={clsx(actionBtn, "text-blue-600 bg-blue-50 hover:bg-blue-100")}
                                   >
                                     <CalendarClock size={14} />
                                   </button>
@@ -409,7 +395,7 @@ export default function MeetingsConfirmationCard() {
                                       onClick={() => setConfirmation(m, "NO_SHOW")}
                                       disabled={busy}
                                       title="Lead não compareceu (no-show)"
-                                      className={clsx(actionBtn, "hover:text-orange-600 hover:bg-orange-50")}
+                                      className={clsx(actionBtn, "text-orange-500 bg-orange-50 hover:bg-orange-100")}
                                     >
                                       <UserX size={14} />
                                     </button>
@@ -418,7 +404,7 @@ export default function MeetingsConfirmationCard() {
                                     onClick={() => setMeetingStatus(m, "canceled")}
                                     disabled={busy}
                                     title="Cancelar reunião"
-                                    className={clsx(actionBtn, "hover:text-red-600 hover:bg-red-50")}
+                                    className={clsx(actionBtn, "text-red-500 bg-red-50 hover:bg-red-100")}
                                   >
                                     <Ban size={14} />
                                   </button>
