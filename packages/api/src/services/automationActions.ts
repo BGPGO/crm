@@ -9,6 +9,7 @@ import OpenAI from 'openai';
 import { canSend, registerSent } from './dailyLimitService';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { interruptCadenceOnStageChange } from './cadenceInterruptService';
+import { findStageByName } from '../lib/pipelines';
 import { safeFirstName } from '../utils/nameSanitizer';
 import { buildPersonalizationData, personalizeContent } from './personalize';
 
@@ -520,8 +521,11 @@ async function movePipelineStage(
   // Buscar a etapa alvo pra saber a ordem
   const targetStage = await prisma.pipelineStage.findUnique({
     where: { id: config.stageId },
-    select: { order: true, pipelineId: true },
+    select: { id: true, name: true, order: true, pipelineId: true },
   });
+  if (!targetStage) {
+    return { success: false, output: `Etapa ${config.stageId} não existe` };
+  }
 
   // Find the contact's active deals and move them to the target stage
   const deals = await prisma.deal.findMany({
@@ -540,14 +544,27 @@ async function movePipelineStage(
   const skipped: string[] = [];
 
   for (const deal of deals) {
+    // A etapa configurada na automação pode ser de outro funil (a automação é
+    // uma só, os deals do contato não): resolver a etapa de MESMO NOME no funil
+    // do deal — apontar stage de outro funil tira o deal do kanban.
+    let stageAlvo = targetStage;
+    if (targetStage.pipelineId !== deal.pipelineId) {
+      const equivalente = await findStageByName(deal.pipelineId, targetStage.name);
+      if (!equivalente) {
+        console.warn(`[automation] Funil ${deal.pipelineId} sem etapa "${targetStage.name}" — deal ${deal.id} não movido`);
+        skipped.push(deal.id);
+        continue;
+      }
+      stageAlvo = equivalente;
+    }
     // Não regredir deals que já estão em etapas posteriores
-    if (targetStage && deal.stage && deal.stage.order > targetStage.order) {
+    if (deal.stage && deal.stage.order > stageAlvo.order) {
       skipped.push(deal.id);
       continue;
     }
     await prisma.deal.update({
       where: { id: deal.id },
-      data: { stageId: config.stageId },
+      data: { stageId: stageAlvo.id },
     });
     moved.push(deal.id);
   }
@@ -558,7 +575,7 @@ async function movePipelineStage(
       stageId: config.stageId,
       dealsUpdated: moved.length,
       dealIds: moved,
-      ...(skipped.length > 0 ? { skippedDealIds: skipped, skippedReason: 'deal já está em etapa posterior' } : {}),
+      ...(skipped.length > 0 ? { skippedDealIds: skipped, skippedReason: 'deal em etapa posterior ou funil sem etapa equivalente' } : {}),
     },
   };
 }

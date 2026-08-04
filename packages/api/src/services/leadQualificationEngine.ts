@@ -5,6 +5,7 @@ import { MessageSender } from '@prisma/client';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { canSend, registerSent } from './dailyLimitService';
 import { isBusinessHours, msUntilNextBusinessHour, BYPASS_SDR_BUSINESS_HOURS } from '../utils/sendingWindow';
+import { STAGE_IDS, stageIdFor } from '../lib/pipelines';
 import { evaluateTriggers } from './automationEngine';
 import { sanitizeGreetingName } from '../utils/nameSanitizer';
 
@@ -370,14 +371,14 @@ ${campaignContext.context}
     console.warn(`[LeadQualification] Mensagens marcadas como não enviadas para conversa ${conversation.id}`);
   }
 
-  // 14. Move deal from LEAD → Contato feito (bot made first contact)
-  const STAGE_LEAD = '64fb7516ea4eb400219457df';
-  const STAGE_CONTATO_FEITO = '65bd0418294535000d1f57cd';
-
-  if (deal.stageId === STAGE_LEAD) {
+  // 14. Move deal from LEAD → Contato feito (bot made first contact).
+  // IDs resolvidos pelo funil do deal — hardcoded da Controladoria, deals do
+  // funil BI nunca eram movidas.
+  if (STAGE_IDS.LEAD.includes(deal.stageId)) {
+    const contatoFeitoId = stageIdFor(deal.pipelineId, 'CONTATO_FEITO');
     await prisma.deal.update({
       where: { id: deal.id },
-      data: { stageId: STAGE_CONTATO_FEITO, updatedAt: new Date() },
+      data: { stageId: contatoFeitoId, updatedAt: new Date() },
     });
     console.log(`[LeadQualification] Deal ${deal.id} movida: LEAD → Contato feito`);
 
@@ -393,7 +394,7 @@ ${campaignContext.context}
 
     // Fire automation triggers (may start cadence for "Contato feito")
     import('./automationTriggerListener').then(({ onStageChanged }) => {
-      onStageChanged(contact.id, STAGE_CONTATO_FEITO, deal.id);
+      onStageChanged(contact.id, contatoFeitoId, deal.id);
     }).catch(() => {});
   }
 

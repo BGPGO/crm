@@ -12,6 +12,8 @@
  * metade sem que nada tivesse acontecido no comercial.
  */
 
+import prisma from './prisma';
+
 export const PIPELINE_CONTROLADORIA = '64fb7516ea4eb400219457de';
 export const PIPELINE_BI = 'bi-pipeline-bgp';
 
@@ -205,6 +207,19 @@ export const STAGE_IDS = {
 export function stageIdFor(pipelineId: string, etapa: keyof typeof STAGE_IDS): string {
   const [ctrl, bi] = STAGE_IDS[etapa];
   return pipelineId === PIPELINE_BI ? bi : ctrl;
+}
+
+/**
+ * Etapa pelo nome DENTRO de um funil. É o único jeito seguro de uma automação
+ * mover deal de coluna: os nomes das etapas se repetem entre os funis, então
+ * buscar só pelo nome devolve a etapa de outro funil e o deal some do kanban
+ * (o board monta as colunas com as etapas do funil do deal). Devolve null se o
+ * funil não tem etapa com esse nome — nesse caso NÃO mova o deal.
+ */
+export function findStageByName(pipelineId: string, nome: string) {
+  return prisma.pipelineStage.findFirst({
+    where: { pipelineId, name: { contains: nome, mode: 'insensitive' } },
+  });
 }
 
 /** Nomes das etapas — iguais nos dois funis. */

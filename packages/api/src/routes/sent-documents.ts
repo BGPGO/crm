@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
 import { signalFinhubContractStage } from '../services/finhubBridge';
+import { findStageByName } from '../lib/pipelines';
 
 const router = Router();
 
@@ -252,9 +253,14 @@ router.post('/:id/check-status', async (req: Request, res: Response, next: NextF
     // If we just detected all signed, move the deal to "Ganho fechado".
     // Idempotent: skip if already marked signed before.
     if (allSigned && !wasAlreadySigned && sentDoc.dealId) {
-      const ganhoStage = await prisma.pipelineStage.findFirst({
-        where: { name: { contains: 'Ganho fechado', mode: 'insensitive' } },
-      });
+      // Etapa resolvida DENTRO do funil do deal — pelo nome só, vinha a de
+      // outro funil e o deal sumia do kanban.
+      const ganhoStage = sentDoc.deal
+        ? await findStageByName(sentDoc.deal.pipelineId, 'Ganho fechado')
+        : null;
+      if (!ganhoStage && sentDoc.deal) {
+        console.warn(`[sent-documents] Funil ${sentDoc.deal.pipelineId} sem etapa "Ganho fechado" — deal ${sentDoc.dealId} não movido`);
+      }
       // Distrato: registra a saída do cliente (churn) mantendo o deal em Ganho fechado,
       // sem sobrescrever o closedAt original (a data em que virou cliente).
       const isChurn = sentDoc.documentType === 'distrato';

@@ -7,6 +7,7 @@ import { MessageSender } from '@prisma/client';
 import { scheduleNextFollowUp, cancelFollowUp } from './followUpScheduler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 import { sanitizeGreetingName } from '../utils/nameSanitizer';
+import { STAGE_IDS, stageIdFor } from '../lib/pipelines';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -561,19 +562,19 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
     cancelFollowUp(conversation.id);
   }
 
-  // Move deal: Contato feito → Marcar reunião (first response)
-  const STAGE_CONTATO_FEITO = '65bd0418294535000d1f57cd';
-  const STAGE_MARCAR_REUNIAO = '64fb7516ea4eb400219457e0';
-
+  // Move deal: Contato feito → Marcar reunião (first response).
+  // IDs resolvidos pelo funil do deal — hardcoded da Controladoria, deals do
+  // funil BI nunca eram movidas.
   if (conversation.contactId) {
     try {
       const deal = await prisma.deal.findFirst({
-        where: { contactId: conversation.contactId, status: 'OPEN', stageId: STAGE_CONTATO_FEITO },
+        where: { contactId: conversation.contactId, status: 'OPEN', stageId: { in: STAGE_IDS.CONTATO_FEITO } },
       });
       if (deal) {
+        const marcarReuniaoId = stageIdFor(deal.pipelineId, 'MARCAR_REUNIAO');
         await prisma.deal.update({
           where: { id: deal.id },
-          data: { stageId: STAGE_MARCAR_REUNIAO, updatedAt: new Date() },
+          data: { stageId: marcarReuniaoId, updatedAt: new Date() },
         });
         await prisma.activity.create({
           data: {
@@ -586,7 +587,7 @@ export async function handleMessage(payload: WhatsAppPayload, instance: string):
 
         // Fire automation triggers (cancels old cadence + may start new one)
         import('./automationTriggerListener').then(({ onStageChanged }) => {
-          onStageChanged(conversation.contactId!, STAGE_MARCAR_REUNIAO, deal.id);
+          onStageChanged(conversation.contactId!, marcarReuniaoId, deal.id);
         }).catch(() => {});
       }
     } catch (stageErr) {

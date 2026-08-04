@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { Resend } from 'resend';
 import { signalFinhubContractStage } from './finhubBridge';
+import { findStageByName } from '../lib/pipelines';
 
 // Event types that Autentique uses to signal "all signed".
 // Includes both dot-separated (document.finished) and underscore (document_finished)
@@ -181,9 +182,14 @@ async function moveDealToWon(opts: {
   // sem sobrescrever o closedAt original (a data em que virou cliente).
   isChurn?: boolean;
 }) {
-  const ganhoStage = await prisma.pipelineStage.findFirst({
-    where: { name: { contains: 'Ganho fechado', mode: 'insensitive' } },
-  });
+  // Etapa resolvida DENTRO do funil do deal — pelo nome só, vinha a de outro
+  // funil e o deal sumia do kanban.
+  const ganhoStage = opts.deal
+    ? await findStageByName(opts.deal.pipelineId, 'Ganho fechado')
+    : null;
+  if (!ganhoStage && opts.deal) {
+    console.warn(`[contract-webhook] Funil ${opts.deal.pipelineId} sem etapa "Ganho fechado" — deal ${opts.dealId} não movido`);
+  }
   if (ganhoStage && opts.deal) {
     const now = new Date();
     const data: Record<string, unknown> = { stageId: ganhoStage.id, status: 'WON' };

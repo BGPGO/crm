@@ -1,6 +1,7 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { findStageByName } from '../lib/pipelines';
 
 const router = Router();
 
@@ -442,16 +443,22 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
 
     await prisma.contractSignatureRecord.createMany({ data: signatureRecords });
 
-    // Move deal to "Aguardando assinatura" stage
-    const aguardandoStage = await prisma.pipelineStage.findFirst({
-      where: { name: { contains: 'Aguardando assinatura', mode: 'insensitive' } },
+    // Move deal to "Aguardando assinatura" — a etapa tem de ser DO FUNIL do deal
+    const dealDoContrato = await prisma.deal.findUnique({
+      where: { id: contract.dealId },
+      select: { pipelineId: true },
     });
+    const aguardandoStage = dealDoContrato
+      ? await findStageByName(dealDoContrato.pipelineId, 'Aguardando assinatura')
+      : null;
     if (aguardandoStage) {
       await prisma.deal.update({
         where: { id: contract.dealId },
         data: { stageId: aguardandoStage.id },
       });
       console.log(`[contracts] Deal ${contract.dealId} moved to "Aguardando assinatura"`);
+    } else if (dealDoContrato) {
+      console.warn(`[contracts] Funil ${dealDoContrato.pipelineId} sem etapa "Aguardando assinatura" — deal ${contract.dealId} não movido`);
     }
 
     // Log activity on deal
