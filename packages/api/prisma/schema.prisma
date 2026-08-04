@@ -1627,11 +1627,12 @@ model CalendlyEvent {
   endTime         DateTime
   status          String   @default("active")
 
-  // Confirmação manual da reunião (PENDING | CONFIRMED | DECLINED).
+  // Confirmação manual da reunião (PENDING | CONFIRMED | DECLINED | NO_SHOW).
   // Reagendou/cancelou no Calendly → volta pra PENDING.
   confirmationStatus String    @default("PENDING")
   confirmedAt        DateTime?
   confirmedByName    String?
+  rescheduledAt      DateTime? // último reagendamento manual feito pelo CRM
 
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])

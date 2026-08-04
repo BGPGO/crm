@@ -381,6 +381,7 @@ router.patch('/meetings/:id/reschedule', async (req: Request, res: Response, nex
         startTime: newStart,
         endTime: new Date(newStart.getTime() + duration),
         status: 'active',
+        rescheduledAt: new Date(),
         // novo horário → precisa confirmar de novo
         confirmationStatus: 'PENDING',
         confirmedAt: null,
@@ -444,17 +445,18 @@ router.get('/meetings/confirmation-summary', async (req: Request, res: Response,
       deals.forEach(d => dealMap.set(d.id, { pipelineId: d.pipelineId, pipelineName: d.pipeline?.name ?? 'Sem funil', ownerName: d.user?.name ?? null, closerName: d.closer?.name ?? null }));
     }
 
-    type Bucket = { pipelineId: string; pipelineName: string; total: number; confirmed: number; pending: number; declined: number; noShow: number; canceled: number };
+    type Bucket = { pipelineId: string; pipelineName: string; total: number; confirmed: number; pending: number; declined: number; noShow: number; rescheduled: number; canceled: number };
     const buckets = new Map<string, Bucket>();
     const enriched = meetings.map(m => {
       const deal = m.dealId ? dealMap.get(m.dealId) : undefined;
       const pipelineId = deal?.pipelineId ?? 'none';
       const pipelineName = deal?.pipelineName ?? 'Sem funil';
-      const b = buckets.get(pipelineId) ?? { pipelineId, pipelineName, total: 0, confirmed: 0, pending: 0, declined: 0, noShow: 0, canceled: 0 };
+      const b = buckets.get(pipelineId) ?? { pipelineId, pipelineName, total: 0, confirmed: 0, pending: 0, declined: 0, noShow: 0, rescheduled: 0, canceled: 0 };
       if (m.status === 'canceled') {
         b.canceled++;
       } else {
         b.total++;
+        if (m.rescheduledAt) b.rescheduled++;
         if (m.confirmationStatus === 'CONFIRMED') b.confirmed++;
         else if (m.confirmationStatus === 'DECLINED') b.declined++;
         else if (m.confirmationStatus === 'NO_SHOW') b.noShow++;
