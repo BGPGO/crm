@@ -345,8 +345,13 @@ export default function MeetingsConfirmationCard() {
                               )}
                             </div>
 
-                            {/* Status escrito — só aparece quando acontece */}
-                            <div className="flex items-center gap-1 flex-shrink-0">
+                            {/* Status escrito — só aparece quando acontece; no hover dá lugar aos ícones */}
+                            <div
+                              className={clsx(
+                                "flex items-center gap-1 flex-shrink-0",
+                                reschedulingId === m.id ? "md:hidden" : "md:group-hover:hidden"
+                              )}
+                            >
                               {!canceled && m.confirmationStatus === "CONFIRMED" && (
                                 <span
                                   className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
@@ -386,12 +391,11 @@ export default function MeetingsConfirmationCard() {
                               )}
                             </div>
 
-                            {/* Ações — só aparecem no hover da linha (sempre visíveis no touch) */}
+                            {/* Ações — entram no lugar do status no hover (sempre visíveis no touch) */}
                             <div
                               className={clsx(
-                                "flex items-center gap-0.5 flex-shrink-0 transition-opacity",
-                                reschedulingId !== m.id &&
-                                  "md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                "flex items-center gap-0.5 flex-shrink-0",
+                                reschedulingId !== m.id && "md:hidden md:group-hover:flex"
                               )}
                               onClick={(e) => e.stopPropagation()}
                             >
