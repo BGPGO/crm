@@ -81,19 +81,27 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
         ? (webhookConfig.headers as Record<string, Record<string, string>>).fieldMapping
         : null;
 
+    // O que o lead digita no formulário entrava cru: "Marcos André " (espaço no
+    // fim) não casa com "Marcos André" na comparação byte a byte do Postgres, e
+    // o webhook do Calendly acabava criando contato + negociação duplicados.
+    // Valor só de espaços conta como ausente — cai no próximo candidato.
+    function pickValue(value: unknown): string | undefined {
+      if (value === undefined || value === null) return undefined;
+      const trimmed = String(value).trim();
+      return trimmed === '' ? undefined : trimmed;
+    }
+
     function resolveField(candidates: string[]): string | undefined {
       if (fieldMapping) {
         for (const candidate of candidates) {
           const mapped = fieldMapping[candidate];
-          if (mapped && raw[mapped] !== undefined && raw[mapped] !== null && raw[mapped] !== '') {
-            return String(raw[mapped]);
-          }
+          const mappedValue = mapped ? pickValue(raw[mapped]) : undefined;
+          if (mappedValue !== undefined) return mappedValue;
         }
       }
       for (const candidate of candidates) {
-        if (raw[candidate] !== undefined && raw[candidate] !== null && raw[candidate] !== '') {
-          return String(raw[candidate]);
-        }
+        const value = pickValue(raw[candidate]);
+        if (value !== undefined) return value;
       }
       return undefined;
     }

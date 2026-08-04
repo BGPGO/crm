@@ -308,12 +308,18 @@ router.post('/', async (req: Request, res: Response) => {
       // If multiple contacts share the same name, skip to avoid mixing them up.
       if (!contact && inviteeName) {
         console.log(`[calendly-webhook] Trying exact unique name match: "${inviteeName}"`);
-        const nameMatches = await prisma.contact.findMany({
-          where: {
-            name: { equals: inviteeName, mode: 'insensitive' },
-          },
-          take: 2, // only need to know if there's more than 1
-        });
+        // btrim nos DOIS lados: nome gravado pela LP pode ter espaço sobrando
+        // ("Marcos André ") e a comparação byte a byte do Postgres não casava —
+        // era este o caminho que duplicava contato + deal (caso de 30/07).
+        const nameRows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "Contact"
+          WHERE lower(btrim(name)) = lower(btrim(${inviteeName}))
+          ORDER BY "createdAt" ASC
+          LIMIT 2
+        `;
+        const nameMatches = nameRows.length > 0
+          ? await prisma.contact.findMany({ where: { id: { in: nameRows.map(r => r.id) } } })
+          : [];
         if (nameMatches.length === 1) {
           contact = nameMatches[0];
           matchMethod = 'exact_unique_name';
@@ -782,16 +788,29 @@ router.post('/', async (req: Request, res: Response) => {
         if (updated.count > 0) {
           const canceledEvt = await prisma.calendlyEvent.findFirst({ where: { calendlyEventId } });
           if (canceledEvt?.dealId && canceledEvt.startTime) {
-            await prisma.task.updateMany({
+            // Match por data exata perdia a tarefa quando alguém tinha adiado ela
+            // na mão (ficava PENDING pra sempre, cobrando reunião que não existe).
+            // Só limpa se a negociação não tem OUTRA reunião ativa no futuro.
+            const outraAtiva = await prisma.calendlyEvent.findFirst({
               where: {
                 dealId: canceledEvt.dealId,
-                type: 'MEETING',
-                dueDate: canceledEvt.startTime,
+                status: 'active',
+                startTime: { gte: new Date() },
+                id: { not: canceledEvt.id },
+              },
+              select: { id: true },
+            });
+            const cleared = await prisma.task.updateMany({
+              where: {
+                dealId: canceledEvt.dealId,
                 status: 'PENDING',
+                ...(outraAtiva
+                  ? { type: 'MEETING', dueDate: canceledEvt.startTime }
+                  : { OR: [{ type: 'MEETING' }, { title: { contains: 'Reunião', mode: 'insensitive' } }] }),
               },
               data: { status: 'COMPLETED' },
             });
-            console.log(`[calendly-webhook] Task marked COMPLETED (canceled meeting) for deal ${canceledEvt.dealId}`);
+            console.log(`[calendly-webhook] ${cleared.count} task(s) marked COMPLETED (canceled meeting) for deal ${canceledEvt.dealId}`);
           }
         }
 
