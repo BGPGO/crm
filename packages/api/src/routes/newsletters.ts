@@ -228,7 +228,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         uniqueOpens,
         uniqueClicks,
         openRate: e.recipientCount > 0 ? uniqueOpens / e.recipientCount : null,
-        clickRate: e.recipientCount > 0 ? uniqueClicks / e.recipientCount : null,
+        // CTR sobre quem abriu, não sobre destinatários (pedido Oliver 04/08;
+        // mesmo critério do email-campaigns.ts)
+        clickRate: uniqueOpens > 0 ? uniqueClicks / uniqueOpens : null,
       };
     });
 

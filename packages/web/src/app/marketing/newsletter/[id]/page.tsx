@@ -176,8 +176,8 @@ export default function NewsletterDetailPage() {
               <StatCard
                 icon={Percent}
                 label="CTR"
-                value={pct(edition.metrics.uniqueClicks, edition.metrics.recipientCount)}
-                hint="pessoas que clicaram / destinatários"
+                value={pct(edition.metrics.uniqueClicks, edition.metrics.uniqueOpens)}
+                hint="pessoas que clicaram / pessoas que abriram"
               />
             </div>
 
