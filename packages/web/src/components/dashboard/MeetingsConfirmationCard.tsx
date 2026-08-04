@@ -38,6 +38,7 @@ interface SummaryMeeting {
   status: string;
   confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_SHOW";
   confirmedByName: string | null;
+  rescheduledAt: string | null;
   name: string;
   phone: string | null;
   dealId: string | null;
@@ -344,62 +345,84 @@ export default function MeetingsConfirmationCard() {
                               )}
                             </div>
 
+                            {/* Status escrito — só aparece quando acontece */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!canceled && m.confirmationStatus === "CONFIRMED" && (
+                                <span
+                                  className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
+                                  title={m.confirmedByName ? `Confirmada por ${m.confirmedByName}` : "Confirmada"}
+                                >
+                                  Confirmada
+                                </span>
+                              )}
+                              {!canceled && m.confirmationStatus === "DECLINED" && (
+                                <span
+                                  className="text-[10px] font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full"
+                                  title="Lead avisou que não vem"
+                                >
+                                  Não vem
+                                </span>
+                              )}
+                              {!canceled && m.confirmationStatus === "NO_SHOW" && (
+                                <span
+                                  className="text-[10px] font-semibold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full"
+                                  title="Lead não compareceu"
+                                >
+                                  No-show
+                                </span>
+                              )}
+                              {!canceled && m.rescheduledAt && (
+                                <span
+                                  className="text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full"
+                                  title="Reunião reagendada"
+                                >
+                                  Reagendada
+                                </span>
+                              )}
+                              {canceled && (
+                                <span className="text-[10px] font-semibold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                  Cancelada
+                                </span>
+                              )}
+                            </div>
+
                             {/* Ações — não propagam o clique da linha */}
                             <div
                               className="flex items-center gap-0.5 flex-shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {canceled ? (
-                                <>
-                                  <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                                    Cancelada
-                                  </span>
-                                  <button
-                                    onClick={() => setMeetingStatus(m, "active")}
-                                    disabled={busy}
-                                    title="Reativar reunião"
-                                    className={clsx(actionBtn, "text-blue-300 hover:text-blue-600 hover:bg-blue-50")}
-                                  >
-                                    <RotateCcw size={14} />
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => setMeetingStatus(m, "active")}
+                                  disabled={busy}
+                                  title="Reativar reunião"
+                                  className={clsx(actionBtn, "text-blue-300 hover:text-blue-600 hover:bg-blue-50")}
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
                               ) : (
                                 <>
                                   <button
                                     onClick={() =>
                                       setConfirmation(
                                         m,
-                                        m.confirmationStatus === "PENDING" ? "CONFIRMED" : "PENDING"
+                                        m.confirmationStatus === "CONFIRMED" ? "PENDING" : "CONFIRMED"
                                       )
                                     }
                                     disabled={busy}
                                     title={
                                       m.confirmationStatus === "CONFIRMED"
-                                        ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
-                                        : m.confirmationStatus === "DECLINED"
-                                          ? "Lead avisou que não vem — clique pra desfazer"
-                                          : m.confirmationStatus === "NO_SHOW"
-                                            ? "Lead não compareceu — clique pra desfazer"
-                                            : "Marcar como confirmada"
+                                        ? "Desfazer confirmação"
+                                        : "Marcar como confirmada"
                                     }
                                     className={clsx(
-                                      "text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 transition-colors disabled:opacity-50 mr-0.5",
+                                      actionBtn,
                                       m.confirmationStatus === "CONFIRMED"
-                                        ? "bg-green-500 text-white hover:bg-green-600"
-                                        : m.confirmationStatus === "DECLINED"
-                                          ? "bg-red-100 text-red-600 hover:bg-red-200"
-                                          : m.confirmationStatus === "NO_SHOW"
-                                            ? "bg-orange-100 text-orange-600 hover:bg-orange-200"
-                                            : "bg-green-50 text-green-600 hover:bg-green-100"
+                                        ? "text-white bg-green-500 hover:bg-green-600"
+                                        : "text-green-300 hover:text-green-600 hover:bg-green-50"
                                     )}
                                   >
-                                    {m.confirmationStatus === "CONFIRMED"
-                                      ? "✓ Confirmada"
-                                      : m.confirmationStatus === "DECLINED"
-                                        ? "✗ Não vem"
-                                        : m.confirmationStatus === "NO_SHOW"
-                                          ? "😴 No-show"
-                                          : "Confirmar"}
+                                    <Check size={14} />
                                   </button>
                                   <button
                                     onClick={() => {
@@ -408,20 +431,37 @@ export default function MeetingsConfirmationCard() {
                                     }}
                                     disabled={busy}
                                     title="Reagendar reunião"
-                                    className={clsx(actionBtn, "text-blue-300 hover:text-blue-600 hover:bg-blue-50")}
+                                    className={clsx(
+                                      actionBtn,
+                                      reschedulingId === m.id
+                                        ? "text-blue-600 bg-blue-50"
+                                        : "text-blue-300 hover:text-blue-600 hover:bg-blue-50"
+                                    )}
                                   >
                                     <CalendarClock size={14} />
                                   </button>
-                                  {m.confirmationStatus !== "NO_SHOW" && (
-                                    <button
-                                      onClick={() => setConfirmation(m, "NO_SHOW")}
-                                      disabled={busy}
-                                      title="Lead não compareceu (no-show)"
-                                      className={clsx(actionBtn, "text-orange-300 hover:text-orange-600 hover:bg-orange-50")}
-                                    >
-                                      <UserX size={14} />
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() =>
+                                      setConfirmation(
+                                        m,
+                                        m.confirmationStatus === "NO_SHOW" ? "PENDING" : "NO_SHOW"
+                                      )
+                                    }
+                                    disabled={busy}
+                                    title={
+                                      m.confirmationStatus === "NO_SHOW"
+                                        ? "Desfazer no-show"
+                                        : "Lead não compareceu (no-show)"
+                                    }
+                                    className={clsx(
+                                      actionBtn,
+                                      m.confirmationStatus === "NO_SHOW"
+                                        ? "text-white bg-orange-500 hover:bg-orange-600"
+                                        : "text-orange-300 hover:text-orange-600 hover:bg-orange-50"
+                                    )}
+                                  >
+                                    <UserX size={14} />
+                                  </button>
                                   <button
                                     onClick={() => setMeetingStatus(m, "canceled")}
                                     disabled={busy}
