@@ -4,7 +4,18 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
-import { Calendar, CalendarDays, CheckCircle, XCircle } from "lucide-react";
+import {
+  Calendar,
+  CalendarDays,
+  CalendarClock,
+  CheckCircle,
+  XCircle,
+  UserX,
+  Ban,
+  RotateCcw,
+  Check,
+  X,
+} from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 
@@ -15,6 +26,7 @@ interface FunilSummary {
   confirmed: number;
   pending: number;
   declined: number;
+  noShow: number;
   canceled: number;
 }
 
@@ -23,7 +35,7 @@ interface SummaryMeeting {
   startTime: string;
   endTime: string;
   status: string;
-  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED";
+  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_SHOW";
   confirmedByName: string | null;
   name: string;
   phone: string | null;
@@ -44,17 +56,66 @@ interface SummaryResponse {
 /** Funis fixos da operação, sempre lado a lado nessa ordem. */
 const FUNIL_ORDER = ["Controladoria", "BI"];
 
+/** Converte um ISO em valor pra <input type="datetime-local"> no fuso local. */
+const toLocalInput = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** Trio de chips cancelada / reuniões / confirmadas (topo e por funil). */
+function StatusChips({
+  canceled,
+  total,
+  confirmed,
+  allConfirmed,
+  size = "md",
+}: {
+  canceled: number;
+  total: number;
+  confirmed: number;
+  allConfirmed: boolean;
+  size?: "md" | "sm";
+}) {
+  const base = clsx(
+    "flex items-center gap-1 font-bold rounded-full",
+    size === "md" ? "text-[11px] px-2 py-0.5" : "text-[10px] px-1.5 py-0.5"
+  );
+  const iconSize = size === "md" ? 12 : 11;
+  return (
+    <span className="flex items-center gap-1 flex-wrap">
+      <span
+        className={clsx(base, canceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400")}
+        title="Canceladas"
+      >
+        <XCircle size={iconSize} /> {canceled} <span className="font-medium">canceladas</span>
+      </span>
+      <span className={clsx(base, "bg-petrol-50 text-petrol-700")} title="Total de reuniões">
+        <CalendarDays size={iconSize} /> {total} <span className="font-medium">reuniões</span>
+      </span>
+      <span
+        className={clsx(base, allConfirmed ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}
+        title="Confirmadas"
+      >
+        <CheckCircle size={iconSize} /> {confirmed} <span className="font-medium">confirmadas</span>
+      </span>
+    </span>
+  );
+}
+
 /**
  * Controle de reuniões do dia no Início: uma lista por funil (Controladoria e
- * BI lado a lado) com confirmação em um clique; total só no badge do título.
- * Reuniões sem funil vinculado ficam de fora.
+ * BI lado a lado) com confirmação, cancelamento, reagendamento e no-show em
+ * um clique; totais no topo e por funil. Reuniões sem funil ficam de fora.
  */
 export default function MeetingsConfirmationCard() {
   const router = useRouter();
   const [funis, setFunis] = useState<FunilSummary[]>([]);
   const [meetings, setMeetings] = useState<SummaryMeeting[]>([]);
   const [loading, setLoading] = useState(true);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [rescheduleValue, setRescheduleValue] = useState("");
   const [range, setRange] = useState<"today" | "week">("today");
 
   const fetchSummary = useCallback(async () => {
@@ -78,18 +139,29 @@ export default function MeetingsConfirmationCard() {
     return () => clearInterval(interval);
   }, [fetchSummary]);
 
-  const toggleConfirmation = async (m: SummaryMeeting) => {
-    if (togglingId) return;
-    setTogglingId(m.id);
+  const patchMeeting = async (id: string, path: string, body: unknown) => {
+    if (busyId) return;
+    setBusyId(id);
     try {
-      const next = m.confirmationStatus === "CONFIRMED" ? "PENDING" : "CONFIRMED";
-      await api.patch(`/calendly/config/meetings/${m.id}/confirmation`, { status: next });
+      await api.patch(`/calendly/config/meetings/${id}/${path}`, body);
       await fetchSummary();
     } catch (err) {
-      console.error("Erro ao confirmar reunião:", err);
+      console.error("Erro ao atualizar reunião:", err);
     } finally {
-      setTogglingId(null);
+      setBusyId(null);
     }
+  };
+
+  const setConfirmation = (m: SummaryMeeting, status: SummaryMeeting["confirmationStatus"]) =>
+    patchMeeting(m.id, "confirmation", { status });
+
+  const setMeetingStatus = (m: SummaryMeeting, status: "canceled" | "active") =>
+    patchMeeting(m.id, "status", { status });
+
+  const saveReschedule = async (m: SummaryMeeting) => {
+    if (!rescheduleValue) return;
+    await patchMeeting(m.id, "reschedule", { startTime: new Date(rescheduleValue).toISOString() });
+    setReschedulingId(null);
   };
 
   const fmtTime = (dateStr: string) =>
@@ -113,50 +185,34 @@ export default function MeetingsConfirmationCard() {
           confirmed: 0,
           pending: 0,
           declined: 0,
+          noShow: 0,
           canceled: 0,
         }
     ),
     ...visibleFunis.filter((f) => !FUNIL_ORDER.includes(f.pipelineName)),
   ];
 
+  const actionBtn =
+    "p-1 rounded-full text-gray-300 transition-colors disabled:opacity-40 flex-shrink-0";
+
   return (
     <Card padding="md">
       <CardHeader>
         <CardTitle>
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2 flex-wrap">
             <Calendar size={16} className="text-petrol-600" />
             {range === "today" ? "Reuniões de hoje" : "Reuniões da semana"}
             {totalMeetings > 0 && (
-              <span className="flex items-center gap-1">
-                <span
-                  className={clsx(
-                    "flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full",
-                    totalCanceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400"
-                  )}
-                  title="Canceladas"
-                >
-                  <XCircle size={12} /> {totalCanceled}{" "}
-                  <span className="font-medium hidden sm:inline">canceladas</span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  Total
                 </span>
-                <span
-                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-petrol-50 text-petrol-700"
-                  title="Total de reuniões"
-                >
-                  <CalendarDays size={12} /> {totalMeetings}{" "}
-                  <span className="font-medium hidden sm:inline">reuniões</span>
-                </span>
-                <span
-                  className={clsx(
-                    "flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full",
-                    totalActive > 0 && totalConfirmed === totalActive
-                      ? "bg-green-100 text-green-700"
-                      : "bg-amber-100 text-amber-700"
-                  )}
-                  title="Confirmadas"
-                >
-                  <CheckCircle size={12} /> {totalConfirmed}{" "}
-                  <span className="font-medium hidden sm:inline">confirmadas</span>
-                </span>
+                <StatusChips
+                  canceled={totalCanceled}
+                  total={totalMeetings}
+                  confirmed={totalConfirmed}
+                  allConfirmed={totalActive > 0 && totalConfirmed === totalActive}
+                />
               </span>
             )}
           </span>
@@ -203,135 +259,203 @@ export default function MeetingsConfirmationCard() {
             const funilMeetings = visibleMeetings.filter((m) => m.pipelineId === f.pipelineId);
             return (
               <div key={f.pipelineId} className="min-w-0">
-                <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1.5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
+                <div className="flex items-center justify-between gap-2 flex-wrap border-b border-gray-200 pb-1.5">
+                  <p className="text-sm font-bold text-gray-700 uppercase tracking-wide truncate">
                     {f.pipelineName}
                   </p>
-                  <span className="flex items-center gap-1 flex-shrink-0">
-                    <span
-                      className={clsx(
-                        "flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                        f.canceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400"
-                      )}
-                      title="Canceladas"
-                    >
-                      <XCircle size={11} /> {f.canceled}
-                    </span>
-                    <span
-                      className="flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-petrol-50 text-petrol-700"
-                      title="Total de reuniões"
-                    >
-                      <CalendarDays size={11} /> {f.total + f.canceled}
-                    </span>
-                    <span
-                      className={clsx(
-                        "flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                        f.total > 0 && f.confirmed === f.total
-                          ? "bg-green-100 text-green-700"
-                          : "bg-amber-100 text-amber-700"
-                      )}
-                      title="Confirmadas"
-                    >
-                      <CheckCircle size={11} /> {f.confirmed}
-                    </span>
-                  </span>
+                  <StatusChips
+                    canceled={f.canceled}
+                    total={f.total + f.canceled}
+                    confirmed={f.confirmed}
+                    allConfirmed={f.total > 0 && f.confirmed === f.total}
+                    size="sm"
+                  />
                 </div>
                 {funilMeetings.length === 0 ? (
                   <p className="text-xs text-gray-400 py-4 text-center">Nenhuma reunião</p>
                 ) : (
-                  <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto overflow-x-hidden">
+                  <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto overflow-x-hidden">
                     {funilMeetings.map((m) => {
                       const canceled = m.status === "canceled";
+                      const busy = busyId === m.id;
                       return (
-                        <div
-                          key={m.id}
-                          onClick={() => m.dealId && router.push(`/pipeline/${m.dealId}`)}
-                          onMouseDown={(e) => {
-                            if (e.button === 1 && m.dealId) {
-                              e.preventDefault();
-                              window.open(`/pipeline/${m.dealId}`, "_blank");
-                            }
-                          }}
-                          className={clsx(
-                            "py-2 px-1 flex items-center gap-3 min-w-0",
-                            m.dealId && "cursor-pointer hover:bg-gray-50 rounded transition-colors"
-                          )}
-                          title={m.dealId ? "Abrir negociação" : undefined}
-                        >
-                          <div className="w-12 flex-shrink-0 text-left">
-                            {range === "week" && (
-                              <p className="text-[10px] font-medium text-gray-400 uppercase leading-tight">
-                                {new Date(m.startTime).toLocaleDateString("pt-BR", {
-                                  weekday: "short",
-                                  day: "2-digit",
-                                })}
-                              </p>
-                            )}
-                            <p
-                              className={clsx(
-                                "text-sm font-bold leading-tight",
-                                canceled ? "text-gray-400 line-through" : "text-gray-900"
-                              )}
-                            >
-                              {fmtTime(m.startTime)}
-                            </p>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className={clsx(
-                                "text-sm truncate",
-                                canceled ? "text-gray-400 line-through" : "text-gray-800"
-                              )}
-                            >
-                              {m.name}
-                            </p>
-                            {(m.ownerName || m.closerName) && (
-                              <p className="text-[11px] text-gray-400 flex items-center gap-1.5 min-w-0 overflow-hidden">
-                                {m.ownerName && <span className="truncate">{m.ownerName}</span>}
-                                {m.closerName && (
-                                  <span
-                                    className="font-semibold text-petrol-700 bg-petrol-50 px-1.5 py-px rounded-full flex-shrink-0 whitespace-nowrap"
-                                    title="Closer — quem vai fazer a reunião"
-                                  >
-                                    ▸ {m.closerName}
-                                  </span>
-                                )}
-                              </p>
-                            )}
-                          </div>
-                          {canceled ? (
-                            <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full flex-shrink-0">
-                              Cancelada
-                            </span>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleConfirmation(m);
-                              }}
-                              disabled={togglingId === m.id}
-                              title={
-                                m.confirmationStatus === "CONFIRMED"
-                                  ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
-                                  : m.confirmationStatus === "DECLINED"
-                                    ? "Lead avisou que não vem"
-                                    : "Marcar como confirmada"
+                        <div key={m.id}>
+                          <div
+                            onClick={() => m.dealId && router.push(`/pipeline/${m.dealId}`)}
+                            onMouseDown={(e) => {
+                              if (e.button === 1 && m.dealId) {
+                                e.preventDefault();
+                                window.open(`/pipeline/${m.dealId}`, "_blank");
                               }
-                              className={clsx(
-                                "text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 transition-colors disabled:opacity-50",
-                                m.confirmationStatus === "CONFIRMED"
-                                  ? "bg-green-500 text-white hover:bg-green-600"
-                                  : m.confirmationStatus === "DECLINED"
-                                    ? "bg-red-100 text-red-600 hover:bg-red-200"
-                                    : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700"
+                            }}
+                            className={clsx(
+                              "py-2 px-1 flex items-center gap-3 min-w-0",
+                              m.dealId && "cursor-pointer hover:bg-gray-50 rounded transition-colors"
+                            )}
+                            title={m.dealId ? "Abrir negociação" : undefined}
+                          >
+                            <div className="w-12 flex-shrink-0 text-left">
+                              {range === "week" && (
+                                <p className="text-[10px] font-medium text-gray-400 uppercase leading-tight">
+                                  {new Date(m.startTime).toLocaleDateString("pt-BR", {
+                                    weekday: "short",
+                                    day: "2-digit",
+                                  })}
+                                </p>
                               )}
+                              <p
+                                className={clsx(
+                                  "text-sm font-bold leading-tight",
+                                  canceled ? "text-gray-400 line-through" : "text-gray-900"
+                                )}
+                              >
+                                {fmtTime(m.startTime)}
+                              </p>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={clsx(
+                                  "text-sm truncate",
+                                  canceled ? "text-gray-400 line-through" : "text-gray-800"
+                                )}
+                              >
+                                {m.name}
+                              </p>
+                              {(m.ownerName || m.closerName) && (
+                                <p className="text-[11px] text-gray-400 flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                  {m.ownerName && <span className="truncate">{m.ownerName}</span>}
+                                  {m.closerName && (
+                                    <span
+                                      className="font-semibold text-petrol-700 bg-petrol-50 px-1.5 py-px rounded-full flex-shrink-0 whitespace-nowrap"
+                                      title="Closer — quem vai fazer a reunião"
+                                    >
+                                      ▸ {m.closerName}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Ações — não propagam o clique da linha */}
+                            <div
+                              className="flex items-center gap-0.5 flex-shrink-0"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {m.confirmationStatus === "CONFIRMED"
-                                ? "✓ Confirmada"
-                                : m.confirmationStatus === "DECLINED"
-                                  ? "✗ Não vem"
-                                  : "Confirmar"}
-                            </button>
+                              {canceled ? (
+                                <>
+                                  <span className="text-[10px] font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                    Cancelada
+                                  </span>
+                                  <button
+                                    onClick={() => setMeetingStatus(m, "active")}
+                                    disabled={busy}
+                                    title="Reativar reunião"
+                                    className={clsx(actionBtn, "hover:text-petrol-600 hover:bg-petrol-50")}
+                                  >
+                                    <RotateCcw size={14} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      setConfirmation(
+                                        m,
+                                        m.confirmationStatus === "PENDING" ? "CONFIRMED" : "PENDING"
+                                      )
+                                    }
+                                    disabled={busy}
+                                    title={
+                                      m.confirmationStatus === "CONFIRMED"
+                                        ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
+                                        : m.confirmationStatus === "DECLINED"
+                                          ? "Lead avisou que não vem — clique pra desfazer"
+                                          : m.confirmationStatus === "NO_SHOW"
+                                            ? "Lead não compareceu — clique pra desfazer"
+                                            : "Marcar como confirmada"
+                                    }
+                                    className={clsx(
+                                      "text-[10px] font-medium px-2 py-1 rounded-full flex-shrink-0 transition-colors disabled:opacity-50 mr-0.5",
+                                      m.confirmationStatus === "CONFIRMED"
+                                        ? "bg-green-500 text-white hover:bg-green-600"
+                                        : m.confirmationStatus === "DECLINED"
+                                          ? "bg-red-100 text-red-600 hover:bg-red-200"
+                                          : m.confirmationStatus === "NO_SHOW"
+                                            ? "bg-orange-100 text-orange-600 hover:bg-orange-200"
+                                            : "bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700"
+                                    )}
+                                  >
+                                    {m.confirmationStatus === "CONFIRMED"
+                                      ? "✓ Confirmada"
+                                      : m.confirmationStatus === "DECLINED"
+                                        ? "✗ Não vem"
+                                        : m.confirmationStatus === "NO_SHOW"
+                                          ? "😴 No-show"
+                                          : "Confirmar"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setReschedulingId(reschedulingId === m.id ? null : m.id);
+                                      setRescheduleValue(toLocalInput(m.startTime));
+                                    }}
+                                    disabled={busy}
+                                    title="Reagendar reunião"
+                                    className={clsx(actionBtn, "hover:text-petrol-600 hover:bg-petrol-50")}
+                                  >
+                                    <CalendarClock size={14} />
+                                  </button>
+                                  {m.confirmationStatus !== "NO_SHOW" && (
+                                    <button
+                                      onClick={() => setConfirmation(m, "NO_SHOW")}
+                                      disabled={busy}
+                                      title="Lead não compareceu (no-show)"
+                                      className={clsx(actionBtn, "hover:text-orange-600 hover:bg-orange-50")}
+                                    >
+                                      <UserX size={14} />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setMeetingStatus(m, "canceled")}
+                                    disabled={busy}
+                                    title="Cancelar reunião"
+                                    className={clsx(actionBtn, "hover:text-red-600 hover:bg-red-50")}
+                                  >
+                                    <Ban size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Editor de reagendamento */}
+                          {reschedulingId === m.id && !canceled && (
+                            <div
+                              className="flex items-center gap-2 pb-2 pl-[3.75rem] pr-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <CalendarClock size={13} className="text-petrol-600 flex-shrink-0" />
+                              <input
+                                type="datetime-local"
+                                value={rescheduleValue}
+                                onChange={(e) => setRescheduleValue(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-petrol-500 min-w-0"
+                              />
+                              <button
+                                onClick={() => saveReschedule(m)}
+                                disabled={busy || !rescheduleValue}
+                                title="Salvar novo horário"
+                                className="p-1 rounded-full bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50 flex-shrink-0"
+                              >
+                                <Check size={13} />
+                              </button>
+                              <button
+                                onClick={() => setReschedulingId(null)}
+                                title="Fechar sem salvar"
+                                className="p-1 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors flex-shrink-0"
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
