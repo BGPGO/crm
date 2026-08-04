@@ -329,13 +329,13 @@ router.get('/meetings/confirmation-summary', async (req: Request, res: Response,
 
     // Resolve o funil via deal vinculada
     const dealIds = meetings.map(m => m.dealId).filter((id): id is string => !!id);
-    const dealMap = new Map<string, { pipelineId: string; pipelineName: string; ownerName: string | null }>();
+    const dealMap = new Map<string, { pipelineId: string; pipelineName: string; ownerName: string | null; closerName: string | null }>();
     if (dealIds.length > 0) {
       const deals = await prisma.deal.findMany({
         where: { id: { in: dealIds } },
-        select: { id: true, pipelineId: true, pipeline: { select: { name: true } }, user: { select: { name: true } } },
+        select: { id: true, pipelineId: true, pipeline: { select: { name: true } }, user: { select: { name: true } }, closer: { select: { name: true } } },
       });
-      deals.forEach(d => dealMap.set(d.id, { pipelineId: d.pipelineId, pipelineName: d.pipeline?.name ?? 'Sem funil', ownerName: d.user?.name ?? null }));
+      deals.forEach(d => dealMap.set(d.id, { pipelineId: d.pipelineId, pipelineName: d.pipeline?.name ?? 'Sem funil', ownerName: d.user?.name ?? null, closerName: d.closer?.name ?? null }));
     }
 
     type Bucket = { pipelineId: string; pipelineName: string; total: number; confirmed: number; pending: number; declined: number; canceled: number };
@@ -367,6 +367,7 @@ router.get('/meetings/confirmation-summary', async (req: Request, res: Response,
         pipelineId,
         pipelineName,
         ownerName: deal?.ownerName ?? m.hostName ?? null,
+        closerName: deal?.closerName ?? null,
       };
     });
 

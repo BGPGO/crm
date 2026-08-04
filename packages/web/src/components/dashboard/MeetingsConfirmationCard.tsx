@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
 import { Calendar } from "lucide-react";
 import clsx from "clsx";
@@ -30,6 +31,7 @@ interface SummaryMeeting {
   pipelineId: string;
   pipelineName: string;
   ownerName: string | null;
+  closerName: string | null;
 }
 
 interface SummaryResponse {
@@ -48,6 +50,7 @@ const FUNIL_ORDER = ["Controladoria", "BI"];
  * Reuniões sem funil vinculado ficam de fora.
  */
 export default function MeetingsConfirmationCard() {
+  const router = useRouter();
   const [funis, setFunis] = useState<FunilSummary[]>([]);
   const [meetings, setMeetings] = useState<SummaryMeeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,9 +180,23 @@ export default function MeetingsConfirmationCard() {
             const funilMeetings = visibleMeetings.filter((m) => m.pipelineId === f.pipelineId);
             return (
               <div key={f.pipelineId} className="min-w-0">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 pb-1.5">
-                  {f.pipelineName}
-                </p>
+                <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-1.5">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
+                    {f.pipelineName}
+                  </p>
+                  {f.total > 0 && (
+                    <span
+                      className={clsx(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0",
+                        f.confirmed === f.total
+                          ? "bg-green-100 text-green-700"
+                          : "bg-amber-100 text-amber-700"
+                      )}
+                    >
+                      {f.confirmed}/{f.total}
+                    </span>
+                  )}
+                </div>
                 {funilMeetings.length === 0 ? (
                   <p className="text-xs text-gray-400 py-4 text-center">Nenhuma reunião</p>
                 ) : (
@@ -187,7 +204,21 @@ export default function MeetingsConfirmationCard() {
                     {funilMeetings.map((m) => {
                       const canceled = m.status === "canceled";
                       return (
-                        <div key={m.id} className="py-2 flex items-center gap-3">
+                        <div
+                          key={m.id}
+                          onClick={() => m.dealId && router.push(`/pipeline/${m.dealId}`)}
+                          onMouseDown={(e) => {
+                            if (e.button === 1 && m.dealId) {
+                              e.preventDefault();
+                              window.open(`/pipeline/${m.dealId}`, "_blank");
+                            }
+                          }}
+                          className={clsx(
+                            "py-2 flex items-center gap-3",
+                            m.dealId && "cursor-pointer hover:bg-gray-50 -mx-1 px-1 rounded transition-colors"
+                          )}
+                          title={m.dealId ? "Abrir negociação" : undefined}
+                        >
                           <div className="w-12 flex-shrink-0 text-left">
                             {range === "week" && (
                               <p className="text-[10px] font-medium text-gray-400 uppercase leading-tight">
@@ -215,8 +246,18 @@ export default function MeetingsConfirmationCard() {
                             >
                               {m.name}
                             </p>
-                            {m.ownerName && (
-                              <p className="text-[11px] text-gray-400 truncate">{m.ownerName}</p>
+                            {(m.ownerName || m.closerName) && (
+                              <p className="text-[11px] text-gray-400 truncate flex items-center gap-1.5">
+                                {m.ownerName && <span>{m.ownerName}</span>}
+                                {m.closerName && (
+                                  <span
+                                    className="font-semibold text-petrol-700 bg-petrol-50 px-1.5 py-px rounded-full flex-shrink-0"
+                                    title="Closer — quem vai fazer a reunião"
+                                  >
+                                    ▸ {m.closerName}
+                                  </span>
+                                )}
+                              </p>
                             )}
                           </div>
                           {canceled ? (
@@ -225,7 +266,10 @@ export default function MeetingsConfirmationCard() {
                             </span>
                           ) : (
                             <button
-                              onClick={() => toggleConfirmation(m)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleConfirmation(m);
+                              }}
                               disabled={togglingId === m.id}
                               title={
                                 m.confirmationStatus === "CONFIRMED"
