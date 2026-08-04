@@ -28,9 +28,10 @@ export interface CentralMeeting {
   startTime: string;
   endTime: string;
   status: string;
-  confirmationStatus?: "PENDING" | "CONFIRMED" | "DECLINED";
+  confirmationStatus?: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_SHOW";
   confirmedAt?: string | null;
   confirmedByName?: string | null;
+  rescheduledAt?: string | null;
   dealId: string | null;
   contact: {
     id: string;

@@ -309,13 +309,15 @@ export default function CentralPage() {
     if (!personId) return;
     try {
       // userId filtra por dono OU closer da deal, além do host do Calendly;
-      // pipelineId filtra pelo funil da deal vinculada à reunião
+      // pipelineId filtra pelo funil da deal vinculada à reunião.
+      // fromToday = de hoje 00:00 (BRT) em diante, com canceladas — as de hoje
+      // que já passaram ficam na coluna com o selo, igual ao card do Início.
       const userParam = personId !== "all" ? `&userId=${personId}` : "";
       const pipelineParam = pipelineFilter !== "all" ? `&pipelineId=${pipelineFilter}` : "";
       const res = await api.get<{ data: CentralMeeting[] }>(
-        `/calendly/config/meetings?period=upcoming&limit=100${userParam}${pipelineParam}`
+        `/calendly/config/meetings?period=fromToday&limit=100${userParam}${pipelineParam}`
       );
-      setMeetings((res.data || []).filter((m) => m.status !== "canceled"));
+      setMeetings(res.data || []);
     } catch {
       /* silent */
     } finally {
@@ -510,7 +512,7 @@ export default function CentralPage() {
     };
     visibleMeetings.forEach((m) => {
       const b = bucketOf(new Date(m.startTime), todayKey, tomorrowKey);
-      if (b === "overdue") return; // já passou — fora da central
+      if (b === "overdue") return; // dia anterior — a API já só manda de hoje em diante
       groups[b].push(m);
     });
     return groups;
@@ -562,6 +564,7 @@ export default function CentralPage() {
     let meetingsToday = 0;
     let confirmedToday = 0;
     meetings.forEach((m) => {
+      if (m.status === "canceled") return; // cancelada não conta no indicador
       if (dayKeyBRT(new Date(m.startTime)) === todayKey) {
         meetingsToday++;
         if (m.confirmationStatus === "CONFIRMED") confirmedToday++;
@@ -881,6 +884,8 @@ export default function CentralPage() {
                         {items.map((m) => {
                           const soon = isSoon(m.startTime);
                           const name = m.contact?.name || m.inviteeName || m.inviteeEmail;
+                          const canceled = m.status === "canceled";
+                          const past = new Date(m.startTime).getTime() < Date.now();
                           return (
                             <div
                               key={m.id}
@@ -907,7 +912,14 @@ export default function CentralPage() {
 
                               {/* Info */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+                                <p
+                                  className={clsx(
+                                    "text-sm font-semibold truncate",
+                                    canceled ? "text-gray-400 line-through" : "text-gray-900"
+                                  )}
+                                >
+                                  {name}
+                                </p>
                                 {(m.dealOwnerName || m.hostName) && (
                                   <span className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
                                     <UserIcon size={11} /> {m.dealOwnerName || m.hostName}
@@ -915,8 +927,49 @@ export default function CentralPage() {
                                 )}
                               </div>
 
-                              {/* Countdown */}
-                              {bucket === "today" && (
+                              {/* Status escrito — igual ao card do Início; só aparece quando acontece */}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {!canceled && m.confirmationStatus === "CONFIRMED" && (
+                                  <span
+                                    className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full"
+                                    title={m.confirmedByName ? `Confirmada por ${m.confirmedByName}` : "Confirmada"}
+                                  >
+                                    Confirmada
+                                  </span>
+                                )}
+                                {!canceled && m.confirmationStatus === "DECLINED" && (
+                                  <span
+                                    className="text-[10px] font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full"
+                                    title="Lead avisou que não vem"
+                                  >
+                                    Não vem
+                                  </span>
+                                )}
+                                {!canceled && m.confirmationStatus === "NO_SHOW" && (
+                                  <span
+                                    className="text-[10px] font-semibold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full"
+                                    title="Lead não compareceu"
+                                  >
+                                    No-show
+                                  </span>
+                                )}
+                                {!canceled && m.rescheduledAt && (
+                                  <span
+                                    className="text-[10px] font-semibold bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full"
+                                    title="Reunião reagendada"
+                                  >
+                                    Reagendada
+                                  </span>
+                                )}
+                                {canceled && (
+                                  <span className="text-[10px] font-semibold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                                    Cancelada
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Countdown — só pra reunião que ainda vai acontecer */}
+                              {bucket === "today" && !past && !canceled && (
                                 <span
                                   className={clsx(
                                     "text-[11px] font-medium px-2 py-0.5 rounded-full flex-shrink-0",
@@ -932,27 +985,29 @@ export default function CentralPage() {
                                 className="flex items-center gap-1 flex-shrink-0"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <button
-                                  onClick={() => toggleMeetingConfirmation(m)}
-                                  disabled={confirmingMeetingId === m.id}
-                                  title={
-                                    m.confirmationStatus === "CONFIRMED"
-                                      ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
-                                      : m.confirmationStatus === "DECLINED"
-                                        ? "Lead avisou que não vem"
-                                        : "Marcar como confirmada"
-                                  }
-                                  className={clsx(
-                                    "p-1.5 rounded-lg transition-colors disabled:opacity-50",
-                                    m.confirmationStatus === "CONFIRMED"
-                                      ? "text-white bg-green-500 hover:bg-green-600"
-                                      : m.confirmationStatus === "DECLINED"
-                                        ? "text-red-600 bg-red-50 hover:bg-red-100"
-                                        : "text-gray-300 hover:text-green-600 hover:bg-green-50"
-                                  )}
-                                >
-                                  <CheckCircle size={16} />
-                                </button>
+                                {!canceled && (
+                                  <button
+                                    onClick={() => toggleMeetingConfirmation(m)}
+                                    disabled={confirmingMeetingId === m.id}
+                                    title={
+                                      m.confirmationStatus === "CONFIRMED"
+                                        ? `Confirmada${m.confirmedByName ? ` por ${m.confirmedByName}` : ""} — clique pra desfazer`
+                                        : m.confirmationStatus === "DECLINED"
+                                          ? "Lead avisou que não vem"
+                                          : "Marcar como confirmada"
+                                    }
+                                    className={clsx(
+                                      "p-1.5 rounded-lg transition-colors disabled:opacity-50",
+                                      m.confirmationStatus === "CONFIRMED"
+                                        ? "text-white bg-green-500 hover:bg-green-600"
+                                        : m.confirmationStatus === "DECLINED"
+                                          ? "text-red-600 bg-red-50 hover:bg-red-100"
+                                          : "text-gray-300 hover:text-green-600 hover:bg-green-50"
+                                    )}
+                                  >
+                                    <CheckCircle size={16} />
+                                  </button>
+                                )}
                                 {m.contact?.phone && (
                                   <button
                                     onClick={() => openWhatsAppChat(m.contact!.phone!)}

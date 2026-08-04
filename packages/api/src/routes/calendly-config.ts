@@ -115,12 +115,18 @@ router.get('/meetings', async (req: Request, res: Response, next: NextFunction) 
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const { period } = req.query; // upcoming, past, all
+    const { period } = req.query; // upcoming, fromToday, past, all
     const now = new Date();
 
     const where: Record<string, unknown> = {};
     if (period === 'past') {
       where.startTime = { lt: now };
+    } else if (period === 'fromToday') {
+      // De hoje 00:00 (BRT) em diante, TODOS os status — a Central mostra as
+      // de hoje que já passaram com o selo (confirmada, no-show, cancelada),
+      // igual ao card do Início.
+      const todayBRT = now.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      where.startTime = { gte: new Date(`${todayBRT}T00:00:00-03:00`) };
     } else if (period !== 'all') {
       // Default: upcoming
       where.startTime = { gte: now };
