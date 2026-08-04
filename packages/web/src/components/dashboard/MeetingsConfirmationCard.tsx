@@ -39,6 +39,7 @@ interface SummaryMeeting {
   confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | "NO_SHOW";
   confirmedByName: string | null;
   rescheduledAt: string | null;
+  rescheduleUrl: string | null;
   name: string;
   phone: string | null;
   dealId: string | null;
@@ -434,11 +435,19 @@ export default function MeetingsConfirmationCard() {
                                   </button>
                                   <button
                                     onClick={() => {
+                                      if (m.rescheduleUrl) {
+                                        window.open(m.rescheduleUrl, "_blank");
+                                        return;
+                                      }
                                       setReschedulingId(reschedulingId === m.id ? null : m.id);
                                       setRescheduleValue(toLocalInput(m.startTime));
                                     }}
                                     disabled={busy}
-                                    title="Reagendar reunião"
+                                    title={
+                                      m.rescheduleUrl
+                                        ? "Reagendar — abre o link de reagendamento do lead no Calendly"
+                                        : "Reagendar manualmente (sem link do Calendly pra essa reunião)"
+                                    }
                                     className={clsx(
                                       actionBtn,
                                       reschedulingId === m.id
@@ -459,7 +468,7 @@ export default function MeetingsConfirmationCard() {
                                     title={
                                       m.confirmationStatus === "NO_SHOW"
                                         ? "Desfazer no-show"
-                                        : "Lead não compareceu (no-show)"
+                                        : "Lead não compareceu (no-show) — negociação volta pra Marcar reunião"
                                     }
                                     className={clsx(
                                       actionBtn,
@@ -473,7 +482,7 @@ export default function MeetingsConfirmationCard() {
                                   <button
                                     onClick={() => setMeetingStatus(m, "canceled")}
                                     disabled={busy}
-                                    title="Cancelar reunião"
+                                    title="Cancelar reunião — negociação volta pra Marcar reunião"
                                     className={clsx(actionBtn, "text-red-300 hover:text-red-600 hover:bg-red-50")}
                                   >
                                     <Ban size={14} />

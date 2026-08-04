@@ -1,8 +1,52 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { createError } from '../middleware/errorHandler';
+import { resolveSdrOwner } from '../lib/pipelines';
+import { logActivity } from '../services/activityLogger';
+import { dispatchWebhook } from '../services/webhookDispatcher';
+import { onStageChanged } from '../services/automationTriggerListener';
 
 const router = Router();
+
+/**
+ * Reunião cancelada / no-show → negociação volta pra "Marcar reunião" do
+ * próprio funil, com os mesmos efeitos do kanban (activity, webhook,
+ * automações, dono SDR). Quem já avançou além de "Reunião agendada"
+ * (proposta em diante) NÃO é rebaixado.
+ */
+async function moveDealParaMarcarReuniao(dealId: string, actingUserId: string | undefined, motivo: string) {
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, include: { stage: true } });
+  if (!deal) return;
+
+  const target = await prisma.pipelineStage.findFirst({
+    where: { pipelineId: deal.pipelineId, name: { contains: 'marcar reuni', mode: 'insensitive' } },
+  });
+  if (!target || deal.stageId === target.id) return;
+  if (deal.stage.order > target.order + 1) return; // já passou de "Reunião agendada"
+
+  const fromStage = deal.stage.name;
+  const sdrOwner = resolveSdrOwner({ pipelineId: deal.pipelineId, stageId: target.id, currentUserId: deal.userId });
+  await prisma.deal.update({
+    where: { id: deal.id },
+    data: { stageId: target.id, ...(sdrOwner ? { userId: sdrOwner } : {}) },
+  });
+
+  await logActivity({
+    type: 'STAGE_CHANGE',
+    content: `Etapa alterada de "${fromStage}" para "${target.name}" (${motivo})`,
+    userId: actingUserId ?? deal.userId,
+    dealId: deal.id,
+    contactId: deal.contactId ?? undefined,
+    metadata: { fromStage, toStage: target.name, motivo },
+  });
+  dispatchWebhook('deal.stage_changed', {
+    dealId: deal.id,
+    dealTitle: deal.title,
+    fromStage,
+    toStage: target.name,
+  });
+  if (deal.contactId) onStageChanged(deal.contactId, target.id, deal.id);
+}
 
 // GET /api/calendly/config — Get Calendly config (first record or create default)
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -297,6 +341,11 @@ router.patch('/meetings/:id/confirmation', async (req: Request, res: Response, n
       });
     }
 
+    // No-show → lead precisa remarcar: negociação volta pra "Marcar reunião"
+    if (status === 'NO_SHOW' && meeting.dealId) {
+      await moveDealParaMarcarReuniao(meeting.dealId, actingUser?.id, 'no-show na reunião');
+    }
+
     res.json({ data: updated });
   } catch (err) {
     next(err);
@@ -342,6 +391,11 @@ router.patch('/meetings/:id/status', async (req: Request, res: Response, next: N
           metadata: { meetingId: meeting.id, status },
         },
       });
+    }
+
+    // Cancelou → precisa remarcar: negociação volta pra "Marcar reunião"
+    if (status === 'canceled' && meeting.dealId) {
+      await moveDealParaMarcarReuniao(meeting.dealId, actingUser?.id, 'reunião cancelada');
     }
 
     res.json({ data: updated });
@@ -445,6 +499,30 @@ router.get('/meetings/confirmation-summary', async (req: Request, res: Response,
       deals.forEach(d => dealMap.set(d.id, { pipelineId: d.pipelineId, pipelineName: d.pipeline?.name ?? 'Sem funil', ownerName: d.user?.name ?? null, closerName: d.closer?.name ?? null }));
     }
 
+    // Link de reagendamento do próprio lead — persistido pelo calendly-webhook
+    // em Activity.metadata, casando pelo calendlyEventId do MESMO evento.
+    const contactIds = meetings.map(m => m.contactId).filter((id): id is string => !!id);
+    const rescheduleLinkByEvent = new Map<string, string>();
+    if (dealIds.length > 0 || contactIds.length > 0) {
+      const acts = await prisma.activity.findMany({
+        where: {
+          type: 'MEETING',
+          OR: [
+            ...(dealIds.length > 0 ? [{ dealId: { in: dealIds } }] : []),
+            ...(contactIds.length > 0 ? [{ contactId: { in: contactIds } }] : []),
+          ],
+        },
+        orderBy: { createdAt: 'asc' }, // o mais recente sobrescreve
+        select: { metadata: true },
+      });
+      for (const a of acts) {
+        const meta = (a.metadata ?? {}) as Record<string, unknown>;
+        if (typeof meta.calendlyEventId === 'string' && typeof meta.rescheduleUrl === 'string') {
+          rescheduleLinkByEvent.set(meta.calendlyEventId, meta.rescheduleUrl);
+        }
+      }
+    }
+
     type Bucket = { pipelineId: string; pipelineName: string; total: number; confirmed: number; pending: number; declined: number; noShow: number; rescheduled: number; canceled: number };
     const buckets = new Map<string, Bucket>();
     const enriched = meetings.map(m => {
@@ -471,6 +549,7 @@ router.get('/meetings/confirmation-summary', async (req: Request, res: Response,
         confirmationStatus: m.confirmationStatus,
         confirmedByName: m.confirmedByName,
         rescheduledAt: m.rescheduledAt,
+        rescheduleUrl: rescheduleLinkByEvent.get(m.calendlyEventId) ?? null,
         name: m.contact?.name || m.inviteeName || m.inviteeEmail,
         phone: m.contact?.phone ?? null,
         dealId: m.dealId,
