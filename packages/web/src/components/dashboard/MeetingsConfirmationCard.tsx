@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Card, { CardHeader, CardTitle } from "@/components/ui/Card";
-import { Calendar } from "lucide-react";
+import { Calendar, CalendarDays, CheckCircle, XCircle } from "lucide-react";
 import clsx from "clsx";
 import { api } from "@/lib/api";
 
@@ -99,6 +99,8 @@ export default function MeetingsConfirmationCard() {
   const visibleMeetings = meetings.filter((m) => m.pipelineId !== "none");
   const totalActive = visibleFunis.reduce((s, f) => s + f.total, 0);
   const totalConfirmed = visibleFunis.reduce((s, f) => s + f.confirmed, 0);
+  const totalCanceled = visibleFunis.reduce((s, f) => s + f.canceled, 0);
+  const totalMeetings = totalActive + totalCanceled;
 
   // Controladoria e BI sempre presentes (mesmo zeradas); outros funis entram depois se tiverem reunião
   const columns = [
@@ -124,16 +126,37 @@ export default function MeetingsConfirmationCard() {
           <span className="flex items-center gap-2">
             <Calendar size={16} className="text-petrol-600" />
             {range === "today" ? "Reuniões de hoje" : "Reuniões da semana"}
-            {totalActive > 0 && (
-              <span
-                className={clsx(
-                  "text-xs font-bold px-2 py-0.5 rounded-full",
-                  totalConfirmed === totalActive
-                    ? "bg-green-100 text-green-700"
-                    : "bg-amber-100 text-amber-700"
-                )}
-              >
-                {totalConfirmed}/{totalActive} confirmadas
+            {totalMeetings > 0 && (
+              <span className="flex items-center gap-1">
+                <span
+                  className={clsx(
+                    "flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full",
+                    totalCanceled > 0 ? "bg-red-50 text-red-500" : "bg-gray-100 text-gray-400"
+                  )}
+                  title="Canceladas"
+                >
+                  <XCircle size={12} /> {totalCanceled}{" "}
+                  <span className="font-medium hidden sm:inline">canceladas</span>
+                </span>
+                <span
+                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-petrol-50 text-petrol-700"
+                  title="Total de reuniões"
+                >
+                  <CalendarDays size={12} /> {totalMeetings}{" "}
+                  <span className="font-medium hidden sm:inline">reuniões</span>
+                </span>
+                <span
+                  className={clsx(
+                    "flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full",
+                    totalActive > 0 && totalConfirmed === totalActive
+                      ? "bg-green-100 text-green-700"
+                      : "bg-amber-100 text-amber-700"
+                  )}
+                  title="Confirmadas"
+                >
+                  <CheckCircle size={12} /> {totalConfirmed}{" "}
+                  <span className="font-medium hidden sm:inline">confirmadas</span>
+                </span>
               </span>
             )}
           </span>
@@ -184,18 +207,25 @@ export default function MeetingsConfirmationCard() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
                     {f.pipelineName}
                   </p>
-                  {f.total > 0 && (
-                    <span
-                      className={clsx(
-                        "text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0",
-                        f.confirmed === f.total
-                          ? "bg-green-100 text-green-700"
-                          : "bg-amber-100 text-amber-700"
-                      )}
-                    >
-                      {f.confirmed}/{f.total}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1.5 flex-shrink-0">
+                    {f.canceled > 0 && (
+                      <span className="text-[10px] font-medium text-gray-400 line-through" title="Canceladas">
+                        {f.canceled}
+                      </span>
+                    )}
+                    {f.total > 0 && (
+                      <span
+                        className={clsx(
+                          "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                          f.confirmed === f.total
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
+                        )}
+                      >
+                        {f.confirmed}/{f.total}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {funilMeetings.length === 0 ? (
                   <p className="text-xs text-gray-400 py-4 text-center">Nenhuma reunião</p>
