@@ -42,6 +42,7 @@ import ConversationTabs from "@/components/deal/ConversationTabs";
 import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { api } from "@/lib/api";
+import { perguntarSobreReuniaoVinculada } from "@/lib/meetingTaskPrompt";
 import { useAuth } from "@/contexts/AuthContext";
 import { brtInputToUtcIso, toDatetimeLocalInputBRT } from "@/lib/taskDateTime";
 import { openWhatsAppChat, waPhoneDigits } from "@/lib/whatsapp";
@@ -1084,10 +1085,12 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
     setSubmitting(true);
     try {
       const updatedDueDate = taskDueDate ? brtInputToUtcIso(taskDueDate) : undefined;
+      const cancelLinkedMeeting = await perguntarSobreReuniaoVinculada(editingTask, taskType);
       await api.put(`/tasks/${editingTask.id}`, {
         title: taskTitle.trim(),
         type: taskType,
         dueDate: updatedDueDate,
+        cancelLinkedMeeting,
       });
       setDeal((d) =>
         d

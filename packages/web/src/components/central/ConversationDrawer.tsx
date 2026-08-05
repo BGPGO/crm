@@ -17,6 +17,9 @@ interface ConversationDrawerProps {
 interface ConvResponse {
   data: { conversationId: string; phone: string } | null;
   waba?: { conversationId: string; phone: string } | null;
+  // Telefone resolvido da negociação (contato principal ou primeiro contato
+  // adicional com telefone) — a tarefa nem sempre tem contato.
+  contact?: { id: string; phone: string } | null;
 }
 
 /**
@@ -31,13 +34,17 @@ export default function ConversationDrawer({
 }: ConversationDrawerProps) {
   const [loading, setLoading] = useState(true);
   const [waba, setWaba] = useState<{ conversationId: string; phone: string } | null>(null);
+  const [dealPhone, setDealPhone] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await api.get<ConvResponse>(`/deals/${dealId}/whatsapp-conversation`);
-        if (!cancelled) setWaba(res.waba || null);
+        if (!cancelled) {
+          setWaba(res.waba || null);
+          setDealPhone(res.contact?.phone || "");
+        }
       } catch {
         /* silent */
       } finally {
@@ -49,7 +56,7 @@ export default function ConversationDrawer({
     };
   }, [dealId]);
 
-  const phone = contactPhone || waba?.phone || "";
+  const phone = contactPhone || waba?.phone || dealPhone;
 
   if (!loading && phone) {
     return (

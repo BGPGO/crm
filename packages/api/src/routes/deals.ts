@@ -1437,8 +1437,16 @@ router.get('/:id/whatsapp-conversation', async (req, res, next) => {
       ? deal.contact
       : deal.dealContacts?.find((dc) => dc.contact.phone)?.contact ?? null;
 
+    // O telefone resolvido volta SEMPRE (mesmo sem conversa nenhuma): a Central
+    // só conhece o contato da tarefa, e tarefa/negociação sem contato principal
+    // (30 deals hoje só têm contato em dealContacts) fazia o painel de conversas
+    // dizer "contato sem telefone" com o telefone à vista na negociação.
+    const contactResolvido = contact?.phone
+      ? { id: contact.id, phone: contact.phone }
+      : null;
+
     if (!contact?.phone) {
-      return res.json({ data: null });
+      return res.json({ data: null, waba: null, contact: null });
     }
 
     // Try by contactId first
@@ -1469,9 +1477,12 @@ router.get('/:id/whatsapp-conversation', async (req, res, next) => {
       });
     }
 
-    if (!conversation && !wabaConversation) return res.json({ data: null });
+    if (!conversation && !wabaConversation) {
+      return res.json({ data: null, waba: null, contact: contactResolvido });
+    }
 
     res.json({
+      contact: contactResolvido,
       data: conversation ? {
         conversationId: conversation.id,
         phone: conversation.phone,

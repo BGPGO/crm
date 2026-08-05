@@ -19,6 +19,7 @@ import PostponeDropdown from "@/components/ui/PostponeDropdown";
 import { formatDate } from "@/lib/formatters";
 import { formatTaskDate, normalizeDueDate, brtInputToUtcIso } from "@/lib/taskDateTime";
 import { api } from "@/lib/api";
+import { perguntarSobreReuniaoVinculada } from "@/lib/meetingTaskPrompt";
 import { useAuth } from "@/contexts/AuthContext";
 import TaskTitleCombobox from "@/components/ui/TaskTitleCombobox";
 import clsx from "clsx";
@@ -294,7 +295,20 @@ export default function TasksPage() {
           status: { status: batchValue },
           type: { type: batchValue },
         };
-        await api.patch("/tasks/batch", { ids, data: dataMap[batchAction] });
+        // Trocar o tipo em lote também deixava reunião viva (e lembrete indo
+        // pro lead) sem avisar ninguém.
+        let cancelLinkedMeetings = false;
+        if (batchAction === "type" && batchValue !== "MEETING") {
+          const eramReuniao = tasks.filter((t) => selectedIds.has(t.id) && t.type === "MEETING");
+          if (eramReuniao.length > 0) {
+            cancelLinkedMeetings = confirm(
+              `${eramReuniao.length} tarefa(s) selecionada(s) ${eramReuniao.length === 1 ? "está" : "estão"} como reunião.\n\n` +
+                `OK = cancelar também as reuniões futuras vinculadas (o lead deixa de receber os lembretes).\n` +
+                `Cancelar = manter as reuniões agendadas e só mudar o tipo das tarefas.`,
+            );
+          }
+        }
+        await api.patch("/tasks/batch", { ids, data: dataMap[batchAction], cancelLinkedMeetings });
       }
 
       window.dispatchEvent(new Event('tasks-changed'));
@@ -355,7 +369,8 @@ export default function TasksPage() {
       };
 
       if (editingTask) {
-        await api.put(`/tasks/${editingTask.id}`, payload);
+        const cancelLinkedMeeting = await perguntarSobreReuniaoVinculada(editingTask, form.type);
+        await api.put(`/tasks/${editingTask.id}`, { ...payload, cancelLinkedMeeting });
       } else {
         await api.post("/tasks", payload);
       }

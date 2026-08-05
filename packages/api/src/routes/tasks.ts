@@ -7,6 +7,74 @@ import { buildDueDatePersist, serializeTaskDueDate, normalizeDueDate } from '../
 
 const router = Router();
 
+// Não existe FK entre Task e CalendlyEvent: o par é inferido pela deal + o
+// formato da tarefa. Centralizado aqui pra que "adiar a reunião junto" e
+// "cancelar a reunião ao deixar de ser reunião" usem SEMPRE o mesmo critério.
+function ehTarefaDeReuniao(task: { type: string; title: string }) {
+  return (
+    task.type === 'MEETING' ||
+    (/reuni[ãa]o/i.test(task.title) && !/^\s*(re)?marcar\b/i.test(task.title))
+  );
+}
+
+/**
+ * Reunião FUTURA e ativa da deal — a única que ainda pode ser cancelada ou
+ * movida. Reunião que já aconteceu não é candidata: continua `active` pra
+ * sempre no banco e arrastá-la reescreve um fato passado.
+ */
+async function reuniaoFuturaDaDeal(dealId: string) {
+  return prisma.calendlyEvent.findFirst({
+    where: { dealId, status: 'active', startTime: { gt: new Date() } },
+    orderBy: { startTime: 'asc' },
+  });
+}
+
+/**
+ * A tarefa deixou de ser reunião → cancela a reunião futura da deal e os
+ * lembretes dos DOIS canais. Quem decide é a tela (ela pergunta ao usuário);
+ * aqui só executa. De propósito NÃO devolve a negociação pra "Marcar reunião",
+ * ao contrário do cancelamento pela tela de reuniões: o caso aqui é reunião que
+ * nunca deveria existir, não reunião desmarcada pelo lead.
+ */
+async function cancelarReuniaoDaTarefa(
+  task: { id: string; title: string; dealId: string; contactId: string | null },
+  actingUserId: string,
+) {
+  const meeting = await reuniaoFuturaDaDeal(task.dealId);
+  if (!meeting) return null;
+
+  await prisma.calendlyEvent.update({
+    where: { id: meeting.id },
+    data: {
+      status: 'canceled',
+      confirmationStatus: 'PENDING',
+      confirmedAt: null,
+      confirmedByName: null,
+    },
+  });
+
+  const [{ cancelMeetingReminders }, waba] = await Promise.all([
+    import('../services/meetingReminderScheduler'),
+    import('../services/wa/meetingReminderWaba'),
+  ]);
+  await cancelMeetingReminders(meeting.id).catch(() => {});
+  await waba.cancelWabaMeetingReminders(meeting.id).catch(() => {});
+
+  await logActivity({
+    type: 'MEETING',
+    content: `Reunião de ${meeting.startTime.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    })} cancelada: a tarefa "${task.title}" deixou de ser reunião`,
+    userId: actingUserId,
+    dealId: task.dealId,
+    contactId: task.contactId ?? undefined,
+    metadata: { meetingId: meeting.id, taskId: task.id, motivo: 'tipo-da-tarefa' },
+  });
+
+  return meeting.id;
+}
+
 // GET /api/tasks
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -148,7 +216,11 @@ router.get('/counts', async (req: Request, res: Response, next: NextFunction) =>
 // PATCH /api/tasks/batch — update multiple tasks at once
 router.patch('/batch', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { ids, data } = req.body as { ids: string[]; data: Record<string, unknown> };
+    const { ids, data, cancelLinkedMeetings } = req.body as {
+      ids: string[];
+      data: Record<string, unknown>;
+      cancelLinkedMeetings?: boolean;
+    };
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return next(createError('ids array is required', 400));
@@ -180,12 +252,35 @@ router.patch('/batch', async (req: Request, res: Response, next: NextFunction) =
       updateData.dueDateFormat = duePayload.dueDateFormat;
     }
 
+    // Tarefas que eram reunião ANTES do update — depois do updateMany o tipo
+    // antigo já se perdeu, e é ele que diz quais tinham reunião vinculada.
+    const eramReuniao =
+      updateData.type !== undefined && updateData.type !== 'MEETING'
+        ? (await prisma.task.findMany({
+            where: { id: { in: ids }, dealId: { not: null } },
+            select: { id: true, title: true, type: true, dealId: true, contactId: true, userId: true },
+          })).filter(ehTarefaDeReuniao)
+        : [];
+
     const result = await prisma.task.updateMany({
       where: { id: { in: ids } },
       data: updateData,
     });
 
-    res.json({ data: { updated: result.count } });
+    // Mesma regra do update individual: quem decide é a tela, aqui só executa.
+    let reunioesCanceladas = 0;
+    if (cancelLinkedMeetings === true && eramReuniao.length > 0) {
+      const actingUserId = (req as any).user?.id;
+      for (const t of eramReuniao) {
+        const cancelada = await cancelarReuniaoDaTarefa(
+          { id: t.id, title: t.title, dealId: t.dealId!, contactId: t.contactId },
+          actingUserId ?? t.userId,
+        ).catch(() => null);
+        if (cancelada) reunioesCanceladas++;
+      }
+    }
+
+    res.json({ data: { updated: result.count, reunioesCanceladas } });
   } catch (err) {
     next(err);
   }
@@ -296,13 +391,39 @@ router.post(
   }
 );
 
+// GET /api/tasks/:id/linked-meeting
+// A tela usa isso antes de trocar o tipo da tarefa (reunião → ligação): se
+// existe reunião futura vinculada, ela pergunta se cancela em vez de deixar a
+// reunião viva e o lembrete indo pro lead.
+router.get('/:id/linked-meeting', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const task = await prisma.task.findUnique({ where: { id: req.params.id } });
+    if (!task) return next(createError('Task not found', 404));
+    if (!task.dealId || !ehTarefaDeReuniao(task)) return res.json({ data: null });
+
+    const meeting = await reuniaoFuturaDaDeal(task.dealId);
+    if (!meeting) return res.json({ data: null });
+
+    res.json({
+      data: {
+        id: meeting.id,
+        eventType: meeting.eventType,
+        startTime: meeting.startTime,
+        inviteeName: meeting.inviteeName,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/tasks/:id
 router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const existing = await prisma.task.findUnique({ where: { id: req.params.id } });
     if (!existing) return next(createError('Task not found', 404));
 
-    const { title, type, dueDate, userId, description, status, meetingSource } = req.body;
+    const { title, type, dueDate, userId, description, status, meetingSource, cancelLinkedMeeting } = req.body;
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (type !== undefined) data.type = type;
@@ -387,14 +508,13 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
       // antiga — a reunião sumia do Início e ninguém era avisado. Vale pra
       // QUALQUER tela que adie a tarefa (central, /tasks, negociação).
       if (data.dueDate instanceof Date && task.dealId) {
-        const ehTarefaDeReuniao =
-          task.type === 'MEETING' ||
-          (/reuni[ãa]o/i.test(task.title) && !/^\s*(re)?marcar\b/i.test(task.title));
-        if (ehTarefaDeReuniao) {
-          const meeting = await prisma.calendlyEvent.findFirst({
-            where: { dealId: task.dealId, status: 'active' },
-            orderBy: { startTime: 'desc' },
-          });
+        if (ehTarefaDeReuniao(task)) {
+          // Só reunião FUTURA acompanha a tarefa. Antes daqui a busca pegava a
+          // reunião ativa mais recente da deal e reunião realizada continua
+          // `active` pra sempre — adiar o follow up de uma deal antiga arrastava
+          // a reunião que já tinha acontecido pra data nova, ressuscitava ela em
+          // "Próximas reuniões" e mandava lembrete pro lead (caso 05/08).
+          const meeting = await reuniaoFuturaDaDeal(task.dealId);
           if (meeting && meeting.startTime.getTime() !== data.dueDate.getTime()) {
             const novoInicio = data.dueDate;
             const duracao = meeting.endTime.getTime() - meeting.startTime.getTime();
@@ -433,6 +553,17 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
             await waba.scheduleWabaMeetingReminders(meeting.id).catch(() => {});
           }
         }
+      }
+
+      // ── Deixou de ser reunião: a reunião não fica órfã ────────────────────
+      // Trocar o tipo (reunião → ligação) não mexia em nada: a reunião seguia
+      // viva no card "Próximas reuniões" e o lembrete ia pro lead. Quem decide
+      // é a tela — ela pergunta e manda `cancelLinkedMeeting`. Aqui só executa.
+      if (cancelLinkedMeeting === true && task.dealId) {
+        await cancelarReuniaoDaTarefa(
+          { id: task.id, title: task.title, dealId: task.dealId, contactId: task.contactId },
+          actingUserId,
+        );
       }
 
       // Responsible changed (reassigned)
