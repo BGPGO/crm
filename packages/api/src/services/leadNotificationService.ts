@@ -8,6 +8,12 @@ interface LeadNotificationData {
   sourceName?: string | null;
   campaignName?: string | null;
   utmUrl?: string | null;
+  /**
+   * Sobrescreve os destinatários configurados em `lead_created_emails`. Usado
+   * pelo funil de indicação, cujo lead é avisado só a quem atende (Fernanda) —
+   * mandar pra lista inteira transformaria contato próximo em fila de plantão.
+   */
+  recipientsOverride?: string[] | null;
 }
 
 export async function sendLeadNotifications(data: LeadNotificationData): Promise<void> {
@@ -26,7 +32,10 @@ export async function sendLeadNotifications(data: LeadNotificationData): Promise
       return;
     }
 
-    const emails = recipients.split(',').map(e => e.trim()).filter(Boolean);
+    const emails = (data.recipientsOverride?.length
+      ? data.recipientsOverride
+      : recipients.split(',')
+    ).map(e => e.trim()).filter(Boolean);
     if (emails.length === 0) {
       console.warn('[lead-notification] SKIP: nenhum email destinatário configurado');
       return;

@@ -17,8 +17,42 @@ import prisma from './prisma';
 export const PIPELINE_CONTROLADORIA = '64fb7516ea4eb400219457de';
 export const PIPELINE_BI = 'bi-pipeline-bgp';
 
+/**
+ * Funil de indicação — lead que chega por quem já é cliente (LP "BGP Indica").
+ * NÃO é funil comercial de tráfego: fica fora de `COMMERCIAL_PIPELINE_IDS` de
+ * propósito, para não misturar indicação com lead pago nos relatórios.
+ */
+export const PIPELINE_INDICACAO = '68a773827264cb001fd8316f';
+
+/**
+ * Etapa de entrada do funil de indicação. As etapas dele NÃO espelham as do
+ * comercial (não tem "LEAD" nem "Marcar reunião"), por isso ficam fora de
+ * `STAGE_IDS` — cujos pares são [Controladoria, BI] e são indexados por posição.
+ */
+export const STAGE_INDICACAO_SEM_CONTATO = '68a773827264cb001fd83171';
+
 /** Os dois funis comerciais somados — equivale ao antigo funil "Vendas". */
 export const COMMERCIAL_PIPELINE_IDS = [PIPELINE_CONTROLADORIA, PIPELINE_BI];
+
+/**
+ * Funis de atendimento HUMANO: nada automático dispara para um deal que está
+ * neles — sem BIA (SDR IA no WhatsApp), sem cadência WABA, sem email por etapa.
+ * Decisão do Oliver em 06/08/2026 ao criar o funil de indicação: quem vem por
+ * indicação merece contato próximo, não robô.
+ *
+ * Quem respeita esta lista:
+ *   - `leadQualificationEngine.onLeadCreated`/`activateSdrIa` (BIA)
+ *   - `automationEngine.evaluateTriggers` (cadências e emails por etapa)
+ *   - `routes/webhooks.ts` (não chama os listeners de automação na entrada)
+ *
+ * Um funil só entra aqui se o time NÃO quiser automação nenhuma nele — o gate
+ * é por funil, não por etapa.
+ */
+export const NO_AUTOMATION_PIPELINE_IDS = [PIPELINE_INDICACAO];
+
+export function isNoAutomationPipeline(pipelineId: string | null | undefined): boolean {
+  return !!pipelineId && NO_AUTOMATION_PIPELINE_IDS.includes(pipelineId);
+}
 
 /**
  * Quem cuida do topo do funil em cada funil: Gustavo no BI, Vicenza na
@@ -29,6 +63,11 @@ export const COMMERCIAL_PIPELINE_IDS = [PIPELINE_CONTROLADORIA, PIPELINE_BI];
 export const SDR_BY_PIPELINE: Record<string, string> = {
   [PIPELINE_BI]: 'usr-gustavo-sdr-bi',
   [PIPELINE_CONTROLADORIA]: '68482c2582aa2e001bc07fd3', // Vicenza Porto
+  // Indicação não tem SDR: quem atende é a Fernanda, do começo ao fim. Ela entra
+  // aqui porque é este mapa que o webhook usa para escolher o responsável do
+  // lead que chega — `resolveSdrOwner` não a alcança (as etapas de indicação não
+  // estão em SDR_STAGE_IDS), então nenhuma troca de etapa reatribui o deal.
+  [PIPELINE_INDICACAO]: '663a71aaf689ef001afe68c6', // Fernanda Brunisaki
 };
 
 /**
@@ -54,6 +93,17 @@ export const SDR_BY_PIPELINE: Record<string, string> = {
  */
 const BI_PATH_TOKENS = ['bi', 'gobi', 'bi2b'];
 const CTRL_PATH_TRECHOS = ['controladoria', 'valuation'];
+
+/**
+ * LPs de INDICAÇÃO (`campanha-bgp-indica`, `bgp-indica`…) — o lead vem de quem
+ * já é cliente, não de anúncio. Vai para o funil de indicação, que é humano:
+ * sem BIA e sem cadência (ver NO_AUTOMATION_PIPELINE_IDS).
+ *
+ * Testado ANTES do BI/Controladoria: o slug traz a marca ("bgp-indica") e, se um
+ * dia trouxer o produto junto ("indica-bi"), o sinal de indicação é o mais
+ * específico dos dois e tem de vencer.
+ */
+const INDICACAO_PATH_TOKENS = ['indica', 'indicacao', 'indique'];
 
 /**
  * LPs de INSCRIÇÃO NA NEWSLETTER — o lead não é lead de venda: vira contato +
@@ -94,6 +144,11 @@ export function resolveLeadPipeline(params: {
     stageId: STAGE_IDS.LEAD[0],
     ownerId: SDR_BY_PIPELINE[PIPELINE_CONTROLADORIA],
   };
+  const indicacao = {
+    pipelineId: PIPELINE_INDICACAO,
+    stageId: STAGE_INDICACAO_SEM_CONTATO,
+    ownerId: SDR_BY_PIPELINE[PIPELINE_INDICACAO],
+  };
 
   // 1) Landing page. Aceita URL completa ou só o slug: tiramos protocolo, host
   // e query, e sobra o caminho — é dele que os tokens saem.
@@ -105,10 +160,13 @@ export function resolveLeadPipeline(params: {
       .split(/[?#]/)[0]
       .replace(/^[^/]*\//, ''); // remove o host quando ele existe
 
+    const tokens = path.split(/[^a-z0-9]+/).filter(Boolean);
+    if (tokens.some((t) => INDICACAO_PATH_TOKENS.includes(t))) {
+      return { ...indicacao, motivo: `landingPage:${path}` };
+    }
     if (CTRL_PATH_TRECHOS.some((t) => path.includes(t))) {
       return { ...controladoria, motivo: `landingPage:${path}` };
     }
-    const tokens = path.split(/[^a-z0-9]+/).filter(Boolean);
     if (tokens.some((t) => BI_PATH_TOKENS.includes(t))) {
       return { ...bi, motivo: `landingPage:${path}` };
     }
@@ -118,6 +176,10 @@ export function resolveLeadPipeline(params: {
   // `AZIFINICriativos-thomas-fernanda`, que é `AZ|FIN|` com os pipes apagados).
   if (campaign) {
     const c = campaign.trim().toLowerCase();
+    // Indicação primeiro, pela mesma razão da LP: é o sinal mais específico.
+    if (/indica|indique/.test(c)) {
+      return { ...indicacao, motivo: `campanha:${c}` };
+    }
     if (/(^|[^a-z])bi([^a-z]|$)/.test(c) || c.startsWith('fluxo bi') || c.includes('aimo-bi')) {
       return { ...bi, motivo: `campanha:${c}` };
     }

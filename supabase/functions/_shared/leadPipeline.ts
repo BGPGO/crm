@@ -24,6 +24,15 @@ export const OWNER_BI = "usr-gustavo-sdr-bi";
 export const OWNER_CONTROLADORIA = "68482c2582aa2e001bc07fd3"; // Vicenza Porto
 
 /**
+ * Funil de indicação (LP "BGP Indica") — atendimento humano: a Fernanda atende do
+ * começo ao fim, e o lead não recebe BIA nem cadência. O bloqueio das automações
+ * vive na API (`NO_AUTOMATION_PIPELINE_IDS`); aqui só o roteamento.
+ */
+export const PIPELINE_INDICACAO = "68a773827264cb001fd8316f";
+export const STAGE_SEM_CONTATO_INDICACAO = "68a773827264cb001fd83171";
+export const OWNER_INDICACAO = "663a71aaf689ef001afe68c6"; // Fernanda Brunisaki
+
+/**
  * A regra é por TOKEN do path da LP, não por slug cadastrado: qualquer LP nova
  * com o produto no nome (`go-bi-bia`, `lp-bi-2027`…) entra sozinha, sem ninguém
  * ter de classificar LP por LP. Só `controladoria`/`valuation` são casados por
@@ -31,6 +40,8 @@ export const OWNER_CONTROLADORIA = "68482c2582aa2e001bc07fd3"; // Vicenza Porto
  */
 const BI_PATH_TOKENS = ["bi", "gobi", "bi2b"];
 const CTRL_PATH_TRECHOS = ["controladoria", "valuation"];
+/** Indicação vem antes: o slug traz a marca ("bgp-indica") e é o sinal mais específico. */
+const INDICACAO_PATH_TOKENS = ["indica", "indicacao", "indique"];
 
 export interface DestinoLead {
   pipelineId: string;
@@ -68,6 +79,12 @@ export function resolveLeadPipeline(
     pipelineName: "Controladoria",
     ownerId: OWNER_CONTROLADORIA,
   };
+  const indicacao = {
+    pipelineId: PIPELINE_INDICACAO,
+    stageId: STAGE_SEM_CONTATO_INDICACAO,
+    pipelineName: "Indicação",
+    ownerId: OWNER_INDICACAO,
+  };
 
   // 1) Landing page. Aceita URL completa ou só o slug: tiramos protocolo, host
   // e query, e sobra o caminho — é dele que os tokens saem.
@@ -79,10 +96,13 @@ export function resolveLeadPipeline(
       .split(/[?#]/)[0]
       .replace(/^[^/]*\//, ""); // remove o host quando ele existe
 
+    const tokens = path.split(/[^a-z0-9]+/).filter(Boolean);
+    if (tokens.some((t) => INDICACAO_PATH_TOKENS.includes(t))) {
+      return { ...indicacao, motivo: `landingPage:${path}` };
+    }
     if (CTRL_PATH_TRECHOS.some((t) => path.includes(t))) {
       return { ...controladoria, motivo: `landingPage:${path}` };
     }
-    const tokens = path.split(/[^a-z0-9]+/).filter(Boolean);
     if (tokens.some((t) => BI_PATH_TOKENS.includes(t))) {
       return { ...bi, motivo: `landingPage:${path}` };
     }
@@ -92,6 +112,9 @@ export function resolveLeadPipeline(
   // `AZIFINICriativos-thomas-fernanda`, que é `AZ|FIN|` com os pipes apagados).
   if (campaign) {
     const c = campaign.trim().toLowerCase();
+    if (/indica|indique/.test(c)) {
+      return { ...indicacao, motivo: `campanha:${c}` };
+    }
     if (/(^|[^a-z])bi([^a-z]|$)/.test(c) || c.startsWith("fluxo bi") || c.includes("aimo-bi")) {
       return { ...bi, motivo: `campanha:${c}` };
     }

@@ -5,7 +5,7 @@ import { MessageSender } from '@prisma/client';
 import { normalizePhone } from '../utils/phoneNormalize';
 import { canSend, registerSent } from './dailyLimitService';
 import { isBusinessHours, msUntilNextBusinessHour, BYPASS_SDR_BUSINESS_HOURS } from '../utils/sendingWindow';
-import { STAGE_IDS, stageIdFor } from '../lib/pipelines';
+import { STAGE_IDS, stageIdFor, isNoAutomationPipeline } from '../lib/pipelines';
 import { evaluateTriggers } from './automationEngine';
 import { sanitizeGreetingName } from '../utils/nameSanitizer';
 
@@ -54,6 +54,21 @@ async function checkCalendlyForContact(email: string): Promise<boolean> {
 
 export async function activateSdrIa(contactId: string, dealId: string): Promise<void> {
   console.log(`[LeadQualification] Ativando SDR IA para contact=${contactId} deal=${dealId}`);
+
+  // 0. Funil de atendimento humano (indicação): a BIA não fala com esse lead.
+  // A guarda mora aqui, e não só em `onLeadCreated`, porque `activateSdrIa` tem
+  // chamadas diretas — inclusive uma em lote (`POST /deals/activate-bot-bulk`),
+  // que varreria os deals de indicação junto com o resto.
+  const dealPipeline = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { pipelineId: true },
+  });
+  if (isNoAutomationPipeline(dealPipeline?.pipelineId)) {
+    console.log(
+      `[LeadQualification] Deal ${dealId} está em funil sem automação (${dealPipeline?.pipelineId}) — SDR IA não ativada`
+    );
+    return;
+  }
 
   // 1. Load contact
   const contact = await prisma.contact.findUnique({ where: { id: contactId } });
@@ -484,7 +499,21 @@ export async function onLeadCreated(contactId: string, dealId: string): Promise<
   // Disparar automações CONTACT_CREATED + STAGE_CHANGED para cadências WABA
   // SERIALIZADO: CONTACT_CREATED deve terminar antes de STAGE_CHANGED para evitar
   // race condition que causa enrollment duplo na mesma cadência.
-  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { stageId: true } });
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { stageId: true, pipelineId: true },
+  });
+
+  // Funil de atendimento humano (indicação): nada dispara. Sai ANTES das
+  // automações e antes do timer da BIA. Esta guarda também é o que segura o
+  // `leadQualificationCron`, que chama esta função de novo por outro caminho —
+  // barrar só no webhook deixaria a BIA ativar 10 min depois.
+  if (isNoAutomationPipeline(deal?.pipelineId)) {
+    console.log(
+      `[LeadQualification] Deal ${dealId} está em funil sem automação (${deal?.pipelineId}) — sem BIA, sem cadência`
+    );
+    return;
+  }
   try {
     await evaluateTriggers('CONTACT_CREATED', { contactId });
   } catch (err) {

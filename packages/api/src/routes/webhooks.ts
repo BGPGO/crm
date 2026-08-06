@@ -8,10 +8,17 @@ import { onStageChanged, onContactCreated } from '../services/automationTriggerL
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 import { sendLeadNotifications } from '../services/leadNotificationService';
-import { resolveLeadPipeline, isNewsletterLead } from '../lib/pipelines';
+import { resolveLeadPipeline, isNewsletterLead, isNoAutomationPipeline } from '../lib/pipelines';
 import { subscribeFromWebhook } from '../services/newsletterJourney';
 
 const router = Router();
+
+/**
+ * Quem é avisado do lead que cai em funil de atendimento humano (indicação).
+ * É o email corporativo da Fernanda de propósito — o cadastro dela no CRM tem
+ * email pessoal, e o aviso é de trabalho.
+ */
+const NOTIFY_LEAD_INDICACAO = ['fernanda@bertuzzipatrimonial.com.br'];
 
 // Extrai o fbclid de uma URL (query param). A GreatPages não manda o fbclid
 // como campo solto — ele vem embutido na URL da landing page (landing_page).
@@ -473,10 +480,18 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       tracking: { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, referrer, landingPage },
     });
 
+    // Funil de atendimento humano (indicação): o lead entra no CRM e para aí.
+    // Sem cadência, sem email automático por etapa e sem BIA — quem vem por
+    // indicação é atendido por pessoa. O aviso do lead vai só pra quem atende,
+    // não pra lista de plantão do comercial.
+    const semAutomacao = isNoAutomationPipeline(destinoPipeline.id);
+
     // Trigger automations para o novo lead
     if (!recentDeal) {
-      onContactCreated(contact.id);
-      onStageChanged(contact.id, destinoStage.id, deal.id);
+      if (!semAutomacao) {
+        onContactCreated(contact.id);
+        onStageChanged(contact.id, destinoStage.id, deal.id);
+      }
 
       // Email notification to team (fire-and-forget)
       const utmUrl = resolveField(['URL', 'url', 'page_url', 'landing_page']);
@@ -488,13 +503,20 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
         sourceName: sourceName ?? null,
         campaignName: campaignRef ?? null,
         utmUrl: utmUrl ?? null,
+        recipientsOverride: semAutomacao ? NOTIFY_LEAD_INDICACAO : null,
       }).catch(err => console.error('[webhook] Lead notification error:', err));
     }
 
     // Trigger lead qualification engine (checks Calendly, activates SDR IA if needed)
-    onLeadCreated(contact.id, deal.id).catch((err: unknown) => {
-      console.error('[LeadQualification] Erro ao iniciar qualificação:', err);
-    });
+    if (!semAutomacao) {
+      onLeadCreated(contact.id, deal.id).catch((err: unknown) => {
+        console.error('[LeadQualification] Erro ao iniciar qualificação:', err);
+      });
+    } else {
+      console.log(
+        `[webhook] Lead ${contact.id} em funil sem automação (${destinoPipeline.name}) — sem BIA, sem cadência, aviso só pra ${NOTIFY_LEAD_INDICACAO.join(', ')}`
+      );
+    }
 
     return res.status(200).json({ success: true, contactId: contact.id, dealId: deal.id });
   } catch (err) {

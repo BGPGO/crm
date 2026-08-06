@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { executeAction } from './automationActions';
+import { NO_AUTOMATION_PIPELINE_IDS } from '../lib/pipelines';
 
 // ─── Throttle config for WhatsApp sends ─────────────────────────────────────
 // WABA (Cloud API) não tem risco de ban — Meta gerencia rate limits via tier.
@@ -9,6 +10,43 @@ const WHATSAPP_MIN_DELAY_S = 3;     // min seconds between sends
 const WHATSAPP_MAX_DELAY_S = 8;     // max seconds between sends
 
 // ─── Trigger Evaluation ──────────────────────────────────────────────────────
+
+/**
+ * Funil de atendimento humano (indicação) não recebe automação nenhuma.
+ *
+ * O gate é preciso de propósito, porque o mesmo contato pode ter deal em dois
+ * funis:
+ *   - com dealId no metadata (STAGE_CHANGED, TAG_ADDED): decide pelo funil DESSE
+ *     deal — é dele que a automação trata;
+ *   - sem dealId (CONTACT_CREATED, que casa com qualquer contato — ver
+ *     `doesTriggerMatch`): só bloqueia se TODOS os deals abertos do contato
+ *     estiverem em funil sem automação. Assim um lead de BI que também veio por
+ *     indicação continua recebendo a cadência do BI.
+ *
+ * Contato sem deal aberto nenhum não é bloqueado: não há funil que diga não.
+ */
+async function isNoAutomationTarget(data: {
+  contactId: string;
+  metadata?: any;
+}): Promise<boolean> {
+  if (NO_AUTOMATION_PIPELINE_IDS.length === 0) return false;
+
+  const dealId = typeof data.metadata?.dealId === 'string' ? data.metadata.dealId : null;
+  if (dealId) {
+    const deal = await prisma.deal.findUnique({
+      where: { id: dealId },
+      select: { pipelineId: true },
+    });
+    return !!deal && NO_AUTOMATION_PIPELINE_IDS.includes(deal.pipelineId);
+  }
+
+  const openDeals = await prisma.deal.findMany({
+    where: { contactId: data.contactId, status: 'OPEN' },
+    select: { pipelineId: true },
+  });
+  if (openDeals.length === 0) return false;
+  return openDeals.every((d) => NO_AUTOMATION_PIPELINE_IDS.includes(d.pipelineId));
+}
 
 /**
  * Finds all ACTIVE automations matching the given triggerType,
@@ -32,6 +70,13 @@ export async function evaluateTriggers(
   });
 
   console.log(`[AutomationEngine] evaluateTriggers ${triggerType} — ${automations.length} automations ACTIVE, contactId=${data.contactId}, metadata=${JSON.stringify(data.metadata || {})}`);
+
+  if (automations.length > 0 && (await isNoAutomationTarget(data))) {
+    console.log(
+      `[AutomationEngine]   → SKIP TUDO — contato ${data.contactId} está em funil de atendimento humano (sem automação)`
+    );
+    return;
+  }
 
   // Brand gate: busca brand do contato uma vez pra reusar no loop
   const contactBrand = await prisma.contact.findUnique({
