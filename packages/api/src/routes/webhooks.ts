@@ -8,7 +8,12 @@ import { onStageChanged, onContactCreated } from '../services/automationTriggerL
 import { handleAutentiqueWebhook } from '../services/contractWebhookHandler';
 import { normalizePhone, phoneVariants } from '../utils/phoneNormalize';
 import { sendLeadNotifications } from '../services/leadNotificationService';
-import { resolveLeadPipeline, isNewsletterLead, isNoAutomationPipeline } from '../lib/pipelines';
+import {
+  resolveLeadPipeline,
+  isNewsletterLead,
+  isNoAutomationPipeline,
+  PIPELINE_INDICACAO,
+} from '../lib/pipelines';
 import { subscribeFromWebhook } from '../services/newsletterJourney';
 
 const router = Router();
@@ -113,15 +118,17 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
       return undefined;
     }
 
-    const contactName = resolveField(['name', 'nome', 'full_name', 'fullName', 'lead_name']) ?? 'Contato sem nome';
-    const contactEmail = resolveField(['email', 'e_mail', 'email_address', 'lead_email']);
+    // `let` porque o funil de indicação troca o contato do lead: quem preenche o
+    // formulário é quem indica, mas o lead é o INDICADO (ver mais abaixo).
+    let contactName = resolveField(['name', 'nome', 'full_name', 'fullName', 'lead_name']) ?? 'Contato sem nome';
+    let contactEmail = resolveField(['email', 'e_mail', 'email_address', 'lead_email']);
     const contactPhoneRaw = resolveField(['phone', 'telefone', 'celular', 'whatsapp', 'phone_number', 'lead_phone']);
-    const contactPhone = contactPhoneRaw ? normalizePhone(contactPhoneRaw) : null;
+    let contactPhone = contactPhoneRaw ? normalizePhone(contactPhoneRaw) : null;
     const contactPosition = resolveField(['position', 'cargo', 'job_title']);
     const contactInstagram = resolveField(['instagram', 'ig']);
 
     // Organization data
-    const orgName = resolveField(['company', 'empresa', 'organization', 'company_name', 'organization_name']);
+    let orgName = resolveField(['company', 'empresa', 'organization', 'company_name', 'organization_name']);
     const orgCnpj = resolveField(['cnpj', 'document']);
     const orgWebsite = resolveField(['website', 'site', 'company_website']);
     const orgSegment = resolveField(['segment', 'segmento', 'industry']);
@@ -187,6 +194,45 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
     console.log(
       `[webhook] Lead → funil ${destinoPipeline.name} (${destino.motivo}), responsável ${ownerId}`
     );
+
+    // 6. Funil de indicação: o form tem dois blocos — quem indica e o indicado —
+    // e o LEAD é o indicado, que é o possível cliente. Sem esta troca o deal
+    // nasce no nome de quem indicou (que já é cliente) e o prospect fica só no
+    // histórico. Quem indicou vira anotação no card, depois da criação do deal.
+    //
+    // As chaves vêm do rótulo do campo em snake_case — é assim que o wiring da
+    // LP (`html-processor.ts`, no GO Studio) manda campo extra sem `name`.
+    const indicadoName = resolveField([
+      'nome_do_indicado', 'nome_indicado', 'indicado_nome', 'nome_da_indicacao', 'indicado',
+    ]);
+    const indicadoPhoneRaw = resolveField([
+      'telefone_do_indicado', 'telefone_indicado', 'whatsapp_do_indicado', 'celular_do_indicado',
+      'indicado_telefone',
+    ]);
+    const indicadoCompany = resolveField([
+      'empresa_do_indicado', 'empresa_indicado', 'indicado_empresa',
+    ]);
+    const indicadoEmail = resolveField(['email_do_indicado', 'email_indicado', 'indicado_email']);
+
+    let notaIndicacao: string | null = null;
+    if (destinoPipeline.id === PIPELINE_INDICACAO && (indicadoName || indicadoPhoneRaw)) {
+      const quemIndicou = [
+        contactName,
+        contactPhoneRaw ? `WhatsApp ${contactPhoneRaw}` : null,
+        contactEmail,
+        orgName,
+      ].filter(Boolean).join(' · ');
+      notaIndicacao = `Indicado por ${quemIndicou}`;
+
+      contactName = indicadoName ?? contactName;
+      // Email e telefone NÃO herdam de quem indicou: são de outra pessoa, e o
+      // dedup do contato é por email/telefone — herdar fundiria os dois numa só.
+      contactEmail = indicadoEmail;
+      contactPhone = indicadoPhoneRaw ? normalizePhone(indicadoPhoneRaw) : null;
+      orgName = indicadoCompany ?? undefined;
+
+      console.log(`[webhook] Indicação: lead é o indicado "${contactName}" — ${notaIndicacao}`);
+    }
 
     // 7. Match Source by name (create if not found)
     let sourceId: string | null = null;
@@ -450,6 +496,27 @@ async function handleIncoming(req: Request, res: Response, next: NextFunction) {
           payload: raw,
         },
       }),
+      // Quem indicou vira anotação no deal do indicado. É NOTE de propósito:
+      // o Deal não tem campo de observação, e a nota aparece no histórico do card
+      // — no payload do webhook essa informação só existia pra quem fosse cavar.
+      ...(notaIndicacao
+        ? [
+            logActivity({
+              type: 'NOTE',
+              content: notaIndicacao,
+              userId: ownerId,
+              contactId: contact.id,
+              dealId: deal.id,
+              metadata: {
+                indicadoPor: {
+                  nome: resolveField(['name', 'nome']) ?? null,
+                  telefone: contactPhoneRaw ?? null,
+                  empresa: resolveField(['company', 'empresa']) ?? null,
+                },
+              },
+            }),
+          ]
+        : []),
       ...(recentDeal
         ? []
         : [
