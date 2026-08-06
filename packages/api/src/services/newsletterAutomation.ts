@@ -15,17 +15,58 @@ export async function getOrCreateConfig() {
   });
 }
 
+export interface AudienceConfig {
+  recipients: unknown;
+  segmentId: string | null;
+  engagedOnly?: boolean;
+  engagedWindowDays?: number;
+  graceWindowDays?: number;
+}
+
+export interface AudienceBreakdown {
+  emails: string[];
+  /** Contatos do segmento antes do filtro de engajamento. */
+  segmentTotal: number;
+  engaged: number;
+  /** Cadastro recente demais pra ter tido chance de interagir. */
+  grace: number;
+  /** Assinantes da LP — opt-in explícito, entram mesmo sem interação. */
+  subscribers: number;
+  manual: number;
+}
+
+/** Emails que abriram ou clicaram alguma edição nos últimos `days` dias. */
+async function engagedEmails(days: number): Promise<Set<string>> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await prisma.newsletterEvent.findMany({
+    where: { createdAt: { gte: since }, email: { not: null } },
+    select: { email: true },
+    distinct: ['email'],
+  });
+  return new Set(rows.map((r) => r.email!.trim().toLowerCase()).filter(Boolean));
+}
+
 /**
  * Audiência final: contatos do segmento (se houver) + emails avulsos,
  * dedupado e sem quem está na UnsubscribeList.
+ *
+ * Com `engagedOnly`, o segmento é filtrado pela base engajada (decisão do
+ * Oliver 06/08, pra parar de queimar reputação com 6,6k de base fria):
+ * fica quem interagiu na janela, quem foi cadastrado dentro da carência (ainda
+ * não teve chance de interagir) e quem é assinante da LP — esse pediu a news, e
+ * a régua da jornada já cuida de esfriá-lo. Avulsos e descadastro não mudam.
  */
-export async function resolveAudience(config: {
-  recipients: unknown;
-  segmentId: string | null;
-}): Promise<string[]> {
+export async function resolveAudienceDetailed(
+  config: AudienceConfig
+): Promise<AudienceBreakdown> {
   const manual = (Array.isArray(config.recipients) ? config.recipients : []) as string[];
 
   let segmentEmails: string[] = [];
+  let segmentTotal = 0;
+  let engaged = 0;
+  let grace = 0;
+  let subscribers = 0;
+
   if (config.segmentId) {
     const segment = await prisma.segment.findUnique({ where: { id: config.segmentId } });
     if (segment) {
@@ -35,9 +76,40 @@ export async function resolveAudience(config: {
       );
       const contacts = await prisma.contact.findMany({
         where: { ...where, email: { not: null }, brand: segment.brand },
-        select: { email: true },
+        select: { email: true, createdAt: true },
       });
-      segmentEmails = contacts.map((c) => c.email).filter((e): e is string => Boolean(e));
+      segmentTotal = contacts.length;
+
+      if (!config.engagedOnly) {
+        segmentEmails = contacts.map((c) => c.email).filter((e): e is string => Boolean(e));
+      } else {
+        const engagedSet = await engagedEmails(config.engagedWindowDays ?? 90);
+        const subs = await prisma.newsletterSubscriber.findMany({
+          where: { estado: { not: 'descadastrado' } },
+          select: { email: true },
+        });
+        const subSet = new Set(subs.map((s) => s.email.trim().toLowerCase()).filter(Boolean));
+        const graceSince = new Date(
+          Date.now() - (config.graceWindowDays ?? 90) * 24 * 60 * 60 * 1000
+        );
+
+        const keep: string[] = [];
+        for (const c of contacts) {
+          const email = c.email?.trim().toLowerCase();
+          if (!email) continue;
+          if (engagedSet.has(email)) {
+            engaged++;
+          } else if (subSet.has(email)) {
+            subscribers++;
+          } else if (c.createdAt >= graceSince) {
+            grace++;
+          } else {
+            continue;
+          }
+          keep.push(email);
+        }
+        segmentEmails = keep;
+      }
     } else {
       console.warn(`[newsletter] segmento ${config.segmentId} não existe mais — usando só avulsos`);
     }
@@ -46,9 +118,15 @@ export async function resolveAudience(config: {
   const unsub = await prisma.unsubscribeList.findMany({ select: { email: true } });
   const unsubSet = new Set(unsub.map((u) => u.email.toLowerCase()));
 
-  return [...new Set([...manual, ...segmentEmails].map((e) => e.trim().toLowerCase()))].filter(
-    (e) => e && !unsubSet.has(e)
-  );
+  const emails = [
+    ...new Set([...manual, ...segmentEmails].map((e) => e.trim().toLowerCase())),
+  ].filter((e) => e && !unsubSet.has(e));
+
+  return { emails, segmentTotal, engaged, grace, subscribers, manual: manual.length };
+}
+
+export async function resolveAudience(config: AudienceConfig): Promise<string[]> {
+  return (await resolveAudienceDetailed(config)).emails;
 }
 
 /**

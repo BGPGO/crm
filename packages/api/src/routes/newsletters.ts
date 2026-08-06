@@ -8,6 +8,7 @@ import {
 import {
   getOrCreateConfig,
   resolveAudience,
+  resolveAudienceDetailed,
   runNewsletterAutomation,
   runNewsletterTest,
 } from '../services/newsletterAutomation';
@@ -27,8 +28,10 @@ router.get('/config', async (_req: Request, res: Response, next: NextFunction) =
           select: { id: true, name: true, contactCount: true },
         })
       : null;
-    const audienceCount = (await resolveAudience(config)).length;
-    return res.json({ data: { ...config, segment, audienceCount } });
+    const audience = await resolveAudienceDetailed(config);
+    return res.json({
+      data: { ...config, segment, audienceCount: audience.emails.length, audience },
+    });
   } catch (error) {
     return next(error);
   }
@@ -38,14 +41,36 @@ router.get('/config', async (_req: Request, res: Response, next: NextFunction) =
 
 router.put('/config', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { enabled, recipients, segmentId } = req.body as {
-      enabled?: boolean;
-      recipients?: unknown;
-      segmentId?: string | null;
-    };
+    const { enabled, recipients, segmentId, engagedOnly, engagedWindowDays, graceWindowDays } =
+      req.body as {
+        enabled?: boolean;
+        recipients?: unknown;
+        segmentId?: string | null;
+        engagedOnly?: boolean;
+        engagedWindowDays?: number;
+        graceWindowDays?: number;
+      };
 
-    const data: { enabled?: boolean; recipients?: string[]; segmentId?: string | null } = {};
+    const data: {
+      enabled?: boolean;
+      recipients?: string[];
+      segmentId?: string | null;
+      engagedOnly?: boolean;
+      engagedWindowDays?: number;
+      graceWindowDays?: number;
+    } = {};
     if (typeof enabled === 'boolean') data.enabled = enabled;
+    if (typeof engagedOnly === 'boolean') data.engagedOnly = engagedOnly;
+    for (const [key, value] of [
+      ['engagedWindowDays', engagedWindowDays],
+      ['graceWindowDays', graceWindowDays],
+    ] as const) {
+      if (value === undefined) continue;
+      if (!Number.isInteger(value) || value < 1 || value > 3650) {
+        return res.status(400).json({ error: `${key} deve ser um inteiro entre 1 e 3650` });
+      }
+      data[key] = value;
+    }
     if (segmentId !== undefined) {
       if (segmentId === null || segmentId === '') {
         data.segmentId = null;
@@ -80,8 +105,10 @@ router.put('/config', async (req: Request, res: Response, next: NextFunction) =>
           select: { id: true, name: true, contactCount: true },
         })
       : null;
-    const audienceCount = (await resolveAudience(config)).length;
-    return res.json({ data: { ...config, segment, audienceCount } });
+    const audience = await resolveAudienceDetailed(config);
+    return res.json({
+      data: { ...config, segment, audienceCount: audience.emails.length, audience },
+    });
   } catch (error) {
     return next(error);
   }

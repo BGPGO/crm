@@ -24,6 +24,16 @@ interface NewsletterConfig {
   segmentId: string | null;
   segment: { id: string; name: string; contactCount: number } | null;
   audienceCount: number;
+  engagedOnly: boolean;
+  engagedWindowDays: number;
+  graceWindowDays: number;
+  audience: {
+    segmentTotal: number;
+    engaged: number;
+    grace: number;
+    subscribers: number;
+    manual: number;
+  };
   lastRunAt: string | null;
   lastRunStatus: string | null;
 }
@@ -332,7 +342,14 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
 
-  const save = async (patch: { enabled?: boolean; recipients?: string[]; segmentId?: string | null }) => {
+  const save = async (patch: {
+    enabled?: boolean;
+    recipients?: string[];
+    segmentId?: string | null;
+    engagedOnly?: boolean;
+    engagedWindowDays?: number;
+    graceWindowDays?: number;
+  }) => {
     setSaving(true);
     setMessage(null);
     try {
@@ -461,6 +478,81 @@ function AutomationPanel({ onEditionCreated }: { onEditionCreated: () => void })
               </span>{" "}
               (segmento + avulsos, sem duplicados e sem descadastrados).
             </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={config.engagedOnly}
+                disabled={saving}
+                onChange={(e) => save({ engagedOnly: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-petrol-600 focus:ring-petrol-500"
+              />
+              <span>
+                <span className="block text-xs font-medium text-gray-700">
+                  Enviar só pra base engajada
+                </span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Do segmento, fica quem interagiu na janela, quem é cadastro recente (ainda sem
+                  chance de interagir) e quem assinou pela LP.
+                </span>
+              </span>
+            </label>
+
+            {config.engagedOnly && (
+              <>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Interagiu nos últimos (dias)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      defaultValue={config.engagedWindowDays}
+                      disabled={saving}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isInteger(v) && v >= 1 && v !== config.engagedWindowDays) {
+                          save({ engagedWindowDays: v });
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Carência do cadastro novo (dias)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      defaultValue={config.graceWindowDays}
+                      disabled={saving}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isInteger(v) && v >= 1 && v !== config.graceWindowDays) {
+                          save({ graceWindowDays: v });
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-petrol-500"
+                    />
+                  </div>
+                </div>
+                {config.audience && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    De <span className="font-medium">{config.audience.segmentTotal}</span> do
+                    segmento: <span className="font-medium">{config.audience.engaged}</span>{" "}
+                    interagiram, <span className="font-medium">{config.audience.grace}</span> em
+                    carência, <span className="font-medium">{config.audience.subscribers}</span>{" "}
+                    assinantes da LP.
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           <div>

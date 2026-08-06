@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { processWelcomeDue, runJourneyCheckpoints } from '../services/newsletterJourney';
+import { sendJourneyDailyDigest } from '../services/newsletterAlerts';
 
 export function startNewsletterJourneyCron() {
   // Welcome do assinante: fluxograma pede disparo 5min após o cadastro — o
@@ -27,5 +28,17 @@ export function startNewsletterJourneyCron() {
     }
   });
 
-  console.log('[newsletter-journey-cron] Agendado: welcome */5min, checkpoint de hora em hora');
+  // Resumo diário da jornada pro Oliver e o Fabrício — 18h BRT (21h UTC), com
+  // o dia já andado. Dia sem movimento não gera email.
+  cron.schedule('0 21 * * *', async () => {
+    try {
+      await sendJourneyDailyDigest();
+    } catch (error) {
+      console.error('[newsletter-journey-cron] resumo diário:', error);
+    }
+  });
+
+  console.log(
+    '[newsletter-journey-cron] Agendado: welcome */5min, checkpoint de hora em hora, resumo diário 18h BRT'
+  );
 }

@@ -11,6 +11,7 @@ import {
   LEGACY_DEFAULT_OWNER_ID,
 } from '../lib/pipelines';
 import { NEWSLETTER_FROM } from './newsletterService';
+import { getNotificationConfig, sendQualifiedAlert } from './newsletterAlerts';
 
 // ─── Jornada da newsletter (fluxograma 08/2026) ─────────────────────────────
 //
@@ -134,42 +135,77 @@ export async function subscribeFromWebhook(payload: SubscribePayload) {
 
 // ─── Welcome email ───────────────────────────────────────────────────────────
 
+// Copy oficial do PDF "BGP · E-mail de boas-vindas" (Oliver, 06/08/2026).
+// Assunto (A) do documento; o (B) — "Bem-vindo ao Radar BGP" — fica de reserva.
+// O nome "Radar BGP" vale POR ORA só aqui: o assunto das edições segue
+// "BGP Insights" até o Oliver decidir o rebrand.
+export const WELCOME_SUBJECT = 'Você está dentro. Toda segunda, seu mercado vira caixa.';
+const WELCOME_PREHEADER = 'Antes da primeira edição, faz uma coisinha rápida por aqui.';
+
 function buildWelcomeHtml(firstName: string, email: string): string {
   const emailB64 = Buffer.from(email, 'utf-8').toString('base64url');
   const unsubUrl = `${TRACKING_BASE_URL}/unsubscribe/email/${emailB64}`;
-  const nome = firstName ? `, ${firstName}` : '';
+  const nome = firstName || 'tudo bem';
+  const p = 'font-size:15px;line-height:1.65;margin:0 0 14px;';
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f2f4f3;font-family:Arial,Helvetica,sans-serif;color:#1d2b30;">
+  <span style="display:none;font-size:1px;color:#f2f4f3;max-height:0;overflow:hidden;">${WELCOME_PREHEADER}</span>
   <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
     <div style="text-align:center;padding-bottom:24px;">
       <img src="https://messenger.bertuzzipatrimonial.com.br/brand/bgp-logo.png" alt="BGP" width="140" style="max-width:140px;">
     </div>
     <div style="background:#ffffff;border-radius:12px;padding:32px 28px;">
-      <p style="font-size:12px;letter-spacing:2px;color:#244C5A;margin:0 0 12px;text-transform:uppercase;">News BGP</p>
-      <h1 style="font-size:24px;line-height:1.3;margin:0 0 16px;color:#1d2b30;">Bem-vindo(a) à News BGP${nome}.</h1>
-      <p style="font-size:15px;line-height:1.6;margin:0 0 12px;">
-        Toda <strong>segunda-feira</strong>, você recebe no seu e-mail a inteligência financeira de quem
-        senta na mesa de decisão com mais de 500 empresas:
+      <p style="font-size:12px;letter-spacing:2px;color:#244C5A;margin:0 0 12px;text-transform:uppercase;">Radar BGP</p>
+      <h1 style="font-size:24px;line-height:1.3;margin:0 0 18px;color:#1d2b30;">Que bom te ver aqui, ${nome}.</h1>
+      <p style="${p}">
+        A partir de agora você faz parte do <strong>Radar BGP</strong> — e eu quero que a sua primeira
+        impressão já valha a pena.
       </p>
-      <ul style="font-size:15px;line-height:1.8;margin:0 0 16px;padding-left:20px;">
-        <li><strong>Radar do setor</strong> — o que se moveu no mercado e por que importa pra você;</li>
-        <li><strong>BGP Academy</strong> — conteúdo próprio, do orçamento ao dashboard financeiro;</li>
-        <li><strong>O indicador da semana</strong> — um número por edição, o que ele denuncia e o que fazer.</li>
-      </ul>
-      <p style="font-size:15px;line-height:1.6;margin:0 0 24px;">
-        Sem spam, sem feed infinito. Só o que muda uma decisão — e você sai em 1 clique quando quiser.
+      <p style="${p}">
+        A ideia é simples. Todo empresário é bombardeado de notícia: reforma tributária, tarifa lá fora,
+        juros, o IPO da vez. O problema é que quase ninguém traduz isso pra única pergunta que importa
+        pra quem toca uma empresa: <em>“e o que isso faz com o meu caixa?”</em>
       </p>
-      <div style="text-align:center;margin:0 0 8px;">
-        <a href="https://wa.me/5551992091726?text=${encodeURIComponent('Olá! Acabei de assinar a News BGP e quero falar com a BGP.')}"
-           style="display:inline-block;background:#244C5A;color:#ffffff;text-decoration:none;font-size:15px;padding:12px 28px;border-radius:999px;">
-          Falar com a BGP
-        </a>
-      </div>
+      <p style="${p}">
+        É exatamente isso que o Radar BGP faz. Toda segunda-feira, a gente pega um tema quente do momento
+        e transforma numa leitura curta, direta e aplicável — do jeito que a gente enxerga aqui dentro da
+        BGP, ajudando dono de empresa a decidir com número, e não no feeling.
+      </p>
+      <p style="${p}">
+        Sem encher sua caixa de entrada. Uma vez por semana, pra você começar a segunda enxergando o
+        negócio com mais clareza.
+      </p>
+      <p style="${p}">
+        <strong>Antes da primeira edição, me faz um favor rápido</strong> (leva 10 segundos e garante que
+        a gente não caia no spam):
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 18px;">
+        <tr>
+          <td style="background:#f2f4f3;border-left:3px solid #244C5A;border-radius:6px;padding:14px 16px;font-size:15px;line-height:1.6;">
+            <strong>1.</strong> Salva este e-mail nos seus contatos — assim o Radar chega direto na caixa
+            de entrada.
+          </td>
+        </tr>
+        <tr><td style="height:8px;line-height:8px;">&nbsp;</td></tr>
+        <tr>
+          <td style="background:#f2f4f3;border-left:3px solid #244C5A;border-radius:6px;padding:14px 16px;font-size:15px;line-height:1.6;">
+            <strong>2.</strong> Responde aqui com uma palavra: qual é hoje a sua maior dor no financeiro
+            da empresa? Caixa? Margem? Impostos? Previsibilidade? Eu leio todas — e isso ajuda a gente a
+            mirar o conteúdo no que realmente te importa.
+          </td>
+        </tr>
+      </table>
+      <p style="${p}">A primeira edição chega na próxima segunda. Nos vemos lá.</p>
+      <p style="${p}">Um abraço,<br><strong>Equipe BGP</strong></p>
+      <p style="font-size:13px;line-height:1.6;color:#5b6b70;margin:22px 0 0;border-top:1px solid #e5e9e8;padding-top:16px;">
+        <strong>P.S.</strong> — Aqui a gente fala de gestão financeira de empresa de verdade: caixa,
+        margem, imposto, decisão. Se é isso que te tira o sono, você está no lugar certo.
+      </p>
     </div>
     <p style="font-size:11px;color:#8a9694;text-align:center;line-height:1.6;margin:20px 0 0;">
-      Bertuzzi Gestão Patrimonial · Você recebe este e-mail porque assinou a News BGP.<br>
+      Bertuzzi Gestão Patrimonial · Você recebe este e-mail porque assinou o Radar BGP.<br>
       <a href="${unsubUrl}" style="color:#8a9694;">Descadastrar</a>
     </p>
   </div>
@@ -207,10 +243,13 @@ export async function processWelcomeDue(): Promise<number> {
       const contact = await prisma.contact.findUnique({ where: { id: sub.contactId } });
       const firstName = (contact?.name ?? '').trim().split(/\s+/)[0] ?? '';
 
+      // O welcome pede resposta ("qual é a sua maior dor no financeiro") — sem
+      // reply-to a resposta morre no insights@, que é remetente de disparo.
       const { error } = await resend.emails.send({
         from: NEWSLETTER_FROM,
         to: [sub.email],
-        subject: 'Bem-vindo(a) à News BGP — toda segunda, no seu e-mail',
+        replyTo: await getNotificationConfig('news_reply_to', 'oliver@bertuzzipatrimonial.com.br'),
+        subject: WELCOME_SUBJECT,
         html: buildWelcomeHtml(firstName, sub.email),
       });
 
@@ -385,17 +424,42 @@ async function onSubscriberQualified(
     campaign: tracking?.utmCampaign ?? null,
   });
 
+  const contact = await prisma.contact.findUnique({ where: { id: sub.contactId } });
+
+  // Alerta na hora pro comercial — 3-4 pts (exploratório) e 5-6 (direto).
+  const alertar = (dealId: string | null, responsavel: string | null) =>
+    sendQualifiedAlert({
+      nome: contact?.name ?? sub.email,
+      email: sub.email,
+      telefone: contact?.phone ?? null,
+      cargo: sub.cargo,
+      setor: sub.setor,
+      faturamento: sub.faturamento,
+      tipo,
+      pontos,
+      edicoes: sub.edicoesContadas,
+      viaCta,
+      dealId,
+      responsavel,
+    }).catch((err) => console.error('[newsletter-journey] alerta comercial falhou:', err));
+
   if (destino.motivo !== 'default') {
     // Sinal explícito de produto → handoff automático.
-    await handoffSubscriber(sub.id, destino.pipelineId, { tipo, pontos, viaCta });
+    const { dealId } = await handoffSubscriber(sub.id, destino.pipelineId, { tipo, pontos, viaCta });
+    const deal = await prisma.deal.findUnique({
+      where: { id: dealId },
+      select: { user: { select: { name: true } } },
+    });
+    await alertar(dealId, deal?.user?.name ?? null);
     return;
   }
+
+  await alertar(null, null);
 
   // Sem sinal: o time escolhe. Tarefa pro Oliver apontando pra aba Jornada.
   const motivo = viaCta
     ? 'clicou no CTA "Falar com a BGP"'
     : `${pontos} pts em ${CHECKPOINT_EDICOES} edições`;
-  const contact = await prisma.contact.findUnique({ where: { id: sub.contactId } });
   await prisma.task.create({
     data: {
       title: `News: ${contact?.name ?? sub.email} qualificou (${motivo}) — definir funil na aba Jornada`,

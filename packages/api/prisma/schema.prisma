@@ -939,6 +939,14 @@ model NewsletterConfig {
   lastRunAt     DateTime?
   lastRunStatus String? // ok | erro: <msg>
 
+  // Base engajada (decisão do Oliver 06/08): em vez de disparar pra marca
+  // inteira, o segmento é filtrado por quem interagiu (abriu/clicou) na janela
+  // + quem é cadastro novo demais pra ter tido chance (carência). Assinante da
+  // LP entra sempre — é opt-in explícito. Descadastro segue cortando tudo.
+  engagedOnly       Boolean @default(false)
+  engagedWindowDays Int     @default(90) // interagiu nos últimos N dias
+  graceWindowDays   Int     @default(90) // cadastrado há menos de N dias entra sem ter interagido
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -957,6 +965,7 @@ model NewsletterEvent {
 
   @@index([editionId, type])
   @@index([editionId, slot])
+  @@index([createdAt, email]) // quem interagiu na janela (base engajada)
 }
 
 // Jornada da newsletter (fluxograma 08/2026): inscrito pela LP vira contato +
