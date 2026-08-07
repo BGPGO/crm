@@ -8,8 +8,8 @@ import { dispatchWebhook } from '../services/webhookDispatcher';
 import { onStageChanged, onTagAdded, onTagRemoved } from '../services/automationTriggerListener';
 import { activateSdrIa, normalizePhone } from '../services/leadQualificationEngine';
 import { sendSaleNotifications } from '../services/saleNotificationService';
-import { scheduleMeetingReminders } from '../services/meetingReminderScheduler';
-import { scheduleWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
+import { scheduleMeetingReminders, cancelMeetingReminders } from '../services/meetingReminderScheduler';
+import { scheduleWabaMeetingReminders, cancelWabaMeetingReminders } from '../services/wa/meetingReminderWaba';
 import { interruptCadenceOnStageChange } from '../services/cadenceInterruptService';
 import { buildDueDatePersist } from '../utils/taskDateTime';
 import { exportRows, batchIterate, ExportColumn } from '../services/export/exporter';
@@ -1354,10 +1354,20 @@ router.post('/:id/no-show', async (req: Request, res: Response, next: NextFuncti
     }
 
     // Cancel active CalendlyEvents for this deal
+    const reunioesCanceladas = await prisma.calendlyEvent.findMany({
+      where: { dealId: existing.id, status: 'active' },
+      select: { id: true },
+    });
     await prisma.calendlyEvent.updateMany({
       where: { dealId: existing.id, status: 'active' },
       data: { status: 'canceled' },
     });
+    // Lembrete de reunião cancelada não pode continuar armado: a guarda no envio
+    // segura o WABA, mas o agendador legado não recheca o status no disparo.
+    for (const ev of reunioesCanceladas) {
+      await cancelMeetingReminders(ev.id).catch(() => {});
+      await cancelWabaMeetingReminders(ev.id).catch(() => {});
+    }
 
     res.json({ data: deal });
   } catch (err) {

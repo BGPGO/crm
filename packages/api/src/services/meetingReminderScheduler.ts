@@ -92,6 +92,22 @@ export async function scheduleMeetingReminders(meetingId: string): Promise<void>
 
     const timeout = setTimeout(async () => {
       try {
+        // `meeting` é do momento em que o timer foi criado — a reunião pode ter
+        // sido cancelada no meio do caminho. Sem esta checagem, cancelar manda
+        // lembrete assim mesmo (o caminho WABA tem a guarda equivalente).
+        const atual = await prisma.calendlyEvent.findUnique({
+          where: { id: meetingId },
+          select: { status: true },
+        });
+        if (atual?.status !== 'active') {
+          console.log(`[meeting-reminder] Meeting ${meetingId} não está mais ativo — lembrete cancelado`);
+          await prisma.scheduledFollowUp.updateMany({
+            where: { meetingId, stepNumber: step.minutesBefore, status: 'PENDING' },
+            data: { status: 'CANCELLED', cancelledAt: new Date() },
+          }).catch(() => {});
+          return;
+        }
+
         const client = await ZApiClient.fromConfig();
         const status = await client.getInstanceStatus();
         const state = status?.instance?.state?.toLowerCase() || '';

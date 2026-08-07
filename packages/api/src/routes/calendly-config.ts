@@ -63,6 +63,16 @@ async function rescheduleMeetingReminders(meetingId: string): Promise<void> {
   await scheduleWabaMeetingReminders(meetingId).catch(() => {});
 }
 
+/** Cancela os lembretes de uma reunião (Z-API legado + WABA). */
+async function cancelAllMeetingReminders(meetingId: string): Promise<void> {
+  const [{ cancelMeetingReminders }, { cancelWabaMeetingReminders }] = await Promise.all([
+    import('../services/meetingReminderScheduler'),
+    import('../services/wa/meetingReminderWaba'),
+  ]);
+  await cancelMeetingReminders(meetingId).catch(() => {});
+  await cancelWabaMeetingReminders(meetingId).catch(() => {});
+}
+
 /**
  * Reunião cancelada / no-show → negociação volta pra "Marcar reunião" do
  * próprio funil, com os mesmos efeitos do kanban (activity, webhook,
@@ -454,6 +464,16 @@ router.patch('/meetings/:id/status', async (req: Request, res: Response, next: N
           metadata: { meetingId: meeting.id, status },
         },
       });
+    }
+
+    // Reunião cancelada não pode seguir lembrando o lead. Só a guarda do envio
+    // segurava isso (o agendador legado nem recheca o status no disparo), e os
+    // lembretes ficavam PENDING pra sempre. Reativar volta a agendar — sem isso,
+    // reunião reativada ficaria sem lembrete nenhum.
+    if (status === 'canceled') {
+      await cancelAllMeetingReminders(meeting.id);
+    } else {
+      await rescheduleMeetingReminders(meeting.id);
     }
 
     // Cancelou → precisa remarcar: negociação volta pra "Marcar reunião"
