@@ -93,7 +93,11 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       dataInicio: overrides.dataInicio ? new Date(overrides.dataInicio) : new Date(),
       dataPrimeiraParcela: overrides.dataPrimeiraParcela ? new Date(overrides.dataPrimeiraParcela) : null,
       formaPagamento: overrides.formaPagamento || 'boleto',
-      valorImplementacao: overrides.valorImplementacao ? parseFloat(overrides.valorImplementacao) : null,
+      // Setup NÃO entra em deal.value (syncDealValue é só recorrência), então o valor de
+      // implantação vem do card quando o form não mandou nada — venda pontual precisa dele.
+      valorImplementacao: overrides.valorImplementacao
+        ? parseFloat(overrides.valorImplementacao)
+        : (sumSetupFromDeal(deal.products) || null),
       implementacaoParcelas: overrides.implementacaoParcelas ? parseInt(overrides.implementacaoParcelas) : null,
       descontoMeses: overrides.descontoMeses ? parseInt(overrides.descontoMeses) : null,
       descontoPercentual: overrides.descontoPercentual ? parseFloat(overrides.descontoPercentual) : null,
@@ -120,6 +124,14 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     next(err);
   }
 });
+
+// Soma o setup dos produtos do card (setupPrice × quantidade).
+function sumSetupFromDeal(products: Array<{ setupPrice?: unknown; quantity?: number | null }>): number {
+  return (products || []).reduce(
+    (sum, p) => sum + (Number(p.setupPrice) || 0) * (p.quantity || 1),
+    0
+  );
+}
 
 // Helper to map product display names to contract product keys
 function mapProductName(name: string): string {
@@ -305,6 +317,18 @@ router.post('/:id/send-autentique', async (req: Request, res: Response, next: Ne
     }
     if (!contract.representante) {
       return next(createError('Nome do representante é obrigatório para enviar para assinatura.', 400));
+    }
+
+    // Produto e preço são obrigatórios pra subir contrato — sem isso o que chega no
+    // FinHub/Conta Azul não tem o que foi vendido nem por quanto.
+    // Preço vale por recorrência OU por implantação (venda pontual só de setup é legítima).
+    if (!contract.produto || !String(contract.produto).trim()) {
+      return next(createError('Produto é obrigatório para enviar o contrato. Selecione o produto no contrato e confira o produto no card do deal.', 400));
+    }
+    const valorMensalNum = Number(contract.valorMensal) || 0;
+    const valorImplantacaoNum = Number(contract.valorImplementacao) || 0;
+    if (valorMensalNum <= 0 && valorImplantacaoNum <= 0) {
+      return next(createError('Preço é obrigatório para enviar o contrato: sem valor mensal e sem valor de implementação. Preencha o preço do produto no card do deal (mensalidade e/ou setup).', 400));
     }
 
     // Build signers — prefer signers sent from frontend (respects UI order + witness actions);

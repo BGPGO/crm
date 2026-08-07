@@ -233,6 +233,10 @@ function mapApiDeal(data: Record<string, unknown>): DealDetail {
         quantity: (d.quantity as number) ?? 1,
         unitPrice: (d.unitPrice as number) ?? 0,
         discount: (d.discount as number) ?? 0,
+        discountMonths: (d.discountMonths as number) ?? null,
+        setupPrice: (d.setupPrice as number) ?? null,
+        setupInstallments: (d.setupInstallments as number) ?? null,
+        recurrenceValue: (d.recurrenceValue as number) ?? null,
       };
     }),
     dealContacts: ((data.dealContacts as unknown[]) ?? []).map((dc: unknown) => {
@@ -2058,6 +2062,8 @@ export default function DealDetailPage({ params }: { params: { id: string } }) {
                     : null,
                   products: deal.dealProducts.map((dp) => ({
                     product: { name: dp.product.name },
+                    quantity: dp.quantity,
+                    setupPrice: dp.setupPrice ?? null,
                   })),
                 }}
               />

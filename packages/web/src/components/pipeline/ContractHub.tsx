@@ -29,7 +29,7 @@ interface ContractHubProps {
       address: string;
       email: string;
     } | null;
-    products?: Array<{ product: { name: string } }>;
+    products?: Array<{ product: { name: string }; quantity?: number; setupPrice?: number | null }>;
   };
 }
 

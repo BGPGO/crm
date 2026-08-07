@@ -367,6 +367,16 @@ export default function DistratoGenerator({ dealId, deal, witnesses }: DistratoG
   };
 
   const handleSendAutentique = async () => {
+    // Distrato pode ter valor pendente zero (quitação sem saldo), mas o campo tem de ser
+    // preenchido de propósito — em branco a cláusula 2 sai "R$ 0,00" por esquecimento.
+    if (!form.valorPendente?.trim()) {
+      showToast(
+        "error",
+        'Informe o valor pendente. Se não há saldo a pagar, preencha "R$ 0,00" explicitamente.'
+      );
+      return;
+    }
+
     if (!form.testemunha1Email && !form.testemunha2Email) {
       showToast("warning", "É necessário informar pelo menos o e-mail de uma testemunha.");
       return;

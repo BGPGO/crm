@@ -70,7 +70,7 @@ interface ContractGeneratorProps {
     value: number | null;
     contact?: { name: string; email: string; phone: string } | null;
     organization?: { name: string; cnpj: string; address: string; email: string } | null;
-    products?: Array<{ product: { name: string } }>;
+    products?: Array<{ product: { name: string }; quantity?: number; setupPrice?: number | null }>;
   };
 }
 
@@ -161,6 +161,31 @@ const DEFAULT_WITNESSES = [
   { name: "João Pedro Soares Lopes", cpf: "02455759016", email: "joao.lopes@bertuzzipatrimonial.com.br" },
 ];
 
+// Lê valor digitado/sincronizado em qualquer formato ("1500", "1500.00", "R$ 1.500,00").
+function parseValorBR(raw: string | number | null | undefined): number {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  const cleaned = (raw ?? '').toString().replace(/[^\d.,-]/g, '');
+  if (!cleaned) return 0;
+  let normalized: string;
+  if (cleaned.includes(',')) {
+    normalized = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    const dots = (cleaned.match(/\./g) || []).length;
+    normalized = dots > 1 ? cleaned.replace(/\./g, '') : cleaned;
+  }
+  const n = parseFloat(normalized);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Soma o setup dos produtos do card. O `deal.value` só carrega recorrência
+// (syncDealValue exclui setup de propósito), então venda pontual chega aqui com valor 0.
+function sumSetupFromDeal(
+  products?: Array<{ product: { name: string }; quantity?: number; setupPrice?: number | null }>
+): number {
+  if (!products?.length) return 0;
+  return products.reduce((sum, p) => sum + (Number(p.setupPrice) || 0) * (p.quantity || 1), 0);
+}
+
 function validateContractForm(form: ContractFormData): string[] {
   const errors: string[] = [];
 
@@ -231,6 +256,20 @@ function validateContractForm(form: ContractFormData): string[] {
     if (!form.estado?.trim()) errors.push('Estado (UF) é obrigatório (preenchido pelo CEP)');
   }
   if (!form.numeroEndereco?.trim()) errors.push('Número do endereço é obrigatório');
+
+  // Produto e preço — o contrato não pode subir sem o que foi vendido nem por quanto.
+  // Preço vale por recorrência OU por implantação: venda pontual (só setup) é legítima.
+  if (!form.produto?.trim()) {
+    errors.push('Produto é obrigatório. Selecione o produto do contrato (e confira o produto no card do deal).');
+  }
+  const mensal = parseValorBR(form.valorMensal);
+  const implantacao = parseValorBR(form.valorImplementacao);
+  if (mensal <= 0 && implantacao <= 0) {
+    errors.push(
+      'Preço é obrigatório: o contrato está sem valor mensal e sem valor de implementação. ' +
+      'Preencha o preço do produto no card do deal (mensalidade e/ou setup) — o valor mensal sincroniza de lá.'
+    );
+  }
 
   return errors;
 }
@@ -1255,6 +1294,10 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
         updates.produto = productName;
       }
     }
+    const setupDoCard = sumSetupFromDeal(deal.products);
+    if (setupDoCard > 0) {
+      updates.valorImplementacao = String(setupDoCard);
+    }
     updates.dataInicio = todayISO();
     setForm((prev) => ({ ...prev, ...updates }));
   }, [deal]);
@@ -1297,6 +1340,13 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
           setCustomPdfMeta(existing.customPdf ? { fileName: existing.customPdf.fileName, uploadedAt: existing.customPdf.uploadedAt } : null);
           const hasData = Object.keys(restored).some(k => (restored as any)[k]);
           if (hasData) {
+            // Rascunho antigo pode ter sido salvo antes do setup vir do card — preenche se estiver vazio.
+            if (s === 'draft' || s === 'DRAFT') {
+              const setupDoCard = sumSetupFromDeal(deal.products);
+              if (setupDoCard > 0 && !parseValorBR(restored.valorImplementacao)) {
+                restored.valorImplementacao = String(setupDoCard);
+              }
+            }
             setForm({ ...INITIAL_FORM, ...restored });
           } else {
             prefillFromDeal();
@@ -2200,11 +2250,14 @@ export default function ContractGenerator({ dealId, deal }: ContractGeneratorPro
               ))}
             </select>
           </FormField>
-          <FormField label="Valor de Implementação (R$)">
+          <FormField
+            label="Valor de Implementação (R$)"
+            hint="Vem do setup dos produtos do card quando existe, e pode ser ajustado aqui. Contrato só de implantação (sem mensalidade) é válido."
+          >
             <TextInput
               value={form.valorImplementacao}
               onChange={(v) => updateField("valorImplementacao", v)}
-              placeholder="0,00 (opcional)"
+              placeholder="0,00"
             />
           </FormField>
           <FormField label="Parcelas da Implementação">

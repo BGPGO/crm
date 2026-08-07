@@ -896,6 +896,20 @@ export default function AditivoGenerator({
   // ── Send to Autentique ───────────────────────────────────────────────────
 
   const handleSendAutentique = async () => {
+    // Aditivo sem item com valor não tem o que alterar no contrato — e sobe pro
+    // FinHub/Conta Azul sem preço. Vale acréscimo, redução ou setup.
+    const itensComValor = aditivoItems.filter(
+      (item) => parseCurrencyInput(item.valor) > 0
+    );
+    if (itensComValor.length === 0) {
+      setToast({
+        type: "error",
+        message:
+          "Adicione pelo menos um item com valor (acréscimo, redução ou setup) antes de enviar o aditivo.",
+      });
+      return;
+    }
+
     if (!form.testemunha1Email && !form.testemunha2Email) {
       setToast({
         type: "error",
