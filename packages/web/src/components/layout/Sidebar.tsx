@@ -43,7 +43,7 @@ import { useWabaUnreadCount } from "@/hooks/useWabaUnreadCount";
 
 const baseNavItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
-  { href: "/central", label: "Central", icon: CalendarCheck, restrictTo: "oliver@bertuzzipatrimonial.com.br" },
+  { href: "/central", label: "Central", icon: CalendarCheck },
   { href: "/pipeline", label: "Negociações", icon: Kanban },
   { href: "/organizations", label: "Empresas", icon: Building2 },
   { href: "/contacts", label: "Contatos", icon: Users },
