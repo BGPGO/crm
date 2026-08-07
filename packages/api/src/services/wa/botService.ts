@@ -25,7 +25,7 @@ import { WaMessageService } from './messageService';
 import { WindowService } from './windowService';
 import { WhatsAppCloudClient } from '../whatsappCloudClient';
 import { sanitizeGreetingName } from '../../utils/nameSanitizer';
-import { buildMeetingContext } from './meetingContext';
+import { buildMeetingContext, getUpcomingMeetingLinks } from './meetingContext';
 
 // ─── UTM Helper ─────────────────────────────────────────────────────────────
 
@@ -86,6 +86,10 @@ function fillTemplate(tpl: string, vars: Record<string, string>): string {
 const MEETING_INTENT_REGEX =
   /agend|reuni[aã]o|marcar\b|hor[aá]rio|diagn[oó]stico|vou te (mandar|enviar)|te (mando|envio)|link|bora combinar|vamos combinar/i;
 const URL_REGEX = /https?:\/\/[^\s),]+/;
+// Pedido de reagendamento vindo do LEAD (não da IA). Cobre o clique no botão
+// "Reagendar" dos templates, que chega como a palavra solta.
+const RESCHEDULE_INTENT_REGEX =
+  /reagend|remarc|outro hor[aá]rio|outro dia|mudar o hor[aá]rio|trocar o hor[aá]rio|adiar/i;
 const MEETING_BUTTON_REGEX =
   /reuni[ãa]o|agenda|calendly|marcar|horário|disponibilidade/i;
 
@@ -652,6 +656,15 @@ export class WaBotService {
       }
     }
 
+    // Lead com reunião marcada pedindo pra remarcar: manda o botão de REAGENDAR.
+    // Precisa vir antes do CTA de agendar — quem já tem reunião é bloqueado lá
+    // embaixo, e a URL que a IA escrever no texto é apagada antes do envio. Sem
+    // este bloco não existe caminho pelo qual o link de reagendar chegue ao lead.
+    if (await WaBotService.maybeSendRescheduleCta(conversationId, phone)) {
+      console.log(`[WaBot] Enviou ${parts.length} mensagem(ns) para ${phone}`);
+      return;
+    }
+
     // Detect meeting intent and send CTA URL button
     if (meetingLink && MEETING_INTENT_REGEX.test(aiReply)) {
       // Check if deal is already in a post-scheduling stage — do NOT send Calendly CTA
@@ -751,6 +764,86 @@ export class WaBotService {
     }
 
     console.log(`[WaBot] Enviou ${parts.length} mensagem(ns) para ${phone}`);
+  }
+
+  // ─── Reschedule CTA ──────────────────────────────────────────────────────
+
+  /**
+   * Manda o botão de REAGENDAR quando o lead pede e existe reunião ativa.
+   *
+   * O gatilho é a mensagem do LEAD (não a resposta da IA): o pedido costuma ser
+   * o clique no botão "Reagendar" do template, que chega como a palavra solta.
+   * O link vem do reschedule_url do Calendly, gravado pelo webhook em
+   * Activity.metadata do MESMO evento.
+   *
+   * @returns true se o pedido de reagendamento foi tratado (o CTA de agendar
+   *          não deve rodar em cima).
+   */
+  private static async maybeSendRescheduleCta(
+    conversationId: string,
+    phone: string,
+  ): Promise<boolean> {
+    const lastClientMsg = await prisma.waMessage.findFirst({
+      where: { conversationId, senderType: 'WA_CLIENT', direction: 'INBOUND' },
+      orderBy: { createdAt: 'desc' },
+      select: { body: true },
+    });
+    if (!lastClientMsg?.body || !RESCHEDULE_INTENT_REGEX.test(lastClientMsg.body)) return false;
+
+    const conv = await prisma.waConversation.findUnique({
+      where: { id: conversationId },
+      select: { contactId: true },
+    });
+    if (!conv?.contactId) return false;
+
+    // Sem reunião ativa → é remarcação de no-show, que exige agendamento NOVO
+    // (reschedule_url de evento passado não funciona): segue o fluxo normal.
+    const links = await getUpcomingMeetingLinks(conv.contactId);
+    if (!links?.rescheduleUrl) return false;
+
+    // Anti-loop: no máximo um botão por reunião a cada 10 min.
+    const marker = `[CTA_RESCHEDULE_SENT:${links.event.id}]`;
+    const recent = await prisma.waMessage.findFirst({
+      where: {
+        conversationId,
+        senderType: 'WA_BOT',
+        body: { contains: marker },
+        createdAt: { gt: new Date(Date.now() - 10 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+    if (recent) {
+      console.log(`[WaBot] Botão de reagendar já enviado há menos de 10min para ${phone}`);
+      return true;
+    }
+
+    await delay(2000);
+    try {
+      const client = await WhatsAppCloudClient.fromDB();
+      await client.sendCtaUrl(
+        phone,
+        'Clique abaixo pra escolher um novo horário:',
+        'Reagendar',
+        links.rescheduleUrl,
+      );
+      await prisma.waMessage.create({
+        data: {
+          direction: 'OUTBOUND',
+          senderType: 'WA_BOT',
+          type: 'INTERACTIVE_BUTTONS',
+          body: marker,
+          status: 'WA_SENT',
+          conversationId,
+        },
+      });
+      console.log(`[WaBot] CTA de reagendar enviado para ${phone} (reunião ${links.event.id})`);
+    } catch (ctaErr) {
+      console.warn('[WaBot] Falha no CTA de reagendar, enviando link como texto:', ctaErr);
+      await WaMessageService.sendText(conversationId, links.rescheduleUrl, {
+        senderType: 'WA_BOT',
+      });
+    }
+    return true;
   }
 
   // ─── Ensure Meeting Link ─────────────────────────────────────────────────
